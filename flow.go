@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/zond/godip"
-	"github.com/zond/godip/variants/classical"
+	"github.com/zond/godip/variants/common"
 )
 
 // tokenBytes is the entropy per token. The contract requires at least 16.
@@ -48,8 +48,9 @@ func newGameID() (string, error) {
 
 // settings are the game rules the GM fixes before inviting (D-022).
 type settings struct {
-	DeadlineMinutes int  `json:"deadlineMinutes"`
-	GMPlays         bool `json:"gmPlays"`
+	DeadlineMinutes int    `json:"deadlineMinutes"`
+	GMPlays         bool   `json:"gmPlays"`
+	Variant         string `json:"variant"`
 }
 
 // seat is one power in one game together with its claim state.
@@ -79,6 +80,10 @@ type flow struct {
 	byDevice    map[string]godip.Nation
 	gmPower     godip.Nation // empty until start, and always empty when !gmPlays
 
+	// powers are this variant's powers, in a stable order. The seat count
+	// follows the variant, so nothing here assumes seven.
+	powers []godip.Nation
+
 	// phaseIndex counts completed adjudications. It keys the stored order
 	// history that replay() feeds back into godip.
 	phaseIndex int
@@ -89,7 +94,7 @@ type flow struct {
 	persistedEvents int
 }
 
-func newFlow(s settings) (*flow, error) {
+func newFlow(s settings, v common.Variant) (*flow, error) {
 	gmToken, err := newToken()
 	if err != nil {
 		return nil, err
@@ -103,11 +108,12 @@ func newFlow(s settings) (*flow, error) {
 		inviteToken: inviteToken,
 		settings:    s,
 		createdAt:   time.Now().UTC(),
+		powers:      sortedNations(v),
 		seats:       map[godip.Nation]*seat{},
 		bySeatToken: map[string]godip.Nation{},
 		byDevice:    map[string]godip.Nation{},
 	}
-	for _, power := range classical.Nations {
+	for _, power := range f.powers {
 		f.seats[power] = &seat{power: power}
 	}
 	return f, nil
@@ -120,27 +126,13 @@ func (self *flow) logEvent(id, format string, args ...interface{}) {
 	log.Printf("game %v: %v", id, line)
 }
 
-// powers returns the powers in a stable order.
-func powers() []godip.Nation {
-	out := make([]godip.Nation, len(classical.Nations))
-	copy(out, classical.Nations)
-	for i := 0; i < len(out); i++ {
-		for j := i + 1; j < len(out); j++ {
-			if out[j] < out[i] {
-				out[i], out[j] = out[j], out[i]
-			}
-		}
-	}
-	return out
-}
-
 // joinerSeats is how many powers the invite may hand out. When the GM
 // plays, one power stays behind as the leftover (D-021).
 func (self *flow) joinerSeats() int {
 	if self.settings.GMPlays {
-		return len(classical.Nations) - 1
+		return len(self.powers) - 1
 	}
-	return len(classical.Nations)
+	return len(self.powers)
 }
 
 func (self *flow) joinedCount() int {
@@ -176,7 +168,7 @@ func (self *flow) activeSeats() int {
 
 func (self *flow) finalizedMap() map[string]bool {
 	out := map[string]bool{}
-	for _, p := range powers() {
+	for _, p := range self.powers {
 		out[string(p)] = self.seats[p].finalized
 	}
 	return out
@@ -205,7 +197,7 @@ func (self *flow) canForce() bool {
 // unassignedPowers lists the powers the invite may still hand out.
 func (self *flow) unassignedPowers() []godip.Nation {
 	out := []godip.Nation{}
-	for _, p := range powers() {
+	for _, p := range self.powers {
 		if self.seats[p].token == "" {
 			out = append(out, p)
 		}
@@ -266,6 +258,7 @@ type settingsEnvelope struct {
 	Settings        *settings `json:"settings"`
 	DeadlineMinutes *int      `json:"deadlineMinutes"`
 	GMPlays         *bool     `json:"gmPlays"`
+	Variant         *string   `json:"variant"`
 }
 
 // merge applies the envelope on top of the given settings.
@@ -279,8 +272,14 @@ func (self settingsEnvelope) merge(base settings) settings {
 	if self.GMPlays != nil {
 		base.GMPlays = *self.GMPlays
 	}
+	if self.Variant != nil {
+		base.Variant = *self.Variant
+	}
 	if base.DeadlineMinutes < 0 {
 		base.DeadlineMinutes = 0
+	}
+	if base.Variant == "" {
+		base.Variant = defaultVariant
 	}
 	return base
 }
@@ -299,10 +298,11 @@ func decodeSettings(r *http.Request, base settings) (settings, error) {
 // ---------------------------------------------------------------- creation
 
 type createResponse struct {
-	GameID    string `json:"gameId"`
-	GMToken   string `json:"gmToken"`
-	InviteURL string `json:"inviteUrl"`
-	GMURL     string `json:"gmUrl"`
+	GameID    string         `json:"gameId"`
+	GMToken   string         `json:"gmToken"`
+	InviteURL string         `json:"inviteUrl"`
+	GMURL     string         `json:"gmUrl"`
+	Variant   variantRefJSON `json:"variant"`
 }
 
 func handleCreateGame(w http.ResponseWriter, r *http.Request) {
@@ -310,23 +310,32 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
-	s, err := decodeSettings(r, settings{DeadlineMinutes: 0, GMPlays: false})
+	s, err := decodeSettings(r, settings{DeadlineMinutes: 0, GMPlays: false, Variant: defaultVariant})
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
-	f, err := newFlow(s)
+	v, found := lookupVariant(s.Variant)
+	if !found {
+		writeErr(w, http.StatusBadRequest, "unknown variant %q", s.Variant)
+		return
+	}
+	f, err := newFlow(s, v)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
 		return
 	}
-	g, id, err := games.create(f)
+	g, id, err := games.create(s.Variant, v, f)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "create game: %v", err)
 		return
 	}
 	g.mu.Lock()
-	f.logEvent(id, "game created, deadlineMinutes=%v gmPlays=%v", s.DeadlineMinutes, s.GMPlays)
+	f.logEvent(id, "game created on %v, deadlineMinutes=%v gmPlays=%v",
+		v.Name, s.DeadlineMinutes, s.GMPlays)
+	if !supportedVariants[s.Variant] {
+		f.logEvent(id, "%v is experimental — unit placement on the map is not verified", v.Name)
+	}
 	g.persist(id)
 	g.mu.Unlock()
 
@@ -335,6 +344,7 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		GMToken:   f.gmToken,
 		InviteURL: inviteURL(r, id, f.inviteToken),
 		GMURL:     gmURL(r, id, f.gmToken),
+		Variant:   g.variantRef(),
 	})
 }
 
@@ -432,20 +442,23 @@ type gmSeatJSON struct {
 }
 
 type gmStateJSON struct {
-	GameID          string       `json:"gameId"`
-	Settings        settings     `json:"settings"`
-	SettingsVersion int          `json:"settingsVersion"`
-	Started         bool         `json:"started"`
-	Phase           phaseJSON    `json:"phase"`
-	Seats           []gmSeatJSON `json:"seats"`
-	JoinedCount     int          `json:"joinedCount"`
-	TotalSeats      int          `json:"totalSeats"`
-	GMPower         *string      `json:"gmPower"`
-	InviteURL       string       `json:"inviteUrl"`
-	DeadlineAt      interface{}  `json:"deadlineAt"`
-	CanForce        bool         `json:"canForce"`
-	GMSeatURL       *string      `json:"gmSeatUrl"`
-	Events          []string     `json:"events"`
+	GameID          string              `json:"gameId"`
+	Settings        settings            `json:"settings"`
+	SettingsVersion int                 `json:"settingsVersion"`
+	Started         bool                `json:"started"`
+	Phase           phaseJSON           `json:"phase"`
+	Seats           []gmSeatJSON        `json:"seats"`
+	JoinedCount     int                 `json:"joinedCount"`
+	TotalSeats      int                 `json:"totalSeats"`
+	GMPower         *string             `json:"gmPower"`
+	InviteURL       string              `json:"inviteUrl"`
+	DeadlineAt      interface{}         `json:"deadlineAt"`
+	CanForce        bool                `json:"canForce"`
+	GMSeatURL       *string             `json:"gmSeatUrl"`
+	Events          []string            `json:"events"`
+	Variant         variantRefJSON      `json:"variant"`
+	ProvinceNames   map[string]string   `json:"provinceNames"`
+	Dislodged       map[string]unitJSON `json:"dislodged"`
 }
 
 // gmState renders the GM view. The caller must hold g.mu. It contains
@@ -462,14 +475,17 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 			Year:   self.state.Phase().Year(),
 			Type:   string(self.state.Phase().Type()),
 		},
-		JoinedCount: f.joinedCount(),
-		TotalSeats:  f.joinerSeats(),
-		InviteURL:   inviteURL(r, id, f.inviteToken),
-		DeadlineAt:  rfc3339(f.deadlineAt),
-		CanForce:    f.canForce(),
-		Events:      f.events,
+		JoinedCount:   f.joinedCount(),
+		TotalSeats:    f.joinerSeats(),
+		InviteURL:     inviteURL(r, id, f.inviteToken),
+		DeadlineAt:    rfc3339(f.deadlineAt),
+		CanForce:      f.canForce(),
+		Events:        f.events,
+		Variant:       self.variantRef(),
+		ProvinceNames: self.provinceNames(),
+		Dislodged:     self.dislodgedMap(),
 	}
-	for _, p := range powers() {
+	for _, p := range f.powers {
 		s := f.seats[p]
 		out.Seats = append(out.Seats, gmSeatJSON{
 			Power:     string(p),
@@ -512,6 +528,10 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	}
 	if f.started && neu.GMPlays != old.GMPlays {
 		writeErr(w, http.StatusConflict, "gmPlays cannot change after the game has started")
+		return
+	}
+	if neu.Variant != old.Variant {
+		writeErr(w, http.StatusConflict, "the variant is fixed when the game is created")
 		return
 	}
 	if neu == old {
@@ -635,15 +655,18 @@ func handleGMExtend(g *game, id string, w http.ResponseWriter, r *http.Request) 
 // ------------------------------------------------------------------ public
 
 type publicStateJSON struct {
-	GameID          string          `json:"gameId"`
-	Phase           phaseJSON       `json:"phase"`
-	Started         bool            `json:"started"`
-	JoinedCount     int             `json:"joinedCount"`
-	TotalSeats      int             `json:"totalSeats"`
-	Finalized       map[string]bool `json:"finalized"`
-	Settings        settings        `json:"settings"`
-	SettingsVersion int             `json:"settingsVersion"`
-	DeadlineAt      interface{}     `json:"deadlineAt"`
+	GameID          string              `json:"gameId"`
+	Phase           phaseJSON           `json:"phase"`
+	Started         bool                `json:"started"`
+	JoinedCount     int                 `json:"joinedCount"`
+	TotalSeats      int                 `json:"totalSeats"`
+	Finalized       map[string]bool     `json:"finalized"`
+	Settings        settings            `json:"settings"`
+	SettingsVersion int                 `json:"settingsVersion"`
+	DeadlineAt      interface{}         `json:"deadlineAt"`
+	Variant         variantRefJSON      `json:"variant"`
+	ProvinceNames   map[string]string   `json:"provinceNames"`
+	Dislodged       map[string]unitJSON `json:"dislodged"`
 }
 
 func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
@@ -664,6 +687,9 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 		Settings:        f.settings,
 		SettingsVersion: f.settingsVersion,
 		DeadlineAt:      rfc3339(f.deadlineAt),
+		Variant:         g.variantRef(),
+		ProvinceNames:   g.provinceNames(),
+		Dislodged:       g.dislodgedMap(),
 	})
 }
 
@@ -686,6 +712,8 @@ type seatStateJSON struct {
 	TotalSeats       int               `json:"totalSeats"`
 	PhaseResolutions map[string]string `json:"phaseResolutions"`
 	CanForce         bool              `json:"canForce"`
+	Variant          variantRefJSON    `json:"variant"`
+	ProvinceNames    map[string]string `json:"provinceNames"`
 }
 
 // seatState renders the board for one seat. The caller must hold g.mu.
@@ -720,6 +748,8 @@ func (self *game) seatState(id string, power godip.Nation) seatStateJSON {
 		TotalSeats:       f.activeSeats(),
 		PhaseResolutions: base.Resolutions,
 		CanForce:         f.canForce(),
+		Variant:          self.variantRef(),
+		ProvinceNames:    self.provinceNames(),
 	}
 }
 
@@ -852,7 +882,7 @@ func (self *game) adjudicate(id string, dropUnfinalized bool) error {
 	f := self.flow
 
 	if dropUnfinalized {
-		for _, p := range powers() {
+		for _, p := range f.powers {
 			s := f.seats[p]
 			if s.token == "" || s.finalized {
 				continue

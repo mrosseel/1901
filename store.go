@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/zond/godip"
+	"github.com/zond/godip/variants/common"
 
 	_ "modernc.org/sqlite"
 )
@@ -44,7 +45,8 @@ CREATE TABLE IF NOT EXISTS game (
     deadline_at      TEXT,
     gm_power         TEXT    NOT NULL DEFAULT '',
     phase_index      INTEGER NOT NULL DEFAULT 0,
-    created_at       TEXT    NOT NULL
+    created_at       TEXT    NOT NULL,
+    variant          TEXT    NOT NULL DEFAULT 'classical'
 );
 
 CREATE TABLE IF NOT EXISTS seat (
@@ -91,7 +93,45 @@ func openDB(path string) (*sql.DB, error) {
 		handle.Close()
 		return nil, err
 	}
+	if err := migrate(handle); err != nil {
+		handle.Close()
+		return nil, err
+	}
 	return handle, nil
+}
+
+// migrate adds columns that older databases lack. A game row written
+// before variants existed is a classical game.
+func migrate(handle *sql.DB) error {
+	rows, err := handle.Query(`PRAGMA table_info(game)`)
+	if err != nil {
+		return err
+	}
+	found := false
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notNull, pk int
+		var deflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notNull, &deflt, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		if name == "variant" {
+			found = true
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if found {
+		return nil
+	}
+	log.Printf("migrating: adding game.variant, defaulting existing games to %v", defaultVariant)
+	_, err = handle.Exec(
+		`ALTER TABLE game ADD COLUMN variant TEXT NOT NULL DEFAULT '` + defaultVariant + `'`)
+	return err
 }
 
 // persist writes the whole game — its settings, seats, current-phase
@@ -123,8 +163,8 @@ func (self *game) persistErr(id string) error {
 	_, err = tx.Exec(`
         INSERT INTO game (id, gm_token, invite_token, deadline_minutes, gm_plays,
                           settings_version, started, deadline_at, gm_power,
-                          phase_index, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          phase_index, created_at, variant)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             deadline_minutes = excluded.deadline_minutes,
             gm_plays         = excluded.gm_plays,
@@ -135,12 +175,12 @@ func (self *game) persistErr(id string) error {
             phase_index      = excluded.phase_index`,
 		id, f.gmToken, f.inviteToken, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
-		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano))
+		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
 
-	for _, p := range powers() {
+	for _, p := range f.powers {
 		s := f.seats[p]
 		_, err = tx.Exec(`
             INSERT INTO seat (game_id, power, seat_token, device, is_gm, finalized)
@@ -195,15 +235,17 @@ func loadAll() error {
 	}
 	rows, err := db.Query(`
         SELECT id, gm_token, invite_token, deadline_minutes, gm_plays,
-               settings_version, started, deadline_at, gm_power, phase_index, created_at
-        FROM game`)
+               settings_version, started, deadline_at, gm_power, phase_index,
+               created_at, COALESCE(variant, ?)
+        FROM game`, defaultVariant)
 	if err != nil {
 		return err
 	}
 	type row struct {
-		id         string
-		f          *flow
-		phaseIndex int
+		id      string
+		f       *flow
+		key     string
+		variant common.Variant
 	}
 	loaded := []row{}
 	for rows.Next() {
@@ -212,15 +254,22 @@ func loadAll() error {
 			bySeatToken: map[string]godip.Nation{},
 			byDevice:    map[string]godip.Nation{},
 		}
-		var id, gmPower, createdAt string
+		var id, gmPower, createdAt, key string
 		var deadline sql.NullString
 		var phaseIndex int
 		if err := rows.Scan(&id, &f.gmToken, &f.inviteToken, &f.settings.DeadlineMinutes,
 			&f.settings.GMPlays, &f.settingsVersion, &f.started, &deadline, &gmPower,
-			&phaseIndex, &createdAt); err != nil {
+			&phaseIndex, &createdAt, &key); err != nil {
 			rows.Close()
 			return err
 		}
+		v, found := lookupVariant(key)
+		if !found {
+			rows.Close()
+			return fmt.Errorf("game %v names unknown variant %q", id, key)
+		}
+		f.settings.Variant = key
+		f.powers = sortedNations(v)
 		if deadline.Valid {
 			at, err := time.Parse(time.RFC3339Nano, deadline.String)
 			if err == nil {
@@ -232,7 +281,7 @@ func loadAll() error {
 		}
 		f.gmPower = godip.Nation(gmPower)
 		f.phaseIndex = phaseIndex
-		loaded = append(loaded, row{id: id, f: f, phaseIndex: phaseIndex})
+		loaded = append(loaded, row{id: id, f: f, key: key, variant: v})
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -240,7 +289,7 @@ func loadAll() error {
 	}
 
 	for _, entry := range loaded {
-		g, err := restore(entry.id, entry.f)
+		g, err := restore(entry.id, entry.key, entry.variant, entry.f)
 		if err != nil {
 			return fmt.Errorf("game %v: %v", entry.id, err)
 		}
@@ -260,8 +309,8 @@ type storedOrder struct {
 }
 
 // restore rebuilds one game: seats, events, and the board.
-func restore(id string, f *flow) (*game, error) {
-	for _, p := range powers() {
+func restore(id, key string, v common.Variant, f *flow) (*game, error) {
+	for _, p := range f.powers {
 		f.seats[p] = &seat{power: p}
 	}
 	rows, err := db.Query(
@@ -316,7 +365,7 @@ func restore(id string, f *flow) (*game, error) {
 		return nil, err
 	}
 
-	g, err := newGame()
+	g, err := newGame(key, v)
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +404,7 @@ func loadOrders(id string) (map[int][]storedOrder, error) {
 	return out, rows.Err()
 }
 
-// replay rebuilds the board from the classical start by re-entering every
+// replay rebuilds the board from the variant's start position by re-entering every
 // applied order and adjudicating, phase by phase, then re-entering the
 // current phase's drafts.
 //

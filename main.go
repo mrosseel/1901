@@ -1,4 +1,4 @@
-// Command 1901 serves in-memory classical Diplomacy games.
+// Command 1901 serves in-memory Diplomacy games.
 //
 // A game is created with POST /games and is then reachable through its GM
 // token, its one shared invite, and one token per seat. The React frontend
@@ -21,7 +21,7 @@ import (
 
 	"github.com/zond/godip"
 	"github.com/zond/godip/state"
-	"github.com/zond/godip/variants/classical"
+	"github.com/zond/godip/variants/common"
 )
 
 // defaultAddr can be overridden with the ADDR environment variable, e.g.
@@ -46,17 +46,23 @@ type game struct {
 	owner map[godip.Province]godip.Nation
 	// flow carries the GM, seat, and phase state.
 	flow *flow
+	// variant is the godip variant this game is played on. Every engine
+	// call goes through it; nothing here is classical-specific.
+	variant    common.Variant
+	variantKey string
 }
 
-func newGame() (*game, error) {
-	s, err := classical.Start()
+func newGame(key string, v common.Variant) (*game, error) {
+	s, err := v.Start()
 	if err != nil {
 		return nil, err
 	}
 	return &game{
-		state: s,
-		parts: map[godip.Province][]string{},
-		owner: map[godip.Province]godip.Nation{},
+		state:      s,
+		parts:      map[godip.Province][]string{},
+		owner:      map[godip.Province]godip.Nation{},
+		variant:    v,
+		variantKey: key,
 	}, nil
 }
 
@@ -87,7 +93,7 @@ func (self *game) setOrder(prov godip.Province, rawParts []string) error {
 		parts = append([]string{parts[0]}, parts[2:]...)
 	}
 	bits := append([]string{string(prov)}, parts...)
-	order, err := classical.Parser.Parse(bits)
+	order, err := self.variant.Parser.Parse(bits)
 	if err != nil {
 		return fmt.Errorf("cannot parse %v: %v", bits, err)
 	}
@@ -132,8 +138,8 @@ func (self *registry) lookup(id string) (*game, bool) {
 }
 
 // create registers a new game under a fresh random id.
-func (self *registry) create(f *flow) (*game, string, error) {
-	g, err := newGame()
+func (self *registry) create(key string, v common.Variant, f *flow) (*game, string, error) {
+	g, err := newGame(key, v)
 	if err != nil {
 		return nil, "", err
 	}
@@ -170,6 +176,7 @@ type stateJSON struct {
 	GameID        string              `json:"gameId"`
 	Phase         phaseJSON           `json:"phase"`
 	Units         map[string]unitJSON `json:"units"`
+	Dislodged     map[string]unitJSON `json:"dislodged"`
 	Orders        map[string]string   `json:"orders"`
 	OrderParts    map[string][]string `json:"orderParts"`
 	Resolutions   map[string]string   `json:"resolutions"`
@@ -189,6 +196,7 @@ func (self *game) snapshot(id string) stateJSON {
 			Type:   string(s.Phase().Type()),
 		},
 		Units:         map[string]unitJSON{},
+		Dislodged:     map[string]unitJSON{},
 		Orders:        map[string]string{},
 		OrderParts:    map[string][]string{},
 		Resolutions:   map[string]string{},
@@ -196,6 +204,14 @@ func (self *game) snapshot(id string) stateJSON {
 	}
 	for prov, unit := range s.Units() {
 		out.Units[string(prov)] = unitJSON{
+			Type:   string(unit.Type),
+			Nation: string(unit.Nation),
+		}
+	}
+	// Dislodgement is public knowledge: everyone at the table sees which
+	// unit was pushed out and has to retreat.
+	for prov, unit := range s.Dislodgeds() {
+		out.Dislodged[string(prov)] = unitJSON{
 			Type:   string(unit.Type),
 			Nation: string(unit.Nation),
 		}
@@ -214,34 +230,60 @@ func (self *game) snapshot(id string) stateJSON {
 	for prov, nation := range s.SupplyCenters() {
 		out.SupplyCenters[string(prov)] = string(nation)
 	}
-	for _, nation := range classical.Nations {
+	for _, nation := range self.variant.Nations {
 		out.Nations = append(out.Nations, string(nation))
 	}
 	sort.Strings(out.Nations)
 	return out
 }
 
+// dislodgedMap renders the dislodged units for the views that carry no
+// full board snapshot.
+func (self *game) dislodgedMap() map[string]unitJSON {
+	out := map[string]unitJSON{}
+	for prov, unit := range self.state.Dislodgeds() {
+		out[string(prov)] = unitJSON{
+			Type:   string(unit.Type),
+			Nation: string(unit.Nation),
+		}
+	}
+	return out
+}
+
 // describe builds a human-readable order string such as "Army Vienna Move Trieste".
 func (self *game) describe(prov godip.Province, bits []string) string {
 	words := []string{}
-	if unit, _, ok := self.state.Unit(prov); ok {
+	if unit, ok := self.orderableUnit(prov); ok {
 		words = append(words, string(unit.Type))
 	}
-	words = append(words, longName(prov))
+	words = append(words, self.longName(prov))
 	for _, bit := range bits {
-		words = append(words, longName(godip.Province(bit)))
+		words = append(words, self.longName(godip.Province(bit)))
 	}
 	return strings.Join(words, " ")
 }
 
-// longName maps a province abbreviation to its long name, and leaves
-// anything else (order types, unit types) untouched.
-func longName(p godip.Province) string {
-	if name, found := classical.ClassicalVariant.ProvinceLongNames[p]; found {
+// orderableUnit returns the unit whose orders belong to this province. In
+// a retreat phase that is the dislodged unit, not whoever took the space.
+func (self *game) orderableUnit(prov godip.Province) (godip.Unit, bool) {
+	if self.state.Phase().Type() == godip.Retreat {
+		if unit, _, ok := self.state.Dislodged(prov); ok {
+			return unit, true
+		}
+	}
+	unit, _, ok := self.state.Unit(prov)
+	return unit, ok
+}
+
+// longName maps a province abbreviation to its long name in this game's
+// variant, and leaves anything else (order types, unit types) untouched.
+func (self *game) longName(p godip.Province) string {
+	names := self.variant.ProvinceLongNames
+	if name, found := names[p]; found {
 		return name
 	}
 	sup, sub := p.Split()
-	if name, found := classical.ClassicalVariant.ProvinceLongNames[sup]; found && sub != "" {
+	if name, found := names[sup]; found && sub != "" {
 		return fmt.Sprintf("%v (%v)", name, sub)
 	}
 	return string(p)
@@ -259,10 +301,10 @@ func writeErr(w http.ResponseWriter, code int, format string, args ...interface{
 	writeJSON(w, code, map[string]string{"error": fmt.Sprintf(format, args...)})
 }
 
-// handleMap serves the classical map. It is board art, the same for every
-// game, and carries no game state.
+// handleMap serves this game's variant map. It is board art, the same for
+// every game on that variant, and carries no game state.
 func handleMap(g *game, id string, w http.ResponseWriter, r *http.Request) {
-	b, err := classical.ClassicalVariant.SVGMap()
+	b, err := g.variant.SVGMap()
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "svg map: %v", err)
 		return
@@ -271,8 +313,16 @@ func handleMap(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
-// nationFor finds the nation that may order the given province.
+// nationFor finds the nation that may order the given province. During a
+// retreat phase the dislodged unit is the one with orders to give, and it
+// may share the province with the unit that pushed it out — so it is
+// checked first.
 func nationFor(s *state.State, prov godip.Province) (godip.Nation, bool) {
+	if s.Phase().Type() == godip.Retreat {
+		if unit, _, ok := s.Dislodged(prov); ok {
+			return unit.Nation, true
+		}
+	}
 	if unit, _, ok := s.Unit(prov); ok {
 		return unit.Nation, true
 	}
@@ -369,6 +419,8 @@ func main() {
 	mux.HandleFunc("/assets/", srv.serveSPAAsset)
 	mux.HandleFunc("/new", srv.serveSPA)
 	mux.HandleFunc("/games", handleCreateGame)
+	mux.HandleFunc("/variants", handleVariants)
+	mux.HandleFunc("/variants/", handleVariantMap)
 	mux.HandleFunc("/game/", srv.serveFlow)
 	mux.HandleFunc("/join/", srv.serveJoinPage)
 
