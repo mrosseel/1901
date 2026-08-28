@@ -1,0 +1,1262 @@
+/*
+The map island.
+
+Everything that touches the SVG is here, in plain TypeScript with no React:
+map injection, pan and zoom, the unit and order overlays, province highlights,
+and the tap grammar that turns taps into orders. React mounts it once, feeds it
+state, and draws the panels around it (D-017).
+
+The board is driven through a small interface — mount(), update(), destroy() —
+and reports back through callbacks: the hint line, the order builder to draw,
+the state that came back from an order post, and which order is singled out.
+*/
+
+import {
+  POWER_COLORS,
+  baseProvince,
+  describeOrder,
+  provinceName,
+  unitLabel,
+} from "./provinces";
+import type {
+  BoardApi,
+  BoardCallbacks,
+  BoardHandle,
+  BoardState,
+  OptionNode,
+  OptionTree,
+  Unit,
+} from "./types";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const MAX_ZOOM = 8;
+const NARROW_PX = 780;
+const SHORT_PX = 500;
+const TAP_SLOP_PX = 8;
+// How long a finished gesture keeps the click it produced from landing.
+const CLICK_BLOCK_MS = 250;
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+interface Builder {
+  province: string;
+  node: OptionTree;
+  parts: string[];
+  labels: string[];
+  moveNode: OptionTree | null;
+  supportNode: OptionTree | null;
+  support: { src: string; dests: OptionTree } | null;
+}
+
+export function mount(
+  host: HTMLElement,
+  api: BoardApi,
+  callbacks: BoardCallbacks,
+): BoardHandle {
+  // Anchor points of every province, keyed by abbreviation ("vie", "stp/sc").
+  const centers = new Map<string, Point>();
+  const unbind: Array<() => void> = [];
+
+  let svgRoot: SVGSVGElement | null = null;
+  let state: BoardState | null = null;
+  let builder: Builder | null = null;
+  let selectedOrder: string | null = null;
+  let orderEpoch = 0;
+  let menu: HTMLDivElement | null = null;
+  let destroyed = false;
+
+  // baseBox is the map's own viewBox; view is the part on screen.
+  let baseBox: Box = { x: 0, y: 0, w: 1524, h: 1357 };
+  let view: Box | null = null;
+
+  function listen(
+    target: EventTarget,
+    type: string,
+    handler: EventListenerOrEventListenerObject,
+    options?: AddEventListenerOptions,
+  ): void {
+    target.addEventListener(type, handler, options);
+    unbind.push(() => target.removeEventListener(type, handler, options));
+  }
+
+  function setStatus(text: string, isError?: boolean): void {
+    callbacks.status(text, Boolean(isError));
+  }
+
+  function reportError(err: unknown): void {
+    const message = err instanceof Error ? err.message : String(err);
+    setStatus(message, true);
+  }
+
+  // --- Map ----------------------------------------------------------------
+
+  function injectMap(svgText: string): void {
+    const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+    if (doc.querySelector("parsererror")) throw new Error("the map did not parse");
+    svgRoot = document.importNode(doc.documentElement, true) as unknown as SVGSVGElement;
+    svgRoot.setAttribute("width", "100%");
+    svgRoot.setAttribute("height", "100%");
+    svgRoot.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+    const box = (svgRoot.getAttribute("viewBox") || "0 0 1524 1357")
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
+    baseBox = { x: box[0], y: box[1], w: box[2], h: box[3] };
+    view = null;
+
+    host.replaceChildren(svgRoot);
+  }
+
+  /*
+  Reads the anchor of every "<abbr>Center" path. The rendered bounding box is
+  the true middle of the anchor glyph, so it is preferred; the "m X,Y" start of
+  the path data is the fallback. The center layers ship with display:none, which
+  zeroes getBBox, so they are briefly switched to visibility:hidden.
+  */
+  function readCenters(): void {
+    if (!svgRoot) return;
+    const nodes = svgRoot.querySelectorAll<SVGGraphicsElement>('[id$="Center"]');
+    const layers = svgRoot.querySelectorAll("#supply-centers, #province-centers");
+    const saved: Array<[Element, string | null]> = [];
+    layers.forEach((layer) => {
+      saved.push([layer, layer.getAttribute("style")]);
+      layer.setAttribute("style", "display:inline;visibility:hidden");
+    });
+
+    nodes.forEach((node) => {
+      const abbr = node.id.slice(0, -"Center".length);
+      if (!abbr) return;
+      let point: Point | null = null;
+      try {
+        const box = node.getBBox();
+        if (box.width > 0 && box.height > 0) {
+          point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        }
+      } catch {
+        point = null;
+      }
+      if (!point) point = parseMoveTo(node.getAttribute("d"));
+      if (point) centers.set(abbr, point);
+    });
+
+    saved.forEach(([layer, style]) => {
+      if (style === null) layer.removeAttribute("style");
+      else layer.setAttribute("style", style);
+    });
+  }
+
+  // "m X,Y ..." — the first pair of a moveto is absolute even when lowercase.
+  function parseMoveTo(d: string | null): Point | null {
+    if (!d) return null;
+    const match = /^\s*[mM]\s*(-?[\d.]+)[\s,]+(-?[\d.]+)/.exec(d);
+    if (!match) return null;
+    return { x: parseFloat(match[1]), y: parseFloat(match[2]) };
+  }
+
+  function centerOf(province: string): Point | null {
+    return centers.get(province) || centers.get(baseProvince(province)) || null;
+  }
+
+  function provinceShape(province: string): Element | null {
+    const layer = svgRoot?.querySelector("#provinces");
+    if (!layer) return null;
+    return layer.querySelector('[id="' + CSS.escape(province) + '"]');
+  }
+
+  // --- Pan and zoom -------------------------------------------------------
+  /*
+  Zoom and pan move the injected SVG's viewBox; nothing is transformed, so hit
+  testing, getBBox and the unit anchors all stay in map coordinates. The widest
+  allowed view is "fit all" for the current container shape, the narrowest is
+  MAX_ZOOM times closer.
+  */
+
+  function mapRect(): DOMRect {
+    return host.getBoundingClientRect();
+  }
+
+  // Width of the view that just fits the whole map into the container.
+  function fitAllWidth(): number {
+    const rect = mapRect();
+    if (!rect.width || !rect.height) return baseBox.w;
+    return Math.max(baseBox.w, baseBox.h * (rect.width / rect.height));
+  }
+
+  function applyView(): void {
+    if (!svgRoot || !view) return;
+    svgRoot.setAttribute("viewBox", [view.x, view.y, view.w, view.h].join(" "));
+  }
+
+  /*
+  Sets the view from a wanted width and top-left corner. The height always
+  follows the container's aspect ratio, the width is clamped to the zoom range,
+  and the box is kept over the map (centred on any axis where it is larger).
+  */
+  function clampedSize(wantedWidth: number): { w: number; h: number } {
+    const rect = mapRect();
+    const aspect = rect.width && rect.height ? rect.height / rect.width : baseBox.h / baseBox.w;
+    const widest = fitAllWidth();
+    const w = Math.min(widest, Math.max(widest / MAX_ZOOM, wantedWidth));
+    return { w: w, h: w * aspect };
+  }
+
+  function setView(x: number, y: number, wantedWidth: number): void {
+    const size = clampedSize(wantedWidth);
+    const w = size.w;
+    const h = size.h;
+    view = {
+      w: w,
+      h: h,
+      x: w >= baseBox.w ? baseBox.x + (baseBox.w - w) / 2 : clamp(x, baseBox.x, baseBox.x + baseBox.w - w),
+      y: h >= baseBox.h ? baseBox.y + (baseBox.h - h) / 2 : clamp(y, baseBox.y, baseBox.y + baseBox.h - h),
+    };
+    applyView();
+  }
+
+  function clamp(value: number, low: number, high: number): number {
+    return Math.min(high, Math.max(low, value));
+  }
+
+  function zoomLevel(): number {
+    return view ? fitAllWidth() / view.w : 1;
+  }
+
+  // Client coordinates → map coordinates.
+  function toMap(clientX: number, clientY: number): Point {
+    const rect = mapRect();
+    return {
+      x: view!.x + ((clientX - rect.left) / rect.width) * view!.w,
+      y: view!.y + ((clientY - rect.top) / rect.height) * view!.h,
+    };
+  }
+
+  // Zooms by `factor` while the map point under (clientX, clientY) stays put.
+  function zoomAt(clientX: number, clientY: number, factor: number): void {
+    if (!view) return;
+    const rect = mapRect();
+    const anchor = toMap(clientX, clientY);
+    const fx = (clientX - rect.left) / rect.width;
+    const fy = (clientY - rect.top) / rect.height;
+    const size = clampedSize(view.w / factor);
+    setView(anchor.x - fx * size.w, anchor.y - fy * size.h, size.w);
+    renderOverlays();
+  }
+
+  // Matches the mobile media query: a narrow screen or a short one.
+  function isNarrow(): boolean {
+    return window.innerWidth <= NARROW_PX || window.innerHeight <= SHORT_PX;
+  }
+
+  /*
+  Wide screens open on the whole map. Narrow screens open at fit-width, stepped
+  in a little further, so provinces are big enough to tap straight away.
+  */
+  function resetView(): void {
+    const widest = fitAllWidth();
+    const size = clampedSize(isNarrow() ? Math.min(widest, baseBox.w) / 1.6 : widest);
+    const centre = { x: baseBox.x + baseBox.w / 2, y: baseBox.y + baseBox.h / 2 };
+    setView(centre.x - size.w / 2, centre.y - size.h / 2, size.w);
+    renderOverlays();
+  }
+
+  function bindGestures(): void {
+    const pointers = new Map<number, Point>();
+    let pinchDistance = 0;
+    let moved = 0;
+    let dragging = false;
+    let suppressUntil = 0;
+    let lastTap = 0;
+    let lastTapPoint: Point = { x: 0, y: 0 };
+
+    const midpointOfPointers = (): Point => {
+      const points = Array.from(pointers.values());
+      const sum = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+      return { x: sum.x / points.length, y: sum.y / points.length };
+    };
+    /*
+    Blocks the click a finished gesture would otherwise produce. The block
+    expires on its own, so a gesture that never produces a click (a pan, a
+    pinch) cannot swallow some unrelated click much later.
+    */
+    const blockNextClick = () => { suppressUntil = Date.now() + CLICK_BLOCK_MS; };
+
+    const spread = (): number => {
+      const [a, b] = Array.from(pointers.values());
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
+    listen(host, "pointerdown", ((event: PointerEvent) => {
+      // The chip is pinned to a point on the map, so any new touch dismisses it.
+      hideMenu();
+      /*
+      A primary pointer means no other finger is down, so anything still tracked
+      is a pointerup the page never saw. Without this sweep the next tap counts
+      as a second finger, is read as a pinch, and its click is thrown away.
+      */
+      if (event.isPrimary) pointers.clear();
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 1) {
+        moved = 0;
+        dragging = true;
+        // A pan emits no click, so the block must be cleared per gesture,
+        // otherwise the tap after a pan gets swallowed.
+        suppressUntil = 0;
+      } else if (pointers.size === 2) {
+        pinchDistance = spread();
+        dragging = false;
+        blockNextClick();
+      }
+    }) as EventListener);
+
+    /*
+    Move and release are watched on the window, not on the map, so a drag that
+    leaves the map still finishes. Pointer capture would do the same, but it
+    also retargets the click that follows a tap to the container, which would
+    hide province clicks from the map handler.
+    */
+    listen(window, "pointermove", ((event: PointerEvent) => {
+      const previous = pointers.get(event.pointerId);
+      if (!previous || !view) return;
+      const next = { x: event.clientX, y: event.clientY };
+
+      if (pointers.size === 1 && dragging) {
+        const rect = mapRect();
+        const dx = ((next.x - previous.x) / rect.width) * view.w;
+        const dy = ((next.y - previous.y) / rect.height) * view.h;
+        moved += Math.hypot(next.x - previous.x, next.y - previous.y);
+        if (moved > TAP_SLOP_PX) {
+          blockNextClick();
+          setView(view.x - dx, view.y - dy, view.w);
+          renderOverlays();
+        }
+      }
+
+      pointers.set(event.pointerId, next);
+
+      if (pointers.size === 2) {
+        const distance = spread();
+        if (pinchDistance > 0 && distance > 0) {
+          const middle = midpointOfPointers();
+          zoomAt(middle.x, middle.y, distance / pinchDistance);
+        }
+        pinchDistance = distance;
+      }
+    }) as EventListener);
+
+    const release = (event: PointerEvent): void => {
+      if (!pointers.has(event.pointerId)) return;
+      const wasSingle = pointers.size === 1;
+      pointers.delete(event.pointerId);
+      if (pointers.size < 2) pinchDistance = 0;
+      if (pointers.size === 0) dragging = false;
+
+      if (event.type !== "pointerup" || !wasSingle) return;
+      if (moved > TAP_SLOP_PX) return;
+
+      /*
+      A second quick tap near the first one zooms in a step — except on one of
+      your own units, where it is the shortcut for Hold. Either way the click
+      that follows is swallowed, so the order builder is left alone.
+      */
+      const now = Date.now();
+      const near = Math.hypot(event.clientX - lastTapPoint.x, event.clientY - lastTapPoint.y) < 30;
+      // Building a support asks for a second tap on the supported unit, which
+      // must mean "support its hold", not "make it hold".
+      const shortcut = shortcutMode() !== "support";
+      if (shortcut && now - lastTap < 300 && near) {
+        blockNextClick();
+        const unit = unitAt(event.clientX, event.clientY);
+        if (unit) {
+          hideMenu();
+          builder = null;
+          renderAll();
+          holdOrder(unit).catch(reportError);
+        } else {
+          zoomAt(event.clientX, event.clientY, 1.8);
+        }
+        lastTap = 0;
+        return;
+      }
+      lastTap = now;
+      lastTapPoint = { x: event.clientX, y: event.clientY };
+
+      /*
+      A touch tap is resolved here rather than from the click that follows it.
+      Chrome withholds that click when a tap lands soon after another touch at
+      nearly the same spot — which is exactly what ordering on a phone looks
+      like — so the province would silently ignore every other tap. Mouse input
+      keeps using the click, which carries the real target element.
+      */
+      if (event.pointerType !== "mouse") {
+        blockNextClick();
+        const province = provinceAt(event.clientX, event.clientY);
+        if (province) onProvinceClick(province, event.clientX, event.clientY);
+      }
+    };
+
+    listen(window, "pointerup", release as EventListener);
+    listen(window, "pointercancel", release as EventListener);
+
+    // A pan must not also count as a province tap.
+    listen(
+      host,
+      "click",
+      ((event: MouseEvent) => {
+        if (Date.now() >= suppressUntil) return;
+        suppressUntil = 0;
+        event.stopPropagation();
+        event.preventDefault();
+      }) as EventListener,
+      { capture: true },
+    );
+
+    listen(
+      host,
+      "wheel",
+      ((event: WheelEvent) => {
+        if (!view) return;
+        event.preventDefault();
+        hideMenu();
+        zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * 0.0015));
+      }) as EventListener,
+      { passive: false },
+    );
+
+    listen(host, "dblclick", ((event: Event) => event.preventDefault()) as EventListener);
+
+    listen(window, "resize", () => {
+      if (!view) return;
+      setView(view.x, view.y, view.w);
+      renderOverlays();
+    });
+  }
+
+  function bindMapClicks(): void {
+    const layer = svgRoot?.querySelector("#provinces");
+    if (!layer) throw new Error("the map has no #provinces layer");
+    listen(layer, "click", ((event: MouseEvent) => {
+      const shape = (event.target as Element).closest("[id]");
+      if (shape && shape.parentNode === layer) {
+        onProvinceClick(shape.id, event.clientX, event.clientY);
+      }
+    }) as EventListener);
+  }
+
+  // --- Overlays -----------------------------------------------------------
+
+  // Orders are drawn under the unit markers, both in map coordinates.
+  function overlay(id: string): SVGGElement {
+    let layer = svgRoot!.querySelector<SVGGElement>("#" + id);
+    if (!layer) {
+      layer = document.createElementNS(SVG_NS, "g");
+      layer.id = id;
+      svgRoot!.appendChild(layer);
+    }
+    return layer;
+  }
+
+  function overlayLayer(): SVGGElement {
+    const orders = overlay("order-overlay");
+    const units = overlay("unit-overlay");
+    if (orders.nextSibling !== units) svgRoot!.insertBefore(orders, units);
+    return units;
+  }
+
+  // Both map overlays follow the zoom, so they are redrawn together.
+  function renderOverlays(): void {
+    if (!svgRoot) return;
+    renderOrders();
+    renderUnits();
+  }
+
+  // Map units per screen pixel, so markers keep one size however far you zoom.
+  function unitsPerPixel(): number {
+    const rect = mapRect();
+    if (!view || !rect.width) return 1;
+    return view.w / rect.width;
+  }
+
+  function renderUnits(): void {
+    const layer = overlayLayer();
+    layer.replaceChildren();
+    const units = state?.units || {};
+    const orders = state?.orders || {};
+    const r = clamp(12 * unitsPerPixel(), 8, 60);
+
+    Object.keys(units).forEach((province) => {
+      const unit = units[province];
+      const point = centerOf(province);
+      if (!point) return;
+
+      const color = POWER_COLORS[unit.nation] || "#bbbbbb";
+      const isFleet = String(unit.type).toLowerCase() === "fleet";
+      let shape: SVGElement;
+      if (isFleet) {
+        const polygon = document.createElementNS(SVG_NS, "polygon");
+        polygon.setAttribute(
+          "points",
+          [
+            point.x + "," + (point.y - r * 1.1),
+            point.x + r + "," + (point.y + r * 0.75),
+            point.x - r + "," + (point.y + r * 0.75),
+          ].join(" "),
+        );
+        shape = polygon;
+      } else {
+        const circle = document.createElementNS(SVG_NS, "circle");
+        circle.setAttribute("cx", String(point.x));
+        circle.setAttribute("cy", String(point.y));
+        circle.setAttribute("r", String(r));
+        shape = circle;
+      }
+      const ordered = Boolean(orders[province]);
+      shape.setAttribute("fill", color);
+      shape.setAttribute("stroke", ordered ? "#ffffff" : "#14161a");
+      shape.setAttribute("stroke-width", String(Math.max(1, r * (ordered ? 0.28 : 0.16))));
+      shape.setAttribute("class", ordered ? "unit ordered" : "unit");
+      layer.appendChild(shape);
+
+      const label = document.createElementNS(SVG_NS, "text");
+      label.setAttribute("x", String(point.x));
+      label.setAttribute("y", String(point.y + (isFleet ? r * 0.2 : 0)));
+      label.setAttribute("font-size", String(r * 1.1));
+      label.setAttribute("class", "unit-label");
+      label.textContent = isFleet ? "F" : "A";
+      layer.appendChild(label);
+    });
+  }
+
+  // --- Order graphics -----------------------------------------------------
+  /*
+  One graphic per ordered unit, drawn from the raw parts in state.orderParts —
+  never from the prose strings. Everything is in map coordinates, so pan and
+  zoom carry it along; only the stroke weights are rescaled, the same way the
+  unit markers are, so the drawing stays readable at any zoom.
+
+    Move          straight arrow, unit anchor → target anchor
+    Hold          ring around the unit marker
+    Support move  dashed curve to the middle of the supported move, T-bar end
+    Support hold  dashed curve to the supported unit, open circle end
+    Convoy        dashed curve to the middle of the convoyed move
+  */
+
+  function towards(from: Point, to: Point, distance: number): Point {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy) || 1;
+    return { x: from.x + (dx / length) * distance, y: from.y + (dy / length) * distance };
+  }
+
+  function midpoint(a: Point, b: Point): Point {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  // The unit vector across a line, for arrow wings and support bars.
+  function normalOf(a: Point, b: Point): Point {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy) || 1;
+    return { x: -dy / length, y: dx / length };
+  }
+
+  // A quadratic curve, bowed out to one side so it never hides under a move line.
+  function curvePath(from: Point, to: Point): string {
+    const mid = midpoint(from, to);
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const bow = length * 0.18;
+    const control = { x: mid.x - (dy / length) * bow, y: mid.y + (dx / length) * bow };
+    return "M " + from.x + " " + from.y + " Q " + control.x + " " + control.y + " " + to.x + " " + to.y;
+  }
+
+  /*
+  The arrow is one closed outline — shaft and head in a single polygon — so its
+  border runs unbroken from tail to tip. A marker-drawn head cannot do this: the
+  underlay stops where the marker starts and the border breaks at the neck.
+  */
+  function arrowPoints(a: Point, b: Point, shaftHalf: number, headLength: number, headHalf: number): string {
+    const n = normalOf(a, b);
+    const neck = towards(b, a, headLength);
+    const at = (point: Point, offset: number) => point.x + n.x * offset + "," + (point.y + n.y * offset);
+    return [
+      at(a, shaftHalf),
+      at(neck, shaftHalf),
+      at(neck, headHalf),
+      b.x + "," + b.y,
+      at(neck, -headHalf),
+      at(neck, -shaftHalf),
+      at(a, -shaftHalf),
+    ].join(" ");
+  }
+
+  function renderOrders(): void {
+    const layer = overlay("order-overlay");
+    layer.replaceChildren();
+    const parts = state?.orderParts || {};
+    const units = state?.units || {};
+    const r = clamp(12 * unitsPerPixel(), 8, 60);
+    const base = Math.max(1.5, r * 0.3);
+
+    Object.keys(parts).forEach((province) => {
+      const from = centerOf(province);
+      const order = parts[province] || [];
+      if (!from || !order.length) return;
+      const unit = units[province];
+      const color = POWER_COLORS[unit ? unit.nation : ""] || "#bbbbbb";
+      // The picked order is drawn heavier; weights stay in map units so they
+      // keep following the zoom.
+      const width = base * (selectedOrder === province ? 1.9 : 1);
+      const border = Math.max(1.2, width * 0.7);
+
+      const group = document.createElementNS(SVG_NS, "g");
+      group.setAttribute("class", "order");
+      group.setAttribute("data-province", province);
+
+      /*
+      Every shape is built twice: once dark and fattened by the border width,
+      once in the power's colour. All the dark passes are laid down before any
+      coloured one, so no shape's underlay ever cuts across a neighbour.
+      */
+      const shapes: Array<(halo: boolean) => SVGElement> = [];
+      const paint = (node: SVGElement, halo: boolean, solid: boolean): SVGElement => {
+        if (solid) {
+          node.setAttribute("fill", halo ? "#1b1b1b" : color);
+          node.setAttribute("stroke", halo ? "#1b1b1b" : "none");
+          node.setAttribute("stroke-width", String(halo ? border * 2 : 0));
+          node.setAttribute("stroke-linejoin", "round");
+        } else {
+          node.setAttribute("fill", "none");
+          node.setAttribute("stroke", halo ? "#1b1b1b" : color);
+          node.setAttribute("stroke-width", String(halo ? width + border * 2 : width));
+          node.setAttribute("stroke-linecap", "round");
+        }
+        node.setAttribute("class", halo ? "order-halo" : "order-line");
+        return node;
+      };
+
+      const arrow = (a: Point, b: Point) => (halo: boolean) => {
+        const node = document.createElementNS(SVG_NS, "polygon");
+        node.setAttribute("points", arrowPoints(a, b, width / 2, r * 1.15, r * 0.62));
+        return paint(node, halo, true);
+      };
+      const dashedCurve = (a: Point, b: Point) => (halo: boolean) => {
+        const node = document.createElementNS(SVG_NS, "path");
+        node.setAttribute("d", curvePath(a, b));
+        node.setAttribute("stroke-dasharray", r * 0.55 + " " + r * 0.4);
+        return paint(node, halo, false);
+      };
+      const ring = (at: Point, radius: number) => (halo: boolean) => {
+        const node = document.createElementNS(SVG_NS, "circle");
+        node.setAttribute("cx", String(at.x));
+        node.setAttribute("cy", String(at.y));
+        node.setAttribute("r", String(radius));
+        return paint(node, halo, false);
+      };
+      const segment = (a: Point, b: Point) => (halo: boolean) => {
+        const node = document.createElementNS(SVG_NS, "line");
+        node.setAttribute("x1", String(a.x));
+        node.setAttribute("y1", String(a.y));
+        node.setAttribute("x2", String(b.x));
+        node.setAttribute("y2", String(b.y));
+        return paint(node, halo, false);
+      };
+
+      const type = order[0];
+      const anchorOf = (name: string) => centerOf(name) || centerOf(baseProvince(name));
+
+      if (type === "Move" && order[1]) {
+        const to = anchorOf(order[1]);
+        if (!to) return;
+        shapes.push(arrow(towards(from, to, r * 1.15), towards(to, from, r * 1.6)));
+      } else if (type === "Hold") {
+        shapes.push(ring(from, r * 1.5));
+      } else if (type === "Support" || type === "Convoy") {
+        const src = anchorOf(order[1] || "");
+        if (!src) return;
+        const holdSupport = order.length < 3 || order[2] === order[1];
+        // For a hold the curve stops clear of the supported unit's marker, so
+        // the ring at its end stays visible.
+        const end = holdSupport ? towards(src, from, r * 2.6) : midpoint(src, anchorOf(order[2]) || src);
+        const start = towards(from, end, r * 1.2);
+        shapes.push(dashedCurve(start, end));
+        if (holdSupport) {
+          shapes.push(ring(end, r * 0.55));
+        } else {
+          // A bar across the end, so a support never reads as a move.
+          const n = normalOf(start, end);
+          const reach = r * 0.7;
+          shapes.push(
+            segment(
+              { x: end.x - n.x * reach, y: end.y - n.y * reach },
+              { x: end.x + n.x * reach, y: end.y + n.y * reach },
+            ),
+          );
+        }
+      } else {
+        return;
+      }
+
+      shapes.forEach((make) => group.appendChild(make(true)));
+      shapes.forEach((make) => group.appendChild(make(false)));
+
+      if (selectedOrder) group.classList.add(selectedOrder === province ? "hot" : "dim");
+      layer.appendChild(group);
+    });
+  }
+
+  // --- Option tree --------------------------------------------------------
+  /*
+  The full server-side tree is province → OrderType → SrcProvince → targets, and
+  the options endpoint may hand back either the whole branch or the part below
+  the province. Both are handled: a lone "SrcProvince" node, or a lone root
+  "Province" node naming the clicked province, is selected automatically and
+  left out of the order parts. Every other choice the player taps is appended,
+  so a walk of Move → tri in "vie" posts {province:"vie", parts:["Move","tri"]}.
+  */
+
+  function isLeaf(node: OptionTree | null | undefined): boolean {
+    return !node || Object.keys(node).length === 0;
+  }
+
+  // Walks past the nodes the player should not have to tap.
+  function skipAutoNodes(node: OptionTree, province: string, atRoot: boolean): OptionTree {
+    let current: OptionTree = node || {};
+    let rootStep = atRoot;
+    for (;;) {
+      if (isLeaf(current)) return current;
+      const keys = Object.keys(current);
+      if (keys.length !== 1) return current;
+      const key = keys[0];
+      const entry: OptionNode = current[key] || {};
+      const skippable =
+        entry.Type === "SrcProvince" ||
+        (rootStep && entry.Type === "Province" && key === province);
+      if (!skippable) return current;
+      current = entry.Next || {};
+      rootStep = false;
+    }
+  }
+
+  function autoAdvance(): void {
+    builder!.node = skipAutoNodes(builder!.node, builder!.province, builder!.parts.length === 0);
+  }
+
+  // Targets under an order type, with the SrcProvince step skipped.
+  function branchOf(node: OptionTree, orderType: string, province: string): OptionTree | null {
+    const entry = node[orderType];
+    if (!entry || entry.Type !== "OrderType") return null;
+    const targets = skipAutoNodes(entry.Next || {}, province, false);
+    return isLeaf(targets) ? null : targets;
+  }
+
+  function shortcutMode(): "support" | "pick" | null {
+    if (!builder) return null;
+    if (builder.support) return "support";
+    if (builder.moveNode || builder.supportNode) return "pick";
+    return null;
+  }
+
+  // Provinces to highlight, and to accept a tap on, at this step.
+  function highlightKeys(): string[] {
+    if (!builder) return [];
+    const mode = shortcutMode();
+    if (mode === "support") return Object.keys(builder.support!.dests);
+    if (mode === "pick") {
+      const keys = Object.keys(builder.moveNode || {}).concat(Object.keys(builder.supportNode || {}));
+      return keys.filter((key, i) => keys.indexOf(key) === i);
+    }
+    return Object.keys(builder.node);
+  }
+
+  /*
+  Ordering by map alone. Picking a unit highlights everywhere it can reach: the
+  provinces under "Move", plus the units it could support. Tapping an empty one
+  moves there. Tapping an occupied one raises a chip with whichever of Attack and
+  Support the tree actually allows — one option alone skips the chip. Support
+  then highlights the destinations of the supported unit, its own province
+  included, which is the support-hold. The button row keeps every order type
+  from the tree, and using it drops these shortcuts and walks the tree plainly.
+  */
+  async function startOrder(province: string): Promise<void> {
+    const epoch = ++orderEpoch;
+    const options = await api.options(province);
+    if (epoch !== orderEpoch || destroyed) return; // A later gesture took over.
+    const root = skipAutoNodes(options || {}, province, true);
+    if (isLeaf(root)) {
+      builder = null;
+      setStatus(unitLabel(state, province) + " has no legal orders.");
+      renderAll();
+      return;
+    }
+    builder = {
+      province: province,
+      node: root,
+      parts: [],
+      labels: [],
+      moveNode: branchOf(root, "Move", province),
+      supportNode: branchOf(root, "Support", province),
+      support: null,
+    };
+    hideMenu();
+    renderAll();
+  }
+
+  function dropShortcuts(): void {
+    builder!.moveNode = null;
+    builder!.supportNode = null;
+    builder!.support = null;
+    hideMenu();
+  }
+
+  async function chooseOption(key: string): Promise<void> {
+    if (!builder) return;
+    const entry: OptionNode = builder.node[key] || {};
+    dropShortcuts();
+    builder.parts.push(key);
+    builder.labels.push(key);
+    builder.node = entry.Next || {};
+    autoAdvance();
+
+    if (isLeaf(builder.node)) {
+      await postOrder();
+      return;
+    }
+    renderAll();
+  }
+
+  // Enters a branch the shortcut jumped to, then picks the tapped province.
+  async function chooseInBranch(
+    orderType: string,
+    node: OptionTree,
+    key: string,
+    extraParts?: string[],
+  ): Promise<void> {
+    builder!.node = node;
+    const head = [orderType].concat(extraParts || []);
+    builder!.parts = head.slice();
+    builder!.labels = head.slice();
+    dropShortcuts();
+    await chooseOption(key);
+  }
+
+  // Highlights where the supported unit may go, its own province included.
+  function enterSupport(srcKey: string): void {
+    const entry: OptionNode = builder!.supportNode![srcKey] || {};
+    const dests = skipAutoNodes(entry.Next || {}, builder!.province, false);
+    if (isLeaf(dests)) {
+      setStatus("There is nothing to support in " + provinceName(srcKey) + ".");
+      return;
+    }
+    builder!.support = { src: srcKey, dests: dests };
+    hideMenu();
+    renderAll();
+  }
+
+  /*
+  Decides what a tap on a reachable province means. Both readings legal and a
+  unit standing there means the player has to say which, so the chip is raised
+  at the tap; otherwise the single legal reading is taken straight away.
+  */
+  function offerChoice(
+    moveKey: string | null,
+    supportKey: string | null,
+    clientX: number,
+    clientY: number,
+  ): void {
+    hideMenu();
+    if (moveKey !== null && supportKey === null) {
+      chooseInBranch("Move", builder!.moveNode!, moveKey).catch(reportError);
+      return;
+    }
+    if (supportKey !== null && moveKey === null) {
+      enterSupport(supportKey);
+      return;
+    }
+    showMenu(clientX, clientY, [
+      {
+        label: "Attack",
+        onPick: () => chooseInBranch("Move", builder!.moveNode!, moveKey!).catch(reportError),
+      },
+      { label: "Support", onPick: () => enterSupport(supportKey!) },
+    ]);
+    setStatus("Attack " + unitLabel(state, supportKey!) + ", or support it?");
+  }
+
+  // Double tapping a unit is a Hold, no menu.
+  async function holdOrder(province: string): Promise<void> {
+    if (!allowed(province)) return;
+    const epoch = ++orderEpoch;
+    const options = await api.options(province);
+    if (epoch !== orderEpoch || destroyed) return;
+    const root = skipAutoNodes(options || {}, province, true);
+    if (!root.Hold) {
+      setStatus(unitLabel(state, province) + " cannot hold.");
+      return;
+    }
+    builder = {
+      province: province,
+      node: root,
+      parts: [],
+      labels: [],
+      moveNode: null,
+      supportNode: null,
+      support: null,
+    };
+    await chooseOption("Hold");
+  }
+
+  async function postOrder(): Promise<void> {
+    const province = builder!.province;
+    const parts = builder!.parts.slice();
+    const sentence = describeOrder(province, parts);
+    builder = null;
+    try {
+      const next = await api.order(province, parts);
+      state = next;
+      callbacks.state(next);
+      setStatus(sentence);
+    } catch (err) {
+      reportError(err);
+    }
+    renderAll();
+  }
+
+  // An empty parts list is how the server is told to drop an order.
+  async function cancelOrder(province: string): Promise<void> {
+    hideMenu();
+    if (builder && builder.province === province) builder = null;
+    setSelected(null);
+    try {
+      const next = await api.order(province, []);
+      state = next;
+      callbacks.state(next);
+      setStatus("Order for " + provinceName(province) + " removed.");
+    } catch (err) {
+      reportError(err);
+    }
+    renderAll();
+  }
+
+  // Drop the order, then reopen the unit ready for a new one.
+  async function changeOrder(province: string): Promise<void> {
+    await cancelOrder(province);
+    await startOrder(province);
+  }
+
+  /*
+  Seat mode never offers another power's units. The server refuses them too,
+  but a tap that only produces a 403 teaches the player nothing.
+  */
+  function allowed(province: string): boolean {
+    if (!callbacks.canOrder) return true;
+    const units = state?.units || {};
+    const unit: Unit | undefined = units[province] || units[baseProvince(province)];
+    if (callbacks.canOrder(province, unit)) return true;
+    const refusal = callbacks.refusal
+      ? callbacks.refusal(province, unit)
+      : "That unit is not yours.";
+    hideMenu();
+    if (builder) {
+      builder = null;
+      renderAll();
+    }
+    setStatus(refusal);
+    return false;
+  }
+
+  function onProvinceClick(province: string, clientX: number, clientY: number): void {
+    const mode = shortcutMode();
+
+    if (mode === "support") {
+      const key = matchingKey(builder!.support!.dests, province);
+      if (key !== null) {
+        const src = builder!.support!.src;
+        chooseInBranch("Support", builder!.support!.dests, key, [src]).catch(reportError);
+        return;
+      }
+    } else if (mode === "pick") {
+      const moveKey = matchingKey(builder!.moveNode, province);
+      const supportKey = matchingKey(builder!.supportNode, province);
+      if (moveKey !== null || supportKey !== null) {
+        offerChoice(moveKey, supportKey, clientX, clientY);
+        return;
+      }
+    } else if (builder) {
+      // A province that is a legal choice at this step acts like its button.
+      const key = matchingKey(builder.node, province);
+      if (key !== null) {
+        chooseOption(key).catch(reportError);
+        return;
+      }
+    }
+
+    // Nothing legal here: dismiss whatever is open and start over if a unit
+    // was tapped.
+    hideMenu();
+    if (!state || !state.units || !state.units[province]) {
+      if (builder) {
+        builder = null;
+        setStatus("Nothing there. Order abandoned.");
+        renderAll();
+      } else {
+        setStatus("No unit in " + provinceName(province) + ".");
+      }
+      return;
+    }
+    if (!allowed(province)) return;
+    startOrder(province).catch(reportError);
+  }
+
+  // Finds the option key a tapped province stands for, coasts included.
+  function matchingKey(node: OptionTree | null, province: string): string | null {
+    const keys = Object.keys(node || {});
+    if (keys.indexOf(province) !== -1) return province;
+    const base = keys.filter((key) => baseProvince(key) === province);
+    return base.length === 1 ? base[0] : null;
+  }
+
+  // The province hit shape under a screen point, if any.
+  function provinceAt(clientX: number, clientY: number): string | null {
+    const layer = svgRoot?.querySelector("#provinces");
+    if (!layer) return null;
+    const hit = document.elementFromPoint(clientX, clientY);
+    const shape = hit && hit.closest ? hit.closest("[id]") : null;
+    return shape && shape.parentNode === layer ? shape.id : null;
+  }
+
+  // The province key of the unit standing in a province, coasts included.
+  function occupantOf(province: string): string | null {
+    const units = state?.units || {};
+    if (units[province]) return province;
+    return Object.keys(units).find((key) => baseProvince(key) === baseProvince(province)) || null;
+  }
+
+  // A fleet on a coast is listed under "stp/sc" but drawn on "stp".
+  function unitAt(clientX: number, clientY: number): string | null {
+    const province = provinceAt(clientX, clientY);
+    return province ? occupantOf(province) : null;
+  }
+
+  // --- Anchored menu ------------------------------------------------------
+  /*
+  A small chip of buttons pinned near a point on the map, for the moments when
+  one tap has more than one meaning. It stays inside the island because it is
+  pinned to map coordinates, not to the page.
+  */
+
+  function hideMenu(): void {
+    if (!menu) return;
+    menu.remove();
+    menu = null;
+  }
+
+  function showMenu(
+    clientX: number,
+    clientY: number,
+    items: Array<{ label: string; onPick: () => void }>,
+  ): void {
+    hideMenu();
+    menu = document.createElement("div");
+    menu.id = "chip";
+    items.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = item.label;
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        hideMenu();
+        item.onPick();
+      });
+      menu!.appendChild(button);
+    });
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "chip-close";
+    cancel.textContent = "×";
+    cancel.setAttribute("aria-label", "Dismiss");
+    cancel.addEventListener("click", (event) => {
+      event.stopPropagation();
+      hideMenu();
+      renderAll();
+    });
+    menu.appendChild(cancel);
+
+    document.body.appendChild(menu);
+    const box = menu.getBoundingClientRect();
+    const left = clamp(clientX - box.width / 2, 8, window.innerWidth - box.width - 8);
+    const top = clamp(clientY - box.height - 14, 8, window.innerHeight - box.height - 8);
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+  }
+
+  // --- Rendering ----------------------------------------------------------
+
+  function renderHighlights(): void {
+    const layer = svgRoot?.querySelector("#provinces");
+    if (!layer) return;
+    Array.prototype.forEach.call(layer.children, (shape: Element) => {
+      shape.classList.remove("legal", "occupied", "selected", "support-src");
+    });
+    if (!builder) return;
+    const selected = provinceShape(builder.province) || provinceShape(baseProvince(builder.province));
+    if (selected) selected.classList.add("selected");
+
+    const supporting = shortcutMode() === "support" ? builder.support!.src : null;
+    highlightKeys().forEach((key) => {
+      const shape = provinceShape(key) || provinceShape(baseProvince(key));
+      if (!shape) return;
+      shape.classList.add("legal");
+      // Green means "move here"; an occupied province means a choice instead.
+      if (occupantOf(key)) shape.classList.add("occupied");
+      // The unit being supported pulses: tapping it again backs its hold.
+      if (supporting && baseProvince(key) === baseProvince(supporting)) {
+        shape.classList.add("support-src");
+      }
+    });
+  }
+
+  // The hint line, which is also the builder's own caption.
+  function builderHint(): string {
+    const mode = shortcutMode();
+    const me = unitLabel(state, builder!.province);
+    const here = provinceName(builder!.province);
+    if (mode === "support") {
+      const src = builder!.support!.src;
+      return (
+        "Supporting " + unitLabel(state, src) + " — tap where you are helping it go, " +
+        "or tap " + provinceName(src) + " again to back its hold."
+      );
+    }
+    if (mode === "pick") {
+      return (
+        me + ": tap a green province to move there. Occupied = attack or " +
+        "support. Double-tap " + here + " to hold."
+      );
+    }
+    const step = builder!.labels[0];
+    const naming = builder!.labels.length === 1 && (step === "Support" || step === "Convoy");
+    if (naming) return me + ": tap the unit you want to " + step.toLowerCase() + ".";
+    if (highlightKeys().length) return me + ": tap a highlighted province, or use a button below.";
+    return me + ": pick an order type below.";
+  }
+
+  function renderBuilder(): void {
+    if (!builder) {
+      callbacks.builder(null);
+      return;
+    }
+    const unit = state?.units?.[builder.province];
+    const hint = builderHint();
+    callbacks.builder({
+      province: builder.province,
+      title:
+        (unit ? unit.type + " " : "") + provinceName(builder.province) +
+        (unit ? " (" + unit.nation + ")" : ""),
+      hint: hint,
+      options: Object.keys(builder.node)
+        .sort()
+        .map((key) => {
+          const entry: OptionNode = builder!.node[key] || {};
+          return {
+            key: key,
+            label: entry.Type === "Province" ? provinceName(key) : key,
+            filter: entry.Filter,
+          };
+        }),
+    });
+    setStatus(hint);
+  }
+
+  function renderAll(): void {
+    if (!svgRoot) return;
+    renderOrders();
+    renderUnits();
+    renderHighlights();
+    renderBuilder();
+  }
+
+  function setSelected(province: string | null): void {
+    selectedOrder = province;
+    callbacks.select(province);
+  }
+
+  /*
+  Escape backs out one step: the chip first, then a half-built support, then the
+  order itself.
+  */
+  function escape(): void {
+    if (menu) {
+      hideMenu();
+      renderAll();
+      return;
+    }
+    if (builder && builder.support) {
+      builder.support = null;
+      renderAll();
+      return;
+    }
+    builder = null;
+    setStatus("");
+    renderAll();
+  }
+
+  // --- Boot ---------------------------------------------------------------
+
+  const ready = (async () => {
+    const res = await fetch(api.mapUrl, { credentials: "same-origin" });
+    if (!res.ok) throw new Error("the map could not be loaded (" + res.status + ")");
+    const svgText = await res.text();
+    if (destroyed) return;
+    injectMap(svgText);
+    readCenters();
+    bindMapClicks();
+    bindGestures();
+    resetView();
+    renderAll();
+  })();
+
+  return {
+    update(next: BoardState) {
+      state = next;
+      if (selectedOrder && !(next.orders || {})[selectedOrder]) setSelected(null);
+      renderAll();
+    },
+    choose(key: string) {
+      chooseOption(key).catch(reportError);
+    },
+    escape: escape,
+    cancelOrder: cancelOrder,
+    changeOrder: changeOrder,
+    selectOrder(province: string | null) {
+      setSelected(selectedOrder === province ? null : province);
+      renderOrders();
+    },
+    resetView: resetView,
+    ready: ready,
+    destroy() {
+      destroyed = true;
+      hideMenu();
+      unbind.splice(0).forEach((off) => off());
+      host.replaceChildren();
+      svgRoot = null;
+    },
+    debug: {
+      centers: centers,
+      view: () => view,
+      zoom: zoomLevel,
+      state: () => state,
+    },
+  };
+}
