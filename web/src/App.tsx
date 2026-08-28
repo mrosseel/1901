@@ -3,6 +3,7 @@ import { GmPage } from "./pages/GmPage";
 import { JoinPage } from "./pages/JoinPage";
 import { NewGame } from "./pages/NewGame";
 import { SeatPage } from "./pages/SeatPage";
+import { WatchPage } from "./pages/WatchPage";
 
 /*
 Routing is the page's own address. Every page carries its tokens in the path,
@@ -21,6 +22,8 @@ export function App() {
       return <GmPage gameId={route.gameId} gmToken={route.gmToken} />;
     case "seat":
       return <SeatPage gameId={route.gameId} seatToken={route.seatToken} />;
+    case "watch":
+      return <WatchPage gameId={route.gameId} phaseIndex={route.phaseIndex} />;
     default:
       return (
         <main className="page">

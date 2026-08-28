@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { claimLine, variantCard, type Variant } from "../variants";
+import {
+  POWER_BANDS,
+  bandCounts,
+  filterByBand,
+  variantCard,
+  type Variant,
+} from "../variants";
 import { MapLightbox } from "./MapLightbox";
+import { StylePicker } from "./StylePicker";
 import { SupportedMark } from "./SupportedMark";
 import { styledMapUrl } from "../style";
 
@@ -106,14 +113,12 @@ function VariantCardView({
   variant,
   mapUrl,
   picked,
-  gmPlays,
   onPick,
 }: {
   variant: Variant;
   /** The card's map, in this device's style. */
   mapUrl: string;
   picked: boolean;
-  gmPlays: boolean;
   onPick: () => void;
 }) {
   const card = variantCard(variant);
@@ -136,8 +141,28 @@ function VariantCardView({
 
   return (
     <li className={picked ? "variant picked" : "variant"} ref={box} onClick={pickUnlessHandled}>
+      {/*
+      No visible control. The whole card is the target and the card itself is
+      the answer: the picked one is a different, saturated surface, which reads
+      across a gallery of twenty-six at a glance where a row of small circles
+      does not.
+
+      The radio is still here, off screen. It is what makes the gallery one
+      group to a keyboard and to a screen reader — arrow keys walk it, the
+      group announces "3 of 26" — and reimplementing that on a <li> with
+      aria-pressed would be a worse copy of what the browser already does. The
+      card carries the focus ring for it, so the focus is visible even though
+      the control is not.
+      */}
       <label className="variant-pick">
-        <input type="radio" name="variant" value={card.key} checked={picked} onChange={onPick} />
+        <input
+          type="radio"
+          className="visually-hidden"
+          name="variant"
+          value={card.key}
+          checked={picked}
+          onChange={onPick}
+        />
         <span className="variant-name">{card.name}</span>
         <SupportedMark supported={card.supported} />
       </label>
@@ -152,9 +177,11 @@ function VariantCardView({
         <MapLightbox src={mapUrl} name={card.name} onClose={() => setLooking(false)} />
       ) : null}
 
+      {/* No line appears or disappears with the choice: the rules form below
+          already says how many powers the picked variant hands out, and a card
+          that grows when it is tapped shoves the whole grid down. */}
       <p className="variant-powers">{card.powersLine}</p>
       {card.blurb ? <p className="variant-note">{card.blurb}</p> : null}
-      {picked ? <p className="note">{claimLine(variant.powerCount, gmPlays)}</p> : null}
 
       {/*
       Everything else is folded away. Twenty-three cards of full godip notes is
@@ -195,29 +222,59 @@ function VariantCardView({
 export function VariantGallery({
   variants,
   chosen,
-  gmPlays,
   style,
   onChoose,
+  onStyle,
 }: {
   variants: Variant[];
   chosen: string;
-  gmPlays: boolean;
   /** This device's map style, or "" for whatever the server serves. */
   style?: string;
   onChoose: (key: string) => void;
+  onStyle: (style: string) => void;
 }) {
+  const [band, setBand] = useState("all");
+  const counts = bandCounts(variants);
+  const shown = filterByBand(variants, band, chosen);
+
   return (
-    <ul className="variants">
-      {variants.map((variant) => (
-        <VariantCardView
-          key={variant.key}
-          variant={variant}
-          mapUrl={styledMapUrl(variant.mapUrl, style || "")}
-          picked={variant.key === chosen}
-          gmPlays={gmPlays}
-          onPick={() => onChoose(variant.key)}
-        />
-      ))}
-    </ul>
+    <>
+      {/*
+      One row over the cards: what size of table you are looking for on the
+      left, what the maps are drawn in on the right. The first narrows the
+      gallery, the second only repaints it, so they are the two controls that
+      belong above it and nothing else does.
+      */}
+      <div className="gallery-bar">
+        <div className="band-chips" role="group" aria-label="Filter by number of powers">
+          {POWER_BANDS.map((one) => (
+            <button
+              key={one.id}
+              type="button"
+              className={one.id === band ? "chip on" : "chip"}
+              aria-pressed={one.id === band}
+              disabled={counts[one.id] === 0}
+              onClick={() => setBand(one.id)}
+            >
+              {one.label}
+              <span className="chip-count">{counts[one.id]}</span>
+            </button>
+          ))}
+        </div>
+        <StylePicker value={style || ""} onChange={onStyle} />
+      </div>
+
+      <ul className="variants">
+        {shown.map((variant) => (
+          <VariantCardView
+            key={variant.key}
+            variant={variant}
+            mapUrl={styledMapUrl(variant.mapUrl, style || "")}
+            picked={variant.key === chosen}
+            onPick={() => onChoose(variant.key)}
+          />
+        ))}
+      </ul>
+    </>
   );
 }

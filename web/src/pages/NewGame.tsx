@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createGame, fetchVariants, type CreatedGame } from "../api";
 import { LinkShare } from "../components/LinkShare";
 import { VariantGallery } from "../components/VariantGallery";
-import { StylePicker, useMapStyle } from "../components/StylePicker";
+import { useMapStyle } from "../components/StylePicker";
 import {
   DEFAULT_VARIANT,
   claimLine,
@@ -124,22 +124,13 @@ export function NewGame() {
             No map list from the server. The game is created on the classical map.
           </p>
         ) : (
-          <>
-            <div className="gallery-head">
-              <p className="note">
-                A tick marks a map that has been checked against its board. Tap a map to
-                look at it closely; tap the card to pick it.
-              </p>
-              <StylePicker value={style} onChange={setStyle} />
-            </div>
-            <VariantGallery
-              variants={variants}
-              chosen={chosen}
-              gmPlays={gmPlays}
-              style={style}
-              onChoose={setChosen}
-            />
-          </>
+          <VariantGallery
+            variants={variants}
+            chosen={chosen}
+            style={style}
+            onChoose={setChosen}
+            onStyle={setStyle}
+          />
         )}
       </section>
 

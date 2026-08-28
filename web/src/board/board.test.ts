@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount } from "./board";
 import { emptyPlan, planDuty } from "./phases";
+import { powerColor } from "./provinces";
 import type { PhasePlan } from "./phases";
 import type { BoardApi, BoardState, BuilderView, OptionTree, Placement } from "./types";
 
@@ -487,9 +488,18 @@ describe("a retreat phase", () => {
       "Venice",
     ]);
     expect(view?.options.find((option) => option.id === "Disband")?.danger).toBe(true);
+    // The hint enumerates the bar rather than naming the state, and only the
+    // order type carries a letter: the destinations are provinces.
     expect(view?.hint).toBe(
-      "Fleet Trieste is dislodged: tap a green province to retreat there, or Disband.",
+      "Fleet Trieste is dislodged: disband (d), Adriatic Sea, Albania, Venice" +
+        " — or tap a highlighted province",
     );
+    expect(view?.options.map((option) => option.key)).toEqual([
+      "d",
+      undefined,
+      undefined,
+      undefined,
+    ]);
     // The destinations are lit, so the retreat is one more tap.
     expect(classesOf("alb")).toContain("legal");
     seat.board.destroy();
@@ -643,6 +653,104 @@ describe("the review of the last phase", () => {
     seat.board.destroy();
   });
 
+  /*
+  The colour language: the outcome is the loud channel, so a resolved phase
+  reads without a legend. What is asserted here is the CONTRAST, not the exact
+  hexadecimal: a success and a failure must not be drawn the same, and neither
+  may be drawn in a power's colour, because that is the whole point.
+  */
+  it("draws the outcome, not the power, as the loud colour", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+    seat.board.showReview(REVIEW);
+
+    const lineOf = (province: string) =>
+      document
+        .querySelector('#order-overlay .order[data-province="' + province + '"] .order-line')!
+        .getAttribute("fill") ||
+      document
+        .querySelector('#order-overlay .order[data-province="' + province + '"] .order-line')!
+        .getAttribute("stroke");
+
+    expect(lineOf("vie")).not.toBe(lineOf("bud"));
+    expect(lineOf("vie")).not.toBe(powerColor("Austria"));
+    expect(lineOf("bud")).not.toBe(powerColor("Turkey"));
+    // The power is still there, one layer in.
+    const nation = document.querySelector(
+      '#order-overlay .order[data-province="vie"] .order-nation',
+    );
+    expect(nation?.getAttribute("stroke")).toBe(powerColor("Austria"));
+    seat.board.destroy();
+  });
+
+  it("turns the ink over for a dark map", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+
+    seat.board.showReview({ ...REVIEW, style: "parchment" });
+    const onPaper = document
+      .querySelector('#order-overlay .order[data-province="vie"] .order-line')!
+      .getAttribute("fill");
+    seat.board.showReview({ ...REVIEW, style: "midnight" });
+    const onMidnight = document
+      .querySelector('#order-overlay .order[data-province="vie"] .order-line')!
+      .getAttribute("fill");
+
+    expect(onPaper).not.toBe(onMidnight);
+    seat.board.destroy();
+  });
+
+  it("bows two supports of the same move apart", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+    seat.board.showReview({
+      kind: "movement",
+      orderParts: {
+        vie: ["Move", "gal"],
+        bud: ["Support", "vie", "gal"],
+        tri: ["Support", "vie", "gal"],
+      },
+      powers: { vie: "Austria", bud: "Austria", tri: "Austria" },
+      failed: [],
+      dislodged: {},
+    });
+
+    const curveOf = (province: string) =>
+      document
+        .querySelector('#order-overlay .order[data-province="' + province + '"] .order-line')!
+        .getAttribute("d")!;
+    // Same span, so a shared control point would mean one curve hiding under
+    // the other. The two ranks are signed apart.
+    expect(curveOf("bud")).not.toBe(curveOf("tri"));
+    seat.board.destroy();
+  });
+
+  it("keeps drawing the review while this device's own arrows are hidden", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(
+      { ...MOVEMENT_STATE, orders: { vie: "hold" }, orderParts: { vie: ["Hold"] } },
+      emptyPlan("Austria"),
+    );
+
+    seat.board.setHideOrders(true);
+    expect(document.querySelectorAll("#order-overlay .order")).toHaveLength(0);
+    // The unit is still marked as spoken for.
+    expect(document.querySelectorAll("#unit-overlay .unit.ordered").length).toBeGreaterThan(0);
+
+    seat.board.showReview(REVIEW);
+    expect(document.querySelectorAll("#order-overlay .order")).toHaveLength(2);
+
+    seat.board.showReview(null);
+    expect(document.querySelectorAll("#order-overlay .order")).toHaveLength(0);
+    seat.board.setHideOrders(false);
+    expect(document.querySelectorAll("#order-overlay .order")).toHaveLength(1);
+    seat.board.destroy();
+  });
+
   it("goes back to this seat's own orders when it closes", async () => {
     const seat = setup("Austria", {});
     await seat.board.ready;
@@ -688,7 +796,7 @@ describe("an adjustment phase", () => {
       "Build Army",
       "Build Fleet",
     ]);
-    expect(seat.view()?.hint).toBe("Rome is empty: build an army or a fleet.");
+    expect(seat.view()?.hint).toBe("Rome: build army, build fleet");
 
     seat.board.choose("Build:Fleet");
     await settle();
@@ -706,7 +814,7 @@ describe("an adjustment phase", () => {
     await settle();
 
     expect(seat.view()?.options.map((option) => option.id)).toEqual(["Disband"]);
-    expect(seat.view()?.hint).toBe("Tap Disband to remove Army Budapest.");
+    expect(seat.view()?.hint).toBe("Army Budapest: disband (d)");
     expect(seat.posted).toEqual([]);
 
     seat.board.choose("Disband");

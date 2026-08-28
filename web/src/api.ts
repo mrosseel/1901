@@ -70,6 +70,46 @@ export interface PreviousPhase {
   nmr?: string[];
 }
 
+/*
+The spectator feed, for the shared screen (D-013).
+
+It is the public board and nothing else: units, centres, the phase, the clock
+and — for a phase that has already resolved — that phase's orders and their
+outcomes. There is no seat here, no token, and no endpoint that could carry an
+order back, which is what makes the page read-only in the sense D-013 means:
+nothing on this view can create or change an Order.
+
+`phaseIndex` addresses one phase of the game's history; without it the feed
+answers with the live one. `phaseCount` is how many resolved phases there are,
+so the page can offer prev and next without guessing.
+*/
+export interface WatchState extends VariantAware {
+  gameId: string;
+  phase: BoardState["phase"];
+  started: boolean;
+  /** Which phase this answer is, counting resolved phases from zero. */
+  phaseIndex?: number;
+  /** How many phases the game has: the live one is the last. */
+  phaseCount?: number;
+  /** True when this is a resolved phase rather than the one being ordered. */
+  historical?: boolean;
+  units?: Record<string, Unit>;
+  dislodged?: Record<string, Unit>;
+  supplyCenters?: Record<string, string>;
+  /** Only ever a resolved phase's orders — never the live one's. */
+  orders?: Record<string, string>;
+  orderParts?: Record<string, string[]>;
+  /** province → the power that ordered there. */
+  powers?: Record<string, string>;
+  resolutions?: Record<string, string>;
+  /** Powers that gave no orders in this phase. */
+  nmr?: string[];
+  finalized?: Record<string, boolean>;
+  finalizedCount?: number;
+  totalSeats?: number;
+  deadlineAt: string | null;
+}
+
 export interface CreatedGame {
   gameId: string;
   gmToken: string;
@@ -180,6 +220,9 @@ export type Route =
   | { kind: "join"; gameId: string; inviteToken: string }
   | { kind: "gm"; gameId: string; gmToken: string }
   | { kind: "seat"; gameId: string; seatToken: string }
+  /* The spectator screen. phaseIndex null means the live phase; a number
+     addresses one resolved phase of the history. */
+  | { kind: "watch"; gameId: string; phaseIndex: number | null }
   | { kind: "unknown"; path: string };
 
 export function parseRoute(pathname: string): Route {
@@ -187,6 +230,12 @@ export function parseRoute(pathname: string): Route {
   if (parts.length === 1 && parts[0] === "new") return { kind: "new" };
   if (parts.length === 3 && parts[0] === "join") {
     return { kind: "join", gameId: parts[1], inviteToken: parts[2] };
+  }
+  if (parts[0] === "watch" && parts.length >= 2) {
+    if (parts.length === 2) return { kind: "watch", gameId: parts[1], phaseIndex: null };
+    if (parts.length === 3 && /^\d+$/.test(parts[2])) {
+      return { kind: "watch", gameId: parts[1], phaseIndex: Number(parts[2]) };
+    }
   }
   if (parts.length === 4 && parts[0] === "game") {
     if (parts[2] === "gm") return { kind: "gm", gameId: parts[1], gmToken: parts[3] };
@@ -206,6 +255,32 @@ export function publicUrl(gameId: string): string {
 
 export function fetchPublic(gameId: string): Promise<PublicState> {
   return getJSON<PublicState>(publicUrl(gameId));
+}
+
+// --- spectator ------------------------------------------------------------
+
+/*
+Where the spectator page reads from. The page itself is served at /watch/{id}
+and /watch/{id}/{phase}; its JSON lives under the game's API prefix:
+/game/{id}/watch and /game/{id}/watch/{phase}.
+*/
+export function watchPath(gameId: string, phaseIndex: number | null): string {
+  const base = "/watch/" + encodeURIComponent(gameId);
+  return phaseIndex === null ? base : base + "/" + phaseIndex;
+}
+
+export function watchUrl(gameId: string, phaseIndex: number | null): string {
+  const base = "/game/" + encodeURIComponent(gameId) + "/watch";
+  return absolute(phaseIndex === null ? base : base + "/" + phaseIndex);
+}
+
+export function fetchWatch(gameId: string, phaseIndex: number | null): Promise<WatchState> {
+  return getJSON<WatchState>(watchUrl(gameId, phaseIndex));
+}
+
+/** The map, which the spectator screen may ask for without any token. */
+export function watchMapUrl(gameId: string): string {
+  return absolute("/game/" + encodeURIComponent(gameId) + "/map.svg");
 }
 
 // --- variants -------------------------------------------------------------

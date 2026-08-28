@@ -32,6 +32,9 @@ import { StylePicker, useMapStyle } from "../components/StylePicker";
 import { SupportedMark } from "../components/SupportedMark";
 import { styledMapUrl } from "../style";
 import { ReviewOverlay } from "../components/ReviewOverlay";
+import { RefereeGuide } from "../components/RefereeGuide";
+import { OrderArrowsToggle, useHideOrders } from "../components/OrderArrowsToggle";
+import { refereeGuide } from "../referee";
 import {
   dismiss,
   failureReason,
@@ -58,7 +61,9 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const [gone, setGone] = useState(false);
   const [plan, setPlan] = useState<PhasePlan>(emptyPlan(""));
   const [reviewing, setReviewing] = useState(false);
+  const [refereeing, setRefereeing] = useState(false);
   const [style, setStyle] = useMapStyle();
+  const [hideOrders, setHideOrders] = useHideOrders();
   const handle = useRef<BoardHandle | null>(null);
   const knownVersion = useRef<number | null>(null);
   const fingerprint = useRef<string>("");
@@ -204,8 +209,12 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       powers: review.powers,
       failed: Array.from(review.failed),
       dislodged: review.dislodged,
+      style: style,
     };
-  }, [reviewing, review]);
+  }, [reviewing, review, style]);
+
+  // The same adjudication, told as acts on the physical board.
+  const guide = useMemo(() => refereeGuide(state?.previousPhase), [state?.previousPhase]);
 
   /*
   The board island only ever talks to this seat's endpoints.
@@ -301,6 +310,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           state={state}
           plan={plan}
           review={reviewDraw}
+          hideOrders={hideOrders}
           canOrder={canOrder}
           refusal={refusal}
           onState={onBoardState}
@@ -313,8 +323,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             handle.current = board;
           }}
         />
-        {reviewing && review ? (
-          <ReviewOverlay plan={review} deadlineAt={state?.deadlineAt} onContinue={closeReview} />
+        {refereeing && guide ? (
+          <RefereeGuide guide={guide} onClose={() => setRefereeing(false)} />
+        ) : reviewing && review ? (
+          <ReviewOverlay
+            plan={review}
+            deadlineAt={state?.deadlineAt}
+            onContinue={closeReview}
+            onReferee={guide ? () => setRefereeing(true) : undefined}
+          />
         ) : null}
       </main>
 
@@ -333,9 +350,16 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
               hunted for, so it gets its own line and its own size. */}
           <Clock deadlineAt={state?.deadlineAt} />
           {review && !reviewing ? (
-            <button type="button" className="link" onClick={() => setReviewing(true)}>
-              Last turn
-            </button>
+            <span className="head-links">
+              <button type="button" className="link" onClick={() => setReviewing(true)}>
+                Last turn
+              </button>
+              {guide ? (
+                <button type="button" className="link" onClick={() => setRefereeing(true)}>
+                  Referee guide
+                </button>
+              ) : null}
+            </span>
           ) : null}
           {/* What this phase asks of this power: the units that must retreat,
               or the builds and disbands owed. */}
@@ -465,6 +489,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         {/* Presentation, and this device's alone: it changes what this screen
             draws and nothing any other player sees. */}
         <StylePicker value={style} onChange={setStyle} />
+        <OrderArrowsToggle value={hideOrders} onChange={setHideOrders} />
       </aside>
     </div>
   );

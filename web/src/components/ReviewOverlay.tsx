@@ -18,10 +18,13 @@ export function ReviewOverlay({
   plan,
   deadlineAt,
   onContinue,
+  onReferee,
 }: {
   plan: ReviewPlan;
   deadlineAt: string | null | undefined;
   onContinue: () => void;
+  /** Opens the piece pusher's list. Absent on a screen that has no board. */
+  onReferee?: () => void;
 }) {
   return (
     <section className="review-sheet" aria-label="What happened last turn">
@@ -58,9 +61,18 @@ export function ReviewOverlay({
         ))}
       </ul>
 
-      <button type="button" className="primary" onClick={onContinue}>
-        Continue
-      </button>
+      <div className="review-actions">
+        <button type="button" className="primary" onClick={onContinue}>
+          Continue
+        </button>
+        {/* The same phase, told as physical acts, for whoever is moving the
+            pieces on the real board. */}
+        {onReferee ? (
+          <button type="button" onClick={onReferee}>
+            Referee guide
+          </button>
+        ) : null}
+      </div>
       <p className="note">Only your screen. Everyone else reads at their own pace.</p>
     </section>
   );

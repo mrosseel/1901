@@ -126,11 +126,17 @@
 #order-overlay .order { pointer-events: none; }
 #order-overlay .order.dim { opacity: 0.25; }
 
-/* In the review of a resolved phase, an order that did not come off keeps its
-   power's colour but steps back, and the red cross at its far end says why it
-   is there. */
-#order-overlay .order.failed { opacity: 0.5; }
+/* In the review of a resolved phase the outcome is the colour: an order that
+   did not come off is red for its whole length and crossed at the end it did
+   not reach. It is barely dimmed, because red IS the statement — dimming it
+   the way a deselected order is dimmed would say "ignore this" about the one
+   thing on the board most worth reading. */
+#order-overlay .order.failed { opacity: 0.88; }
 #order-overlay .order.failed .order-miss { opacity: 1; }
+
+/* The power's colour, traced thin inside the outcome stroke. It answers
+   "whose", which is the second question; the outcome answers the first. */
+#order-overlay .order-nation { pointer-events: none; }
 
 /* Anchored chip: the choices for a tap that means more than one thing. */
 #chip {

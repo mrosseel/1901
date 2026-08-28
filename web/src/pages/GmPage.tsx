@@ -8,6 +8,8 @@ import { SupportedMark } from "../components/SupportedMark";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
 import { ReviewOverlay } from "../components/ReviewOverlay";
+import { RefereeGuide } from "../components/RefereeGuide";
+import { refereeGuide } from "../referee";
 import { dismiss, isDismissed, reviewKey, reviewPlan } from "../review";
 
 /*
@@ -22,6 +24,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   const [notice, setNotice] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+  const [refereeing, setRefereeing] = useState(false);
   const [style, setStyle] = useMapStyle();
 
   const refresh = async () => {
@@ -50,6 +53,13 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   puts it away here and nowhere else.
   */
   const review = useMemo(() => reviewPlan(game?.previousPhase), [game?.previousPhase]);
+  /*
+  The same adjudication, as physical acts. The game master's laptop is the
+  screen the piece pusher stands at, so this is the page the guide matters
+  most on — and it carries no order content the review does not, so D-013
+  holds.
+  */
+  const guide = useMemo(() => refereeGuide(game?.previousPhase), [game?.previousPhase]);
   const seenKey = review ? reviewKey(gameId, game?.previousPhase) : "";
   const readKey = useRef<string | null>(null);
 
@@ -128,13 +138,25 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       {error ? <p className="error">{error}</p> : null}
       {notice ? <p className="notice">{notice}</p> : null}
 
-      {reviewing && review ? (
-        <ReviewOverlay plan={review} deadlineAt={game.deadlineAt} onContinue={closeReview} />
+      {refereeing && guide ? (
+        <RefereeGuide guide={guide} onClose={() => setRefereeing(false)} />
+      ) : reviewing && review ? (
+        <ReviewOverlay
+          plan={review}
+          deadlineAt={game.deadlineAt}
+          onContinue={closeReview}
+          onReferee={guide ? () => setRefereeing(true) : undefined}
+        />
       ) : review ? (
-        <p>
+        <p className="head-links">
           <button type="button" className="link" onClick={() => setReviewing(true)}>
             Last turn
           </button>
+          {guide ? (
+            <button type="button" className="link" onClick={() => setRefereeing(true)}>
+              Referee guide
+            </button>
+          ) : null}
         </p>
       ) : null}
 

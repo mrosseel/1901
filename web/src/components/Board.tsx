@@ -21,6 +21,7 @@ export function Board({
   state,
   plan,
   review,
+  hideOrders,
   canOrder,
   refusal,
   onState,
@@ -33,6 +34,8 @@ export function Board({
   plan: PhasePlan;
   /** Set while the phase that just resolved is being shown instead. */
   review?: ReviewDraw | null;
+  /** This device's switch: draw the player's own pending arrows, or not. */
+  hideOrders?: boolean;
   canOrder?: (province: string, unit: Unit | undefined) => boolean;
   refusal?: (province: string, unit: Unit | undefined) => string;
   onState: (state: BoardState) => void;
@@ -43,6 +46,13 @@ export function Board({
   const host = useRef<HTMLDivElement | null>(null);
   const handle = useRef<BoardHandle | null>(null);
   const [builder, setBuilder] = useState<BuilderView | null>(null);
+  // A pointing device with hover is what "desktop" means here: it is the one
+  // test that answers "is there a keyboard beside this screen".
+  const [desktop] = useState(
+    () =>
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches,
+  );
 
   // The callbacks change with every render; the board keeps this one box and
   // reads the current ones out of it, so it never has to be remounted.
@@ -67,8 +77,25 @@ export function Board({
       live.current.onStatus(err instanceof Error ? err.message : String(err), true);
     });
 
+    /*
+    The keyboard mirrors the bottom bar, and only where there is a keyboard to
+    mirror it with: a phone that pops one up for a text field must not have m
+    and h stolen from it. Escape is bound everywhere, because a hardware
+    keyboard on a tablet still deserves it.
+    */
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") board.escape();
+      if (event.key === "Escape") {
+        board.escape();
+        return;
+      }
+      if (!desktop) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.length !== 1) return;
+      const target = event.target as HTMLElement | null;
+      const tag = (target?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (target?.isContentEditable) return;
+      if (board.press(event.key)) event.preventDefault();
     };
     document.addEventListener("keydown", onKey);
 
@@ -91,6 +118,10 @@ export function Board({
     handle.current?.showReview(review || null);
   }, [review]);
 
+  useEffect(() => {
+    handle.current?.setHideOrders(Boolean(hideOrders));
+  }, [hideOrders, state]);
+
   return (
     <>
       <div className="board" ref={host} aria-label="Diplomacy map" />
@@ -99,7 +130,7 @@ export function Board({
           <div className="builder-head">
             <h2>{builder.title}</h2>
             <button type="button" className="link" onClick={() => handle.current?.escape()}>
-              Cancel
+              Cancel{desktop ? <kbd>Esc</kbd> : null}
             </button>
           </div>
           <p className="crumbs">{builder.hint}</p>
@@ -113,6 +144,9 @@ export function Board({
                 onClick={() => handle.current?.choose(option.id)}
               >
                 {option.label}
+                {/* The letter is printed only where it works: a phone has no
+                    keyboard to press it with. */}
+                {desktop && option.key ? <kbd>{option.key}</kbd> : null}
               </button>
             ))}
           </div>

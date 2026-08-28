@@ -7,6 +7,9 @@ import {
   parseRoute,
   postJSON,
   publicUrl,
+  watchMapUrl,
+  watchPath,
+  watchUrl,
 } from "./api";
 
 function stubFetch(reply: { ok: boolean; status: number; body: string }) {
@@ -45,14 +48,35 @@ describe("routes", () => {
     });
   });
 
+  it("reads the spectator address, with and without a phase", () => {
+    expect(parseRoute("/watch/7")).toEqual({ kind: "watch", gameId: "7", phaseIndex: null });
+    expect(parseRoute("/watch/7/")).toEqual({ kind: "watch", gameId: "7", phaseIndex: null });
+    expect(parseRoute("/watch/7/3")).toEqual({ kind: "watch", gameId: "7", phaseIndex: 3 });
+    expect(parseRoute("/watch/7/0")).toEqual({ kind: "watch", gameId: "7", phaseIndex: 0 });
+  });
+
   it("treats anything else as unknown", () => {
     expect(parseRoute("/").kind).toBe("unknown");
     expect(parseRoute("/game/7/seat/tok/state").kind).toBe("unknown");
     expect(parseRoute("/g/test-ui/").kind).toBe("unknown");
+    // A phase that is not a number is not a phase.
+    expect(parseRoute("/watch/7/latest").kind).toBe("unknown");
+    expect(parseRoute("/watch").kind).toBe("unknown");
   });
 
   it("addresses the public endpoint without a token", () => {
     expect(publicUrl("7")).toBe("http://localhost:3000/game/7/public");
+  });
+
+  it("addresses the spectator feed beside the page it feeds", () => {
+    expect(watchPath("7", null)).toBe("/watch/7");
+    expect(watchPath("7", 2)).toBe("/watch/7/2");
+    expect(watchUrl("7", null)).toBe("http://localhost:3000/game/7/watch");
+    expect(watchUrl("7", 2)).toBe("http://localhost:3000/game/7/watch/2");
+  });
+
+  it("gives the spectator a map it needs no token for", () => {
+    expect(watchMapUrl("7")).toBe("http://localhost:3000/game/7/map.svg");
   });
 });
 

@@ -20,6 +20,15 @@ import {
 } from "./provinces";
 import { describeInPhase, emptyPlan } from "./phases";
 import type { PhasePlan } from "./phases";
+import { optionsHint, shortcutsFor } from "./hints";
+import {
+  inkForStyle,
+  outcomeOf,
+  outcomePaint,
+  supportBow,
+  supportRanks,
+  type Ink,
+} from "./outcome";
 import type {
   BoardApi,
   BoardCallbacks,
@@ -72,6 +81,8 @@ interface Choice {
   descend: boolean;
   filter?: string;
   danger?: boolean;
+  /** The keyboard letter that presses this button, where it has one. */
+  key?: string;
 }
 
 export function mount(
@@ -93,6 +104,12 @@ export function mount(
      one. Set means the map is a picture, not a form. */
   let review: ReviewDraw | null = null;
   let reviewFailed = new Set<string>();
+  /* Which end of the scale the map's own art sits at, so a resolved phase is
+     drawn in ink that survives it. */
+  let ink: Ink = "dark";
+  /* This device's own switch: your pending arrows off while you think. It
+     never applies to a review, which is the picture the table is reading. */
+  let hideOrders = false;
   let orderEpoch = 0;
   let menu: HTMLDivElement | null = null;
   let destroyed = false;
@@ -726,13 +743,18 @@ export function mount(
     return { x: -dy / length, y: dx / length };
   }
 
-  // A quadratic curve, bowed out to one side so it never hides under a move line.
-  function curvePath(from: Point, to: Point): string {
+  /*
+  A quadratic curve, bowed perpendicular to its own span so it never hides
+  under a move line — and, where several supports back the same move, so it
+  never hides under its neighbours either. The fraction is signed and comes
+  from outcome.ts, which hands out one rank per support of a given move.
+  */
+  function curvePath(from: Point, to: Point, fraction: number): string {
     const mid = midpoint(from, to);
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const length = Math.hypot(dx, dy) || 1;
-    const bow = length * 0.18;
+    const bow = length * fraction;
     const control = { x: mid.x - (dy / length) * bow, y: mid.y + (dx / length) * bow };
     return "M " + from.x + " " + from.y + " Q " + control.x + " " + control.y + " " + to.x + " " + to.y;
   }
@@ -767,12 +789,18 @@ export function mount(
     colours and the phase wording come from changes.
     */
     const parts = review ? review.orderParts : state?.orderParts || {};
+    // Your own arrows, hidden while you think. The unit markers keep their
+    // "ordered" ring, so you can still see which units are spoken for.
+    if (!review && hideOrders) return;
     const units = state?.units || {};
     const kind = review ? review.kind : plan.kind;
     const r = markerRadius();
     const base = Math.max(1.5, r * 0.3);
 
     const dislodged = review ? review.dislodged : state?.dislodged || {};
+    // One rank per support or convoy of the same move, so parallel supports
+    // fan out instead of drawing on top of each other.
+    const ranks = supportRanks(parts);
 
     Object.keys(parts).forEach((province) => {
       const anchor = centerOf(province);
@@ -793,6 +821,16 @@ export function mount(
       const ordering = review ? review.powers[province] || "" : "";
       const color = powerColor(ordering || (unit ? unit.nation : plan.power));
       const missed = reviewFailed.has(province);
+      /*
+      In a review the OUTCOME is the loud channel — ink for an order that came
+      off, red for one that did not, orange for a retreat — and the power's
+      colour drops to a thin inner stroke. On the live board there is only one
+      power's orders on screen, so the outcome channel would say nothing and
+      the power's colour stays the whole of it.
+      */
+      const tone = review ? outcomePaint(outcomeOf(kind, order, missed), ink) : null;
+      const haloColor = tone ? tone.halo : "#1b1b1b";
+      const lineColor = tone ? tone.line : color;
       // The picked order is drawn heavier; weights stay in map units so they
       // keep following the zoom.
       const width = base * (selectedOrder === province ? 1.9 : 1);
@@ -806,88 +844,114 @@ export function mount(
       let missPoint: Point = from;
 
       /*
-      Every shape is built twice: once dark and fattened by the border width,
-      once in the power's colour. All the dark passes are laid down before any
-      coloured one, so no shape's underlay ever cuts across a neighbour.
+      Every shape is built once per pass: a fattened halo in the contrast
+      colour, the order itself, and — in a review — a thin inner stroke in the
+      power's colour. All the halo passes are laid down before any other, so
+      no shape's underlay ever cuts across a neighbour.
       */
-      const shapes: Array<(halo: boolean) => SVGElement> = [];
-      const paint = (node: SVGElement, halo: boolean, solid: boolean): SVGElement => {
-        if (solid) {
-          node.setAttribute("fill", halo ? "#1b1b1b" : color);
-          node.setAttribute("stroke", halo ? "#1b1b1b" : "none");
-          node.setAttribute("stroke-width", String(halo ? border * 2 : 0));
+      type Pass = "halo" | "line" | "nation";
+      const passes: Pass[] = review ? ["halo", "line", "nation"] : ["halo", "line"];
+      const shapes: Array<(pass: Pass) => SVGElement> = [];
+      const paint = (node: SVGElement, pass: Pass, solid: boolean): SVGElement => {
+        if (solid && pass !== "nation") {
+          node.setAttribute("fill", pass === "halo" ? haloColor : lineColor);
+          node.setAttribute("stroke", pass === "halo" ? haloColor : "none");
+          node.setAttribute("stroke-width", String(pass === "halo" ? border * 2 : 0));
+          node.setAttribute("stroke-linejoin", "round");
+        } else if (solid) {
+          // The power's colour traced just inside a filled arrow's edge. It
+          // has to stay thin against the shaft it runs along, or the quiet
+          // channel becomes the loud one again.
+          node.setAttribute("fill", "none");
+          node.setAttribute("stroke", color);
+          node.setAttribute("stroke-width", String(Math.max(0.5, width * 0.3)));
           node.setAttribute("stroke-linejoin", "round");
         } else {
           node.setAttribute("fill", "none");
-          node.setAttribute("stroke", halo ? "#1b1b1b" : color);
-          node.setAttribute("stroke-width", String(halo ? width + border * 2 : width));
+          node.setAttribute(
+            "stroke",
+            pass === "halo" ? haloColor : pass === "nation" ? color : lineColor,
+          );
+          node.setAttribute(
+            "stroke-width",
+            String(
+              pass === "halo"
+                ? width + border * 2
+                : pass === "nation"
+                  ? Math.max(0.5, width * 0.3)
+                  : width,
+            ),
+          );
           node.setAttribute("stroke-linecap", "round");
         }
-        node.setAttribute("class", halo ? "order-halo" : "order-line");
+        node.setAttribute(
+          "class",
+          pass === "halo" ? "order-halo" : pass === "nation" ? "order-nation" : "order-line",
+        );
         return node;
       };
 
-      const arrow = (a: Point, b: Point) => (halo: boolean) => {
+      const arrow = (a: Point, b: Point) => (pass: Pass) => {
         const node = document.createElementNS(SVG_NS, "polygon");
         node.setAttribute("points", arrowPoints(a, b, width / 2, r * 1.15, r * 0.62));
-        return paint(node, halo, true);
+        return paint(node, pass, true);
       };
-      const dashedCurve = (a: Point, b: Point) => (halo: boolean) => {
+      const dashedCurve = (a: Point, b: Point, bow: number) => (pass: Pass) => {
         const node = document.createElementNS(SVG_NS, "path");
-        node.setAttribute("d", curvePath(a, b));
+        node.setAttribute("d", curvePath(a, b, bow));
         node.setAttribute("stroke-dasharray", r * 0.55 + " " + r * 0.4);
-        return paint(node, halo, false);
+        return paint(node, pass, false);
       };
-      const ring = (at: Point, radius: number) => (halo: boolean) => {
+      const ring = (at: Point, radius: number) => (pass: Pass) => {
         const node = document.createElementNS(SVG_NS, "circle");
         node.setAttribute("cx", String(at.x));
         node.setAttribute("cy", String(at.y));
         node.setAttribute("r", String(radius));
-        return paint(node, halo, false);
+        return paint(node, pass, false);
       };
-      const segment = (a: Point, b: Point) => (halo: boolean) => {
+      const segment = (a: Point, b: Point) => (pass: Pass) => {
         const node = document.createElementNS(SVG_NS, "line");
         node.setAttribute("x1", String(a.x));
         node.setAttribute("y1", String(a.y));
         node.setAttribute("x2", String(b.x));
         node.setAttribute("y2", String(b.y));
-        return paint(node, halo, false);
+        return paint(node, pass, false);
       };
 
       // A retreat: a dashed run to the destination with a solid head, so it
       // never reads as an ordinary move.
-      const dashedRun = (a: Point, b: Point) => (halo: boolean) => {
+      const dashedRun = (a: Point, b: Point) => (pass: Pass) => {
         const node = document.createElementNS(SVG_NS, "line");
         node.setAttribute("x1", String(a.x));
         node.setAttribute("y1", String(a.y));
         node.setAttribute("x2", String(b.x));
         node.setAttribute("y2", String(b.y));
         node.setAttribute("stroke-dasharray", r * 0.5 + " " + r * 0.38);
-        return paint(node, halo, false);
+        return paint(node, pass, false);
       };
-      const head = (a: Point, b: Point) => (halo: boolean) => {
+      const head = (a: Point, b: Point) => (pass: Pass) => {
         const node = document.createElementNS(SVG_NS, "polygon");
         const n = normalOf(a, b);
         const neck = towards(b, a, r * 0.95);
         const at = (point: Point, offset: number) =>
           point.x + n.x * offset + "," + (point.y + n.y * offset);
         node.setAttribute("points", [at(neck, r * 0.5), b.x + "," + b.y, at(neck, -r * 0.5)].join(" "));
-        return paint(node, halo, true);
+        return paint(node, pass, true);
       };
       // A disband: a cross over the unit that goes away.
-      const cross = (at: Point, reach: number) => (halo: boolean) => {
+      const cross = (at: Point, reach: number) => (pass: Pass) => {
         const node = document.createElementNS(SVG_NS, "path");
         node.setAttribute(
           "d",
           "M " + (at.x - reach) + " " + (at.y - reach) + " L " + (at.x + reach) + " " + (at.y + reach) +
             " M " + (at.x + reach) + " " + (at.y - reach) + " L " + (at.x - reach) + " " + (at.y + reach),
         );
-        return paint(node, halo, false);
+        return paint(node, pass, false);
       };
       // A build: the outline of the unit that will stand there.
-      const outline = (at: Point, isFleet: boolean) => (halo: boolean) => {
+      const outline = (at: Point, isFleet: boolean) => (pass: Pass) => {
         const node = unitShape(at, rp * 0.95, isFleet);
-        return paint(node, halo, false);
+        return paint(node, pass, false);
       };
 
       const type = order[0];
@@ -925,7 +989,7 @@ export function mount(
           ? towards(src, from, rAt(order[1] || "") * 2.6)
           : midpoint(src, anchorOf(order[2]) || src);
         const start = towards(from, end, rp * 1.2);
-        shapes.push(dashedCurve(start, end));
+        shapes.push(dashedCurve(start, end, supportBow(ranks[province] || 0)));
         missPoint = end;
         if (holdSupport) {
           shapes.push(ring(end, r * 0.55));
@@ -944,14 +1008,13 @@ export function mount(
         return;
       }
 
-      shapes.forEach((make) => group.appendChild(make(true)));
-      shapes.forEach((make) => group.appendChild(make(false)));
+      passes.forEach((pass) => shapes.forEach((make) => group.appendChild(make(pass))));
 
       /*
-      An order that did not come off keeps its shape and its power's colour —
-      you must still be able to see who tried what — but it is dimmed and
-      crossed at the end it did not reach, in red, so the board reads at a
-      glance as what worked and what did not.
+      An order that did not come off is drawn in red for its whole length and
+      crossed at the end it did not reach, so the board reads at a glance as
+      what worked and what did not — no legend, and no need to find the same
+      province in a list.
       */
       if (missed) {
         const reach = r * 0.72;
@@ -964,12 +1027,12 @@ export function mount(
             " L " + (missPoint.x - reach) + " " + (missPoint.y + reach),
         );
         mark.setAttribute("fill", "none");
-        mark.setAttribute("stroke", "#1b1b1b");
+        mark.setAttribute("stroke", haloColor);
         mark.setAttribute("stroke-width", String(width + border * 2));
         mark.setAttribute("stroke-linecap", "round");
         group.appendChild(mark);
         const over = mark.cloneNode() as SVGElement;
-        over.setAttribute("stroke", "#ff5c5c");
+        over.setAttribute("stroke", lineColor);
         over.setAttribute("stroke-width", String(Math.max(width, r * 0.28)));
         over.setAttribute("class", "order-miss");
         group.appendChild(over);
@@ -1519,22 +1582,22 @@ export function mount(
     });
   }
 
-  // The hint line, which is also the builder's own caption.
-  function builderHint(): string {
+  /*
+  The hint line, which is also the builder's own caption.
+
+  It ENUMERATES what may be done at this step — "Army Berlin: move (m),
+  support (s), hold (h) — or tap a highlighted province" — rather than naming
+  the state the builder is in. The player then reads the answer instead of
+  deducing it, and the letters in the line are the same letters printed on the
+  buttons and bound to the keyboard.
+
+  Two steps are instructions rather than lists, and keep their own words: a
+  half-built support, where the next tap is on a unit and not on a button, and
+  a dislodged unit with nowhere to go.
+  */
+  function builderHint(list: Choice[]): string {
     const mode = shortcutMode();
     const me = unitLabel(state, builder!.province, plan.kind === "retreat");
-    const here = provinceName(builder!.province);
-
-    if (plan.kind === "retreat") {
-      const room = Object.keys(builder!.moveNode || {}).length;
-      if (!room) return me + " is dislodged and has nowhere to go: it must disband.";
-      return me + " is dislodged: tap a green province to retreat there, or Disband.";
-    }
-    if (plan.kind === "adjustment") {
-      if (builder!.node.Build) return here + " is empty: build an army or a fleet.";
-      if (builder!.node.Disband) return "Tap Disband to remove " + me + ".";
-      return me + ": pick an order below.";
-    }
 
     if (mode === "support") {
       const src = builder!.support!.src;
@@ -1543,17 +1606,28 @@ export function mount(
         "or tap " + provinceName(src) + " again to back its hold."
       );
     }
-    if (mode === "pick") {
-      return (
-        me + ": tap a green province to move there. Occupied = attack or " +
-        "support. Double-tap " + here + " to hold."
-      );
+    const atRoot = builder!.parts.length === 0;
+    if (plan.kind === "retreat" && atRoot && !Object.keys(builder!.moveNode || {}).length) {
+      return me + " is dislodged and has nowhere to go: it must disband.";
     }
     const step = builder!.labels[0];
-    const naming = builder!.labels.length === 1 && (step === "Support" || step === "Convoy");
-    if (naming) return me + ": tap the unit you want to " + step.toLowerCase() + ".";
-    if (highlightKeys().length) return me + ": tap a highlighted province, or use a button below.";
-    return me + ": pick an order type below.";
+    if (builder!.labels.length === 1 && (step === "Support" || step === "Convoy")) {
+      return me + ": tap the unit you want to " + step.toLowerCase() + ".";
+    }
+
+    /*
+    Whether the tail is true. A map shortcut is always highlighting real
+    provinces; a step below the root is too. The root of an adjustment is not
+    — its keys are order types, which no province on the map is named after —
+    so it gets no invitation to tap.
+    */
+    const highlighted = mode !== null || (!atRoot && highlightKeys().length > 0);
+    const subject = plan.kind === "retreat" ? me + " is dislodged" : me;
+    return optionsHint(
+      subject,
+      list.map((choice) => ({ label: choice.label, key: choice.key })),
+      highlighted,
+    );
   }
 
   /*
@@ -1617,6 +1691,17 @@ export function mount(
         });
       });
 
+    /*
+    The keyboard letters, claimed in the order the buttons are drawn — and
+    only by a button that IS an order type. A retreat's destinations are drawn
+    as ["Move", dst] pairs, and giving Adriatic Sea the letter m because its
+    path begins with Move would be a shortcut that lies.
+    */
+    shortcutsFor(out.map((choice) => (choice.path.length === 1 ? choice.path[0] : ""))).forEach(
+      (key, i) => {
+        out[i].key = key;
+      },
+    );
     return out;
   }
 
@@ -1628,8 +1713,9 @@ export function mount(
     }
     const dislodged = plan.kind === "retreat";
     const unit = (dislodged ? state?.dislodged : state?.units)?.[builder.province];
-    const hint = builderHint();
+    // The hint reads the buttons, so the buttons are built first.
     choices = builderChoices();
+    const hint = builderHint(choices);
     const view: BuilderView = {
       province: builder.province,
       title:
@@ -1641,6 +1727,7 @@ export function mount(
         label: choice.label,
         filter: choice.filter,
         danger: choice.danger,
+        key: choice.key,
       })),
     };
     callbacks.builder(view);
@@ -1653,6 +1740,12 @@ export function mount(
     renderUnits();
     renderHighlights();
     renderBuilder();
+  }
+
+  /** Presses one of the bottom bar's buttons, whether by tap or by key. */
+  function take(choice: Choice): void {
+    if (choice.descend) chooseOption(choice.path[0]).catch(reportError);
+    else applyPath(choice.path).catch(reportError);
   }
 
   function setSelected(province: string | null): void {
@@ -1711,6 +1804,7 @@ export function mount(
     showReview(view: ReviewDraw | null) {
       review = view;
       reviewFailed = new Set(view ? view.failed : []);
+      if (view) ink = inkForStyle(view.style);
       if (view) {
         // A half-built order belongs to the live board, not to the picture of
         // the last one.
@@ -1724,8 +1818,19 @@ export function mount(
     choose(id: string) {
       const choice = choices.find((option) => option.id === id);
       if (!choice) return;
-      if (choice.descend) chooseOption(choice.path[0]).catch(reportError);
-      else applyPath(choice.path).catch(reportError);
+      take(choice);
+    },
+    press(key: string) {
+      const wanted = String(key || "").toLowerCase();
+      const choice = choices.find((option) => option.key === wanted);
+      if (!choice) return false;
+      take(choice);
+      return true;
+    },
+    setHideOrders(on: boolean) {
+      if (hideOrders === on) return;
+      hideOrders = on;
+      renderOrders();
     },
     escape: escape,
     cancelOrder: cancelOrder,

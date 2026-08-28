@@ -95,6 +95,62 @@ export function findVariant(list: Variant[], key: string): Variant | null {
   return list.find((v) => v.key === key) || null;
 }
 
+// --- filtering by table size ----------------------------------------------
+/*
+Twenty-six cards, and the first question anyone at a real table asks is "how
+many of us are there". So the gallery filters by power count, in the bands the
+catalogue actually falls into: three two-player variants, a handful of small
+ones, a dozen around the classical seven, and the giants — up to Chaos at 34.
+
+The bands are fixed rather than computed from the data, because a band whose
+edges move when a variant is added is a band nobody can learn.
+*/
+
+export interface PowerBand {
+  id: string;
+  /** What the chip says. */
+  label: string;
+  min: number;
+  /** 0 means no ceiling. */
+  max: number;
+}
+
+export const POWER_BANDS: PowerBand[] = [
+  { id: "all", label: "All", min: 0, max: 0 },
+  { id: "2", label: "2", min: 2, max: 2 },
+  { id: "3-4", label: "3–4", min: 3, max: 4 },
+  { id: "5-7", label: "5–7", min: 5, max: 7 },
+  { id: "8+", label: "8+", min: 8, max: 0 },
+];
+
+export function inBand(powerCount: number, band: string): boolean {
+  if (band === "all") return true;
+  const found = POWER_BANDS.find((one) => one.id === band);
+  if (!found) return true;
+  if (powerCount < found.min) return false;
+  return found.max === 0 || powerCount <= found.max;
+}
+
+/** How many cards each chip would show, so a chip can say so or be disabled. */
+export function bandCounts(list: Variant[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  POWER_BANDS.forEach((band) => {
+    out[band.id] = list.filter((one) => inBand(one.powerCount, band.id)).length;
+  });
+  return out;
+}
+
+/*
+The picked card is never filtered away.
+
+A filter that hid the variant the game is about to be created on would either
+lie about the choice or silently change it, and both are worse than one card
+that does not match the chip. So it stays, in its place in the order.
+*/
+export function filterByBand(list: Variant[], band: string, keep: string): Variant[] {
+  return list.filter((one) => one.key === keep || inBand(one.powerCount, band));
+}
+
 // --- the lines on a card --------------------------------------------------
 
 export interface VariantCard {

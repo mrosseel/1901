@@ -217,20 +217,49 @@ input[type="number"] {
   gap: 6px;
 }
 
-.variant.picked { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-
-/* The whole head is the target: a name and a badge are small things to tap. */
-.variant-pick {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  cursor: pointer;
-  min-height: 32px;
+/* The picked card IS the control. There is no tick box to find, because in a
+   grid of twenty-six cards a saturated surface is legible from across the page
+   and a small circle is not. The ring is an inset shadow rather than a thicker
+   border, so choosing a card never moves anything. */
+.variant.picked {
+  background: #24406b;
+  background: color-mix(in srgb, var(--accent) 28%, var(--panel-2));
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-.variant-pick input { width: 20px; height: 20px; flex: 0 0 auto; }
-.variant-name { font-size: 16px; font-weight: 600; flex: 1 1 auto; }
+/* Hover has to stay clearly below the picked state, or the two get confused. */
+.variant:hover:not(.picked) { border-color: var(--muted); }
+
+/* The keyboard still reaches the card through the radio inside it, so the card
+   wears the radio's focus ring. */
+.variant:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The head is one row: the name, and the tick for a verified map. Nothing is
+   allowed to push the tick onto a line of its own. */
+.variant-pick {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: nowrap;
+  cursor: pointer;
+}
+
+.variant-name { font-size: 16px; font-weight: 600; flex: 0 1 auto; min-width: 0; }
+.variant-pick .supported-mark { flex: 0 0 auto; }
+
+/* Present to the keyboard and to a screen reader, absent to the eye. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 .variant p { margin: 0; }
 .variant-powers { font-size: 13px; }
@@ -596,17 +625,41 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
   font-size: 13px;
 }
 
-/* The note and the picker share a line on a wide screen and stack on a phone. */
-.gallery-head {
+/* One row over the gallery: how big a table you want on the left, what the
+   maps are drawn in on the right. It wraps rather than squeezing, so a phone
+   gets two rows instead of a scrollbar. */
+.gallery-bar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
-.gallery-head .note { margin: 0; flex: 1 1 240px; }
+.band-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.band-chips .chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+/* The chosen band is the same saturated surface as the chosen card, so the two
+   selections on this page read as one idea. */
+.band-chips .chip.on {
+  background: #24406b;
+  background: color-mix(in srgb, var(--accent) 28%, var(--panel-2));
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.chip-count { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.band-chips .chip.on .chip-count { color: var(--text); }
 
 /* The tick beside a variant whose board art is verified. Nothing marks the
    others: silence is the honest default. */
@@ -678,4 +731,111 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
   line-height: 1;
   border-radius: 22px;
   background: var(--panel-2);
+}
+
+/* --- the referee guide ---------------------------------------------------- */
+/* Read aloud at a table, at a glance, by somebody whose eyes are mostly on the
+   board. So: big type, one act per line, and it covers the map rather than
+   sharing it — a half-covered list is how a unit gets missed. */
+.referee {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.map-pane .referee {
+  position: absolute;
+  inset: 8px;
+  z-index: 12;
+  overflow: auto;
+  background: var(--panel);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.referee-head { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
+.referee-head h2 { margin: 0 0 2px; font-size: 15px; }
+.referee-head p { margin: 0; }
+
+.referee-group { display: flex; flex-direction: column; gap: 6px; }
+
+.referee-group h3 {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+}
+
+.referee-list { list-style: none; margin: 0; padding: 0; }
+
+.referee-list li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+.referee-list .dot { position: relative; top: -2px; }
+.referee-text { flex: 1 1 auto; min-width: 0; }
+.referee-note { color: var(--muted); font-size: 15px; }
+
+/* The pieces that do not move are still a decision, so they are shown — but
+   they are not an act, so they are quieter than the acts. */
+.referee-group.stays .referee-list li { font-size: 16px; color: var(--muted); }
+.referee-empty { margin: 0; font-size: 18px; }
+
+/* --- order entry: shortcut letters and the arrows switch ------------------ */
+kbd {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.arrows-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.arrows-toggle input { width: 16px; height: 16px; }
+
+/* Two ways into the last turn, side by side under the phase name. */
+.head-links { display: flex; gap: 14px; align-items: baseline; margin: 4px 0 0; }
+
+.review-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.review-actions .primary { flex: 1 1 auto; }
+
+/* --- the spectator screen ------------------------------------------------- */
+.watch-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.watch-nav .muted { margin: 0; }
+.watch .side { gap: 12px; }
+.watch-blank { margin: auto; color: var(--muted); text-align: center; padding: 24px; }
+
+@media (max-width: 780px), (max-height: 500px) {
+  .map-pane .referee {
+    position: fixed;
+    inset: auto 0 0 0;
+    max-height: 88dvh;
+    border-radius: 12px 12px 0 0;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .referee-list li { font-size: 17px; }
 }

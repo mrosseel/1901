@@ -73,7 +73,14 @@ export interface BuilderView {
   hint: string;
   /* Each button carries an id the island resolves itself: some descend one
      step into the tree, others stand for a whole path ("Build Army"). */
-  options: Array<{ id: string; label: string; filter?: string; danger?: boolean }>;
+  options: Array<{
+    id: string;
+    label: string;
+    filter?: string;
+    danger?: boolean;
+    /** The keyboard letter that presses this button on a desktop. */
+    key?: string;
+  }>;
 }
 
 export interface BoardApi {
@@ -116,6 +123,10 @@ export interface ReviewDraw {
   failed: string[];
   /** Units thrown out by this adjudication, ringed where they stood. */
   dislodged: Record<string, Unit>;
+  /* The map style this device draws in. It decides nothing but the ink: a
+     resolved phase is drawn in near-black on a light map and near-white on a
+     dark one, so the outcome colours survive the art (outcome.ts). */
+  style?: string;
 }
 
 export interface BoardHandle {
@@ -127,6 +138,10 @@ export interface BoardHandle {
   showReview(view: ReviewDraw | null): void;
   /** Presses one of the builder's buttons, by id. */
   choose(id: string): void;
+  /** Presses the button carrying a keyboard letter. False means no such button. */
+  press(key: string): boolean;
+  /** Hides this device's own pending order arrows while its player thinks. */
+  setHideOrders(on: boolean): void;
   /** Backs out one step: the chip, then a half-built support, then the order. */
   escape(): void;
   /** Drops the order for a province. */

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  POWER_BANDS,
+  bandCounts,
   blurb,
   claimLine,
+  filterByBand,
+  inBand,
   findVariant,
   normalizeVariant,
   preferredVariant,
@@ -147,5 +151,55 @@ describe("how many powers the invite hands out", () => {
 
   it("says nothing when the count is unknown", () => {
     expect(claimLine(0, true)).toBe("");
+  });
+});
+
+describe("filtering the gallery by table size", () => {
+  const list: Variant[] = [
+    { ...normalizeVariant(classical) },
+    { ...normalizeVariant(hundred) },
+    { ...normalizeVariant({ key: "cold", name: "Cold War", powerCount: 2 }) },
+    { ...normalizeVariant({ key: "chaos", name: "Chaos", powerCount: 34 }) },
+  ];
+
+  it("bands a count the way the chips are labelled", () => {
+    expect(inBand(2, "2")).toBe(true);
+    expect(inBand(3, "2")).toBe(false);
+    expect(inBand(4, "3-4")).toBe(true);
+    expect(inBand(5, "3-4")).toBe(false);
+    expect(inBand(7, "5-7")).toBe(true);
+    expect(inBand(34, "8+")).toBe(true);
+    expect(inBand(7, "8+")).toBe(false);
+  });
+
+  it("lets everything through the All chip, and through a band it does not know", () => {
+    expect(inBand(34, "all")).toBe(true);
+    expect(inBand(34, "eleven")).toBe(true);
+    expect(POWER_BANDS[0].id).toBe("all");
+  });
+
+  it("counts what each chip would show", () => {
+    expect(bandCounts(list)).toEqual({ all: 4, "2": 1, "3-4": 1, "5-7": 1, "8+": 1 });
+  });
+
+  it("filters to the band", () => {
+    expect(filterByBand(list, "2", "cold").map((one) => one.key)).toEqual(["cold"]);
+  });
+
+  it("never hides the card the game would be created on", () => {
+    // Classical is a 7, so the 2 chip would drop it — but it is the choice.
+    expect(filterByBand(list, "2", "classical").map((one) => one.key)).toEqual([
+      "classical",
+      "cold",
+    ]);
+  });
+
+  it("keeps the catalogue order it was given", () => {
+    expect(filterByBand(list, "all", "classical").map((one) => one.key)).toEqual([
+      "classical",
+      "hundred",
+      "cold",
+      "chaos",
+    ]);
   });
 });

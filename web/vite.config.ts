@@ -22,6 +22,8 @@ const endpoints =
   "|variants$|variants/[^/]+/map\\.svg" + // the variant catalogue and its maps
   "|g/" +
   "|map\\.svg|state|options|order|adjudicate" + // the M0 sandbox's own routes
+  // The spectator page stays with vite; its feed goes to Go.
+  "|game/[^/]+/watch(/[0-9]+)?" +
   "|game/[^/]+/(public" +
   "|map\\.svg" +
   "|join/[^/]+" +
