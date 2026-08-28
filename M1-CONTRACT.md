@@ -94,3 +94,26 @@ public only after adjudication.
 
 SQLite, SSE, commit-reveal hashes, spectator page, variant choice,
 identity-mode setting, event-log UI. Keep the M0 sandbox working.
+
+
+## Addendum: variant picker (r14)
+
+- `GET /variants` → list of all godip variants with an `svg/` map, each:
+  `{key, name, powers: [names], powerCount, soloSCCount, totalSCCount,
+   startYear, description, rules, createdBy, supported: bool,
+   mapUrl: "/variants/{key}/map.svg"}`. `supported` is true only for
+  classical (D-014); the rest are experimental.
+- `GET /variants/{key}/map.svg` → that variant's map.
+- `POST /games` gains `settings.variant` (default `classical`); the whole
+  flow (start position, parser, options, nations, long names) runs on the
+  chosen variant. Experimental variants get an event-log line and a
+  join-page badge.
+- `GET /game/{id}/public` and seat/GM state gain `variant: {key, name,
+   supported}` and `provinceNames: {abbr: long}` (from godip's
+   ProvinceLongNames — replaces the frontend's hardcoded table, which is
+   classical-only debt).
+- Frontend /new: gallery of variant cards — name, power count with the
+  power names, SC counts (solo target / total), description + notes,
+  "Supported" vs "Experimental — placement not verified" badge, and a map
+  preview. Previews must load lazily (the SVGs are 0.6–4.3 MB; never
+  fetch all eagerly). Selecting a card sets the variant for creation.
