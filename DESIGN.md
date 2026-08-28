@@ -2,7 +2,7 @@
 
 **Status:** M0 spike implemented and browser-verified; phone UX fixes in progress.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r9 — 2026-08-28
+**Document revision:** r10 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -374,7 +374,7 @@ see while playing from their own phone seat, and the spectator/projector
 view (Q-005) is this view minus the admin controls — no extra data model
 work. This resolves Q-005's "do not make it hard" constraint.
 
-Addition (r8): the projector ("beamer") view gets layout variants chosen
+Addition (r8): the spectator view gets layout variants chosen
 in the URL — board only; board + move list (previous phase's orders and
 resolutions); later possibly board + SC count. Same data, different
 composition; still zero secret content. Post-v1 unless a playtest wants
@@ -703,3 +703,4 @@ Recorded so nobody re-derives them.
 | r7 | 2026-08-28 | D-019: touch order grammar — two-tap move, double-tap hold, attack/support chip on occupied targets, bottom-bar fallback. From phone testing of the M0 spike. |
 | r8 | 2026-08-28 | D-013 addition: beamer view gets URL-chosen layout variants (board only, board + move list, …). M1 direction started in code: /g/{id} lazily-created games in the spike. |
 | r9 | 2026-08-28 | D-019 additions: highlight color grammar (green/amber/pulsing blue), staged hints, order Change/Cancel; server-side order cancellation. Debt noted: province names table in the client, move server-side at M2. |
+| r10 | 2026-08-28 | Terminology session; CONTEXT.md created (Power/Seat/Player, Finalize/Commit/Reveal, Spectator view + Annotation, NMR, Adjudicate/Resolution). D-013's "beamer" renamed spectator view; spectator is strictly read-only for orders, annotations allowed later. |
