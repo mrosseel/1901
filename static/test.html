@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>app.js harness (not part of the UI)</title>
+<link rel="stylesheet" href="/static/app.css">
+<script>
+/*
+Offline harness. It replaces fetch() with canned /map.svg, /state, /options and
+/order responses, then drives one order through the real UI code. Open it and
+read #results; window.__results holds the same data for a headless driver.
+It is a development aid and is not linked from index.html.
+*/
+window.__errors = [];
+window.addEventListener("error", (e) => window.__errors.push(String(e.message)));
+window.addEventListener("unhandledrejection", (e) => window.__errors.push(String(e.reason)));
+
+const MAP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1524 1357" width="100%" height="100%">
+  <g id="provinces" style="display:none;opacity:1">
+    <path id="vie" d="M 700,800 h 60 v 60 h -60 z"/>
+    <path id="tri" d="M 700,900 h 60 v 60 h -60 z"/>
+    <path id="bud" d="M 800,800 h 60 v 60 h -60 z"/>
+    <path id="ser" d="M 800,900 h 60 v 60 h -60 z"/>
+    <path id="tri/xc" d="M 900,900 h 20 v 20 h -20 z"/>
+  </g>
+  <g id="supply-centers" style="display:none">
+    <path id="vieCenter" d="m 730,830 h 10 v 10 h -10 z"/>
+    <path id="triCenter" d="m 730,930 h 10 v 10 h -10 z"/>
+    <path id="budCenter" d="m 830,830 h 10 v 10 h -10 z"/>
+  </g>
+  <g id="province-centers" style="display:none">
+    <path id="serCenter" d="m 830,930 h 10 v 10 h -10 z"/>
+  </g>
+  <g id="units"/>
+</svg>`;
+
+let STATE = {
+  phase: { season: "Spring", year: 1901, type: "Movement" },
+  units: {
+    vie: { type: "Army", nation: "Austria" },
+    bud: { type: "Army", nation: "Austria" },
+    tri: { type: "Fleet", nation: "Austria" },
+  },
+  orders: {},
+  resolutions: {},
+};
+
+// Shaped exactly like godip's Options JSON, with the province branch on top.
+const OPTIONS = {
+  vie: {
+    Type: "Province",
+    Next: {
+      Hold: { Type: "OrderType", Next: { vie: { Type: "SrcProvince", Next: {} } } },
+      Move: {
+        Type: "OrderType",
+        Next: {
+          vie: {
+            Type: "SrcProvince",
+            Next: { tri: { Type: "Province", Next: {} }, bud: { Type: "Province", Next: {} } },
+          },
+        },
+      },
+      Support: {
+        Type: "OrderType",
+        Next: {
+          vie: {
+            Type: "SrcProvince",
+            Next: {
+              bud: {
+                Type: "Province",
+                Next: { ser: { Type: "Province", Next: {} }, bud: { Type: "Province", Next: {} } },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+window.__calls = [];
+
+window.fetch = async function (url, opts) {
+  const path = String(url);
+  window.__calls.push({ url: path, body: opts && opts.body ? JSON.parse(opts.body) : null });
+  const ok = (payload, text) => ({
+    ok: true,
+    status: 200,
+    text: async () => (text === undefined ? JSON.stringify(payload) : text),
+    json: async () => payload,
+  });
+  if (path === "/map.svg") return ok(null, MAP);
+  if (path === "/state") return ok(STATE);
+  if (path.startsWith("/options")) {
+    const province = new URLSearchParams(path.split("?")[1]).get("province");
+    return ok(OPTIONS[province] ? { [province]: OPTIONS[province] } : {});
+  }
+  if (path === "/order") {
+    const body = JSON.parse(opts.body);
+    STATE = Object.assign({}, STATE, {
+      orders: Object.assign({}, STATE.orders, { [body.province]: body.parts.join(" ") }),
+    });
+    return ok(STATE);
+  }
+  if (path === "/adjudicate") {
+    STATE = Object.assign({}, STATE, { resolutions: { vie: "OK" } });
+    return ok(STATE);
+  }
+  return { ok: false, status: 404, text: async () => "no stub", json: async () => ({}) };
+};
+</script>
+</head>
+<body>
+<div id="layout">
+  <main id="map-pane"><div id="map"></div></main>
+  <aside id="sidebar">
+    <header id="phase-bar">
+      <h1 id="phase">Loading…</h1>
+      <button id="adjudicate" type="button" disabled>Adjudicate</button>
+    </header>
+    <section id="builder" hidden>
+      <div id="builder-head">
+        <h2 id="builder-title"></h2>
+        <button id="builder-cancel" type="button" class="link">Cancel</button>
+      </div>
+      <p id="builder-path" class="crumbs"></p>
+      <div id="builder-buttons" class="buttons"></div>
+    </section>
+    <section id="orders-pane"><h2>Orders</h2><ul id="orders" class="list"></ul></section>
+    <section id="resolutions-pane" hidden><h2>Resolutions</h2><ul id="resolutions" class="list"></ul></section>
+    <p id="status"></p>
+  </aside>
+</div>
+<pre id="results">running…</pre>
+
+<script src="/static/app.js"></script>
+<script>
+const checks = [];
+function check(name, pass, detail) {
+  checks.push((pass ? "PASS " : "FAIL ") + name + (detail ? " — " + detail : ""));
+}
+
+function wait(test, label) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + 3000;
+    (function poll() {
+      if (test()) return resolve();
+      if (Date.now() > deadline) return reject(new Error("timeout waiting for " + label));
+      setTimeout(poll, 20);
+    })();
+  });
+}
+
+function buttonNamed(text) {
+  return Array.from(document.querySelectorAll("#builder-buttons button")).find(
+    (b) => b.textContent.trim().toUpperCase() === text.toUpperCase()
+  );
+}
+
+async function run() {
+  await wait(() => document.querySelector("#unit-overlay"), "unit overlay");
+  const marks = document.querySelectorAll("#unit-overlay .unit");
+  check("units drawn", marks.length === 3, marks.length + " markers");
+  check("fleet is a triangle", document.querySelector("#unit-overlay polygon.unit") !== null);
+  check("centers parsed", window.__app.centers.size === 4, "size " + window.__app.centers.size);
+  check("phase rendered", document.getElementById("phase").textContent === "Spring 1901 Movement");
+
+  // Click the province through the real map handler.
+  document.querySelector("#provinces #vie").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  await wait(() => !document.getElementById("builder").hidden, "builder panel");
+  const types = Array.from(document.querySelectorAll("#builder-buttons button")).map((b) => b.textContent);
+  check("root Province node skipped", types.join(",") === "Hold,Move,Support", types.join(","));
+
+  buttonNamed("Move").click();
+  await wait(() => buttonNamed("TRI"), "move targets");
+  const targets = Array.from(document.querySelectorAll("#builder-buttons button")).map((b) => b.textContent);
+  check("SrcProvince auto-selected", targets.join(",") === "BUD,TRI", targets.join(","));
+  check("targets highlighted", document.querySelectorAll("#provinces .legal").length === 2);
+  check("source highlighted", document.querySelectorAll("#provinces .selected").length === 1);
+
+  buttonNamed("TRI").click();
+  await wait(() => window.__calls.some((c) => c.url === "/order"), "POST /order");
+  const posted = window.__calls.find((c) => c.url === "/order").body;
+  check(
+    "order body",
+    JSON.stringify(posted) === JSON.stringify({ province: "vie", parts: ["Move", "tri"] }),
+    JSON.stringify(posted)
+  );
+  await wait(() => document.querySelectorAll("#orders li").length === 1, "sidebar order");
+  check("builder closed", document.getElementById("builder").hidden === true);
+
+  // A three-step support order, chosen by clicking the map instead of buttons.
+  document.querySelector("#provinces #bud").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  await wait(() => /No legal orders/.test(document.getElementById("status").textContent), "empty options");
+  check("empty option tree handled", document.getElementById("builder").hidden === true);
+  document.querySelector("#provinces #vie").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  await wait(() => buttonNamed("Support"), "options for vie again");
+  buttonNamed("Support").click();
+  await wait(() => buttonNamed("BUD"), "support source");
+  buttonNamed("BUD").click();
+  await wait(() => buttonNamed("SER"), "support target");
+  document.querySelector("#provinces #ser").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  await wait(() => window.__calls.filter((c) => c.url === "/order").length === 2, "second POST /order");
+  const support = window.__calls.filter((c) => c.url === "/order")[1].body;
+  check(
+    "support order body",
+    JSON.stringify(support) === JSON.stringify({ province: "vie", parts: ["Support", "bud", "ser"] }),
+    JSON.stringify(support)
+  );
+
+  document.getElementById("adjudicate").click();
+  await wait(() => !document.getElementById("resolutions-pane").hidden, "resolutions");
+  check("resolutions listed", document.querySelectorAll("#resolutions li").length === 1);
+
+  check("no uncaught JS errors", window.__errors.length === 0, window.__errors.join(" | "));
+}
+
+run().then(
+  () => finish(),
+  (err) => {
+    check("harness completed", false, String(err.message || err));
+    finish();
+  }
+);
+
+function finish() {
+  window.__results = checks;
+  window.__done = true;
+  document.getElementById("results").textContent = checks.join("\n");
+}
+</script>
+</body>
+</html>

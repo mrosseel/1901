@@ -1,0 +1,172 @@
+:root {
+  --bg: #14161a;
+  --panel: #1d2026;
+  --panel-2: #262a32;
+  --line: #363c46;
+  --text: #e6e8ec;
+  --muted: #9aa3b2;
+  --accent: #6ea8fe;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+#layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  height: 100vh;
+}
+
+#map-pane {
+  overflow: auto;
+  padding: 8px;
+}
+
+#map svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Layers painted above the provinces (noise, names, foreground) must not
+   swallow clicks meant for the province hit shapes. */
+#map svg > g:not(#provinces):not(#unit-overlay) {
+  pointer-events: none;
+}
+
+/* The provinces layer ships hidden. Make it an invisible click target. */
+#map svg #provinces {
+  display: inline !important;
+  opacity: 1 !important;
+}
+
+#map svg #provinces > * {
+  fill: transparent !important;
+  stroke: none;
+  cursor: pointer;
+}
+
+#map svg #provinces > *:hover {
+  fill: rgba(110, 168, 254, 0.22) !important;
+}
+
+#map svg #provinces > .legal {
+  fill: rgba(110, 254, 168, 0.30) !important;
+}
+
+#map svg #provinces > .legal:hover {
+  fill: rgba(110, 254, 168, 0.50) !important;
+}
+
+#map svg #provinces > .selected {
+  fill: rgba(254, 208, 110, 0.40) !important;
+}
+
+#unit-overlay .unit {
+  stroke: #14161a;
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+#unit-overlay .unit-label {
+  font: bold 11px system-ui, sans-serif;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  fill: #14161a;
+}
+
+#unit-overlay .ordered {
+  stroke: #ffffff;
+  stroke-width: 3;
+}
+
+#sidebar {
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+#phase-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+h1 { font-size: 17px; margin: 0; }
+h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+button.link {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 0;
+  text-decoration: underline;
+}
+
+#adjudicate { background: #2c4a7c; border-color: #3f6cae; }
+
+#builder {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+#builder-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.crumbs { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
+
+.buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+
+.list li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  border: 1px solid #14161a;
+}
+
+.nation { color: var(--muted); font-size: 11px; min-width: 62px; }
+
+#status { color: var(--muted); font-size: 12px; margin: 0; min-height: 1.4em; }
+#status.error { color: #ff8b8b; }

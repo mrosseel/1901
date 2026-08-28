@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spring 1901 — M0 spike</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div id="layout">
+  <main id="map-pane">
+    <div id="map" aria-label="Diplomacy map"></div>
+  </main>
+
+  <aside id="sidebar">
+    <header id="phase-bar">
+      <h1 id="phase">Loading…</h1>
+      <button id="adjudicate" type="button" disabled>Adjudicate</button>
+    </header>
+
+    <section id="builder" hidden>
+      <div id="builder-head">
+        <h2 id="builder-title"></h2>
+        <button id="builder-cancel" type="button" class="link">Cancel</button>
+      </div>
+      <p id="builder-path" class="crumbs"></p>
+      <div id="builder-buttons" class="buttons"></div>
+    </section>
+
+    <section id="orders-pane">
+      <h2>Orders</h2>
+      <ul id="orders" class="list"></ul>
+    </section>
+
+    <section id="resolutions-pane" hidden>
+      <h2>Resolutions</h2>
+      <ul id="resolutions" class="list"></ul>
+    </section>
+
+    <p id="status" role="status"></p>
+  </aside>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
