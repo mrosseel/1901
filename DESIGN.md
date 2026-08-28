@@ -1,8 +1,8 @@
 # Face-to-Face Diplomacy Adjudicator — Execution Brief
 
-**Status:** Pre-implementation. No code written yet.
+**Status:** M0 spike implemented and browser-verified; phone UX fixes in progress.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r4 — 2026-08-28
+**Document revision:** r6 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -55,6 +55,8 @@ entry at a physical table.
 ### Non-goals (v1)
 
 - Online/asynchronous play with long deadlines. That market is served.
+  (Long-term direction changed in r6 — see D-018: a hosted multi-game
+  service with logins is a post-v1 target. Still out of v1.)
 - Press/messaging. People are sitting at a table talking to each other.
 - AI players.
 - Tournament scoring, ratings, brackets.
@@ -389,6 +391,52 @@ players, contains no Hasbro mark, works as a binary name and a domain
 public turns something up. The Realpolitik-style disclaimers from §8 still
 apply regardless of name.
 
+### D-017 — Frontend: React + Vite, with the map as an imperative DOM island
+**Status:** accepted, r5 (closes Q-002). Applies from M2; M0/M1 stay vanilla.
+React with Vite for dev server/HMR and production build; build output is
+embedded in the Go binary per D-006. Owner preference: familiarity,
+component ecosystem, and the amount of chrome UI ahead (order panels, seat
+views, GM view, audit feed).
+
+Non-negotiable constraint that answers Q-002's performance worry: the map
+SVG never enters the React tree. It is injected once into a ref'd
+container and driven imperatively — unit overlay, highlight classes, and
+viewBox pan/zoom by direct DOM manipulation, as the M0 spike does. React
+renders around the map, not through it. If this rule is ever broken,
+Q-002's VDOM-overhead concern returns with it.
+
+Considered: Svelte and SolidJS — equally capable here and equally served
+by Vite; rejected on familiarity, not on merit. Note autoreload was no
+tiebreaker: Vite HMR works for all three.
+
+### D-018 — Long-term: one binary, two deployment modes (LAN and hosted multi-game)
+**Status:** accepted, r6. Direction-setting; nothing in M0–M5 is reordered.
+The same Go binary must eventually serve two modes:
+
+1. **LAN mode** — what v1 ships: a GM downloads one binary, runs it on a
+   laptop, hosts one table's game offline (D-006). This stays the primary
+   deployment and must never require the hosted features.
+2. **Hosted mode** — a long-running internet instance with many concurrent
+   games and user accounts.
+
+What this changes *now* (cheap if done early, expensive to retrofit):
+
+- Every table, endpoint, and in-memory structure is keyed by game id from
+  M1 onward — no single-game assumptions anywhere. The §6 data model
+  already complies.
+- Auth is layered, not replaced: seat tokens (D-005) remain the only
+  thing needed to *play*, in both modes. Accounts, when they come, attach
+  to game management — creating games, claiming the GM role, listing your
+  games — never to seat play. "No accounts" in §1 is thereby narrowed
+  from a product-wide rule to a per-seat rule; the hard requirement that
+  a player joins by QR with no login is untouched.
+- SQLite stays until hosted-mode load proves it insufficient; the storage
+  layer should not grow features that only make sense for one mode.
+
+What this explicitly does not change: no account system, lobby, or
+multi-tenancy work before M5 is accepted. Hosted mode gets its own
+milestones after v1 ships.
+
 ### D-016 — New variants come via a jDip adjacency-XML translator, not by hand
 **Status:** accepted, r4. Post-v1; nothing in M0–M5 depends on it.
 When a variant that godip lacks is wanted (1900, Modern, Renaissance, …),
@@ -424,9 +472,8 @@ that surface mid-game at a table.
 - **Q-001 — Name.** *resolved → D-015.* Working name "1901". The
   Realpolitik precedent (ship free, "you must own a copy", no Hasbro art)
   is recorded in §8 and stands.
-- **Q-002 — Frontend framework.** Svelte and SolidJS both fit (small,
-  no virtual DOM overhead on a 2.2 MB SVG). Not yet decided. Defer to M2;
-  M0/M1 can be vanilla JS.
+- **Q-002 — Frontend framework.** *resolved → D-017.* React + Vite, map
+  kept out of the React tree as an imperative DOM island.
 - **Q-003 — Does the 2.2 MB classical `map.svg` perform acceptably on a
   mid-range Android phone?** Unknown. If not: strip Inkscape metadata,
   simplify paths, or pre-render a raster base layer with SVG only for the
@@ -435,6 +482,12 @@ that surface mid-game at a table.
   fallback now exists (r2): jDip's `egdipmap.svg` is 201 KB with its own
   hit paths and full placement data (§2.1) — swapping art, not
   architecture.
+  *M0 phone finding (2026-08-28):* the full map loads and renders on a
+  phone over LAN; no raster fallback needed so far. The blocker is not
+  performance but scale — at screen width the provinces are untappable,
+  so pan/zoom (viewBox manipulation, pinch + drag) is a hard requirement
+  for the phone UI, not a nice-to-have. Perf verdict stays open until
+  tested zoomed-in on a mid-range device.
 - **Q-004 — Retreat and build phases in the FtF flow.** These are fast and
   often only involve one or two powers. Does the whole table wait on
   commit-reveal, or do these phases run in the open? Decide from playtest,
@@ -606,3 +659,5 @@ Recorded so nobody re-derives them.
 | r2 | 2026-08-28 | Grilling session. D-009: auto-reveal from client localStorage, civil disorder after grace period — closes the committed-but-never-revealed stall between D-004 and D-008. D-010: deadlines arm the GM's force-adjudication and never auto-fire; forced no-commit powers hold, logged as NMR. D-009 amended: failed reveal flags the GM (wait/extend/force), no automatic civil-disorder timer. D-011: commit is a replaceable finalize; last hash wins, no server-side drafts. D-012: hard seat claim in v1; second device blocked and logged, seat moves via GM token rotation. D-013: GM view is secret-free and safe for a shared screen; resolves Q-005. Fact correction in §2.3: godip maps carry `<abbr>Center` placement anchors in all 17 SVG variants; D-003 amended to generate the placement table from them. §2.1: jDip's `egdipmap.svg` PROVINCE_DATA measured; usable only with jDip's own art. D-014: classical supported in v1, other variants behind an experimental flag; closes Q-006. Q-003 gains jDip's 201 KB map as a measured art fallback. D-015: working name "1901"; closes Q-001. |
 | r3 | 2026-08-28 | Artwork deliberation recorded as §2.4: godip art beats jDip on all 4 overlapping variants; every godip variant already has art; jDip-only variants need engines, not maps — their `*_adjacency.xml` is the convertible asset. §2.5 renumbered from 2.4. |
 | r4 | 2026-08-28 | D-016: jDip-only variants are added via a generated translation of jDip's adjacency XML + variants.xml into a godip variant package; translator built on first concrete need, post-v1. |
+| r5 | 2026-08-28 | D-017: React + Vite from M2 with the map as an imperative DOM island; closes Q-002. Q-003 gains the M0 phone finding: renders fine over LAN, pan/zoom is a hard requirement. |
+| r6 | 2026-08-28 | D-018: long-term target is one binary with two modes — LAN (primary, unchanged) and hosted multi-game with accounts for game management only; seat play stays login-free in both. Non-goals updated to point at it. |

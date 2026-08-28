@@ -19,6 +19,13 @@ let svgRoot = null;
 let state = null;
 let builder = null;
 
+// Pan/zoom. baseBox is the map's own viewBox; view is the part on screen.
+let baseBox = { x: 0, y: 0, w: 1524, h: 1357 };
+let view = null;
+const MAX_ZOOM = 8;
+const NARROW_PX = 780;
+const TAP_SLOP_PX = 8;
+
 const el = {
   map: document.getElementById("map"),
   phase: document.getElementById("phase"),
@@ -65,7 +72,13 @@ function injectMap(svgText) {
   if (parseError) throw new Error("map.svg did not parse");
   svgRoot = document.importNode(doc.documentElement, true);
   svgRoot.setAttribute("width", "100%");
-  svgRoot.removeAttribute("height");
+  svgRoot.setAttribute("height", "100%");
+  svgRoot.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+  const box = (svgRoot.getAttribute("viewBox") || "0 0 1524 1357").trim().split(/[\s,]+/).map(Number);
+  baseBox = { x: box[0], y: box[1], w: box[2], h: box[3] };
+  view = null;
+
   el.map.replaceChildren(svgRoot);
 }
 
@@ -130,6 +143,228 @@ function provinceShape(province) {
   return layer.querySelector('[id="' + CSS.escape(province) + '"]');
 }
 
+// --- Pan and zoom ---------------------------------------------------------
+/*
+Zoom and pan move the injected SVG's viewBox; nothing is transformed, so hit
+testing, getBBox and the unit anchors all stay in map coordinates. The widest
+allowed view is "fit all" for the current container shape, the narrowest is
+MAX_ZOOM times closer.
+*/
+
+function mapRect() {
+  return el.map.getBoundingClientRect();
+}
+
+// Width of the view that just fits the whole map into the container.
+function fitAllWidth() {
+  const rect = mapRect();
+  if (!rect.width || !rect.height) return baseBox.w;
+  return Math.max(baseBox.w, baseBox.h * (rect.width / rect.height));
+}
+
+function applyView() {
+  if (!svgRoot || !view) return;
+  svgRoot.setAttribute("viewBox", [view.x, view.y, view.w, view.h].join(" "));
+}
+
+/*
+Sets the view from a wanted width and top-left corner. The height always
+follows the container's aspect ratio, the width is clamped to the zoom range,
+and the box is kept over the map (centred on any axis where it is larger).
+*/
+function clampedSize(wantedWidth) {
+  const rect = mapRect();
+  const aspect = rect.width && rect.height ? rect.height / rect.width : baseBox.h / baseBox.w;
+  const widest = fitAllWidth();
+  const w = Math.min(widest, Math.max(widest / MAX_ZOOM, wantedWidth));
+  return { w: w, h: w * aspect };
+}
+
+function setView(x, y, wantedWidth) {
+  const size = clampedSize(wantedWidth);
+  const w = size.w;
+  const h = size.h;
+
+  view = {
+    w: w,
+    h: h,
+    x: w >= baseBox.w ? baseBox.x + (baseBox.w - w) / 2 : clamp(x, baseBox.x, baseBox.x + baseBox.w - w),
+    y: h >= baseBox.h ? baseBox.y + (baseBox.h - h) / 2 : clamp(y, baseBox.y, baseBox.y + baseBox.h - h),
+  };
+  applyView();
+}
+
+function clamp(value, low, high) {
+  return Math.min(high, Math.max(low, value));
+}
+
+function zoomLevel() {
+  return view ? fitAllWidth() / view.w : 1;
+}
+
+// Client coordinates → map coordinates.
+function toMap(clientX, clientY) {
+  const rect = mapRect();
+  return {
+    x: view.x + ((clientX - rect.left) / rect.width) * view.w,
+    y: view.y + ((clientY - rect.top) / rect.height) * view.h,
+  };
+}
+
+// Zooms by `factor` while the map point under (clientX, clientY) stays put.
+function zoomAt(clientX, clientY, factor) {
+  if (!view) return;
+  const rect = mapRect();
+  const anchor = toMap(clientX, clientY);
+  const fx = (clientX - rect.left) / rect.width;
+  const fy = (clientY - rect.top) / rect.height;
+  const size = clampedSize(view.w / factor);
+  setView(anchor.x - fx * size.w, anchor.y - fy * size.h, size.w);
+  renderUnits();
+}
+
+function isNarrow() {
+  return window.innerWidth <= NARROW_PX;
+}
+
+/*
+Wide screens open on the whole map. Narrow screens open at fit-width, stepped
+in a little further, so provinces are big enough to tap straight away.
+*/
+function resetView() {
+  const widest = fitAllWidth();
+  const size = clampedSize(isNarrow() ? Math.min(widest, baseBox.w) / 1.6 : widest);
+  const centre = { x: baseBox.x + baseBox.w / 2, y: baseBox.y + baseBox.h / 2 };
+  setView(centre.x - size.w / 2, centre.y - size.h / 2, size.w);
+  renderUnits();
+}
+
+function bindGestures() {
+  const pointers = new Map();
+  let pinchDistance = 0;
+  let moved = 0;
+  let dragging = false;
+  let suppressClick = false;
+  let lastTap = 0;
+  let lastTapPoint = { x: 0, y: 0 };
+
+  const midpoint = () => {
+    const points = Array.from(pointers.values());
+    const sum = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+    return { x: sum.x / points.length, y: sum.y / points.length };
+  };
+  const spread = () => {
+    const [a, b] = Array.from(pointers.values());
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+
+  el.map.addEventListener("pointerdown", (event) => {
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 1) {
+      moved = 0;
+      dragging = true;
+      // A pan emits no click, so the flag must be cleared per gesture,
+      // otherwise the tap after a pan gets swallowed.
+      suppressClick = false;
+    } else if (pointers.size === 2) {
+      pinchDistance = spread();
+      dragging = false;
+      suppressClick = true;
+    }
+  });
+
+  /*
+  Move and release are watched on the window, not on the map, so a drag that
+  leaves the map still finishes. Pointer capture would do the same, but it
+  also retargets the click that follows a tap to the container, which would
+  hide province clicks from the map handler.
+  */
+  window.addEventListener("pointermove", (event) => {
+    const previous = pointers.get(event.pointerId);
+    if (!previous || !view) return;
+    const next = { x: event.clientX, y: event.clientY };
+
+    if (pointers.size === 1 && dragging) {
+      const rect = mapRect();
+      const dx = ((next.x - previous.x) / rect.width) * view.w;
+      const dy = ((next.y - previous.y) / rect.height) * view.h;
+      moved += Math.hypot(next.x - previous.x, next.y - previous.y);
+      if (moved > TAP_SLOP_PX) {
+        suppressClick = true;
+        setView(view.x - dx, view.y - dy, view.w);
+        renderUnits();
+      }
+    }
+
+    pointers.set(event.pointerId, next);
+
+    if (pointers.size === 2) {
+      const distance = spread();
+      if (pinchDistance > 0 && distance > 0) {
+        const middle = midpoint();
+        zoomAt(middle.x, middle.y, distance / pinchDistance);
+      }
+      pinchDistance = distance;
+    }
+  });
+
+  const release = (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    const wasSingle = pointers.size === 1;
+    pointers.delete(event.pointerId);
+    if (pointers.size < 2) pinchDistance = 0;
+    if (pointers.size === 0) dragging = false;
+
+    if (event.type !== "pointerup" || !wasSingle) return;
+    if (moved > TAP_SLOP_PX) return;
+
+    // A second quick tap near the first one zooms in a step.
+    const now = Date.now();
+    const near = Math.hypot(event.clientX - lastTapPoint.x, event.clientY - lastTapPoint.y) < 30;
+    if (now - lastTap < 300 && near) {
+      suppressClick = true;
+      zoomAt(event.clientX, event.clientY, 1.8);
+      lastTap = 0;
+      return;
+    }
+    lastTap = now;
+    lastTapPoint = { x: event.clientX, y: event.clientY };
+  };
+
+  window.addEventListener("pointerup", release);
+  window.addEventListener("pointercancel", release);
+
+  // A pan must not also count as a province tap.
+  el.map.addEventListener(
+    "click",
+    (event) => {
+      if (!suppressClick) return;
+      suppressClick = false;
+      event.stopPropagation();
+      event.preventDefault();
+    },
+    true
+  );
+
+  el.map.addEventListener(
+    "wheel",
+    (event) => {
+      if (!view) return;
+      event.preventDefault();
+      zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * 0.0015));
+    },
+    { passive: false }
+  );
+
+  el.map.addEventListener("dblclick", (event) => event.preventDefault());
+
+  window.addEventListener("resize", () => {
+    if (!view) return;
+    setView(view.x, view.y, view.w);
+    renderUnits();
+  });
+}
+
 function bindMapClicks() {
   const layer = svgRoot.querySelector("#provinces");
   if (!layer) throw new Error("map.svg has no #provinces layer");
@@ -151,11 +386,19 @@ function overlayLayer() {
   return layer;
 }
 
+// Map units per screen pixel, so markers keep one size however far you zoom.
+function unitsPerPixel() {
+  const rect = mapRect();
+  if (!view || !rect.width) return 1;
+  return view.w / rect.width;
+}
+
 function renderUnits() {
   const layer = overlayLayer();
   layer.replaceChildren();
   const units = (state && state.units) || {};
   const orders = (state && state.orders) || {};
+  const r = clamp(12 * unitsPerPixel(), 8, 60);
 
   Object.keys(units).forEach((province) => {
     const unit = units[province];
@@ -170,24 +413,28 @@ function renderUnits() {
       shape.setAttribute(
         "points",
         [
-          point.x + "," + (point.y - 12),
-          point.x + 11 + "," + (point.y + 8),
-          point.x - 11 + "," + (point.y + 8),
+          point.x + "," + (point.y - r * 1.1),
+          point.x + r + "," + (point.y + r * 0.75),
+          point.x - r + "," + (point.y + r * 0.75),
         ].join(" ")
       );
     } else {
       shape = document.createElementNS(SVG_NS, "circle");
       shape.setAttribute("cx", point.x);
       shape.setAttribute("cy", point.y);
-      shape.setAttribute("r", 11);
+      shape.setAttribute("r", r);
     }
+    const ordered = Boolean(orders[province]);
     shape.setAttribute("fill", color);
-    shape.setAttribute("class", orders[province] ? "unit ordered" : "unit");
+    shape.setAttribute("stroke", ordered ? "#ffffff" : "#14161a");
+    shape.setAttribute("stroke-width", Math.max(1, r * (ordered ? 0.28 : 0.16)));
+    shape.setAttribute("class", ordered ? "unit ordered" : "unit");
     layer.appendChild(shape);
 
     const label = document.createElementNS(SVG_NS, "text");
     label.setAttribute("x", point.x);
-    label.setAttribute("y", point.y + (isFleet ? 2 : 0));
+    label.setAttribute("y", point.y + (isFleet ? r * 0.2 : 0));
+    label.setAttribute("font-size", r * 1.1);
     label.setAttribute("class", "unit-label");
     label.textContent = isFleet ? "F" : "A";
     layer.appendChild(label);
@@ -312,9 +559,17 @@ function renderBuilder() {
   el.builderTitle.textContent =
     (unit ? unit.type + " " : "") + builder.province.toUpperCase() +
     (unit ? " (" + unit.nation + ")" : "");
+  const targetsAreProvinces = Object.keys(builder.node).some(
+    (key) => (builder.node[key] || {}).Type === "Province"
+  );
   el.builderPath.textContent = builder.labels.length
     ? builder.labels.join(" → ") + " → ?"
     : "Pick an order type.";
+  setStatus(
+    targetsAreProvinces
+      ? "Tap a highlighted province on the map, or use a button."
+      : "Pick an order type below."
+  );
 
   const buttons = Object.keys(builder.node)
     .sort()
@@ -422,12 +677,23 @@ async function init() {
   injectMap(svgText);
   readCenters();
   bindMapClicks();
+  bindGestures();
   state = loaded;
+  resetView();
   renderAll();
-  setStatus("Click a unit to order it.");
+  setStatus("Tap a unit on the map to order it. Drag to pan, pinch or scroll to zoom.");
 }
 
-window.__app = { init: init, centers: centers, getState: () => state, getBuilder: () => builder };
+window.__app = {
+  init: init,
+  centers: centers,
+  getState: () => state,
+  getBuilder: () => builder,
+  getView: () => view,
+  getZoom: zoomLevel,
+  resetView: resetView,
+  zoomAt: zoomAt,
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   init().catch((err) => {

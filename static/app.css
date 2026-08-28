@@ -24,14 +24,29 @@ body {
 }
 
 #map-pane {
-  overflow: auto;
+  overflow: hidden;
   padding: 8px;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The gesture surface. touch-action:none keeps the browser from turning a
+   drag or a pinch into a page scroll before the handlers see it. */
+#map {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 #map svg {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
 }
 
 /* Layers painted above the provinces (noise, names, foreground) must not
@@ -68,23 +83,18 @@ body {
   fill: rgba(254, 208, 110, 0.40) !important;
 }
 
+/* Stroke and size are set as attributes, so they can follow the zoom level. */
 #unit-overlay .unit {
-  stroke: #14161a;
-  stroke-width: 2;
   pointer-events: none;
 }
 
 #unit-overlay .unit-label {
-  font: bold 11px system-ui, sans-serif;
+  font-family: system-ui, sans-serif;
+  font-weight: bold;
   text-anchor: middle;
   dominant-baseline: central;
   pointer-events: none;
   fill: #14161a;
-}
-
-#unit-overlay .ordered {
-  stroke: #ffffff;
-  stroke-width: 3;
 }
 
 #sidebar {
@@ -170,3 +180,52 @@ button.link {
 
 #status { color: var(--muted); font-size: 12px; margin: 0; min-height: 1.4em; }
 #status.error { color: #ff8b8b; }
+
+/* --- Narrow screens ------------------------------------------------------
+   One column: the map gets the whole viewport width and most of its height,
+   the sidebar sits underneath, and the option buttons become a bottom bar so
+   the map never gets pushed off screen while an order is being built. */
+@media (max-width: 780px) {
+  #layout {
+    grid-template-columns: 100%;
+    grid-template-rows: 58vh minmax(0, 1fr);
+    height: 100dvh;
+  }
+
+  #map-pane { padding: 0; }
+
+  #sidebar {
+    border-left: none;
+    border-top: 1px solid var(--line);
+    padding: 12px 12px 96px;
+    gap: 14px;
+  }
+
+  #phase-bar { position: sticky; top: -12px; background: var(--panel); padding: 4px 0; }
+
+  #builder {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  #builder-head { align-items: center; }
+  #builder .crumbs { margin: 2px 0 8px; }
+
+  #builder-buttons {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #builder-buttons button { flex: 0 0 auto; padding: 10px 14px; }
+
+  button { padding: 9px 14px; }
+}

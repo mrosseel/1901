@@ -17,7 +17,16 @@ import (
 	"github.com/zond/godip/variants/classical"
 )
 
-const addr = ":8190"
+// defaultAddr can be overridden with the ADDR environment variable, e.g.
+// ADDR=:8000 to use a port the host firewall already allows.
+const defaultAddr = ":8190"
+
+func listenAddr() string {
+	if a := os.Getenv("ADDR"); a != "" {
+		return a
+	}
+	return defaultAddr
+}
 
 // game holds the single in-memory game and guards it against concurrent requests.
 type game struct {
@@ -291,6 +300,7 @@ func main() {
 	mux.HandleFunc("/order", handleOrder)
 	mux.HandleFunc("/adjudicate", handleAdjudicate)
 
+	addr := listenAddr()
 	log.Printf("listening on http://localhost%v (static from %v)", addr, dir)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
