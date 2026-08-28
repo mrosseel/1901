@@ -46,6 +46,9 @@ type game struct {
 	owner map[godip.Province]godip.Nation
 	// flow carries the GM, seat, and phase state.
 	flow *flow
+	// previousPhase is the review of the phase that resolved most
+	// recently, nil until the first adjudication.
+	previousPhase *phaseReviewJSON
 	// variant is the godip variant this game is played on. Every engine
 	// call goes through it; nothing here is classical-specific.
 	variant    common.Variant
@@ -235,6 +238,59 @@ func (self *game) snapshot(id string) stateJSON {
 	}
 	sort.Strings(out.Nations)
 	return out
+}
+
+// phaseReviewJSON is the record of a resolved phase: every order that was
+// actually applied, who gave it, and how it turned out. Past orders become
+// public once the phase resolves, so this is safe for every view.
+type phaseReviewJSON struct {
+	Phase       phaseJSON           `json:"phase"`
+	Orders      map[string]string   `json:"orders"`
+	OrderParts  map[string][]string `json:"orderParts"`
+	Powers      map[string]string   `json:"powers"`
+	Resolutions map[string]string   `json:"resolutions"`
+	Dislodged   map[string]unitJSON `json:"dislodged"`
+	NMR         []string            `json:"nmr"`
+}
+
+// beginReview records the phase and its applied orders. It must run after
+// any NMR drops and before state.Next(), because the order text is read
+// off the board as it stands during the phase.
+func (self *game) beginReview(nmr []string) *phaseReviewJSON {
+	review := &phaseReviewJSON{
+		Phase: phaseJSON{
+			Season: string(self.state.Phase().Season()),
+			Year:   self.state.Phase().Year(),
+			Type:   string(self.state.Phase().Type()),
+		},
+		Orders:      map[string]string{},
+		OrderParts:  map[string][]string{},
+		Powers:      map[string]string{},
+		Resolutions: map[string]string{},
+		Dislodged:   map[string]unitJSON{},
+		NMR:         []string{},
+	}
+	for prov, bits := range self.parts {
+		review.Orders[string(prov)] = self.describe(prov, bits)
+		review.OrderParts[string(prov)] = bits
+		review.Powers[string(prov)] = string(self.owner[prov])
+	}
+	if nmr != nil {
+		review.NMR = nmr
+	}
+	return review
+}
+
+// endReview fills in the outcome. It must run after state.Next().
+func (self *game) endReview(review *phaseReviewJSON) {
+	for prov, err := range self.state.Resolutions() {
+		if err == nil {
+			review.Resolutions[string(prov)] = "OK"
+		} else {
+			review.Resolutions[string(prov)] = err.Error()
+		}
+	}
+	review.Dislodged = self.dislodgedMap()
 }
 
 // dislodgedMap renders the dislodged units for the views that carry no

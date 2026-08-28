@@ -71,6 +71,16 @@ CREATE TABLE IF NOT EXISTS game_order (
     PRIMARY KEY (game_id, phase_index, province)
 );
 
+-- Which powers were resolved as NMR in a given phase. Replay cannot work
+-- this out on its own: a power with no stored orders may have finalized
+-- with nothing to order rather than failed to finalize.
+CREATE TABLE IF NOT EXISTS phase_nmr (
+    game_id     TEXT    NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+    phase_index INTEGER NOT NULL,
+    power       TEXT    NOT NULL,
+    PRIMARY KEY (game_id, phase_index, power)
+);
+
 CREATE TABLE IF NOT EXISTS event (
     id      INTEGER PRIMARY KEY AUTOINCREMENT,
     game_id TEXT NOT NULL REFERENCES game(id) ON DELETE CASCADE,
@@ -228,6 +238,43 @@ func (self *game) persistErr(id string) error {
 	return nil
 }
 
+// persistNMR records the powers that were resolved as NMR in one phase.
+// The caller must hold the game lock and must call this before the phase
+// index moves on.
+func persistNMR(id string, phaseIndex int, nmr []string) {
+	if db == nil || len(nmr) == 0 {
+		return
+	}
+	for _, power := range nmr {
+		if _, err := db.Exec(
+			`INSERT OR IGNORE INTO phase_nmr (game_id, phase_index, power) VALUES (?, ?, ?)`,
+			id, phaseIndex, power); err != nil {
+			log.Printf("game %v: PERSIST FAILED (nmr %v): %v", id, power, err)
+			return
+		}
+	}
+}
+
+// loadNMR returns the stored NMR powers per phase index.
+func loadNMR(id string) (map[int][]string, error) {
+	rows, err := db.Query(
+		`SELECT phase_index, power FROM phase_nmr WHERE game_id = ? ORDER BY phase_index, power`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int][]string{}
+	for rows.Next() {
+		var phaseIndex int
+		var power string
+		if err := rows.Scan(&phaseIndex, &power); err != nil {
+			return nil, err
+		}
+		out[phaseIndex] = append(out[phaseIndex], power)
+	}
+	return out, rows.Err()
+}
+
 // loadAll reads every stored game into the registry.
 func loadAll() error {
 	if db == nil {
@@ -364,13 +411,17 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 	if err != nil {
 		return nil, err
 	}
+	nmr, err := loadNMR(id)
+	if err != nil {
+		return nil, err
+	}
 
 	g, err := newGame(key, v)
 	if err != nil {
 		return nil, err
 	}
 	g.flow = f
-	if err := g.replay(history, f.phaseIndex); err != nil {
+	if err := g.replay(history, nmr, f.phaseIndex); err != nil {
 		return nil, err
 	}
 	return g, nil
@@ -415,14 +466,19 @@ func loadOrders(id string) (map[int][]storedOrder, error) {
 // goes through the same setOrder path a live request uses, so a restored
 // game cannot diverge from one that was never restarted, and it survives
 // any change to godip's internals.
-func (self *game) replay(history map[int][]storedOrder, currentPhase int) error {
+func (self *game) replay(history map[int][]storedOrder, nmr map[int][]string, currentPhase int) error {
 	for phase := 0; phase < currentPhase; phase++ {
 		if err := self.applyStored(history[phase]); err != nil {
 			return fmt.Errorf("phase %v: %v", phase, err)
 		}
+		// The same capture the live path does, so the review of the last
+		// replayed phase comes back byte for byte.
+		review := self.beginReview(nmr[phase])
 		if err := self.state.Next(); err != nil {
 			return fmt.Errorf("phase %v adjudication: %v", phase, err)
 		}
+		self.endReview(review)
+		self.previousPhase = review
 		self.parts = map[godip.Province][]string{}
 		self.owner = map[godip.Province]godip.Nation{}
 	}

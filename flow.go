@@ -215,6 +215,12 @@ func (self *flow) resetDeadline() {
 	self.deadlineAt = &at
 }
 
+// serverNow is the clock the client should measure deadlines against.
+// Phones at a table are not reliably in sync.
+func serverNow() string {
+	return time.Now().UTC().Format(time.RFC3339)
+}
+
 func rfc3339(t *time.Time) interface{} {
 	if t == nil {
 		return nil
@@ -459,6 +465,8 @@ type gmStateJSON struct {
 	Variant         variantRefJSON      `json:"variant"`
 	ProvinceNames   map[string]string   `json:"provinceNames"`
 	Dislodged       map[string]unitJSON `json:"dislodged"`
+	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
+	Now             string              `json:"now"`
 }
 
 // gmState renders the GM view. The caller must hold g.mu. It contains
@@ -484,6 +492,8 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		Variant:       self.variantRef(),
 		ProvinceNames: self.provinceNames(),
 		Dislodged:     self.dislodgedMap(),
+		PreviousPhase: self.previousPhase,
+		Now:           serverNow(),
 	}
 	for _, p := range f.powers {
 		s := f.seats[p]
@@ -667,6 +677,8 @@ type publicStateJSON struct {
 	Variant         variantRefJSON      `json:"variant"`
 	ProvinceNames   map[string]string   `json:"provinceNames"`
 	Dislodged       map[string]unitJSON `json:"dislodged"`
+	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
+	Now             string              `json:"now"`
 }
 
 func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
@@ -690,6 +702,8 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 		Variant:         g.variantRef(),
 		ProvinceNames:   g.provinceNames(),
 		Dislodged:       g.dislodgedMap(),
+		PreviousPhase:   g.previousPhase,
+		Now:             serverNow(),
 	})
 }
 
@@ -714,6 +728,8 @@ type seatStateJSON struct {
 	CanForce         bool              `json:"canForce"`
 	Variant          variantRefJSON    `json:"variant"`
 	ProvinceNames    map[string]string `json:"provinceNames"`
+	PreviousPhase    *phaseReviewJSON  `json:"previousPhase"`
+	Now              string            `json:"now"`
 }
 
 // seatState renders the board for one seat. The caller must hold g.mu.
@@ -750,6 +766,8 @@ func (self *game) seatState(id string, power godip.Nation) seatStateJSON {
 		CanForce:         f.canForce(),
 		Variant:          self.variantRef(),
 		ProvinceNames:    self.provinceNames(),
+		PreviousPhase:    self.previousPhase,
+		Now:              serverNow(),
 	}
 }
 
@@ -881,6 +899,7 @@ func (self *game) seatFinalize(id string, power godip.Nation, want bool, w http.
 func (self *game) adjudicate(id string, dropUnfinalized bool) error {
 	f := self.flow
 
+	nmr := []string{}
 	if dropUnfinalized {
 		for _, p := range f.powers {
 			s := f.seats[p]
@@ -894,6 +913,7 @@ func (self *game) adjudicate(id string, dropUnfinalized bool) error {
 					dropped++
 				}
 			}
+			nmr = append(nmr, string(p))
 			f.logEvent(id, "NMR for %v — no finalize, %v draft order(s) dropped, units hold", p, dropped)
 		}
 		f.logEvent(id, "GM forced adjudication")
@@ -904,10 +924,14 @@ func (self *game) adjudicate(id string, dropUnfinalized bool) error {
 	// Freeze this phase's order rows as they will actually be applied,
 	// NMR drops included. Replay reads them back exactly like this.
 	self.persist(id)
+	persistNMR(id, f.phaseIndex, nmr)
 
+	review := self.beginReview(nmr)
 	if err := self.state.Next(); err != nil {
 		return err
 	}
+	self.endReview(review)
+	self.previousPhase = review
 	self.parts = map[godip.Province][]string{}
 	self.owner = map[godip.Province]godip.Nation{}
 	for _, s := range f.seats {
