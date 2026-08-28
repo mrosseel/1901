@@ -27,6 +27,11 @@ const MAP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1524 1357">
     <path id="tri" d="M 700,900 h 60 v 60 h -60 z"/>
     <path id="bud" d="M 800,800 h 60 v 60 h -60 z"/>
     <path id="gal" d="M 900,800 h 60 v 60 h -60 z"/>
+    <!-- Galicia's coasts are drawn after it and cover it, the way the cold
+         war map draws west Canada. A tap lands on one of these, never on the
+         shape whose id the options tree names. -->
+    <path id="gal/nc" d="M 900,800 h 60 v 30 h -60 z"/>
+    <path id="gal/sc" d="M 900,830 h 60 v 30 h -60 z"/>
     <path id="alb" d="M 900,900 h 60 v 60 h -60 z"/>
     <path id="adr" d="M 1000,900 h 60 v 60 h -60 z"/>
     <path id="ven" d="M 1000,800 h 60 v 60 h -60 z"/>
@@ -136,8 +141,12 @@ const ADJUSTMENT_STATE: BoardState = {
   orderParts: {},
 };
 
+function shapeOf(id: string): Element | null {
+  return document.querySelector('#provinces [id="' + id + '"]');
+}
+
 function tap(id: string) {
-  document.querySelector("#provinces #" + id)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  shapeOf(id)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
 
 async function settle() {
@@ -145,7 +154,7 @@ async function settle() {
 }
 
 function classesOf(id: string): string[] {
-  return Array.from(document.querySelector("#provinces #" + id)?.classList || []);
+  return Array.from(shapeOf(id)?.classList || []);
 }
 
 function setup(power: string, trees: Record<string, OptionTree>) {
@@ -238,6 +247,73 @@ describe("a movement phase", () => {
 
     expect(seat.posted).toEqual([{ province: "vie", parts: ["Move", "gal"] }]);
     expect(seat.status.at(-1)).toBe("Vienna moves to Galicia.");
+    seat.board.destroy();
+  });
+
+  /*
+  The cold war bug: the coast shapes are painted over the province they belong
+  to, so the finger lands on "gal/nc" while the options tree offers "gal". The
+  tap used to match nothing and nothing happened.
+  */
+  it("takes a tap on a coast for the province the tree offers", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    tap("gal/nc");
+    await settle();
+
+    expect(seat.posted).toEqual([{ province: "vie", parts: ["Move", "gal"] }]);
+    seat.board.destroy();
+  });
+
+  /*
+  A province the map cannot draw used to fail in silence: no highlight, no
+  tap, no complaint. In development it says so now — that is how the cold war
+  map's missing province would have been caught.
+  */
+  it("says in development when a map has no shape for a province", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const tree: OptionTree = {
+      vie: {
+        Type: "Province",
+        Next: {
+          Move: {
+            Type: "OrderType",
+            Next: {
+              vie: { Type: "SrcProvince", Next: { boh: { Type: "Province", Next: {} } } },
+            },
+          },
+        },
+      },
+    };
+    const seat = setup("Austria", { vie: tree });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+
+    expect(warn.mock.calls.some((call) => String(call[0]).includes('"boh"'))).toBe(true);
+    warn.mockRestore();
+    seat.board.destroy();
+  });
+
+  it("lights up every shape a province is drawn with, coasts included", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+
+    // Without this the coast shape on top stays unpainted and the province
+    // looks unavailable however legal it is.
+    expect(classesOf("gal")).toContain("legal");
+    expect(classesOf("gal/nc")).toContain("legal");
+    expect(classesOf("gal/sc")).toContain("legal");
     seat.board.destroy();
   });
 
@@ -415,6 +491,97 @@ describe("a retreat phase", () => {
   });
 });
 
+/*
+The review of a phase that has already resolved. It is the only time the board
+draws orders that are not this seat's, and the only time it draws orders that
+did not happen.
+*/
+describe("the review of the last phase", () => {
+  const REVIEW = {
+    kind: "movement" as const,
+    orderParts: { vie: ["Move", "gal"], bud: ["Move", "gal"] },
+    powers: { vie: "Austria", bud: "Turkey" },
+    failed: ["bud"],
+    dislodged: { gal: { type: "Army", nation: "Russia" } },
+  };
+
+  it("draws every power's orders, not only this seat's", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+    seat.board.showReview(REVIEW);
+
+    const drawn = Array.from(document.querySelectorAll("#order-overlay .order")).map((node) =>
+      node.getAttribute("data-province"),
+    );
+    expect(drawn.sort()).toEqual(["bud", "vie"]);
+    seat.board.destroy();
+  });
+
+  it("marks the order that failed and leaves the one that worked alone", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+    seat.board.showReview(REVIEW);
+
+    const bounced = document.querySelector('#order-overlay .order[data-province="bud"]')!;
+    const worked = document.querySelector('#order-overlay .order[data-province="vie"]')!;
+    expect(bounced.classList.contains("failed")).toBe(true);
+    expect(bounced.querySelector(".order-miss")).not.toBeNull();
+    expect(worked.classList.contains("failed")).toBe(false);
+    expect(worked.querySelector(".order-miss")).toBeNull();
+    seat.board.destroy();
+  });
+
+  it("rings the unit the phase threw out", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+    seat.board.showReview(REVIEW);
+
+    expect(document.querySelectorAll("#unit-overlay .dislodged-ring")).toHaveLength(1);
+    seat.board.destroy();
+  });
+
+  it("takes no orders while it is up, and takes them again after", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+    seat.board.showReview(REVIEW);
+
+    tap("vie");
+    await settle();
+    expect(seat.view()).toBeNull();
+    expect(seat.posted).toEqual([]);
+    // Nothing on the map invites a tap either.
+    expect(classesOf("gal")).not.toContain("legal");
+
+    seat.board.showReview(null);
+    tap("vie");
+    await settle();
+    expect(seat.view()).not.toBeNull();
+    seat.board.destroy();
+  });
+
+  it("goes back to this seat's own orders when it closes", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(
+      { ...MOVEMENT_STATE, orders: { vie: "hold" }, orderParts: { vie: ["Hold"] } },
+      emptyPlan("Austria"),
+    );
+    seat.board.showReview(REVIEW);
+    expect(document.querySelectorAll("#order-overlay .order")).toHaveLength(2);
+
+    seat.board.showReview(null);
+    const drawn = Array.from(document.querySelectorAll("#order-overlay .order")).map((node) =>
+      node.getAttribute("data-province"),
+    );
+    expect(drawn).toEqual(["vie"]);
+    seat.board.destroy();
+  });
+});
+
 describe("an adjustment phase", () => {
   const plan = () => planFor("adjustment", "Austria", { rom: BUILD_TREE, bud: DISBAND_TREE });
 
@@ -476,7 +643,9 @@ describe("an adjustment phase", () => {
     tap("vie");
     await settle();
 
-    expect(seat.status.at(-1)).toBe("You can only build in an empty home centre you hold.");
+    expect(seat.status.at(-1)).toBe(
+      "You can only build in an empty supply centre this variant allows.",
+    );
     expect(seat.view()).toBeNull();
     seat.board.destroy();
   });

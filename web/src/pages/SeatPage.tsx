@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, SeatClient, fetchPublic, type SeatState } from "../api";
 import { Board } from "../components/Board";
-import { POWER_COLORS, phaseLabel, provinceName } from "../board/provinces";
+import {
+  phaseLabel,
+  powerColor,
+  provinceName,
+  setPowerPalette,
+  setProvinceNames,
+} from "../board/provinces";
 import {
   candidates,
   dutyLine,
@@ -11,8 +17,26 @@ import {
   planDuty,
   type PhasePlan,
 } from "../board/phases";
-import type { BoardApi, BoardHandle, BoardState, OptionTree, Unit } from "../board/types";
-import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
+import type {
+  BoardApi,
+  BoardHandle,
+  BoardState,
+  OptionTree,
+  ReviewDraw,
+  Unit,
+} from "../board/types";
+import { settingsLines, usePoll, useTicker } from "../hooks";
+import { noteServerTime } from "../clock";
+import { Clock } from "../components/Clock";
+import { ReviewOverlay } from "../components/ReviewOverlay";
+import {
+  dismiss,
+  failureReason,
+  isDismissed,
+  isFailure,
+  reviewKey,
+  reviewPlan,
+} from "../review";
 
 /*
 One player's board.
@@ -30,6 +54,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const [rulesChanged, setRulesChanged] = useState(false);
   const [gone, setGone] = useState(false);
   const [plan, setPlan] = useState<PhasePlan>(emptyPlan(""));
+  const [reviewing, setReviewing] = useState(false);
   const handle = useRef<BoardHandle | null>(null);
   const knownVersion = useRef<number | null>(null);
   const fingerprint = useRef<string>("");
@@ -39,6 +64,16 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const refresh = useCallback(async () => {
     try {
       const next = await client.state();
+      /*
+      The variant's long names and its colours come with the state, and every
+      sentence the board writes needs them, so they are taken before the state
+      is put on screen.
+      */
+      setProvinceNames(next.provinceNames);
+      setPowerPalette(Object.keys(next.finalized || {}));
+      // Every countdown on this page is measured against the server's clock,
+      // never this device's.
+      noteServerTime(next.now);
       setState(next);
       if (knownVersion.current !== null && next.settingsVersion !== knownVersion.current) {
         setRulesChanged(true);
@@ -67,6 +102,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     3000,
     async () => {
       const summary = await fetchPublic(gameId);
+      noteServerTime(summary.now);
       const mark = JSON.stringify([
         summary.started,
         summary.settingsVersion,
@@ -86,7 +122,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   Retreats and adjustments are decided per province, not per unit, and the
   server holds the rules. So when such a phase opens the page asks it about the
   few provinces that could possibly carry an order — the dislodged units, or
-  the units and empty home centres — and keeps the answers. That set is what is
+  the units and the empty centres it holds — and keeps the answers. That set is
   highlighted, what may be tapped, and where the build or disband count comes
   from. It is re-read after each order, because an order spends the budget.
   */
@@ -108,15 +144,21 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     }
     let cancelled = false;
     (async () => {
+      const asked = candidates(state, power, kind);
+      const trees = await Promise.all(
+        asked.map((province) =>
+          client
+            .options(province)
+            // A province the server refuses simply carries no order this
+            // phase; so does one whose tree comes back empty.
+            .catch((): OptionTree => ({})),
+        ),
+      );
       const actionable: Record<string, OptionTree> = {};
-      for (const province of candidates(state, power, kind)) {
-        try {
-          const tree = await client.options(province);
-          if (tree && Object.keys(tree).length) actionable[province] = tree;
-        } catch {
-          // A province the server refuses simply carries no order this phase.
-        }
-      }
+      asked.forEach((province, i) => {
+        const tree = trees[i];
+        if (tree && Object.keys(tree).length) actionable[province] = tree;
+      });
       if (cancelled) return;
       setPlan({ kind: kind, power: power, actionable: actionable, duty: planDuty(actionable) });
     })();
@@ -126,6 +168,40 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     // state is read inside, but the board fingerprint is what decides a re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, power, kind, started, boardMark]);
+
+  /*
+  The phase that just resolved, and whether this device has read it yet.
+
+  A review opens by itself the first time a device sees a new adjudication —
+  on a poll that brought one, or on a page opened while one is still unread.
+  Continue writes it off in this browser and nowhere else, so no player ever
+  waits for another to finish reading.
+  */
+  const review = useMemo(() => reviewPlan(state?.previousPhase), [state?.previousPhase]);
+  const seenKey = review ? reviewKey(gameId, state?.previousPhase) : "";
+  const readKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!seenKey || readKey.current === seenKey) return;
+    readKey.current = seenKey;
+    setReviewing(!isDismissed(seenKey));
+  }, [seenKey]);
+
+  const closeReview = useCallback(() => {
+    if (seenKey) dismiss(seenKey);
+    setReviewing(false);
+  }, [seenKey]);
+
+  const reviewDraw = useMemo<ReviewDraw | null>(() => {
+    if (!reviewing || !review) return null;
+    return {
+      kind: review.kind,
+      orderParts: review.orderParts,
+      powers: review.powers,
+      failed: Array.from(review.failed),
+      dislodged: review.dislodged,
+    };
+  }, [reviewing, review]);
 
   // The board island only ever talks to this seat's endpoints.
   const api = useMemo<BoardApi>(
@@ -212,6 +288,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           api={api}
           state={state}
           plan={plan}
+          review={reviewDraw}
           canOrder={canOrder}
           refusal={refusal}
           onState={onBoardState}
@@ -224,18 +301,30 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             handle.current = board;
           }}
         />
+        {reviewing && review ? (
+          <ReviewOverlay plan={review} deadlineAt={state?.deadlineAt} onContinue={closeReview} />
+        ) : null}
       </main>
 
       <aside className="side">
         <header className="seat-head">
           <h1>
-            <span className="dot" style={{ background: POWER_COLORS[power] || "#666" }} />
+            <span className="dot" style={{ background: powerColor(power) }} />
             You are {power || "…"}
           </h1>
           <p className="muted">
             {state?.started ? phaseLabel(state.phase) : "The game has not started"}
-            {state?.deadlineAt ? " · " + countdown(state.deadlineAt) : ""}
+            {state?.variant ? " · " + state.variant.name : ""}
+            {state?.variant && !state.variant.supported ? " (experimental)" : ""}
           </p>
+          {/* The deadline is the one thing on this page that must never be
+              hunted for, so it gets its own line and its own size. */}
+          <Clock deadlineAt={state?.deadlineAt} />
+          {review && !reviewing ? (
+            <button type="button" className="link" onClick={() => setReviewing(true)}>
+              Last turn
+            </button>
+          ) : null}
           {/* What this phase asks of this power: the units that must retreat,
               or the builds and disbands owed. */}
           {duty ? (
@@ -346,10 +435,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           <section>
             <h2>Last phase</h2>
             <ul className="list">
+              {/* A failure is said in the review's words, not godip's code. */}
               {resolutionRows.map((province) => (
                 <li key={province}>
                   <span className="nation">{provinceName(province)}</span>
-                  <span className="order-text">{resolutions[province]}</span>
+                  <span className="order-text">
+                    {isFailure(resolutions[province])
+                      ? failureReason(resolutions[province])
+                      : "came off"}
+                  </span>
                 </li>
               ))}
             </ul>

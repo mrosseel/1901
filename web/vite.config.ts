@@ -19,6 +19,7 @@ const API = env?.API_TARGET || "http://localhost:8190";
 
 const endpoints =
   "^/(games$" +
+  "|variants$|variants/[^/]+/map\\.svg" + // the variant catalogue and its maps
   "|g/" +
   "|map\\.svg|state|options|order|adjudicate" + // the M0 sandbox's own routes
   "|game/[^/]+/(public" +

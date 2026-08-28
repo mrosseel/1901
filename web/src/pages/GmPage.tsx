@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, GmClient, type GmState } from "../api";
 import { LinkShare } from "../components/LinkShare";
-import { POWER_COLORS, phaseLabel } from "../board/provinces";
+import { phaseLabel, powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
+import { EXPERIMENTAL_BADGE, SUPPORTED_BADGE } from "../variants";
+import { noteServerTime } from "../clock";
+import { Clock } from "../components/Clock";
+import { ReviewOverlay } from "../components/ReviewOverlay";
+import { dismiss, isDismissed, reviewKey, reviewPlan } from "../review";
 
 /*
 The game master's screen: the rules, the invite, who has joined, who has
@@ -15,10 +20,18 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
 
   const refresh = async () => {
     try {
-      setGame(await client.state());
+      const next = await client.state();
+      // The variant's own names and colours, before anything is drawn with
+      // them; then the server's clock, which every countdown is measured
+      // against.
+      setProvinceNames(next.provinceNames);
+      setPowerPalette(next.seats.map((seat) => seat.power));
+      noteServerTime(next.now);
+      setGame(next);
       setGone(false);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) setGone(true);
@@ -28,6 +41,26 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
 
   usePoll(3000, refresh, !gone);
   useTicker(Boolean(game?.deadlineAt));
+
+  /*
+  The phase that just resolved. The game master reads it on the same terms as
+  every player: it opens once per adjudication on this device, and Continue
+  puts it away here and nowhere else.
+  */
+  const review = useMemo(() => reviewPlan(game?.previousPhase), [game?.previousPhase]);
+  const seenKey = review ? reviewKey(gameId, game?.previousPhase) : "";
+  const readKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!seenKey || readKey.current === seenKey) return;
+    readKey.current = seenKey;
+    setReviewing(!isDismissed(seenKey));
+  }, [seenKey]);
+
+  const closeReview = () => {
+    if (seenKey) dismiss(seenKey);
+    setReviewing(false);
+  };
 
   const act = async (label: string, run: () => Promise<unknown>) => {
     setError(null);
@@ -68,10 +101,18 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         <div>
           <h1>Game master</h1>
           <p className="muted">
-            Game {game.gameId} · {game.started ? phaseLabel(game.phase) : "not started"} ·{" "}
-            {countdown(game.deadlineAt)}
+            Game {game.gameId} · {game.started ? phaseLabel(game.phase) : "not started"}
           </p>
+          {game.variant ? (
+            <p className="variant-line">
+              <strong>{game.variant.name}</strong>{" "}
+              <span className={game.variant.supported ? "badge in" : "badge warn"}>
+                {game.variant.supported ? SUPPORTED_BADGE : EXPERIMENTAL_BADGE}
+              </span>
+            </p>
+          ) : null}
         </div>
+        <Clock deadlineAt={game.deadlineAt} />
         {game.started && game.gmPower ? (
           <p className="you-are">
             You are <strong>{game.gmPower}</strong>
@@ -88,12 +129,22 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       {error ? <p className="error">{error}</p> : null}
       {notice ? <p className="notice">{notice}</p> : null}
 
+      {reviewing && review ? (
+        <ReviewOverlay plan={review} deadlineAt={game.deadlineAt} onContinue={closeReview} />
+      ) : review ? (
+        <p>
+          <button type="button" className="link" onClick={() => setReviewing(true)}>
+            Last turn
+          </button>
+        </p>
+      ) : null}
+
       <section className="card">
         <h2>Powers</h2>
         <ul className="seats">
           {game.seats.map((seat) => (
             <li key={seat.power} className={seat.joined ? "seat joined" : "seat"}>
-              <span className="dot" style={{ background: POWER_COLORS[seat.power] || "#666" }} />
+              <span className="dot" style={{ background: powerColor(seat.power) }} />
               <span className="seat-name">{seat.power}</span>
               {seat.isGm ? <span className="badge gm">Game master</span> : null}
               <span className={seat.joined ? "badge in" : "badge out"}>

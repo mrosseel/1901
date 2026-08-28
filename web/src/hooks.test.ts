@@ -13,7 +13,7 @@ describe("countdown", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T12:00:00Z"));
     expect(countdown("2026-01-01T12:02:05Z")).toBe("2:05 left");
-    expect(countdown("2026-01-01T13:20:00Z")).toBe("1h 20m left");
+    expect(countdown("2026-01-01T13:20:00Z")).toBe("1:20:00 left");
   });
 
   it("stops at zero rather than counting up", () => {

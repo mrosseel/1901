@@ -126,6 +126,12 @@
 #order-overlay .order { pointer-events: none; }
 #order-overlay .order.dim { opacity: 0.25; }
 
+/* In the review of a resolved phase, an order that did not come off keeps its
+   power's colour but steps back, and the red cross at its far end says why it
+   is there. */
+#order-overlay .order.failed { opacity: 0.5; }
+#order-overlay .order.failed .order-miss { opacity: 1; }
+
 /* Anchored chip: the choices for a tap that means more than one thing. */
 #chip {
   position: fixed;

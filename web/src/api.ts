@@ -6,13 +6,61 @@ ever told where its API lives: the addresses are built from location.pathname.
 Nothing here holds a token in module state — the route object does.
 */
 
-import type { BoardState, OptionTree } from "./board/types";
+import type { BoardState, OptionTree, Unit } from "./board/types";
+import { readVariants, type Variant } from "./variants";
 
 // --- shapes ---------------------------------------------------------------
 
 export interface Settings {
   deadlineMinutes: number;
   gmPlays: boolean;
+  /** The godip variant key. Absent means the server's default, classical. */
+  variant?: string;
+}
+
+/** What a running game says about the variant it was created with. */
+export interface VariantRef {
+  key: string;
+  name: string;
+  supported: boolean;
+}
+
+/*
+Every state answer carries the variant it belongs to and that variant's long
+province names, because nothing else on the page knows them: the map is one
+variant's map, and "bud" is Budapest in one variant and nothing at all in the
+next.
+*/
+export interface VariantAware {
+  variant?: VariantRef;
+  provinceNames?: Record<string, string>;
+  /*
+  The server's own clock, RFC3339. Every countdown is measured against it,
+  because a phone at the table can be minutes out (see clock.ts).
+  */
+  now?: string;
+  previousPhase?: PreviousPhase | null;
+}
+
+/*
+The phase that was just adjudicated, in full and for every power — public the
+moment it resolved. It is what the review overlay draws, and it carries no
+current-phase orders, so it leaks nothing (M1 contract §5).
+*/
+export interface PreviousPhase {
+  phase?: BoardState["phase"];
+  /** province → the prose sentence, one per ordered unit, all powers. */
+  orders?: Record<string, string>;
+  /** province → the raw parts, which is what the map draws from. */
+  orderParts?: Record<string, string[]>;
+  /** province → the power that ordered there. */
+  powers?: Record<string, string>;
+  /** province → "OK", or the reason it failed. */
+  resolutions?: Record<string, string>;
+  /** Units thrown out by this adjudication, by the province they left. */
+  dislodged?: Record<string, Unit>;
+  /** Powers that gave no orders at all: their units held. */
+  nmr?: string[];
 }
 
 export interface CreatedGame {
@@ -29,7 +77,7 @@ export interface GmSeat {
   isGm?: boolean;
 }
 
-export interface GmState {
+export interface GmState extends VariantAware {
   gameId: string;
   settings: Settings;
   settingsVersion: number;
@@ -47,7 +95,7 @@ export interface GmState {
   events?: string[];
 }
 
-export interface PublicState {
+export interface PublicState extends VariantAware {
   gameId: string;
   phase: BoardState["phase"];
   started: boolean;
@@ -59,7 +107,7 @@ export interface PublicState {
   deadlineAt: string | null;
 }
 
-export interface SeatState extends BoardState {
+export interface SeatState extends BoardState, VariantAware {
   you: { power: string };
   settings: Settings;
   settingsVersion: number;
@@ -151,6 +199,17 @@ export function publicUrl(gameId: string): string {
 
 export function fetchPublic(gameId: string): Promise<PublicState> {
   return getJSON<PublicState>(publicUrl(gameId));
+}
+
+// --- variants -------------------------------------------------------------
+
+/*
+The catalogue behind the gallery on /new. It is metadata only: the maps
+themselves are megabytes each and are asked for one at a time, by the card
+that is showing one.
+*/
+export async function fetchVariants(): Promise<Variant[]> {
+  return readVariants(await getJSON<unknown>(absolute("/variants")));
 }
 
 // --- creation -------------------------------------------------------------

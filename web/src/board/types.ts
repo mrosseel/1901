@@ -76,10 +76,31 @@ export interface BoardCallbacks {
   refusal?(province: string, unit: Unit | undefined): string;
 }
 
+/*
+What the board draws when it is showing the phase that just resolved instead
+of the one being ordered: every power's orders, not one power's, with the ones
+that failed marked. It is drawn from provinces alone — the arrows run between
+province anchors — so it needs no units, only who ordered where.
+*/
+export interface ReviewDraw {
+  /** The kind of the phase reviewed, which decides how the parts read. */
+  kind: "movement" | "retreat" | "adjustment";
+  orderParts: Record<string, string[]>;
+  /** province → the power that ordered there, for the colour. */
+  powers: Record<string, string>;
+  /** The provinces whose order did not come off. */
+  failed: string[];
+  /** Units thrown out by this adjudication, ringed where they stood. */
+  dislodged: Record<string, Unit>;
+}
+
 export interface BoardHandle {
   /** Replaces the board state and the phase plan, and redraws. Safe before
       the map has loaded. */
   update(state: BoardState, plan: PhasePlan): void;
+  /** Draws the phase that just resolved instead of the live one; null ends it.
+      While a review is up the map takes no orders. */
+  showReview(view: ReviewDraw | null): void;
   /** Presses one of the builder's buttons, by id. */
   choose(id: string): void;
   /** Backs out one step: the chip, then a half-built support, then the order. */

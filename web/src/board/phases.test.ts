@@ -63,15 +63,26 @@ describe("what to ask the server about", () => {
     expect(ownDislodged(retreatState, "Russia")).toEqual(["gal"]);
   });
 
-  it("asks about your units and your empty home centres in an adjustment", () => {
+  it("asks about your units and your empty supply centres in an adjustment", () => {
     const state: BoardState = {
       units: { bud: { type: "Army", nation: "Austria" }, ven: { type: "Army", nation: "Italy" } },
       supplyCenters: { bud: "Austria", vie: "Austria", tri: "Italy", ven: "Italy" },
     };
-    // vie is a home centre Austria holds and nothing stands there, so a build
-    // may be offered; tri is Italy's now; bud carries a unit, so a disband may
-    // be offered there.
+    // vie is Austria's and nothing stands there, so a build may be offered;
+    // tri is Italy's now; bud carries a unit, so a disband may be offered
+    // there.
     expect(candidates(state, "Austria", "adjustment")).toEqual(["bud", "vie"]);
+  });
+
+  it("knows no home centres of its own: every empty centre it holds is asked about", () => {
+    // ser is not a classical home centre. The server answers with an empty
+    // tree for it, and the page has no table that could have ruled it out —
+    // which is what lets a variant with other home centres work at all.
+    const state: BoardState = {
+      units: {},
+      supplyCenters: { ser: "Austria", vie: "Austria", par: "France" },
+    };
+    expect(candidates(state, "Austria", "adjustment")).toEqual(["ser", "vie"]);
   });
 
   it("asks about nothing at all in a movement phase", () => {
@@ -115,7 +126,7 @@ describe("the line that says what this phase wants", () => {
         },
         state,
       ),
-    ).toBe("Build 2: tap one of your empty home centres.");
+    ).toBe("Build 2: tap a highlighted supply centre.");
     expect(
       dutyLine(
         {

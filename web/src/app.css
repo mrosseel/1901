@@ -78,6 +78,9 @@ input[type="number"] {
 }
 
 .page.wide { max-width: 760px; }
+/* The gallery is a wall of maps, so it gets the room for a third column on a
+   laptop. Every other page stays a column of text. */
+.page.gallery { max-width: 1100px; }
 
 .page-head { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: baseline; }
 
@@ -191,6 +194,144 @@ input[type="number"] {
 .badge.in { color: var(--good); border-color: #2f6b45; }
 .badge.done { color: var(--good); border-color: #2f6b45; }
 .badge.gm { color: var(--warn); border-color: #7a5a24; }
+.badge.warn { color: var(--warn); border-color: #7a5a24; }
+
+/* --- the variant gallery on /new ----------------------------------------- */
+
+.variants {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.variant {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.variant.picked { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* The whole head is the target: a name and a badge are small things to tap. */
+.variant-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.variant-pick input { width: 20px; height: 20px; flex: 0 0 auto; }
+.variant-name { font-size: 16px; font-weight: 600; flex: 1 1 auto; }
+
+.variant p { margin: 0; }
+.variant-powers { font-size: 13px; }
+.variant-note { font-size: 13px; }
+
+/* The box keeps its height empty or full, so a map arriving never shoves the
+   card's text around or moves the list under a scrolling thumb. */
+.variant-map {
+  margin-top: 2px;
+  height: 180px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* A thumb has to be able to hit it, so the link gets a row of its own. */
+.variant button.link { align-self: flex-start; padding: 9px 0; }
+
+.variant-map-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.variant-map .muted { font-size: 12px; padding: 8px; text-align: center; }
+
+.variant-line { margin: 4px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.variant-notes { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.variant-notes p { margin: 0; }
+.variant-label { text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
+
+/* --- the deadline clock --------------------------------------------------
+   One element, on the seat page, the game master page and the review sheet.
+   It is big because a table full of people has to read it from where they
+   sit, and it changes colour rather than only counting, because the last
+   minute is the one that decides a phase. */
+
+.clock {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 6px 0 0;
+  color: var(--text);
+}
+
+.clock-face {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.clock-words { color: var(--muted); font-size: 12px; }
+
+.clock-low .clock-face { color: var(--warn); }
+.clock-urgent .clock-face { color: var(--bad); }
+.clock-over .clock-face { color: var(--bad); }
+
+/* --- the review of the phase that just resolved -------------------------- */
+
+.review-sheet {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.review-head { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
+.review-head h2 { margin: 0 0 2px; }
+.review-head p { margin: 0; }
+.review-head .clock { margin: 0; }
+
+.review-nmr, .review-list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+
+.review-nmr li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  color: var(--warn);
+}
+
+/* The list is the long part, so it scrolls inside the sheet and the Continue
+   button stays where a thumb can find it. */
+.review-list { max-height: 34vh; overflow-y: auto; }
+
+.review-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.review-row .order-text { flex: 1 1 auto; min-width: 0; }
+.review-row.failed .order-text { color: var(--muted); text-decoration: line-through; }
+.review-why { color: var(--bad); font-size: 12px; flex: 0 0 auto; }
 
 .events { list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--muted); }
 .events li { padding: 3px 0; border-bottom: 1px solid var(--line); }
@@ -299,6 +440,20 @@ input[type="number"] {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
+/* Over the map, the review takes the builder's slot: the map behind it is
+   drawing the same turn, so the sheet must never grow to cover it. */
+.map-pane .review-sheet {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 6;
+  max-height: 62%;
+  overflow: auto;
+  background: var(--panel-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
 .builder-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .builder h2 { color: var(--text); text-transform: none; letter-spacing: 0; font-size: 15px; }
 .crumbs { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
@@ -336,6 +491,24 @@ input[type="number"] {
     padding: 4px 0 8px;
     z-index: 2;
   }
+
+  /* The review becomes a bottom sheet, like the order builder, so the map
+     above it keeps the whole width. */
+  .map-pane .review-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    z-index: 11;
+    max-height: 66dvh;
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .map-pane .review-sheet .review-list { max-height: 30dvh; }
+  .map-pane .review-sheet .clock-face { font-size: 24px; }
 
   .builder {
     position: fixed;

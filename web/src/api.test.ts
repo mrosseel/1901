@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, claimSeat, createGame, parseRoute, postJSON, publicUrl } from "./api";
+import {
+  ApiError,
+  claimSeat,
+  createGame,
+  fetchVariants,
+  parseRoute,
+  postJSON,
+  publicUrl,
+} from "./api";
 
 function stubFetch(reply: { ok: boolean; status: number; body: string }) {
   const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
@@ -56,6 +64,30 @@ describe("requests", () => {
     expect(JSON.parse(String(calls[0].init?.body))).toEqual({
       settings: { deadlineMinutes: 15, gmPlays: true },
     });
+  });
+
+  it("sends the chosen variant with the settings", async () => {
+    const calls = stubFetch({ ok: true, status: 200, body: '{"gameId":"7"}' });
+    await createGame({ deadlineMinutes: 0, gmPlays: false, variant: "hundred" });
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      settings: { deadlineMinutes: 0, gmPlays: false, variant: "hundred" },
+    });
+  });
+
+  it("reads the variant catalogue, classical first", async () => {
+    const calls = stubFetch({
+      ok: true,
+      status: 200,
+      body: JSON.stringify([
+        { key: "hundred", name: "Hundred", powers: ["Burgundy", "England", "France"] },
+        { key: "classical", name: "Classical", powerCount: 7, supported: true },
+      ]),
+    });
+    const list = await fetchVariants();
+    expect(calls[0].url).toBe("http://localhost:3000/variants");
+    expect(list.map((v) => v.key)).toEqual(["classical", "hundred"]);
+    expect(list[1].powerCount).toBe(3);
+    expect(list[1].mapUrl).toBe("/variants/hundred/map.svg");
   });
 
   it("claims a power under the game, not under the join page", async () => {

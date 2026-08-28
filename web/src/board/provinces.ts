@@ -1,16 +1,21 @@
 /*
-Names and colours for the classical map.
+Names and colours for whichever map is in play.
 
 The map SVG carries a names layer, but its labels sit in their own coordinate
-space and cannot be matched back to the hit shapes, so the table is kept here.
-Hints read as sentences, and a sentence needs a name: "Vienna supports Budapest
-to hold", never "vie Support bud bud". An abbreviation with no entry falls back
-to upper case.
+space and cannot be matched back to the hit shapes, so the names come from the
+server: every state answer carries the variant's own province names, and
+setProvinceNames puts them here. Hints read as sentences, and a sentence needs
+a name: "Vienna supports Budapest to hold", never "vie Support bud bud". An
+abbreviation with no entry falls back to upper case.
+
+Colours work the same way: the classical seven keep the colours players know,
+and any other variant's powers get evenly spaced hues, set once the page knows
+who is playing.
 */
 
 import type { BoardState } from "./types";
 
-export const POWER_COLORS: Record<string, string> = {
+const CLASSICAL_POWER_COLORS: Record<string, string> = {
   Austria: "#e05252",
   England: "#7c5cd6",
   France: "#4fa3e0",
@@ -20,7 +25,37 @@ export const POWER_COLORS: Record<string, string> = {
   Turkey: "#e0b93f",
 };
 
-export const PROVINCE_NAMES: Record<string, string> = {
+let palette: Record<string, string> = { ...CLASSICAL_POWER_COLORS };
+
+/*
+Gives every power of the variant in play its own colour. The classical seven
+keep theirs; any other set is spread around the wheel by name order, so the
+same power is the same colour on every device.
+*/
+export function setPowerPalette(powers: string[]): void {
+  const names = Array.from(new Set(powers.filter(Boolean))).sort();
+  if (names.length === 0) return;
+  if (names.every((power) => CLASSICAL_POWER_COLORS[power])) {
+    palette = { ...CLASSICAL_POWER_COLORS };
+    return;
+  }
+  const next: Record<string, string> = {};
+  names.forEach((power, i) => {
+    next[power] = "hsl(" + Math.round((360 * i) / names.length) + " 62% 62%)";
+  });
+  palette = next;
+}
+
+/** The colour of one power's units, and of its dot in a list. */
+export function powerColor(power: string): string {
+  return palette[power] || CLASSICAL_POWER_COLORS[power] || "#bbbbbb";
+}
+
+/*
+The classical names, kept only as the fallback for a server that does not send
+provinceNames yet. The names in play come from the state.
+*/
+const CLASSICAL_PROVINCE_NAMES: Record<string, string> = {
   adr: "Adriatic Sea", aeg: "Aegean Sea", alb: "Albania", ank: "Ankara",
   apu: "Apulia", arm: "Armenia", bal: "Baltic Sea", bar: "Barents Sea",
   bel: "Belgium", ber: "Berlin", bla: "Black Sea", boh: "Bohemia",
@@ -48,6 +83,22 @@ const COAST_NAMES: Record<string, string> = {
   ec: "east coast",
 };
 
+let provinceNames: Record<string, string> = { ...CLASSICAL_PROVINCE_NAMES };
+
+/*
+Takes the long names of the variant in play. An empty table is ignored rather
+than believed: a state answer without names must not turn the board into
+abbreviations.
+*/
+export function setProvinceNames(names: Record<string, string> | undefined): void {
+  if (names && Object.keys(names).length) provinceNames = names;
+}
+
+/** For the tests, and for a page that changes variant without a reload. */
+export function resetProvinceNames(): void {
+  provinceNames = { ...CLASSICAL_PROVINCE_NAMES };
+}
+
 export function baseProvince(province: string): string {
   const slash = province.indexOf("/");
   return slash === -1 ? province : province.slice(0, slash);
@@ -55,7 +106,7 @@ export function baseProvince(province: string): string {
 
 export function provinceName(province: string): string {
   const base = baseProvince(province);
-  const name = PROVINCE_NAMES[base] || base.toUpperCase();
+  const name = provinceNames[base] || base.toUpperCase();
   if (base === province) return name;
   const coast = COAST_NAMES[province.slice(base.length + 1)];
   return coast ? name + " (" + coast + ")" : name;

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { claimSeat, fetchPublic, type PublicState } from "../api";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
+import { EXPERIMENTAL_BADGE, SUPPORTED_BADGE } from "../variants";
+import { noteServerTime } from "../clock";
 
 /*
 What a player sees after scanning the invite: the rules first, then one button.
@@ -13,7 +15,9 @@ export function JoinPage({ gameId, inviteToken }: { gameId: string; inviteToken:
   const [busy, setBusy] = useState(false);
 
   usePoll(3000, async () => {
-    setGame(await fetchPublic(gameId));
+    const next = await fetchPublic(gameId);
+    noteServerTime(next.now);
+    setGame(next);
   });
   useTicker(Boolean(game?.deadlineAt));
 
@@ -42,6 +46,16 @@ export function JoinPage({ gameId, inviteToken }: { gameId: string; inviteToken:
 
       <section className="card">
         <h2>The rules of this game</h2>
+        {/* The map comes before the rules: a player is claiming a power on
+            this board, and an unverified one is worth knowing about first. */}
+        {game?.variant ? (
+          <p className="variant-line">
+            <strong>{game.variant.name}</strong>{" "}
+            <span className={game.variant.supported ? "badge in" : "badge warn"}>
+              {game.variant.supported ? SUPPORTED_BADGE : EXPERIMENTAL_BADGE}
+            </span>
+          </p>
+        ) : null}
         {settingsLines(game?.settings).map((line) => (
           <p key={line}>{line}</p>
         ))}

@@ -1,11 +1,24 @@
-import { useState } from "react";
-import { createGame, type CreatedGame } from "../api";
+import { useEffect, useState } from "react";
+import { createGame, fetchVariants, type CreatedGame } from "../api";
 import { LinkShare } from "../components/LinkShare";
+import { VariantGallery } from "../components/VariantGallery";
+import {
+  DEFAULT_VARIANT,
+  claimLine,
+  findVariant,
+  preferredVariant,
+  type Variant,
+} from "../variants";
 
 /*
-The first screen: the GM sets the two rules that exist today and gets back the
-two links that run the game. The GM link is a secret and is the only way back
-into the controls, so the warning sits right next to it.
+The first screen: the GM picks the map, sets the two rules that exist today,
+and gets back the two links that run the game. The GM link is a secret and is
+the only way back into the controls, so the warning sits right next to it.
+
+The gallery is the page's weight, so it is fetched as metadata only and the
+maps are left to the cards (see VariantGallery). A server that does not answer
+/variants yet is not an error worth stopping for: the page falls back to
+creating a classical game, which is what it did before there were variants.
 */
 export function NewGame() {
   const [deadlineMinutes, setDeadlineMinutes] = useState(15);
@@ -13,6 +26,30 @@ export function NewGame() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [game, setGame] = useState<CreatedGame | null>(null);
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [chosen, setChosen] = useState(DEFAULT_VARIANT);
+  const [loadingVariants, setLoadingVariants] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchVariants()
+      .then((list) => {
+        if (cancelled) return;
+        setVariants(list);
+        setChosen(preferredVariant(list));
+      })
+      .catch(() => {
+        // No catalogue: the game is still creatable, on the default map.
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingVariants(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const picked = findVariant(variants, chosen);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -22,6 +59,7 @@ export function NewGame() {
       const created = await createGame({
         deadlineMinutes: Math.max(0, Math.floor(deadlineMinutes) || 0),
         gmPlays: gmPlays,
+        variant: chosen,
       });
       setGame(created);
     } catch (err) {
@@ -38,7 +76,10 @@ export function NewGame() {
     return (
       <main className="page">
         <h1>The game is ready</h1>
-        <p className="lead">Game {game.gameId}.</p>
+        <p className="lead">
+          Game {game.gameId}
+          {picked ? " · " + picked.name : ""}.
+        </p>
 
         <LinkShare
           title="Your game master link"
@@ -68,10 +109,36 @@ export function NewGame() {
   }
 
   return (
-    <main className="page">
+    <main className="page gallery">
       <h1>New game</h1>
-      <p className="lead">Classical Diplomacy, seven powers, one table.</p>
+      <p className="lead">Pick a map, set the clock, and pass the invite around the table.</p>
+
+      <section className="card">
+        <h2>The map</h2>
+        {loadingVariants ? (
+          <p className="muted">Reading the maps…</p>
+        ) : variants.length === 0 ? (
+          <p className="muted">
+            No map list from the server. The game is created on the classical map.
+          </p>
+        ) : (
+          <>
+            <p className="note">
+              Only classical has been checked against its map. The rest are drawn from
+              godip and are open to try.
+            </p>
+            <VariantGallery
+              variants={variants}
+              chosen={chosen}
+              gmPlays={gmPlays}
+              onChoose={setChosen}
+            />
+          </>
+        )}
+      </section>
+
       <form className="card" onSubmit={submit}>
+        <h2>The rules</h2>
         <label className="field">
           <span>Minutes for each phase</span>
           <input
@@ -94,6 +161,14 @@ export function NewGame() {
           <span>I play a power as well</span>
           <small>One power is held back for you and revealed when the game starts.</small>
         </label>
+
+        {picked ? (
+          <p className="muted">
+            {picked.name}
+            {picked.supported ? "" : " · experimental"}
+            {picked.powerCount ? " — " + claimLine(picked.powerCount, gmPlays) : ""}
+          </p>
+        ) : null}
 
         {error ? <p className="error">{error}</p> : null}
 

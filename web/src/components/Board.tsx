@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { mount } from "../board/board";
 import type { PhasePlan } from "../board/phases";
-import type { BoardApi, BoardHandle, BoardState, BuilderView, Unit } from "../board/types";
+import type {
+  BoardApi,
+  BoardHandle,
+  BoardState,
+  BuilderView,
+  ReviewDraw,
+  Unit,
+} from "../board/types";
 import "../board/board.css";
 
 /*
@@ -13,6 +20,7 @@ export function Board({
   api,
   state,
   plan,
+  review,
   canOrder,
   refusal,
   onState,
@@ -23,6 +31,8 @@ export function Board({
   api: BoardApi;
   state: BoardState | null;
   plan: PhasePlan;
+  /** Set while the phase that just resolved is being shown instead. */
+  review?: ReviewDraw | null;
   canOrder?: (province: string, unit: Unit | undefined) => boolean;
   refusal?: (province: string, unit: Unit | undefined) => string;
   onState: (state: BoardState) => void;
@@ -76,10 +86,15 @@ export function Board({
     if (state) handle.current?.update(state, plan);
   }, [state, plan]);
 
+  // After the state, so a fresh board state never wipes the review off it.
+  useEffect(() => {
+    handle.current?.showReview(review || null);
+  }, [review]);
+
   return (
     <>
       <div className="board" ref={host} aria-label="Diplomacy map" />
-      {builder ? (
+      {builder && !review ? (
         <section className="builder">
           <div className="builder-head">
             <h2>{builder.title}</h2>

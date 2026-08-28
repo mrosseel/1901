@@ -12,9 +12,9 @@ the state that came back from an order post, and which order is singled out.
 */
 
 import {
-  POWER_COLORS,
   baseProvince,
   describeOrder,
+  powerColor,
   provinceName,
   unitLabel,
 } from "./provinces";
@@ -28,6 +28,7 @@ import type {
   BuilderView,
   OptionNode,
   OptionTree,
+  ReviewDraw,
   Unit,
 } from "./types";
 
@@ -87,6 +88,10 @@ export function mount(
   let builder: Builder | null = null;
   let choices: Choice[] = [];
   let selectedOrder: string | null = null;
+  /* The phase that just resolved, while it is being shown instead of the live
+     one. Set means the map is a picture, not a form. */
+  let review: ReviewDraw | null = null;
+  let reviewFailed = new Set<string>();
   let orderEpoch = 0;
   let menu: HTMLDivElement | null = null;
   let destroyed = false;
@@ -184,10 +189,53 @@ export function mount(
     return centers.get(province) || centers.get(baseProvince(province)) || null;
   }
 
-  function provinceShape(province: string): Element | null {
+  /*
+  Every hit shape a province key stands for.
+
+  A map draws a province with a coast as several shapes — "wca", "wca/nc",
+  "wca/wc" — and the coast shapes come later in the layer, so they are painted
+  over the base one. On the classical map the coast shapes are thin strips and
+  nobody noticed; on the cold war map "wca/nc" covers nearly all of west
+  Canada, so a tap in the middle of the province lands on the coast shape.
+
+  So a key never resolves to one element. A base province claims its own shape
+  and every coast shape under it, which is what makes the whole province light
+  up and the whole province tappable. A coast key claims only its own shape,
+  because only that coast is legal.
+  */
+  function provinceShapes(province: string): Element[] {
     const layer = svgRoot?.querySelector("#provinces");
-    if (!layer) return null;
-    return layer.querySelector('[id="' + CSS.escape(province) + '"]');
+    if (!layer) return [];
+    const exact = layer.querySelector('[id="' + CSS.escape(province) + '"]');
+    const found: Element[] = exact ? [exact] : [];
+    if (province === baseProvince(province)) {
+      Array.prototype.forEach.call(layer.children, (shape: Element) => {
+        if (shape !== exact && baseProvince(shape.id) === province) found.push(shape);
+      });
+    }
+    if (found.length === 0) warnUnresolved(province);
+    return found;
+  }
+
+  /*
+  A province key the map cannot draw is how the cold war tap bug hid: the
+  highlight simply did not appear and the tap did nothing, with no complaint.
+  In development it now says so, once per key.
+
+  Only keys the variant itself calls provinces are worth a line. The same
+  lookup carries order types — "Build", "Disband" — which no map draws and
+  which the province-name table does not know.
+  */
+  const unresolved = new Set<string>();
+  function warnUnresolved(province: string): void {
+    if (!import.meta.env.DEV || unresolved.has(province)) return;
+    if (provinceName(province) === baseProvince(province).toUpperCase()) return;
+    unresolved.add(province);
+    console.warn(
+      "[board] this map has no hit shape for province " +
+        JSON.stringify(province) +
+        " (" + provinceName(province) + ") — it cannot be highlighted or tapped",
+    );
   }
 
   // --- Pan and zoom -------------------------------------------------------
@@ -547,8 +595,10 @@ export function mount(
     const layer = overlayLayer();
     layer.replaceChildren();
     const units = state?.units || {};
-    const dislodged = state?.dislodged || {};
-    const orders = state?.orders || {};
+    /* A review rings the units the phase under review threw out, which is not
+       the same set as the ones standing dislodged right now. */
+    const dislodged = review ? review.dislodged : state?.dislodged || {};
+    const orders = review ? {} : state?.orders || {};
     const r = clamp(12 * unitsPerPixel(), 8, 60);
 
     Object.keys(units).forEach((province) => {
@@ -559,7 +609,7 @@ export function mount(
       const isFleet = String(unit.type).toLowerCase() === "fleet";
       const shape = unitShape(point, r, isFleet);
       const ordered = Boolean(orders[province]) && !dislodged[province];
-      shape.setAttribute("fill", POWER_COLORS[unit.nation] || "#bbbbbb");
+      shape.setAttribute("fill", powerColor(unit.nation));
       shape.setAttribute("stroke", ordered ? "#ffffff" : "#14161a");
       shape.setAttribute("stroke-width", String(Math.max(1, r * (ordered ? 0.28 : 0.16))));
       shape.setAttribute("class", ordered ? "unit ordered" : "unit");
@@ -587,7 +637,7 @@ export function mount(
       layer.appendChild(ring);
 
       const shape = unitShape(point, r * 0.82, isFleet);
-      shape.setAttribute("fill", POWER_COLORS[unit.nation] || "#bbbbbb");
+      shape.setAttribute("fill", powerColor(unit.nation));
       shape.setAttribute("stroke", "#14161a");
       shape.setAttribute("stroke-width", String(Math.max(1, r * 0.14)));
       shape.setAttribute("class", "unit dislodged");
@@ -663,12 +713,19 @@ export function mount(
   function renderOrders(): void {
     const layer = overlay("order-overlay");
     layer.replaceChildren();
-    const parts = state?.orderParts || {};
+    /*
+    A review draws the phase that just resolved — every power's orders, from
+    the server's public record — where the live board draws only this seat's.
+    Everything below is the same drawing either way; only where the parts, the
+    colours and the phase wording come from changes.
+    */
+    const parts = review ? review.orderParts : state?.orderParts || {};
     const units = state?.units || {};
+    const kind = review ? review.kind : plan.kind;
     const r = clamp(12 * unitsPerPixel(), 8, 60);
     const base = Math.max(1.5, r * 0.3);
 
-    const dislodged = state?.dislodged || {};
+    const dislodged = review ? review.dislodged : state?.dislodged || {};
 
     Object.keys(parts).forEach((province) => {
       const anchor = centerOf(province);
@@ -682,15 +739,20 @@ export function mount(
       const leaving = dislodged[province];
       const from = leaving ? dislodgedPoint(anchor, r) : anchor;
       const unit = leaving || units[province];
-      const color = POWER_COLORS[unit ? unit.nation : plan.power] || "#bbbbbb";
+      const ordering = review ? review.powers[province] || "" : "";
+      const color = powerColor(ordering || (unit ? unit.nation : plan.power));
+      const missed = reviewFailed.has(province);
       // The picked order is drawn heavier; weights stay in map units so they
       // keep following the zoom.
       const width = base * (selectedOrder === province ? 1.9 : 1);
       const border = Math.max(1.2, width * 0.7);
 
       const group = document.createElementNS(SVG_NS, "g");
-      group.setAttribute("class", "order");
+      group.setAttribute("class", missed ? "order failed" : "order");
       group.setAttribute("data-province", province);
+      /* Where the cross goes on an order that did not come off: the far end,
+         which is the claim the adjudication refused. */
+      let missPoint: Point = from;
 
       /*
       Every shape is built twice: once dark and fattened by the border width,
@@ -780,12 +842,13 @@ export function mount(
       const type = order[0];
       const anchorOf = (name: string) => centerOf(name) || centerOf(baseProvince(name));
 
-      if (plan.kind === "retreat" && type === "Move" && order[1]) {
+      if (kind === "retreat" && type === "Move" && order[1]) {
         const to = anchorOf(order[1]);
         if (!to) return;
         const end = towards(to, from, r * 1.4);
         shapes.push(dashedRun(towards(from, end, r * 1.0), towards(end, from, r * 0.9)));
         shapes.push(head(from, end));
+        missPoint = end;
       } else if (type === "Disband") {
         shapes.push(cross(from, r * 1.15));
       } else if (type === "Build") {
@@ -794,6 +857,7 @@ export function mount(
         const to = anchorOf(order[1]);
         if (!to) return;
         shapes.push(arrow(towards(from, to, r * 1.15), towards(to, from, r * 1.6)));
+        missPoint = towards(to, from, r * 1.6);
       } else if (type === "Hold") {
         shapes.push(ring(from, r * 1.5));
       } else if (type === "Support" || type === "Convoy") {
@@ -805,6 +869,7 @@ export function mount(
         const end = holdSupport ? towards(src, from, r * 2.6) : midpoint(src, anchorOf(order[2]) || src);
         const start = towards(from, end, r * 1.2);
         shapes.push(dashedCurve(start, end));
+        missPoint = end;
         if (holdSupport) {
           shapes.push(ring(end, r * 0.55));
         } else {
@@ -824,6 +889,34 @@ export function mount(
 
       shapes.forEach((make) => group.appendChild(make(true)));
       shapes.forEach((make) => group.appendChild(make(false)));
+
+      /*
+      An order that did not come off keeps its shape and its power's colour —
+      you must still be able to see who tried what — but it is dimmed and
+      crossed at the end it did not reach, in red, so the board reads at a
+      glance as what worked and what did not.
+      */
+      if (missed) {
+        const reach = r * 0.72;
+        const mark = document.createElementNS(SVG_NS, "path");
+        mark.setAttribute(
+          "d",
+          "M " + (missPoint.x - reach) + " " + (missPoint.y - reach) +
+            " L " + (missPoint.x + reach) + " " + (missPoint.y + reach) +
+            " M " + (missPoint.x + reach) + " " + (missPoint.y - reach) +
+            " L " + (missPoint.x - reach) + " " + (missPoint.y + reach),
+        );
+        mark.setAttribute("fill", "none");
+        mark.setAttribute("stroke", "#1b1b1b");
+        mark.setAttribute("stroke-width", String(width + border * 2));
+        mark.setAttribute("stroke-linecap", "round");
+        group.appendChild(mark);
+        const over = mark.cloneNode() as SVGElement;
+        over.setAttribute("stroke", "#ff5c5c");
+        over.setAttribute("stroke-width", String(Math.max(width, r * 0.28)));
+        over.setAttribute("class", "order-miss");
+        group.appendChild(over);
+      }
 
       if (selectedOrder) group.classList.add(selectedOrder === province ? "hot" : "dim");
       layer.appendChild(group);
@@ -1153,12 +1246,15 @@ export function mount(
     }
     if (unit && unit.nation !== plan.power) return here + " is " + unit.nation + "'s.";
     if (plan.duty && plan.duty.type === "Build") {
-      return "You can only build in an empty home centre you hold.";
+      return "You can only build in an empty supply centre this variant allows.";
     }
     return "Nothing to order in " + here + " this phase.";
   }
 
   function onProvinceClick(province: string, clientX: number, clientY: number): void {
+    // While the last phase is on screen the map takes no orders. Pan and zoom
+    // still work, because reading it is the point.
+    if (review) return;
     const mode = shortcutMode();
 
     if (mode === "support") {
@@ -1197,11 +1293,20 @@ export function mount(
         builder = null;
         renderAll();
       }
-      if (!allowed(province)) return;
-      startOrder(province).catch(reportError);
+      // The shape tapped may be a coast of the province the phase asks about.
+      const asked = actionableKey(province);
+      if (!allowed(asked)) return;
+      startOrder(asked).catch(reportError);
       return;
     }
-    if (!state || !state.units || !state.units[province]) {
+    /*
+    A unit on a coast is filed under "len/sc" but fills the whole of
+    Leningrad, and the shape under the finger may be either. The occupant
+    lookup spans both spellings, and its key — not the shape's id — is what
+    gets ordered.
+    */
+    const occupant = state ? occupantOf(province) : null;
+    if (!occupant) {
       if (builder) {
         builder = null;
         setStatus("Nothing there. Order abandoned.");
@@ -1211,16 +1316,34 @@ export function mount(
       }
       return;
     }
-    if (!allowed(province)) return;
-    startOrder(province).catch(reportError);
+    if (!allowed(occupant)) return;
+    startOrder(occupant).catch(reportError);
   }
 
-  // Finds the option key a tapped province stands for, coasts included.
+  /** The province this phase asks about that the tapped shape stands for. */
+  function actionableKey(province: string): string {
+    const keys = Object.keys(plan.actionable);
+    if (keys.indexOf(province) !== -1) return province;
+    const base = baseProvince(province);
+    const same = keys.filter((key) => baseProvince(key) === base);
+    return same.length === 1 ? same[0] : province;
+  }
+
+  /*
+  Finds the option key a tapped province stands for, coasts included. The
+  shape under a finger and the key in the options tree need not be spelled the
+  same: a tap can land on "wca/nc" when the army's move is offered as "wca",
+  or on "spa" when the fleet's move is offered as "spa/nc". So the match runs
+  both ways — exact, then the base, then the one coast of that base — and only
+  gives up when a province offers two coasts, where the buttons must decide.
+  */
   function matchingKey(node: OptionTree | null, province: string): string | null {
     const keys = Object.keys(node || {});
     if (keys.indexOf(province) !== -1) return province;
-    const base = keys.filter((key) => baseProvince(key) === province);
-    return base.length === 1 ? base[0] : null;
+    const base = baseProvince(province);
+    if (keys.indexOf(base) !== -1) return base;
+    const coasts = keys.filter((key) => baseProvince(key) === base);
+    return coasts.length === 1 ? coasts[0] : null;
   }
 
   // The province hit shape under a screen point, if any.
@@ -1305,33 +1428,37 @@ export function mount(
     Array.prototype.forEach.call(layer.children, (shape: Element) => {
       shape.classList.remove("legal", "occupied", "selected", "support-src", "todo");
     });
+    // A review is a picture of what happened, so nothing on it invites a tap.
+    if (review) return;
     /*
     A retreat or an adjustment asks for a small, known set of provinces, so
     they are marked before anything is tapped — otherwise a player would have
     to hunt for the one unit that must move.
     */
+    const mark = (province: string, ...classes: string[]) => {
+      const shapes = provinceShapes(province);
+      const fallback = shapes.length ? shapes : provinceShapes(baseProvince(province));
+      fallback.forEach((shape) => shape.classList.add(...classes));
+      return fallback.length > 0;
+    };
+
     if (!builder && plan.kind !== "movement") {
-      Object.keys(plan.actionable).forEach((province) => {
-        const shape = provinceShape(province) || provinceShape(baseProvince(province));
-        if (shape) shape.classList.add("todo");
-      });
+      Object.keys(plan.actionable).forEach((province) => mark(province, "todo"));
       return;
     }
     if (!builder) return;
-    const selected = provinceShape(builder.province) || provinceShape(baseProvince(builder.province));
-    if (selected) selected.classList.add("selected");
+    mark(builder.province, "selected");
 
     const supporting = shortcutMode() === "support" ? builder.support!.src : null;
     highlightKeys().forEach((key) => {
-      const shape = provinceShape(key) || provinceShape(baseProvince(key));
-      if (!shape) return;
-      shape.classList.add("legal");
+      const classes = ["legal"];
       // Green means "move here"; an occupied province means a choice instead.
-      if (occupantOf(key)) shape.classList.add("occupied");
+      if (occupantOf(key)) classes.push("occupied");
       // The unit being supported pulses: tapping it again backs its hold.
       if (supporting && baseProvince(key) === baseProvince(supporting)) {
-        shape.classList.add("support-src");
+        classes.push("support-src");
       }
+      mark(key, ...classes);
     });
   }
 
@@ -1522,6 +1649,19 @@ export function mount(
       state = next;
       plan = nextPlan;
       if (selectedOrder && !(next.orders || {})[selectedOrder]) setSelected(null);
+      renderAll();
+    },
+    showReview(view: ReviewDraw | null) {
+      review = view;
+      reviewFailed = new Set(view ? view.failed : []);
+      if (view) {
+        // A half-built order belongs to the live board, not to the picture of
+        // the last one.
+        builder = null;
+        hideMenu();
+        setSelected(null);
+        callbacks.builder(null);
+      }
       renderAll();
     },
     choose(id: string) {

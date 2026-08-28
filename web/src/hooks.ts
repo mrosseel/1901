@@ -44,20 +44,7 @@ export function useTicker(enabled = true): void {
   }, [enabled]);
 }
 
-/** How long is left, in words. Null means the game runs without a deadline. */
-export function countdown(deadlineAt: string | null | undefined): string {
-  if (!deadlineAt) return "No deadline";
-  const at = Date.parse(deadlineAt);
-  if (Number.isNaN(at)) return "No deadline";
-  const left = at - Date.now();
-  if (left <= 0) return "Deadline passed";
-  const seconds = Math.floor(left / 1000);
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const rest = seconds % 60;
-  if (hours > 0) return hours + "h " + String(minutes).padStart(2, "0") + "m left";
-  return minutes + ":" + String(rest).padStart(2, "0") + " left";
-}
+export { countdown } from "./clock";
 
 /** The rules, as two plain sentences. */
 export function settingsLines(settings: { deadlineMinutes: number; gmPlays: boolean } | undefined): string[] {

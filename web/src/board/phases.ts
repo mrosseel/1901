@@ -21,7 +21,8 @@ The three phase types godip runs, and what the options look like in each
                                 Next:{<src>:{Type:"SrcProvince", Next:{}}}}}}}
               {Disband: {Type:"OrderType", Filter:"MAX:Disband:0",
                           Next:{<src>:{Type:"SrcProvince", Next:{}}}}}
-              Builds are offered on empty home centres, disbands on units.
+              Builds are offered on the empty centres the variant allows,
+              disbands on units.
 
 The filter is "MAX:<type>:<n>", where n is one LESS than the number of orders
 of that type the power owes. So "MAX:Build:0" means one build.
@@ -58,21 +59,6 @@ export function emptyPlan(power: string, kind: PhaseKind = "movement"): PhasePla
   return { kind: kind, power: power, actionable: {}, duty: null };
 }
 
-/*
-The classical home centres. A build is only ever offered on one of these, so
-they are the whole candidate list for the build side of an adjustment — the
-same static variant data as the province names.
-*/
-export const HOME_CENTERS: Record<string, string[]> = {
-  Austria: ["bud", "tri", "vie"],
-  England: ["edi", "lon", "lvp"],
-  France: ["bre", "mar", "par"],
-  Germany: ["ber", "kie", "mun"],
-  Italy: ["nap", "rom", "ven"],
-  Russia: ["mos", "sev", "stp", "war"],
-  Turkey: ["ank", "con", "smy"],
-};
-
 /** Dislodged units of one power, by province. */
 export function ownDislodged(state: BoardState | null, power: string): string[] {
   const dislodged = state?.dislodged || {};
@@ -90,8 +76,14 @@ function ownUnits(state: BoardState | null, power: string): string[] {
 
 /*
 The provinces worth asking the server about when a phase begins. The server
-decides what is legal; this only keeps the page from asking about all
-seventy-five.
+decides what is legal; this only keeps the page from asking about every
+province on the map.
+
+Which supply centres a power may build in is the variant's business, not this
+page's: no home-centre table lives here. A build can only ever be offered on a
+supply centre this power holds with nothing standing on it, so those are what
+is probed, and the tree that comes back — empty for a centre that is not a
+home centre for this variant — is the answer.
 */
 export function candidates(state: BoardState | null, power: string, kind: PhaseKind): string[] {
   if (kind === "retreat") return ownDislodged(state, power);
@@ -99,10 +91,10 @@ export function candidates(state: BoardState | null, power: string, kind: PhaseK
 
   const units = state?.units || {};
   const centers = state?.supplyCenters || {};
-  const held = (HOME_CENTERS[power] || []).filter(
+  const empty = Object.keys(centers).filter(
     (province) => centers[province] === power && !occupied(units, province),
   );
-  return Array.from(new Set(ownUnits(state, power).concat(held))).sort();
+  return Array.from(new Set(ownUnits(state, power).concat(empty))).sort();
 }
 
 function occupied(units: Record<string, Unit>, province: string): boolean {
@@ -152,7 +144,10 @@ export function dutyLine(plan: PhasePlan, state: BoardState | null): string {
   if (!duty) return "Adjustments are open.";
   const many = duty.count === 1 ? "" : "s";
   if (duty.type === "Build") {
-    return "Build " + duty.count + ": tap one of your empty home centres.";
+    /* Not "home centres": several variants let a power build on any centre it
+       holds, and the server has already decided which ones — they are the
+       highlighted ones. */
+    return "Build " + duty.count + ": tap a highlighted supply centre.";
   }
   return "Disband " + duty.count + ": tap " + (duty.count === 1 ? "a unit" : duty.count + " units") + " to remove" + many + ".";
 }
