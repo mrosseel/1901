@@ -12,6 +12,37 @@ const NATION_COLORS = {
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+/*
+Province names for the classical map. The map SVG carries a names layer, but
+its labels sit in their own coordinate space and cannot be matched back to the
+hit shapes, so the table is kept here. Hints read as sentences, and a sentence
+needs a name: "Vienna supports Budapest to hold", never "vie Support bud bud".
+An abbreviation with no entry falls back to upper case.
+*/
+const PROVINCE_NAMES = {
+  adr: "Adriatic Sea", aeg: "Aegean Sea", alb: "Albania", ank: "Ankara",
+  apu: "Apulia", arm: "Armenia", bal: "Baltic Sea", bar: "Barents Sea",
+  bel: "Belgium", ber: "Berlin", bla: "Black Sea", boh: "Bohemia",
+  bot: "Gulf of Bothnia", bre: "Brest", bud: "Budapest", bul: "Bulgaria",
+  bur: "Burgundy", cly: "Clyde", con: "Constantinople", den: "Denmark",
+  eas: "Eastern Mediterranean", edi: "Edinburgh", eng: "English Channel",
+  fin: "Finland", gal: "Galicia", gas: "Gascony", gol: "Gulf of Lyon",
+  gre: "Greece", hel: "Helgoland Bight", hol: "Holland", ion: "Ionian Sea",
+  iri: "Irish Sea", kie: "Kiel", lon: "London", lvn: "Livonia",
+  lvp: "Liverpool", mar: "Marseilles", mid: "Mid-Atlantic Ocean",
+  mos: "Moscow", mun: "Munich", naf: "North Africa", nap: "Naples",
+  nat: "North Atlantic Ocean", nrg: "Norwegian Sea", nth: "North Sea",
+  nwy: "Norway", par: "Paris", pic: "Picardy", pie: "Piedmont",
+  por: "Portugal", pru: "Prussia", rom: "Rome", ruh: "Ruhr", rum: "Rumania",
+  ser: "Serbia", sev: "Sevastopol", sil: "Silesia", ska: "Skagerrak",
+  smy: "Smyrna", spa: "Spain", stp: "St Petersburg", swe: "Sweden",
+  syr: "Syria", tri: "Trieste", tun: "Tunis", tus: "Tuscany", tyr: "Tyrolia",
+  tys: "Tyrrhenian Sea", ukr: "Ukraine", ven: "Venice", vie: "Vienna",
+  wal: "Wales", war: "Warsaw", wes: "Western Mediterranean", yor: "Yorkshire",
+};
+
+const COAST_NAMES = { nc: "north coast", sc: "south coast", ec: "east coast" };
+
 // Anchor points of every province, keyed by abbreviation ("vie", "stp/sc").
 const centers = new Map();
 
@@ -776,9 +807,33 @@ function highlightKeys() {
   return Object.keys(builder.node);
 }
 
+function provinceName(province) {
+  const base = baseProvince(province);
+  const name = PROVINCE_NAMES[base] || base.toUpperCase();
+  if (base === province) return name;
+  const coast = COAST_NAMES[province.slice(base.length + 1)];
+  return coast ? name + " (" + coast + ")" : name;
+}
+
+// "Army Vienna" — the unit standing in a province, named for a sentence.
 function unitLabel(province) {
-  const unit = (state.units || {})[province];
-  return (unit ? unit.type + " " : "") + province.toUpperCase();
+  const unit = (state.units || {})[province] || (state.units || {})[baseProvince(province)];
+  return (unit ? unit.type + " " : "") + provinceName(province);
+}
+
+// What an order will read as once it is in: "Vienna supports Budapest to hold."
+function describeOrder(province, parts) {
+  const from = provinceName(province);
+  const type = parts[0];
+  if (type === "Move") return from + " moves to " + provinceName(parts[1]) + ".";
+  if (type === "Hold") return from + " holds.";
+  if (type === "Support" || type === "Convoy") {
+    const verb = type === "Convoy" ? " convoys " : " supports ";
+    const src = provinceName(parts[1]);
+    if (parts.length < 3 || parts[2] === parts[1]) return from + verb + src + " to hold.";
+    return from + verb + src + " to " + provinceName(parts[2]) + ".";
+  }
+  return from + " " + parts.map(provinceName).join(" ") + ".";
 }
 
 async function startOrder(province) {
@@ -788,7 +843,7 @@ async function startOrder(province) {
   const root = skipAutoNodes(options || {}, province, true);
   if (isLeaf(root)) {
     builder = null;
-    setStatus("No legal orders for " + province + ".");
+    setStatus(unitLabel(province) + " has no legal orders.");
     renderAll();
     return;
   }
@@ -842,7 +897,7 @@ function enterSupport(srcKey) {
   const entry = builder.supportNode[srcKey] || {};
   const dests = skipAutoNodes(entry.Next || {}, builder.province, false);
   if (isLeaf(dests)) {
-    setStatus("Nothing to support in " + srcKey.toUpperCase() + ".");
+    setStatus("There is nothing to support in " + provinceName(srcKey) + ".");
     return;
   }
   builder.support = { src: srcKey, dests: dests };
@@ -872,7 +927,7 @@ function offerChoice(moveKey, supportKey, clientX, clientY) {
     },
     { label: "Support", onPick: () => enterSupport(supportKey) },
   ]);
-  setStatus("Attack or support " + unitLabel(supportKey) + "?");
+  setStatus("Attack " + unitLabel(supportKey) + ", or support it?");
 }
 
 // Double tapping a unit is a Hold, no menu.
@@ -882,7 +937,7 @@ async function holdOrder(province) {
   if (epoch !== orderEpoch) return;
   const root = skipAutoNodes(options || {}, province, true);
   if (!root.Hold) {
-    setStatus(province.toUpperCase() + " cannot hold.");
+    setStatus(unitLabel(province) + " cannot hold.");
     return;
   }
   builder = { province: province, node: root, parts: [], labels: [], moveNode: null };
@@ -891,15 +946,37 @@ async function holdOrder(province) {
 
 async function submitOrder() {
   const body = { province: builder.province, parts: builder.parts };
-  const label = builder.province + " " + builder.labels.join(" ");
+  const sentence = describeOrder(builder.province, builder.parts);
   builder = null;
   try {
     state = await postJSON(api("order"), body);
-    setStatus("Ordered: " + label);
+    setStatus(sentence);
   } catch (err) {
     setStatus(String(err.message || err), true);
   }
   renderAll();
+}
+
+/*
+An empty parts list is how the server is told to drop an order.
+*/
+async function cancelOrder(province) {
+  hideMenu();
+  if (builder && builder.province === province) builder = null;
+  selectedOrder = null;
+  try {
+    state = await postJSON(api("order"), { province: province, parts: [] });
+    setStatus("Order for " + provinceName(province) + " removed.");
+  } catch (err) {
+    setStatus(String(err.message || err), true);
+  }
+  renderAll();
+}
+
+// Drop the order, then reopen the unit ready for a new one.
+async function changeOrder(province) {
+  await cancelOrder(province);
+  await startOrder(province);
 }
 
 function onProvinceClick(province, clientX, clientY) {
@@ -934,7 +1011,7 @@ function onProvinceClick(province, clientX, clientY) {
   if (!state || !state.units || !state.units[province]) {
     if (builder) {
       builder = null;
-      setStatus("Order cancelled.");
+      setStatus("Nothing there. Order abandoned.");
       renderAll();
     } else {
       setStatus("No unit in " + province + ".");
@@ -961,13 +1038,17 @@ function provinceAt(clientX, clientY) {
   return shape && shape.parentNode === layer ? shape.id : null;
 }
 
+// The province key of the unit standing in a province, coasts included.
+function occupantOf(province) {
+  const units = (state && state.units) || {};
+  if (units[province]) return province;
+  return Object.keys(units).find((key) => baseProvince(key) === baseProvince(province)) || null;
+}
+
+// A fleet on a coast is listed under "stp/sc" but drawn on "stp".
 function unitAt(clientX, clientY) {
   const province = provinceAt(clientX, clientY);
-  if (!province || !state || !state.units) return null;
-  if (state.units[province]) return province;
-  // A fleet on a coast is listed under "stp/sc" but drawn on "stp".
-  const coast = Object.keys(state.units).find((key) => baseProvince(key) === province);
-  return coast || null;
+  return province ? occupantOf(province) : null;
 }
 
 function reportError(err) {
@@ -1038,30 +1119,33 @@ function renderBuilder() {
     (unit ? unit.type + " " : "") + builder.province.toUpperCase() +
     (unit ? " (" + unit.nation + ")" : "");
   const mode = shortcutMode();
-  const targetsAreProvinces = highlightKeys().length > 0;
+  const me = unitLabel(builder.province);
+  const here = provinceName(builder.province);
+  let hint;
   if (mode === "support") {
     const src = builder.support.src;
-    el.builderPath.textContent = "Support " + src.toUpperCase() + " → ?";
-    setStatus(
-      "Supporting " + unitLabel(src) +
-        " — tap where it goes, or tap it again to support its hold."
-    );
+    hint =
+      "Supporting " + unitLabel(src) + " — tap where you are helping it go, " +
+      "or tap " + provinceName(src) + " again to back its hold.";
   } else if (mode === "pick") {
-    el.builderPath.textContent = "Tap a destination, or pick an order type.";
-    setStatus(
-      "Tap an empty province to move there, or an occupied one to attack or " +
-        "support it. Double tap the unit to hold."
-    );
+    hint =
+      me + ": tap a green province to move there. Occupied = attack or " +
+      "support. Double-tap " + here + " to hold.";
   } else {
-    el.builderPath.textContent = builder.labels.length
-      ? builder.labels.join(" → ") + " → ?"
-      : "Pick an order type.";
-    setStatus(
-      targetsAreProvinces
-        ? "Tap a highlighted province on the map, or use a button."
-        : "Pick an order type below."
-    );
+    const step = builder.labels[0];
+    const naming = builder.labels.length === 1 && (step === "Support" || step === "Convoy");
+    if (naming) {
+      hint = me + ": tap the unit you want to " + step.toLowerCase() + ".";
+    } else if (highlightKeys().length) {
+      hint = me + ": tap a highlighted province, or use a button below.";
+    } else {
+      hint = me + ": pick an order type below.";
+    }
   }
+  // The bar is pinned to the bottom on a phone, where the status line under
+  // the sidebar can be scrolled out of sight, so the hint is shown in both.
+  el.builderPath.textContent = hint;
+  setStatus(hint);
 
   const buttons = Object.keys(builder.node)
     .sort()
@@ -1081,14 +1165,23 @@ function renderHighlights() {
   const layer = svgRoot && svgRoot.querySelector("#provinces");
   if (!layer) return;
   Array.prototype.forEach.call(layer.children, (shape) => {
-    shape.classList.remove("legal", "selected");
+    shape.classList.remove("legal", "occupied", "selected", "support-src");
   });
   if (!builder) return;
   const selected = provinceShape(builder.province) || provinceShape(baseProvince(builder.province));
   if (selected) selected.classList.add("selected");
+
+  const supporting = shortcutMode() === "support" ? builder.support.src : null;
   highlightKeys().forEach((key) => {
     const shape = provinceShape(key) || provinceShape(baseProvince(key));
-    if (shape) shape.classList.add("legal");
+    if (!shape) return;
+    shape.classList.add("legal");
+    // Green means "move here"; an occupied province means a choice instead.
+    if (occupantOf(key)) shape.classList.add("occupied");
+    // The unit being supported pulses: tapping it again backs its hold.
+    if (supporting && baseProvince(key) === baseProvince(supporting)) {
+      shape.classList.add("support-src");
+    }
   });
 }
 
@@ -1106,13 +1199,15 @@ function renderList(target, entries, pickable) {
     dot.style.background = NATION_COLORS[nation] || "transparent";
     const name = document.createElement("span");
     name.className = "nation";
-    name.textContent = nation || province.toUpperCase();
+    name.textContent = nation || provinceName(province);
     const body = document.createElement("span");
+    body.className = "order-text";
     body.textContent = text;
     li.append(dot, name, body);
 
     // An order in the list and its drawing on the map are the same thing:
-    // picking one here singles the other out.
+    // picking one here singles the other out. The buttons act on the order
+    // itself, so they must not also toggle that highlight.
     if (pickable) {
       li.className = "pickable" + (selectedOrder === province ? " picked" : "");
       li.dataset.province = province;
@@ -1124,6 +1219,29 @@ function renderList(target, entries, pickable) {
           selectOrder(province);
         }
       });
+
+      const actions = document.createElement("span");
+      actions.className = "row-actions";
+      const act = (label, className, title, run) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = className;
+        button.textContent = label;
+        button.title = title;
+        button.setAttribute("aria-label", title);
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          run().catch(reportError);
+        });
+        return button;
+      };
+      actions.append(
+        act("Change", "row-change", "Change the order for " + provinceName(province),
+            () => changeOrder(province)),
+        act("\u00d7", "row-cancel", "Remove the order for " + provinceName(province),
+            () => cancelOrder(province))
+      );
+      li.appendChild(actions);
     }
     return li;
   });

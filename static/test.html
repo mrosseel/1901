@@ -21,6 +21,7 @@ const MAP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1524 1357" wid
     <path id="tri" d="M 700,900 h 60 v 60 h -60 z"/>
     <path id="bud" d="M 800,800 h 60 v 60 h -60 z"/>
     <path id="ser" d="M 800,900 h 60 v 60 h -60 z"/>
+    <path id="gal" d="M 900,800 h 60 v 60 h -60 z"/>
     <path id="tri/xc" d="M 900,900 h 20 v 20 h -20 z"/>
   </g>
   <g id="supply-centers" style="display:none">
@@ -30,6 +31,7 @@ const MAP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1524 1357" wid
   </g>
   <g id="province-centers" style="display:none">
     <path id="serCenter" d="m 830,930 h 10 v 10 h -10 z"/>
+    <path id="galCenter" d="m 930,830 h 10 v 10 h -10 z"/>
   </g>
   <g id="units"/>
 </svg>`;
@@ -57,7 +59,11 @@ const OPTIONS = {
         Next: {
           vie: {
             Type: "SrcProvince",
-            Next: { tri: { Type: "Province", Next: {} }, bud: { Type: "Province", Next: {} } },
+            Next: {
+              tri: { Type: "Province", Next: {} },
+              bud: { Type: "Province", Next: {} },
+              gal: { Type: "Province", Next: {} },   // empty: a plain move target
+            },
           },
         },
       },
@@ -108,10 +114,16 @@ window.fetch = async function (url, opts) {
   }
   if (path === "/order") {
     const body = JSON.parse(opts.body);
-    STATE = Object.assign({}, STATE, {
-      orders: Object.assign({}, STATE.orders, { [body.province]: body.parts.join(" ") }),
-      orderParts: Object.assign({}, STATE.orderParts, { [body.province]: body.parts }),
-    });
+    const orders = Object.assign({}, STATE.orders);
+    const orderParts = Object.assign({}, STATE.orderParts);
+    if (body.parts.length === 0) {           // an empty list cancels
+      delete orders[body.province];
+      delete orderParts[body.province];
+    } else {
+      orders[body.province] = body.parts.join(" ");
+      orderParts[body.province] = body.parts;
+    }
+    STATE = Object.assign({}, STATE, { orders, orderParts });
     return ok(STATE);
   }
   if (path === "/adjudicate") {
@@ -174,7 +186,7 @@ async function run() {
   const marks = document.querySelectorAll("#unit-overlay .unit");
   check("units drawn", marks.length === 3, marks.length + " markers");
   check("fleet is a triangle", document.querySelector("#unit-overlay polygon.unit") !== null);
-  check("centers parsed", window.__app.centers.size === 4, "size " + window.__app.centers.size);
+  check("centers parsed", window.__app.centers.size === 5, "size " + window.__app.centers.size);
   check("phase rendered", document.getElementById("phase").textContent === "Spring 1901 Movement");
 
   // Click the province through the real map handler.
@@ -185,20 +197,30 @@ async function run() {
 
   // Move is pre-selected: the targets are highlighted with no button press.
   const preLegal = Array.from(document.querySelectorAll("#provinces .legal")).map((e) => e.id).sort();
-  check("move targets highlighted at once", preLegal.join(",") === "bud,tri", preLegal.join(","));
+  check("move targets highlighted at once", preLegal.join(",") === "bud,gal,tri", preLegal.join(","));
+  check("selection hint names the unit and province",
+        document.getElementById("status").textContent ===
+          "Army Vienna: tap a green province to move there. Occupied = attack or support. Double-tap Vienna to hold.",
+        document.getElementById("status").textContent);
+  check("an occupied target is marked apart from an empty one",
+        document.querySelector("#provinces #bud").classList.contains("occupied") &&
+        !document.querySelector("#provinces #gal").classList.contains("occupied"));
   check("source highlighted", document.querySelectorAll("#provinces .selected").length === 1);
 
-  // Second tap on a highlighted province is the whole order.
-  document.querySelector("#provinces #tri").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  // Second tap on an empty highlighted province is the whole order.
+  document.querySelector("#provinces #gal").dispatchEvent(new MouseEvent("click", { bubbles: true }));
   await wait(() => window.__calls.some((c) => c.url === "/order"), "POST /order");
   const posted = window.__calls.find((c) => c.url === "/order").body;
   check(
     "two-tap move body",
-    JSON.stringify(posted) === JSON.stringify({ province: "vie", parts: ["Move", "tri"] }),
+    JSON.stringify(posted) === JSON.stringify({ province: "vie", parts: ["Move", "gal"] }),
     JSON.stringify(posted)
   );
   await wait(() => document.querySelectorAll("#orders li").length === 1, "sidebar order");
   check("builder closed", document.getElementById("builder").hidden === true);
+  check("posted order is reported in words",
+        document.getElementById("status").textContent === "Vienna moves to Galicia.",
+        document.getElementById("status").textContent);
 
   // An occupied reachable province raises the chip.
   const tapProvince = (id) => {
@@ -210,10 +232,12 @@ async function run() {
   const chipButton = (label) => Array.from(document.querySelectorAll("#chip button"))
     .find((b) => b.textContent === label);
   // The unit is picked and no branch has been entered yet.
-  const pickMode = () => /Tap an empty province/.test(document.getElementById("status").textContent);
+  const pickMode = () => /tap a green province to move there/.test(document.getElementById("status").textContent);
 
   tapProvince("vie");
   await wait(pickMode, "reachable set");
+  check("an empty move target is plain green",
+        document.querySelector("#provinces #gal").getAttribute("class") === "legal");
   tapProvince("bud");
   await wait(() => document.getElementById("chip"), "chip");
   check("chip offers both readings",
@@ -223,14 +247,22 @@ async function run() {
     const r = document.getElementById("chip").getBoundingClientRect();
     return r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight;
   })());
-  check("chip narrates", /Attack or support/.test(document.getElementById("status").textContent),
+  check("chip narrates the choice", /^Attack Army Budapest, or support it\?$/.test(document.getElementById("status").textContent),
         document.getElementById("status").textContent);
 
   // Support from the chip: highlight the supported unit's destinations.
   chipButton("Support").click();
   await wait(() => /Supporting/.test(document.getElementById("status").textContent), "support mode");
   const supLegal = Array.from(document.querySelectorAll("#provinces .legal")).map((e) => e.id).sort();
-  check("support destinations highlighted", supLegal.join(",") === "bud,ser", supLegal.join(","));
+  check("only the supported unit and its destinations are lit",
+        supLegal.join(",") === "bud,ser", supLegal.join(","));
+  check("the supported unit is marked apart",
+        document.querySelectorAll("#provinces .support-src").length === 1 &&
+        document.querySelector("#provinces .support-src").id === "bud");
+  check("support hint names both units",
+        document.getElementById("status").textContent ===
+          "Supporting Army Budapest — tap where you are helping it go, or tap Budapest again to back its hold.",
+        document.getElementById("status").textContent);
   check("chip dismissed after picking", document.getElementById("chip") === null);
   tapProvince("ser");
   await wait(() => window.__calls.filter((c) => c.url === "/order").length === 2, "support POST");
@@ -283,7 +315,7 @@ async function run() {
   buttonNamed("Move").click();
   await wait(() => buttonNamed("TRI"), "move target buttons");
   const targets = Array.from(document.querySelectorAll("#builder-buttons button")).map((b) => b.textContent);
-  check("SrcProvince auto-selected", targets.join(",") === "BUD,TRI", targets.join(","));
+  check("SrcProvince auto-selected", targets.join(",") === "BUD,GAL,TRI", targets.join(","));
   buttonNamed("BUD").click();
   await wait(() => window.__calls.filter((c) => c.url === "/order").length === 5, "move-by-button POST");
   check(
@@ -326,7 +358,7 @@ async function run() {
       JSON.stringify({ province: "vie", parts: ["Hold"] })
   );
   check("double tap leaves no builder open", document.getElementById("builder").hidden === true);
-  check("double tap reports it", /^Ordered: vie Hold/.test(document.getElementById("status").textContent),
+  check("double tap reports it in words", document.getElementById("status").textContent === "Vienna holds.",
         document.getElementById("status").textContent);
 
   const zoomBefore = window.__app.getZoom();
@@ -341,7 +373,7 @@ async function run() {
 
   // A three-step support order, chosen by clicking the map instead of buttons.
   document.querySelector("#provinces #bud").dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  await wait(() => /No legal orders/.test(document.getElementById("status").textContent), "empty options");
+  await wait(() => /has no legal orders/.test(document.getElementById("status").textContent), "empty options");
   check("empty option tree handled", document.getElementById("builder").hidden === true);
   document.querySelector("#provinces #vie").dispatchEvent(new MouseEvent("click", { bubbles: true }));
   await wait(() => buttonNamed("Support"), "options for vie again");
@@ -412,6 +444,41 @@ async function run() {
   await wait(() => !graphic("vie").classList.contains("hot"), "unpicked");
   check("clicking again clears the highlight",
         !graphic("bud").classList.contains("dim"));
+
+  // --- Row actions: Change reopens ordering, x removes the order.
+  const rowFor = (p) => document.querySelector('#orders li[data-province="' + p + '"]');
+  const rowsBefore = document.querySelectorAll("#orders li").length;
+  rowFor("bud").querySelector(".row-cancel").click();
+  await wait(() => !rowFor("bud"), "row removed");
+  check("cancel removes the row", document.querySelectorAll("#orders li").length === rowsBefore - 1);
+  check("cancel removes the graphic", graphic("bud") === null);
+  check("cancel posts an empty parts list", (() => {
+    const last = window.__calls.filter((c) => c.url === "/order").pop().body;
+    return JSON.stringify(last) === JSON.stringify({ province: "bud", parts: [] });
+  })(), JSON.stringify(window.__calls.filter((c) => c.url === "/order").pop().body));
+  check("cancel says which order went",
+        document.getElementById("status").textContent === "Order for Budapest removed.",
+        document.getElementById("status").textContent);
+  check("cancel leaves no order builder open", document.getElementById("builder").hidden === true);
+
+  const callsBeforeChange = window.__calls.filter((c) => c.url === "/order").length;
+  rowFor("vie").querySelector(".row-change").click();
+  await wait(() => !document.getElementById("builder").hidden, "builder reopened by Change");
+  check("change cancels the old order first", (() => {
+    const posted = window.__calls.filter((c) => c.url === "/order");
+    return posted.length === callsBeforeChange + 1 &&
+      JSON.stringify(posted[posted.length - 1].body) === JSON.stringify({ province: "vie", parts: [] });
+  })());
+  check("change reopens the unit with its move targets", pickMode() &&
+        Array.from(document.querySelectorAll("#provinces .legal")).map((e) => e.id).sort().join(",") === "bud,gal,tri",
+        Array.from(document.querySelectorAll("#provinces .legal")).map((e) => e.id).sort().join(","));
+  check("change dropped the old row", rowFor("vie") === null);
+  document.getElementById("builder-cancel").click();
+
+  // Rebuild an order so adjudication has something to resolve.
+  window.__setOrder("vie", ["Move", "tri"]);
+  window.__app.refresh();
+  await wait(() => rowFor("vie"), "order restored");
 
   document.getElementById("adjudicate").click();
   await wait(() => !document.getElementById("resolutions-pane").hidden, "resolutions");

@@ -262,6 +262,24 @@ func handleOrder(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
+	// Empty parts cancels the province's order.
+	if len(req.Parts) == 0 {
+		next := map[godip.Province]godip.Adjudicator{}
+		for p, o := range g.state.Orders() {
+			if p.Super() != prov.Super() {
+				next[p] = o
+			}
+		}
+		g.state.SetOrders(next)
+		for p := range g.parts {
+			if p.Super() == prov.Super() {
+				delete(g.parts, p)
+			}
+		}
+		writeJSON(w, http.StatusOK, g.snapshot(id))
+		return
+	}
+
 	// The Options tree repeats the source province after the order type.
 	// The parser does not want it, so drop it if the client kept it.
 	parts := req.Parts
