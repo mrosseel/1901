@@ -22,24 +22,49 @@ Nothing here writes into the app. The JSON, the reports and the images are the
 deliverable; serving them is a separate step once the look is approved.
 */
 
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openBrowser, measureMap, type MapGeometry, type Terrain } from "./browser.ts";
 import {
   audit,
+  measureClearance,
   place,
   shippedPlacement,
   type Audit,
+  type ClearanceStudy,
   type Decision,
+  type Deviation,
   type PlacementTable,
 } from "./audit.ts";
-import { REFERENCE_VIEWPORTS, isPlaced, markerRadius, standardRadius, stressRadius } from "./geometry.ts";
+import {
+  COAST_SEPARATION,
+  MIN_CLEARANCE_RADII,
+  REFERENCE_VIEWPORTS,
+  baseKey,
+  distance,
+  isPlaced,
+  markerRadius,
+  standardRadius,
+  stressRadius,
+} from "./geometry.ts";
 import { renderComparison } from "./render.ts";
 import { buildEditor } from "./editor.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
+/*
+Where an approved table lives. The convention, and the whole of it:
+
+  placements/<key>.json       the table the SERVER reads for that variant
+  placements/<key>.hand.json  a table a person corrected by hand
+
+The hand file is an input — it seeds the next run and is never overwritten by
+the tool. The plain file is the output, and it is the one authority the server
+has. Writing it is what "approved" means.
+*/
+const PLACEMENTS = resolve(HERE, "..", "..", "placements");
 
 interface Options {
   variants: string[];
@@ -47,6 +72,13 @@ interface Options {
   server: string;
   images: boolean;
   editor: boolean;
+  /** An explicit seed table, overriding the per-variant hand file. */
+  seed: string | null;
+  useSeed: boolean;
+  /** The RULE B threshold in radii, if the caller wants to pin it. */
+  minClearance: number | null;
+  /** Write the result to placements/<key>.json as the served table. */
+  approve: boolean;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -56,6 +88,10 @@ function parseArgs(argv: string[]): Options {
     server: process.env.MAP_SERVER || "http://localhost:8192",
     images: true,
     editor: false,
+    seed: null,
+    useSeed: true,
+    minClearance: null,
+    approve: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -64,6 +100,10 @@ function parseArgs(argv: string[]): Options {
     else if (arg === "--server") options.server = argv[++i];
     else if (arg === "--no-images") options.images = false;
     else if (arg === "--editor") options.editor = true;
+    else if (arg === "--seed") options.seed = argv[++i];
+    else if (arg === "--no-seed") options.useSeed = false;
+    else if (arg === "--min-clearance") options.minClearance = Number(argv[++i]);
+    else if (arg === "--approve") options.approve = true;
     else if (arg === "--help" || arg === "-h") {
       console.log(usage());
       process.exit(0);
@@ -76,15 +116,38 @@ function usage(): string {
   return [
     "placement — verify and re-place unit anchors on variant maps",
     "",
-    "  --variant <key>     a variant to work on; repeatable",
-    "  --all               every variant the server lists",
-    "  --server <url>      where /variants lives (default http://localhost:8192)",
-    "  --no-images         skip the before/after PNGs",
-    "  --editor            also write the self-contained drag-to-correct page",
+    "  --variant <key>       a variant to work on; repeatable",
+    "  --all                 every variant the server lists",
+    "  --server <url>        where /variants lives (default http://localhost:8192)",
+    "  --no-images           skip the before/after PNGs",
+    "  --editor              also write the self-contained drag-to-correct page",
+    "  --seed <file>         a privileged table to start from and mostly keep",
+    "  --no-seed             ignore placements/<key>.hand.json",
+    "  --min-clearance <n>   pin the RULE B margin, in marker radii",
+    "  --approve             also write placements/<key>.json, which the server reads",
+    "",
+    "With no --seed, placements/<key>.hand.json is used when it exists. Its",
+    "positions are kept unless a hard constraint or a placement rule overrules",
+    "them, and every departure is listed in the report.",
     "",
     "Writes out/<key>.json, out/<key>.report.txt and out/<key>.compare.png,",
     "and with --editor, out/editor-<key>.html.",
   ].join("\n");
+}
+
+async function readSeed(path: string): Promise<PlacementTable> {
+  const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
+  // Both shapes are accepted: the editor exports a bare table, the tool's own
+  // out/<key>.json wraps one under "placement".
+  const table = (parsed && typeof parsed === "object" && "placement" in parsed
+    ? (parsed as { placement: PlacementTable }).placement
+    : parsed) as PlacementTable;
+  for (const [key, spot] of Object.entries(table)) {
+    if (!spot || !Array.isArray(spot.unit) || !Array.isArray(spot.dislodged)) {
+      throw new Error(path + ": " + key + " has no unit or dislodged point");
+    }
+  }
+  return table;
 }
 
 async function fetchText(url: string): Promise<string> {
@@ -112,16 +175,34 @@ function bar(label: string, before: number, after: number, higherIsBetter = fals
   );
 }
 
-function report(
-  key: string,
-  map: MapGeometry,
-  r: number,
-  before: Audit,
-  after: Audit,
-  decisions: Decision[],
-  terrain: Terrain,
-  stress: { radius: number; before: Audit; after: Audit },
-): string {
+interface ReportInput {
+  key: string;
+  map: MapGeometry;
+  r: number;
+  before: Audit;
+  after: Audit;
+  decisions: Decision[];
+  terrain: Terrain;
+  stress: { radius: number; before: Audit; after: Audit };
+  /** The clearance study the RULE B threshold was taken from, and the source. */
+  study: ClearanceStudy | null;
+  studySource: string;
+  minClearance: number;
+  seedPath: string | null;
+  seed: PlacementTable | null;
+  /** The seed table judged by the same tests, when there is one. */
+  seedAudit: Audit | null;
+  deviations: Deviation[];
+  keptSeeds: number;
+  /** The table this run produced, and the anchors it started from. */
+  result: PlacementTable;
+  shipped: PlacementTable;
+  /** The same clearance measurement run over the table just produced. */
+  outcome: ClearanceStudy;
+}
+
+function report(input: ReportInput): string {
+  const { key, map, r, before, after, decisions, terrain, stress } = input;
   const lines: string[] = [];
   lines.push("placement audit — " + key);
   lines.push("=".repeat(64));
@@ -149,11 +230,137 @@ function report(
   lines.push(bar("dislodged covers a name", before.summary.dislodgedCoversName, after.summary.dislodgedCoversName));
   lines.push(bar("clean provinces", before.summary.clean, after.summary.clean, true));
   lines.push("");
+  if (input.seedAudit) {
+    // The comparison that actually matters on a seeded run: the hand table
+    // this started from, against what came out.
+    const hand = input.seedAudit;
+    lines.push("AGAINST THE HAND TABLE     hand -> this run");
+    lines.push(bar("marker outside province", hand.summary.outside, after.summary.outside));
+    lines.push(bar("marker covers a name", hand.summary.coversName, after.summary.coversName));
+    lines.push(bar("marker covers an SC glyph", hand.summary.coversSupplyCentre, after.summary.coversSupplyCentre));
+    lines.push(bar("dislodged outside", hand.summary.dislodgedOutside, after.summary.dislodgedOutside));
+    lines.push(bar("dislodged covers a name", hand.summary.dislodgedCoversName, after.summary.dislodgedCoversName));
+    lines.push(bar("clean provinces", hand.summary.clean, after.summary.clean, true));
+    lines.push("");
+  }
   lines.push("STRESS: the same tables at the phone radius " + stress.radius.toFixed(2));
   lines.push(bar("marker outside province", stress.before.summary.outside, stress.after.summary.outside));
   lines.push(bar("marker covers a name", stress.before.summary.coversName, stress.after.summary.coversName));
   lines.push(bar("clean provinces", stress.before.summary.clean, stress.after.summary.clean, true));
   lines.push("");
+  // --- RULE B: where the threshold came from ------------------------------
+
+  lines.push("CLEARANCE — the margin, measured rather than chosen (RULE B)");
+  if (input.study) {
+    const s = input.study;
+    lines.push("  source                      " + input.studySource);
+    lines.push("  markers measured            " + s.samples.length);
+    lines.push("  already overlapping         " + s.overlapping);
+    lines.push("  median, names and SCs       " + s.medianRadii.toFixed(3) + " radii  (" + s.medianUnits.toFixed(2) + " map units)");
+    lines.push("  median, names alone         " + s.medianNameRadii.toFixed(3) + " radii");
+    lines.push("  median, supply centres      " + s.medianScRadii.toFixed(3) + " radii");
+    lines.push("  deciles (radii)             " + s.deciles.map((d) => d.toFixed(2)).join(" "));
+  } else {
+    lines.push("  no seed table to measure; the threshold below is the standing default");
+  }
+  lines.push("  THRESHOLD USED              " + input.minClearance.toFixed(3) + " radii  (" + (input.minClearance * r).toFixed(2) + " map units)");
+  lines.push("");
+  lines.push("  A position clearing this margin scores full credit and no more, so");
+  lines.push("  nothing is gained by shoving a marker further into a corner. Below");
+  lines.push("  it the penalty grades. Among positions at full credit the province's");
+  lines.push("  pole decides, which keeps centred the aesthetic.");
+  lines.push("");
+  lines.push("  the same measurement over the table this run produced:");
+  lines.push("    median " + input.outcome.medianRadii.toFixed(3) + " radii, " + input.outcome.overlapping + " overlapping, " +
+    input.outcome.samples.filter((s) => s.radii >= input.minClearance).length + " of " + input.outcome.samples.length + " at or above the threshold");
+  lines.push("");
+
+  // --- RULE A: the coast families -----------------------------------------
+
+  const families = new Map<string, string[]>();
+  for (const province of map.provinces) {
+    const b = baseKey(province.key);
+    families.set(b, (families.get(b) || []).concat(province.key));
+  }
+  const coastal = Array.from(families.entries()).filter(([, members]) => members.length > 1);
+  lines.push("COASTS — every member of a family readable as itself (RULE A)");
+  if (coastal.length === 0) {
+    lines.push("  this map has no province with named coasts");
+  } else {
+    lines.push("  A coast anchor has to be tellable from its base province and from");
+    lines.push("  its sibling coasts, so family members are held " + COAST_SEPARATION.toFixed(1) + " marker radii");
+    lines.push("  (" + (COAST_SEPARATION * r).toFixed(1) + " map units) apart, and a base province may not stand on");
+    lines.push("  one of its own coast strips.");
+    const stuck = decisions.filter((d) => d.coastIllegible).map((d) => d.key);
+    lines.push("  Separation is applied as a FILTER first and a preference second: a");
+    lines.push("  position that fails it is not searched at all, so nothing lower in");
+    lines.push("  the order can outvote legibility. Only a province offering no such");
+    lines.push("  position falls back, and those are named below.");
+    lines.push("  no legible position anywhere   " + (stuck.join(", ") || "none"));
+    lines.push("  family      pair                        before -> after   (map units)");
+    for (const [, members] of coastal) {
+      for (let i = 0; i < members.length; i++) {
+        for (let j = i + 1; j < members.length; j++) {
+          const a = members[i];
+          const b = members[j];
+          const was = gapBetween(input.seed || input.shipped, a, b);
+          const now = gapBetween(input.result, a, b);
+          if (now === null) continue;
+          lines.push(
+            "  " + baseKey(a).padEnd(11) +
+              (a + " / " + b).padEnd(28) +
+              (was === null ? "    —" : was.toFixed(1).padStart(5)) + " ->" + now.toFixed(1).padStart(6) +
+              (now + 0.5 >= COAST_SEPARATION * r
+                ? "   ok"
+                : "   " + Math.round((1 - now / (COAST_SEPARATION * r)) * 100) + "% short"),
+          );
+        }
+      }
+    }
+  }
+  lines.push("");
+
+  // --- what the hand file said, and where this run left it ----------------
+
+  lines.push("SEEDED FROM A HAND-CORRECTED TABLE");
+  if (!input.seedPath) {
+    lines.push("  none: this run started from the anchors the map ships");
+  } else {
+    const seeded = Object.keys(input.seed || {}).length;
+    lines.push("  file        " + input.seedPath);
+    lines.push("  positions   " + seeded + " seeded, " + input.keptSeeds + " kept exactly, " + input.deviations.length + " changed");
+    lines.push("");
+    lines.push("  A seeded position is kept unless it breaks a hard constraint or a");
+    lines.push("  placement rule finds a demonstrably better spot. Being nearer the");
+    lines.push("  middle of a province is NOT a reason to overrule a hand. Every");
+    lines.push("  departure is listed here, with the term it was overruled on.");
+    lines.push("");
+    if (input.deviations.length === 0) {
+      lines.push("  nothing moved: the hand table survives this run unchanged");
+    } else {
+      const units = input.deviations.filter((d) => !d.dislodgedOnly);
+      const away = input.deviations.filter((d) => d.dislodgedOnly);
+      lines.push("  UNIT MARKERS MOVED (" + units.length + ")");
+      lines.push("  key        moved   scale        from            to             why");
+      for (const d of units.sort((a, b) => b.moved - a.moved)) {
+        lines.push(
+          "  " + d.key.padEnd(10) +
+            d.moved.toFixed(1).padStart(6) + "  " +
+            (d.fromScale === d.toScale ? d.toScale.toFixed(2) + "x   " : d.fromScale.toFixed(2) + "->" + d.toScale.toFixed(2)) + "  " +
+            ("[" + d.from.map((v) => v.toFixed(0)).join(",") + "]").padEnd(15) +
+            ("[" + d.to.map((v) => v.toFixed(0)).join(",") + "]").padEnd(15) +
+            d.reason,
+        );
+      }
+      lines.push("");
+      lines.push("  DISLODGED MARKERS MOVED, UNIT UNTOUCHED (" + away.length + ")");
+      for (const d of away.sort((a, b) => b.moved - a.moved)) {
+        lines.push("  " + d.key.padEnd(10) + d.moved.toFixed(1).padStart(6) + " map units");
+      }
+    }
+  }
+  lines.push("");
+
   lines.push("map faults (not placement, and not fixable here)");
   lines.push("  anchors with no hit shape   " + (map.anchorsWithoutShape.join(", ") || "none"));
   lines.push("  hit shapes with no anchor   " + (map.shapesWithoutAnchor.join(", ") || "none"));
@@ -250,6 +457,15 @@ function pct(fraction: number): string {
   return Math.round(fraction * 100) + "%";
 }
 
+/** How far apart two provinces' markers stand in a table, or null. */
+function gapBetween(table: PlacementTable | null, a: string, b: string): number | null {
+  if (!table || !table[a] || !table[b]) return null;
+  return distance(
+    { x: table[a].unit[0], y: table[a].unit[1] },
+    { x: table[b].unit[0], y: table[b].unit[1] },
+  );
+}
+
 async function run(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const keys = options.all ? await listVariants(options.server) : options.variants;
@@ -272,9 +488,45 @@ async function run(): Promise<void> {
       const rStress = stressRadius(map.viewBox);
 
       const shipped = shippedPlacement(map, r);
+
+      /*
+      The privileged table: an explicit --seed, else the variant's own hand
+      file if it has one. Its positions are candidates the search must beat
+      rather than a starting guess it may discard.
+      */
+      let seedPath: string | null = null;
+      if (options.useSeed) {
+        if (options.seed) seedPath = options.seed;
+        else {
+          const guess = join(PLACEMENTS, key + ".hand.json");
+          if (existsSync(guess)) seedPath = guess;
+        }
+      }
+      const seed = seedPath ? await readSeed(seedPath) : null;
+
+      /*
+      RULE B's threshold is measured, not chosen: the median margin the hand
+      file keeps. Without a hand file there is nothing to measure, so the
+      figure measured off classical stands in — it is expressed in radii
+      exactly so it can.
+      */
+      const study = seed ? measureClearance(map, seed, r) : null;
+      /* Taken as measured, including when it comes out negative: that is the
+         owner saying a marker may touch the box of a nearby name, which on
+         this map it routinely must. */
+      const minClearance =
+        options.minClearance !== null ? options.minClearance : study ? study.medianRadii : MIN_CLEARANCE_RADII;
+
       const before = await audit(page, map, shipped, r);
-      const result = await place(page, map, shipped, r);
+      /* The hand table judged by the same tests, so the report can say what
+         this run cost or bought against the placement it started from. */
+      const seedAudit = seed ? await audit(page, map, seed, r) : null;
+      const result = await place(page, map, shipped, r, {
+        seed: seed || undefined,
+        minClearanceRadii: minClearance,
+      });
       const after = await audit(page, map, result.table, r);
+      const outcome = measureClearance(map, result.table, r);
 
       // The same two tables judged again with the bigger marker a phone draws.
       const stress = {
@@ -291,9 +543,38 @@ async function run(): Promise<void> {
         placement: result.table,
       };
       await writeFile(join(OUT, key + ".json"), JSON.stringify(payload, null, 2) + "\n");
+      if (options.approve) {
+        // The bare table, which is what the server reads and what the editor
+        // exports — so a hand correction can replace this file wholesale.
+        await mkdir(PLACEMENTS, { recursive: true });
+        await writeFile(
+          join(PLACEMENTS, key + ".json"),
+          JSON.stringify(result.table, null, 2) + "\n",
+        );
+      }
       await writeFile(
         join(OUT, key + ".report.txt"),
-        report(key, map, r, before, after, result.decisions, result.terrain, stress),
+        report({
+          key: key,
+          map: map,
+          r: r,
+          before: before,
+          after: after,
+          decisions: result.decisions,
+          terrain: result.terrain,
+          stress: stress,
+          study: study,
+          studySource: seedPath || "none",
+          minClearance: minClearance,
+          seedPath: seedPath,
+          seed: seed,
+          seedAudit: seedAudit,
+          deviations: result.deviations,
+          keptSeeds: result.keptSeeds,
+          result: result.table,
+          shipped: shipped,
+          outcome: outcome,
+        }),
       );
       await writeFile(
         join(OUT, key + ".audit.json"),
@@ -311,20 +592,22 @@ async function run(): Promise<void> {
             svgText: svgText,
             radius: r,
             width: 900,
+            /* On a seeded run the comparison worth drawing is against the
+               hand table, not against anchors nobody is proposing to keep. */
             left: {
-              title: key + " — shipped anchors",
+              title: key + (seed ? " — your hand table" : " — shipped anchors"),
               subtitle:
-                before.summary.outside +
+                (seedAudit || before).summary.outside +
                 " outside · " +
-                before.summary.coversName +
+                (seedAudit || before).summary.coversName +
                 " on a name · " +
-                before.summary.clean +
+                (seedAudit || before).summary.clean +
                 " clean",
-              table: shipped,
-              violations: before.violations,
+              table: seed || shipped,
+              violations: (seedAudit || before).violations,
             },
             right: {
-              title: key + " — recentred on province poles",
+              title: key + " — this run",
               subtitle:
                 after.summary.outside +
                 " outside · " +
@@ -350,6 +633,12 @@ async function run(): Promise<void> {
             radius: r,
             shipped: shipped,
             optimized: result.table,
+            hand: seed,
+            deviations: result.deviations.map((d) => ({
+              key: d.key,
+              reason: d.dislodgedOnly ? "dislodged marker only" : d.reason,
+              moved: d.moved,
+            })),
           }),
         );
       }

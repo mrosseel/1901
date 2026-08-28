@@ -9,9 +9,16 @@ import {
   covers,
   defaultDislodgedPoint,
   dislodgedCandidates,
+  COAST_SEPARATION,
+  baseKey,
+  clearancePenalty,
+  clearlyBetter,
+  coastPenalty,
   compareQuality,
+  edgeClearance,
   isPlaced,
   level,
+  separationShortfall,
   markerRadius,
   neighbours,
   proofGrid,
@@ -78,8 +85,8 @@ test("cleanliness is compared in order, never blended", () => {
   // The bug this replaced: a weighted sum let a small overlap outvote a long
   // walk, so the optimizer parked on an amber a single drag would have fixed.
   // Clean anywhere must beat dirty everywhere, however far away it is.
-  const dirtyAtPole = qualityAt({ x: 0, y: 0 }, pole, 10, name, none, 0);
-  const cleanFarAway = qualityAt({ x: 5000, y: 0 }, pole, 10, none, none, 0);
+  const dirtyAtPole = qualityAt({ x: 0, y: 0 }, pole, 10, name, none, { containment: 0 });
+  const cleanFarAway = qualityAt({ x: 5000, y: 0 }, pole, 10, none, none, { containment: 0 });
   assert.ok(compareQuality(cleanFarAway, dirtyAtPole) < 0);
   assert.ok(isPlaced(cleanFarAway));
   assert.ok(!isPlaced(dirtyAtPole));
@@ -89,17 +96,111 @@ test("a name outranks a supply centre, which outranks containment", () => {
   const pole = { x: 0, y: 0 };
   const box: Rect[] = [{ x: -100, y: -100, w: 200, h: 200 }];
   const none: Rect[] = [];
-  const onName = qualityAt({ x: 0, y: 0 }, pole, 10, box, none, 0);
-  const onSupply = qualityAt({ x: 0, y: 0 }, pole, 10, none, box, 0);
-  const overhanging = qualityAt({ x: 0, y: 0 }, pole, 10, none, none, 1);
+  const onName = qualityAt({ x: 0, y: 0 }, pole, 10, box, none, { containment: 0 });
+  const onSupply = qualityAt({ x: 0, y: 0 }, pole, 10, none, box, { containment: 0 });
+  const overhanging = qualityAt({ x: 0, y: 0 }, pole, 10, none, none, { containment: 1 });
   assert.ok(compareQuality(onSupply, onName) < 0);
   assert.ok(compareQuality(overhanging, onSupply) < 0);
 });
 
+test("RULE A: a coast marker on top of its base province is unreadable", () => {
+  // The v2 failure exactly: stp/nc landed 2.6 map units from stp, at a marker
+  // radius of 18. Two markers, one place, and no way to tell which is which.
+  const radius = 18;
+  const stp = { x: 1326.31, y: 78.61 };
+  const onTop = separationShortfall({ x: 1323.75, y: 79.26 }, [stp], radius);
+  assert.ok(onTop > 0.9, "coincident markers are the worst case");
+
+  // A marker two and a half radii away is far enough and costs nothing.
+  const apart = separationShortfall({ x: stp.x + COAST_SEPARATION * radius, y: stp.y }, [stp], radius);
+  assert.equal(apart, 0);
+  // And going further buys nothing more, which is what stops the rule from
+  // flinging coast markers to the far side of the province.
+  assert.equal(separationShortfall({ x: stp.x + 400, y: stp.y }, [stp], radius), 0);
+});
+
+test("RULE A: a base province standing on its own coast strip is the worse fault", () => {
+  // Separation can be repaired by moving; standing inside your own coast
+  // cannot, so it scores above any shortfall.
+  assert.ok(coastPenalty(1, false) < coastPenalty(0, true));
+  assert.equal(coastPenalty(0, false), 0);
+  assert.equal(baseKey("stp/nc"), "stp");
+  assert.equal(baseKey("stp"), "stp");
+});
+
+test("RULE A ranks above a supply centre and below a name", () => {
+  const pole = { x: 0, y: 0 };
+  const box: Rect[] = [{ x: -100, y: -100, w: 200, h: 200 }];
+  const none: Rect[] = [];
+  const onName = qualityAt({ x: 0, y: 0 }, pole, 10, box, none, { containment: 0 });
+  const badCoast = qualityAt({ x: 0, y: 0 }, pole, 10, none, none, { containment: 0, coast: 1 });
+  const onSupply = qualityAt({ x: 0, y: 0 }, pole, 10, none, box, { containment: 0 });
+  assert.ok(compareQuality(badCoast, onName) < 0, "an illegible coast beats a hidden name");
+  assert.ok(compareQuality(onSupply, badCoast) < 0, "sitting on an SC glyph beats an illegible coast");
+});
+
+test("RULE B: clearing the threshold is worth full credit and no more", () => {
+  const radius = 10;
+  const wanted = 4;
+  assert.equal(clearancePenalty(wanted, wanted, radius), 0);
+  assert.equal(clearancePenalty(wanted * 10, wanted, radius), 0, "extra room earns nothing");
+  assert.ok(clearancePenalty(wanted / 2, wanted, radius) > 0);
+  assert.ok(clearancePenalty(wanted / 2, wanted, radius) < clearancePenalty(0, wanted, radius));
+  // The worst case is the centre buried in the box, a full radius in.
+  assert.equal(clearancePenalty(-radius, wanted, radius), 1);
+  // Nothing to clear is not a shortfall.
+  assert.equal(clearancePenalty(Infinity, wanted, radius), 0);
+});
+
+test("RULE B: a threshold measured as negative still grades", () => {
+  // Classical's hand table measures out slightly below zero: the owner lets a
+  // marker touch the box of a nearby name. That has to stay a live rule that
+  // prefers less overlap, not a switch that turns the term off.
+  const radius = 10;
+  const wanted = -0.6;
+  assert.equal(clearancePenalty(0, wanted, radius), 0, "at the tolerated overlap, no penalty");
+  assert.ok(clearancePenalty(-3, wanted, radius) > 0, "deeper than tolerated still costs");
+  assert.ok(clearancePenalty(-6, wanted, radius) > clearancePenalty(-3, wanted, radius));
+});
+
+test("RULE B: clearance is measured from the marker's edge, not its centre", () => {
+  const box: Rect[] = [{ x: 20, y: -5, w: 10, h: 10 }];
+  // Centre at 0, radius 5, box starting at x=20: 20 to the box, 15 to the edge.
+  assert.equal(edgeClearance({ x: 0, y: 0 }, 5, box), 15);
+  // A marker over the box reports how deep it is in, not zero.
+  assert.ok(edgeClearance({ x: 22, y: 0 }, 5, box) < 0);
+  assert.equal(edgeClearance({ x: 0, y: 0 }, 5, []), Infinity);
+});
+
+test("RULE B: at full credit, the centred position wins", () => {
+  const pole = { x: 0, y: 0 };
+  const far: Rect[] = [{ x: 400, y: 400, w: 10, h: 10 }];
+  const wanted = 2;
+  const centred = qualityAt({ x: 0, y: 0 }, pole, 10, far, [], { containment: 0, wantedClearance: wanted });
+  const drifted = qualityAt({ x: 30, y: 0 }, pole, 10, far, [], { containment: 0, wantedClearance: wanted });
+  assert.equal(centred.clearance, 0);
+  assert.equal(drifted.clearance, 0, "both clear the threshold");
+  assert.ok(compareQuality(centred, drifted) < 0, "so the pole decides");
+});
+
+test("a hand-placed marker is never overruled for prettiness alone", () => {
+  const pole = { x: 0, y: 0 };
+  const hand = qualityAt({ x: 60, y: 0 }, pole, 10, [], [], { containment: 0 });
+  const tidier = qualityAt({ x: 0, y: 0 }, pole, 10, [], [], { containment: 0 });
+  assert.ok(compareQuality(tidier, hand) < 0, "the tool prefers the centre");
+  assert.ok(!clearlyBetter(tidier, hand), "but that is not grounds to move a hand");
+
+  // A real fault is grounds.
+  const covering = qualityAt({ x: 0, y: 0 }, pole, 10, [{ x: -50, y: -50, w: 100, h: 100 }], [], {
+    containment: 0,
+  });
+  assert.ok(clearlyBetter(hand, covering));
+});
+
 test("pole proximity only breaks ties between equally clean positions", () => {
   const pole = { x: 0, y: 0 };
-  const near = qualityAt({ x: 5, y: 0 }, pole, 10, [], [], 0);
-  const far = qualityAt({ x: 900, y: 0 }, pole, 10, [], [], 0);
+  const near = qualityAt({ x: 5, y: 0 }, pole, 10, [], [], { containment: 0 });
+  const far = qualityAt({ x: 900, y: 0 }, pole, 10, [], [], { containment: 0 });
   assert.ok(compareQuality(near, far) < 0);
   assert.equal(near.name, 0);
   assert.equal(near.supplyCentre, 0);

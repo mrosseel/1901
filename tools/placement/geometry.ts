@@ -225,6 +225,161 @@ export function covers(fraction: number): boolean {
   return fraction > COVER_TOLERANCE;
 }
 
+// --- clearance -------------------------------------------------------------
+
+/*
+How far a marker's edge is from the nearest thing it must not touch.
+
+Negative means it already overlaps; the depth is reported rather than clamped,
+because a marker buried in a name and a marker grazing one are not the same
+complaint and the distribution has to show the difference.
+*/
+export function distanceToRect(point: Point, box: Rect): number {
+  const dx = Math.max(box.x - point.x, 0, point.x - (box.x + box.w));
+  const dy = Math.max(box.y - point.y, 0, point.y - (box.y + box.h));
+  return Math.hypot(dx, dy);
+}
+
+/** Edge-to-box distance to the nearest of a set. Infinity when the set is empty. */
+export function edgeClearance(centre: Point, radius: number, boxes: Rect[]): number {
+  let nearest = Infinity;
+  for (const box of boxes) {
+    const d = distanceToRect(centre, box);
+    if (d < nearest) nearest = d;
+  }
+  return nearest === Infinity ? Infinity : nearest - radius;
+}
+
+/*
+The threshold rule (RULE B).
+
+The owner's hand-placed markers were measured, and the median margin they keep
+from the nearest name or supply centre is the margin every marker is asked
+for. Clearing it earns full credit and nothing more: a marker two radii clear
+of everything is not better placed than one that clears the threshold, it is
+just further from the middle of its province, which is worse. Below the
+threshold the penalty rises smoothly, so a marker that cannot make the margin
+still prefers the largest margin it can get.
+
+Expressed in radii rather than map units so one measurement carries to a map
+drawn at a different scale.
+*/
+/*
+The margin, in marker radii, measured off the owner's hand-corrected classical
+table: the median distance from a hand-placed marker's edge to the nearest
+name or supply centre box. See the CLEARANCE section of any report, which
+re-measures it every run and prints the distribution it came from.
+
+It is a fraction of a radius rather than a count of map units so the same
+judgement carries to a map drawn at another scale — sailho's map units are
+four times smaller than classical's.
+
+Measured off the owner's classical table it came out slightly NEGATIVE: half
+their markers touch the box of a nearby name, which on a map where a unit
+stands beside its own province name is not a defect but the normal state. A
+negative threshold is therefore meaningful and is kept as measured — it says
+how much overlap the owner was content with — rather than being clamped to
+zero, which would quietly turn the rule off.
+*/
+export const MIN_CLEARANCE_RADII = -0.06;
+
+/*
+The graded part, in map units.
+
+The scale runs from the wanted margin down to a marker sunk a full radius into
+whatever it hits, which is the worst case there is: the centre buried in the
+box. Anything at or above the margin scores zero, so a marker with room to
+spare gains nothing by finding more.
+*/
+export function clearancePenalty(clearance: number, wanted: number, radius: number): number {
+  if (!isFinite(clearance)) return 0;
+  if (clearance >= wanted) return 0;
+  const span = Math.max(wanted + radius, radius * 0.25);
+  return clamp((wanted - clearance) / span, 0, 2);
+}
+
+// --- coasts ----------------------------------------------------------------
+
+/*
+The coast rule (RULE A).
+
+"stp/nc" has to read as the north coast of St Petersburg, which means a reader
+must be able to tell it apart from "stp" itself and from "stp/sc" at a glance.
+v2 put stp/nc three map units from stp — one marker on top of another, and no
+way to tell which was which. Two markers of the same family therefore have to
+stand at least this far apart, measured in marker radii.
+
+Two and a half radii is a marker's width of clear space between the two edges,
+which is the least that reads as two pieces rather than one smudge.
+*/
+export const COAST_SEPARATION = 2.5;
+
+/*
+And the reason it is a constraint and not only a preference.
+
+RULE A ranks coast legibility below name overlap, which on its own would let a
+coast marker climb on top of its own base province to get off a label — the
+exact fault the rule was written to kill, arrived at by a different route.
+"Must be readable as their coast" cannot be enforced by a term that anything
+else can outvote, so the separation is applied first as a filter: positions
+that make the margin are searched, and the tuple decides among them. Only when
+a province offers no such position at all does the search fall back to the
+whole set, and the report names it.
+*/
+export function meetsSeparation(point: Point, family: Point[], radius: number): boolean {
+  // Judged on the same quantised figure the score uses, or a marker a third
+  // of a map unit short would be treated as a different kind of thing from
+  // one that made it, which is a distinction no reader can draw.
+  return coastPenalty(separationShortfall(point, family, radius), false) === 0;
+}
+
+/*
+Legibility first, then everything else.
+
+Used only once the separation filter has come up empty. Ranking by the normal
+tuple there lets a position that is clean of names and sitting on top of its
+own base province beat one that is readable and grazes a label — which is how
+the rule gets defeated by the back door.
+*/
+export function compareCoastFirst(a: Quality, b: Quality): number {
+  return a.coast - b.coast || compareQuality(a, b);
+}
+
+/*
+How badly a position breaks the coast rule, in [0, 2].
+
+The lower point is the separation shortfall: nothing when the family is far
+enough apart, rising towards one when two markers coincide. The whole point is
+reserved for a base province's marker standing inside one of its OWN coast
+strips — the exact fault stp had, where the province marker sits on the coast
+it is meant to be distinguished from. That one is worse than any shortfall,
+because moving cannot fix it: the two are in the same place by construction,
+so the marker has to leave the strip entirely. The shortfall is therefore
+capped just below the point it would otherwise reach, and the two never tie.
+*/
+export function coastPenalty(separationShortfall: number, onSiblingCoast: boolean): number {
+  const shortfall = Math.min(Math.round(clamp(separationShortfall, 0, 1) * 100) / 100, 0.99);
+  return shortfall + (onSiblingCoast ? 1 : 0);
+}
+
+/** The shortfall of the nearest family member against the wanted separation. */
+export function separationShortfall(point: Point, family: Point[], radius: number): number {
+  if (family.length === 0) return 0;
+  const wanted = COAST_SEPARATION * radius;
+  let nearest = Infinity;
+  for (const other of family) {
+    const d = distance(point, other);
+    if (d < nearest) nearest = d;
+  }
+  if (nearest >= wanted) return 0;
+  return (wanted - nearest) / wanted;
+}
+
+/** The base province a key belongs to: "stp/nc" → "stp". */
+export function baseKey(key: string): string {
+  return key.includes("/") ? key.slice(0, key.indexOf("/")) : key;
+}
+
 /*
 How good a position is, as a tuple compared in order rather than a single
 blended number.
@@ -246,12 +401,16 @@ difference would decide, and the markers would scatter.
 export interface Quality {
   /** Quantised share of the marker covering a province name. */
   name: number;
+  /** How badly the coast rule is broken, 0 to 2. See coastPenalty(). */
+  coast: number;
   /** Quantised share covering a supply centre glyph. */
   supplyCentre: number;
   /** 0 fits with its border margin, 1 overhangs. Lower is better. */
   containment: number;
   /** Share of the overhang falling on a neighbouring LAND province. */
   ambiguity: number;
+  /** How far short of the wanted margin this position falls, 0 to 2. */
+  clearance: number;
   /** Distance from the province's pole, in marker radii. Prettiness only. */
   offCentre: number;
 }
@@ -261,14 +420,67 @@ export function level(fraction: number): number {
   return fraction <= COVER_TOLERANCE ? 0 : Math.round(fraction * 100) / 100;
 }
 
+/*
+The order the terms are compared in, and why it is this order.
+
+  name          a covered province name is the one fault every reader hits
+  coast         a coast that cannot be told from its own base province stops
+                saying which coast it is — worse than sitting on an SC glyph,
+                better than hiding a name (owner's ruling, RULE A)
+  supplyCentre  normal on a hand-drawn map; see the note in cli.ts
+  containment   leaving your own province
+  ambiguity     which way an unavoidable overhang leans
+  clearance     the measured margin from RULE B: below the threshold this
+                grades, at or above it every position scores the same 0
+  offCentre     prettiness, and it only ever breaks ties
+
+RULE A's own wording puts coast legibility "above SC-overlap, below
+name-overlap", which is what is implemented here. The task's summary line
+listed it after containment instead; the two disagree and the rule's own
+severity statement was taken as the more specific one.
+*/
 export function compareQuality(a: Quality, b: Quality): number {
   return (
     a.name - b.name ||
+    a.coast - b.coast ||
     a.supplyCentre - b.supplyCentre ||
     a.containment - b.containment ||
     a.ambiguity - b.ambiguity ||
+    a.clearance - b.clearance ||
     a.offCentre - b.offCentre
   );
+}
+
+/*
+Whether one position beats another on something a reader could name.
+
+Every term here is quantised, and prettiness is left out. A hand-placed marker
+is only overruled when the new position fixes a fault or makes a measured
+margin — never because it sits a few map units nearer the middle of its
+province, which is an opinion the tool does not get to have about a placement
+a person chose.
+*/
+export function clearlyBetter(candidate: Quality, held: Quality): boolean {
+  /*
+  Two terms are read coarsely here and nowhere else.
+
+  The margin is a THRESHOLD, so what counts is whether a position reaches it,
+  not how much of the shortfall it shaves: taking 0.70 down to 0.60 is a
+  number changing, not a placement improving, and it is no reason to move a
+  marker someone put where they wanted it. Supply centre overlap is read in
+  tenths for the same reason — three percent of a glyph is not a thing anyone
+  can see, and on this map a unit is supposed to stand on its supply centre.
+  */
+  const meets = (q: Quality) => (q.clearance > 0 ? 1 : 0);
+  const glyph = (q: Quality) => Math.round(q.supplyCentre * 10);
+  return (
+    candidate.name - held.name ||
+    candidate.coast - held.coast ||
+    glyph(candidate) - glyph(held) ||
+    candidate.containment - held.containment ||
+    candidate.ambiguity - held.ambiguity ||
+    meets(candidate) - meets(held)
+  ) < 0;
 }
 
 /** Nothing a reader would call wrong. */
@@ -281,20 +493,40 @@ export function isPlaced(quality: Quality): boolean {
   return quality.name === 0 && quality.containment === 0;
 }
 
+/*
+Everything a position is judged on, in one call.
+
+`wantedClearance` is in map units, already scaled for this marker; `coast` is
+worked out by the caller, because it depends on where the rest of the family
+ended up and this function knows about one marker only.
+*/
+export interface QualityInput {
+  containment: number;
+  ambiguity?: number;
+  coast?: number;
+  wantedClearance?: number;
+}
+
 export function qualityAt(
   point: Point,
   pole: Point,
   radius: number,
   labels: Rect[],
   supplyCentres: Rect[],
-  containment: number,
-  ambiguity = 0,
+  input: QualityInput,
 ): Quality {
+  const wanted = input.wantedClearance === undefined ? 0 : input.wantedClearance;
+  const clearance = Math.min(
+    edgeClearance(point, radius, labels),
+    edgeClearance(point, radius, supplyCentres),
+  );
   return {
     name: level(coveredFraction(point, radius, labels)),
+    coast: input.coast || 0,
     supplyCentre: level(coveredFraction(point, radius, supplyCentres)),
-    containment: containment,
-    ambiguity: Math.round(ambiguity * 100) / 100,
+    containment: input.containment,
+    ambiguity: Math.round((input.ambiguity || 0) * 100) / 100,
+    clearance: Math.round(clearancePenalty(clearance, wanted, radius) * 50) / 50,
     offCentre: distance(point, pole) / (radius || 1),
   };
 }

@@ -237,6 +237,35 @@ glyphs already present in every godip variant map. Dislodged position =
 anchor + fixed offset (jDip's idea), hand-corrected where it lands badly.
 No centroid computation needed.
 
+Amended r3 — the anchors alone were not good enough. Measured against the
+drawn map, 35 of classical's 81 markers left their own province and 77 covered
+a province name; on a coast the anchor put `stp/nc` three map units from
+`stp`, where neither reads as anything. `tools/placement` measures the real
+geometry in a browser, re-places every marker under an ordered set of rules,
+and hands the result to a person to correct by hand. Two of those rules came
+back out of that correction pass:
+
+- **Coast legibility.** A coast marker must be tellable from its base
+  province and from its sibling coasts — 2.5 marker radii apart — and a base
+  province may not stand on one of its own coast strips. It is applied as a
+  filter before it is a preference, because a rule ranked below name overlap
+  is otherwise defeated by name overlap.
+- **Threshold clearance, then centre.** The margin a marker keeps from the
+  nearest name or supply centre is not maximised. It is measured off the
+  hand-corrected table, and clearing that median earns full credit and
+  nothing further; among positions that clear it, the province's pole of
+  inaccessibility decides. Centred stays the aesthetic.
+
+File convention, one JSON per variant:
+
+    placements/<key>.json       the approved table; the only one the server reads
+    placements/<key>.hand.json  a hand-corrected table, an input to the tool
+
+The server loads `placements/*.json` at startup and exposes the table as
+`placements` in seat, GM and public state. The board prefers it over the map's
+anchors and falls back per province, not per table, so a table missing one key
+leaves that province on its anchor and serves the rest.
+
 ### D-004 — Order secrecy via commit-reveal
 **Status:** accepted, r1
 Server-side secrecy is only a policy when the GM operates the server, which

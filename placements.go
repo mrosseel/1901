@@ -1,0 +1,136 @@
+// Approved placement tables: where a variant's unit markers actually go.
+//
+// A map's own `<abbr>Center` anchors are a starting point and no more (D-003).
+// They put markers on province names, on supply centre glyphs, and half
+// outside their own province, and on a coast they can put "stp/nc" three map
+// units from "stp", where neither reads as anything. tools/placement measures
+// all of that on real browser geometry, proposes a better table, and hands it
+// to a person to correct by hand.
+//
+// The file convention, and the whole of it:
+//
+//	placements/<key>.json       the approved table for that variant, and the
+//	                            only one this server reads
+//	placements/<key>.hand.json  a hand-corrected table, an INPUT to the tool
+//	                            and never read here
+//
+// A variant with no file falls back to the map's anchors, which is what every
+// unverified variant does and what classical did before this table existed.
+// The fallback is per province, not per variant: a table missing one key
+// leaves that one province on its anchor and serves the rest.
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+// placementJSON is one province's marker, in map units — the SVG's own user
+// coordinates, which is the space the board draws in.
+type placementJSON struct {
+	// Unit is the centre of the unit marker.
+	Unit [2]float64 `json:"unit"`
+	// Scale is the marker's size as a fraction of the board's normal radius.
+	// A province too narrow for a full marker gets a smaller one rather than
+	// a misplaced one; the board multiplies its radius by this.
+	Scale float64 `json:"scale"`
+	// Dislodged is where the marker of a unit thrown out of this province
+	// goes. It stands beside the unit that threw it out until the retreat
+	// resolves, so the two must not overlap.
+	Dislodged [2]float64 `json:"dislodged"`
+	// Overhang records that this marker was deliberately allowed out over its
+	// own border because the province takes no marker at any size. It is
+	// carried so a later audit can tell a decision from a defect.
+	Overhang *overhangJSON `json:"overhang,omitempty"`
+}
+
+type overhangJSON struct {
+	Land float64 `json:"land"`
+	Sea  float64 `json:"sea"`
+	Open float64 `json:"open"`
+}
+
+// placementTable is one variant's table: province abbreviation to marker.
+type placementTable map[string]placementJSON
+
+// placementDir can be pointed elsewhere with PLACEMENTS, which is what the
+// tests and a run from another working directory need.
+func placementDir() string {
+	if p := os.Getenv("PLACEMENTS"); p != "" {
+		return p
+	}
+	return "placements"
+}
+
+// placements holds every table found at startup, by variant key. It is
+// written once before any request is served and only read afterwards, so it
+// needs no lock.
+var placements = map[string]placementTable{}
+
+// loadPlacements reads every placements/<key>.json into memory.
+//
+// A missing directory is not an error: a checkout with no approved table is a
+// working server, it just draws on the map's own anchors. A malformed file IS
+// an error worth failing on, because serving half a table silently would put
+// markers in two different coordinate systems on the same board.
+func loadPlacements() error {
+	dir := placementDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("read %v: %w", dir, err)
+	}
+	loaded := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		key := strings.TrimSuffix(name, ".json")
+		// The hand-corrected files are the tool's input, not the server's.
+		if strings.HasSuffix(key, ".hand") {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return fmt.Errorf("read %v: %w", name, err)
+		}
+		var table placementTable
+		if err := json.Unmarshal(b, &table); err != nil {
+			return fmt.Errorf("parse %v: %w", name, err)
+		}
+		for prov, spot := range table {
+			// A scale of zero is an absent field, not a request for an
+			// invisible marker.
+			if spot.Scale <= 0 {
+				spot.Scale = 1
+				table[prov] = spot
+			}
+		}
+		placements[key] = table
+		loaded = append(loaded, fmt.Sprintf("%v (%d provinces)", key, len(table)))
+	}
+	sort.Strings(loaded)
+	if len(loaded) > 0 {
+		log.Printf("placement tables: %v", strings.Join(loaded, ", "))
+	}
+	return nil
+}
+
+// placementFor returns the approved table for a variant, or nil when it has
+// none. Nil is meaningful and is serialised as JSON null: the board reads it
+// as "no table, use the map's anchors".
+func placementFor(key string) placementTable {
+	return placements[key]
+}
+
+func (self *game) placements() placementTable {
+	return placementFor(self.variantKey)
+}

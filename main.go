@@ -466,6 +466,12 @@ func main() {
 	if err := loadAll(); err != nil {
 		log.Fatalf("load games: %v", err)
 	}
+	// The approved placement tables are read once, before anything is served:
+	// they never change while the process runs, and a board drawn from half a
+	// table would be worse than one drawn from none.
+	if err := loadPlacements(); err != nil {
+		log.Fatalf("load placements: %v", err)
+	}
 
 	spaDir := absPath(filepath.Join("web", "dist"))
 	srv := &server{spaDir: spaDir}

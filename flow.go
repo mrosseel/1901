@@ -464,6 +464,7 @@ type gmStateJSON struct {
 	Events          []string            `json:"events"`
 	Variant         variantRefJSON      `json:"variant"`
 	ProvinceNames   map[string]string   `json:"provinceNames"`
+	Placements      placementTable      `json:"placements"`
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
 	Now             string              `json:"now"`
@@ -491,6 +492,7 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		Events:        f.events,
 		Variant:       self.variantRef(),
 		ProvinceNames: self.provinceNames(),
+		Placements:    self.placements(),
 		Dislodged:     self.dislodgedMap(),
 		PreviousPhase: self.previousPhase,
 		Now:           serverNow(),
@@ -676,6 +678,7 @@ type publicStateJSON struct {
 	DeadlineAt      interface{}         `json:"deadlineAt"`
 	Variant         variantRefJSON      `json:"variant"`
 	ProvinceNames   map[string]string   `json:"provinceNames"`
+	Placements      placementTable      `json:"placements"`
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
 	Now             string              `json:"now"`
@@ -701,6 +704,7 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 		DeadlineAt:      rfc3339(f.deadlineAt),
 		Variant:         g.variantRef(),
 		ProvinceNames:   g.provinceNames(),
+		Placements:      g.placements(),
 		Dislodged:       g.dislodgedMap(),
 		PreviousPhase:   g.previousPhase,
 		Now:             serverNow(),
@@ -728,6 +732,7 @@ type seatStateJSON struct {
 	CanForce         bool              `json:"canForce"`
 	Variant          variantRefJSON    `json:"variant"`
 	ProvinceNames    map[string]string `json:"provinceNames"`
+	Placements       placementTable    `json:"placements"`
 	PreviousPhase    *phaseReviewJSON  `json:"previousPhase"`
 	Now              string            `json:"now"`
 }
@@ -766,6 +771,7 @@ func (self *game) seatState(id string, power godip.Nation) seatStateJSON {
 		CanForce:         f.canForce(),
 		Variant:          self.variantRef(),
 		ProvinceNames:    self.provinceNames(),
+		Placements:       self.placements(),
 		PreviousPhase:    self.previousPhase,
 		Now:              serverNow(),
 	}

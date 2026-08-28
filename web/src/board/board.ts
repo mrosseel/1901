@@ -28,6 +28,7 @@ import type {
   BuilderView,
   OptionNode,
   OptionTree,
+  Placement,
   ReviewDraw,
   Unit,
 } from "./types";
@@ -185,8 +186,46 @@ export function mount(
     return { x: parseFloat(match[1]), y: parseFloat(match[2]) };
   }
 
+  /*
+  Where a province's unit marker goes.
+
+  The approved placement table wins where it has an entry, because it was
+  measured against the drawn map and the anchors were not: an anchor can sit
+  on a province name, half outside its own province, or — the case that made
+  the table necessary — three map units from the base province it is supposed
+  to be a coast of.
+
+  The fallback is per province, not per table. A table that has "stp" but not
+  "stp/nc" leaves stp/nc on its own anchor rather than borrowing stp's
+  position, which would put the coast marker back on top of the province.
+  */
+  function placementOf(province: string): Placement | null {
+    const table = state?.placements;
+    if (!table) return null;
+    const spot = table[province];
+    return spot && Array.isArray(spot.unit) ? spot : null;
+  }
+
   function centerOf(province: string): Point | null {
-    return centers.get(province) || centers.get(baseProvince(province)) || null;
+    const own = placementOf(province);
+    if (own) return { x: own.unit[0], y: own.unit[1] };
+    const anchor = centers.get(province);
+    if (anchor) return anchor;
+    const base = placementOf(baseProvince(province));
+    if (base) return { x: base.unit[0], y: base.unit[1] };
+    return centers.get(baseProvince(province)) || null;
+  }
+
+  /*
+  The size of one province's marker. A province the table had to shrink a
+  marker for — Denmark at 0.8, Gascony at 0.95 — carries the figure with it,
+  and every measurement taken around that marker has to use it or the drawing
+  comes apart: an arrow would start inside the piece it points away from.
+  */
+  function scaleOf(province: string): number {
+    const spot = placementOf(province) || placementOf(baseProvince(province));
+    const scale = spot ? spot.scale : 1;
+    return scale > 0 ? scale : 1;
   }
 
   /*
@@ -591,6 +630,20 @@ export function mount(
     return { x: point.x + r * 1.15, y: point.y - r * 1.15 };
   }
 
+  /*
+  Where the dislodged marker actually goes. The offset above is the default
+  and it is often wrong: in a narrow province it lands outside the border, and
+  in a crowded one it lands on a name. The table carries a corrected point per
+  province, and falls back to the offset where it has none.
+  */
+  function awayPoint(province: string, anchor: Point, r: number): Point {
+    const spot = placementOf(province);
+    if (spot && Array.isArray(spot.dislodged)) {
+      return { x: spot.dislodged[0], y: spot.dislodged[1] };
+    }
+    return dislodgedPoint(anchor, r);
+  }
+
   function renderUnits(): void {
     const layer = overlayLayer();
     layer.replaceChildren();
@@ -606,15 +659,16 @@ export function mount(
       const point = centerOf(province);
       if (!point) return;
 
+      const rp = r * scaleOf(province);
       const isFleet = String(unit.type).toLowerCase() === "fleet";
-      const shape = unitShape(point, r, isFleet);
+      const shape = unitShape(point, rp, isFleet);
       const ordered = Boolean(orders[province]) && !dislodged[province];
       shape.setAttribute("fill", powerColor(unit.nation));
       shape.setAttribute("stroke", ordered ? "#ffffff" : "#14161a");
-      shape.setAttribute("stroke-width", String(Math.max(1, r * (ordered ? 0.28 : 0.16))));
+      shape.setAttribute("stroke-width", String(Math.max(1, rp * (ordered ? 0.28 : 0.16))));
       shape.setAttribute("class", ordered ? "unit ordered" : "unit");
       layer.appendChild(shape);
-      layer.appendChild(unitLetter(point, r, isFleet));
+      layer.appendChild(unitLetter(point, rp, isFleet));
     });
 
     // The dislodged markers go on top, each with a red ring, so a province
@@ -623,26 +677,27 @@ export function mount(
       const unit = dislodged[province];
       const anchor = centerOf(province);
       if (!anchor) return;
-      const point = dislodgedPoint(anchor, r);
+      const rp = r * scaleOf(province);
+      const point = awayPoint(province, anchor, rp);
       const isFleet = String(unit.type).toLowerCase() === "fleet";
 
       const ring = document.createElementNS(SVG_NS, "circle");
       ring.setAttribute("cx", String(point.x));
       ring.setAttribute("cy", String(point.y));
-      ring.setAttribute("r", String(r * 1.45));
+      ring.setAttribute("r", String(rp * 1.45));
       ring.setAttribute("fill", "none");
       ring.setAttribute("stroke", "#ff5c5c");
-      ring.setAttribute("stroke-width", String(Math.max(1.5, r * 0.22)));
+      ring.setAttribute("stroke-width", String(Math.max(1.5, rp * 0.22)));
       ring.setAttribute("class", "dislodged-ring");
       layer.appendChild(ring);
 
-      const shape = unitShape(point, r * 0.82, isFleet);
+      const shape = unitShape(point, rp * 0.82, isFleet);
       shape.setAttribute("fill", powerColor(unit.nation));
       shape.setAttribute("stroke", "#14161a");
-      shape.setAttribute("stroke-width", String(Math.max(1, r * 0.14)));
+      shape.setAttribute("stroke-width", String(Math.max(1, rp * 0.14)));
       shape.setAttribute("class", "unit dislodged");
       layer.appendChild(shape);
-      layer.appendChild(unitLetter(point, r * 0.82, isFleet));
+      layer.appendChild(unitLetter(point, rp * 0.82, isFleet));
     });
   }
 
@@ -737,7 +792,11 @@ export function mount(
       so the colour falls back to the power whose board this is.
       */
       const leaving = dislodged[province];
-      const from = leaving ? dislodgedPoint(anchor, r) : anchor;
+      /* Every offset around this order's own end is taken at this province's
+         marker size, so an arrow leaving a shrunken marker still starts at
+         its edge rather than inside it. */
+      const rp = r * scaleOf(province);
+      const from = leaving ? awayPoint(province, anchor, rp) : anchor;
       const unit = leaving || units[province];
       const ordering = review ? review.powers[province] || "" : "";
       const color = powerColor(ordering || (unit ? unit.nation : plan.power));
@@ -835,39 +894,45 @@ export function mount(
       };
       // A build: the outline of the unit that will stand there.
       const outline = (at: Point, isFleet: boolean) => (halo: boolean) => {
-        const node = unitShape(at, r * 0.95, isFleet);
+        const node = unitShape(at, rp * 0.95, isFleet);
         return paint(node, halo, false);
       };
 
       const type = order[0];
       const anchorOf = (name: string) => centerOf(name) || centerOf(baseProvince(name));
 
+      // The far end's clearance belongs to the far end's marker: a move into
+      // Denmark stops short of Denmark's 0.8x piece, not of a full-size one.
+      const rAt = (name: string) => r * scaleOf(name);
+
       if (kind === "retreat" && type === "Move" && order[1]) {
         const to = anchorOf(order[1]);
         if (!to) return;
-        const end = towards(to, from, r * 1.4);
-        shapes.push(dashedRun(towards(from, end, r * 1.0), towards(end, from, r * 0.9)));
+        const end = towards(to, from, rAt(order[1]) * 1.4);
+        shapes.push(dashedRun(towards(from, end, rp * 1.0), towards(end, from, rp * 0.9)));
         shapes.push(head(from, end));
         missPoint = end;
       } else if (type === "Disband") {
-        shapes.push(cross(from, r * 1.15));
+        shapes.push(cross(from, rp * 1.15));
       } else if (type === "Build") {
         shapes.push(outline(anchor, String(order[1]).toLowerCase() === "fleet"));
       } else if (type === "Move" && order[1]) {
         const to = anchorOf(order[1]);
         if (!to) return;
-        shapes.push(arrow(towards(from, to, r * 1.15), towards(to, from, r * 1.6)));
-        missPoint = towards(to, from, r * 1.6);
+        shapes.push(arrow(towards(from, to, rp * 1.15), towards(to, from, rAt(order[1]) * 1.6)));
+        missPoint = towards(to, from, rAt(order[1]) * 1.6);
       } else if (type === "Hold") {
-        shapes.push(ring(from, r * 1.5));
+        shapes.push(ring(from, rp * 1.5));
       } else if (type === "Support" || type === "Convoy") {
         const src = anchorOf(order[1] || "");
         if (!src) return;
         const holdSupport = order.length < 3 || order[2] === order[1];
         // For a hold the curve stops clear of the supported unit's marker, so
         // the ring at its end stays visible.
-        const end = holdSupport ? towards(src, from, r * 2.6) : midpoint(src, anchorOf(order[2]) || src);
-        const start = towards(from, end, r * 1.2);
+        const end = holdSupport
+          ? towards(src, from, rAt(order[1] || "") * 2.6)
+          : midpoint(src, anchorOf(order[2]) || src);
+        const start = towards(from, end, rp * 1.2);
         shapes.push(dashedCurve(start, end));
         missPoint = end;
         if (holdSupport) {

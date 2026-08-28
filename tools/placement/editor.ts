@@ -28,6 +28,15 @@ export interface EditorOptions {
   radius: number;
   shipped: PlacementTable;
   optimized: PlacementTable;
+  /*
+  The hand-corrected table this run was seeded from, when there is one. It
+  gets its own view, because the question on a second pass is no longer "is
+  this better than the map's anchors" but "is this better than what I already
+  decided", and that needs the two side by side.
+  */
+  hand?: PlacementTable | null;
+  /** The keys the run moved away from the hand table, with the reason. */
+  deviations?: Array<{ key: string; reason: string; moved: number }>;
 }
 
 /*
@@ -51,6 +60,8 @@ export function buildEditor(options: EditorOptions): string {
     supplyCentres: options.map.supplyCentres.map((r) => [r.x, r.y, r.w, r.h]),
     shipped: options.shipped,
     optimized: options.optimized,
+    hand: options.hand || null,
+    deviations: options.deviations || [],
     keys: Object.keys(options.optimized).sort(),
   };
 
@@ -66,8 +77,9 @@ export function buildEditor(options: EditorOptions): string {
   <h1>Placement — <b>${options.variant}</b></h1>
   <div class="controls">
     <div class="seg" role="group" aria-label="Which placement to show">
-      <button type="button" id="showBefore">Before</button>
-      <button type="button" id="showAfter" class="on">After</button>
+      <button type="button" id="showBefore">Map anchors</button>
+      <button type="button" id="showHand"${options.hand ? "" : " hidden"}>Your hand table</button>
+      <button type="button" id="showAfter" class="on">This run</button>
     </div>
     <label class="check"><input type="checkbox" id="showDislodged"> Dislodged markers</label>
     <label class="check"><input type="checkbox" id="showShipped" checked> Mark shipped anchors</label>
@@ -90,6 +102,8 @@ export function buildEditor(options: EditorOptions): string {
       <span><i class="sw red"></i>not inside its province</span>
       <span><i class="sw ring"></i>covers a supply centre glyph</span>
     </div>
+    <h2>Changed from your hand table</h2>
+    <ul class="list" id="changes"></ul>
     <h2>Problems</h2>
     <ul class="list" id="problems"></ul>
   </aside>
@@ -296,7 +310,11 @@ function judge(key) {
   return verdict;
 }
 
-function current() { return mode === "before" ? DATA.shipped : table; }
+function current() {
+  if (mode === "before") return DATA.shipped;
+  if (mode === "hand" && DATA.hand) return DATA.hand;
+  return table;
+}
 
 // --- drawing --------------------------------------------------------------
 
@@ -456,6 +474,33 @@ function refreshPanel() {
     "<span>on a supply centre</span><b>" + onSc + "</b>" +
     "<span>dislodged with a problem</span><b>" + dislodgedBad + "</b>" +
     "<span class='moved'>moved by hand</span><b class='moved'>" + moved + "</b>";
+
+  /* What this run overruled. It is a fixed list, not a live one: it records
+     what the tool decided, so dragging a marker does not rewrite history. */
+  const changes = document.getElementById("changes");
+  changes.replaceChildren();
+  if (!DATA.hand) {
+    const li = document.createElement("li");
+    li.textContent = "No hand table was used for this run.";
+    changes.appendChild(li);
+  } else if (DATA.deviations.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "Nothing changed: your table survived unaltered.";
+    changes.appendChild(li);
+  } else {
+    for (const change of DATA.deviations) {
+      const li = document.createElement("li");
+      const key = document.createElement("span");
+      key.className = "key";
+      key.textContent = change.key;
+      const why = document.createElement("span");
+      why.className = "why";
+      why.textContent = change.moved.toFixed(1) + " units — " + change.reason;
+      li.append(key, why);
+      li.addEventListener("click", () => flash(change.key));
+      changes.appendChild(li);
+    }
+  }
 
   const list = document.getElementById("problems");
   list.replaceChildren();
@@ -623,14 +668,18 @@ function round(value) { return Math.round(value * 100) / 100; }
 
 // --- controls -------------------------------------------------------------
 
+const HINTS = {
+  before: "Showing the anchors the map ships. Switch to This run to edit.",
+  hand: "Showing the table you corrected by hand. Switch to This run to edit.",
+  after: "Drag a marker to move it. Wheel to zoom, drag the map to pan.",
+};
+
 function setMode(next) {
   mode = next;
   document.getElementById("showBefore").classList.toggle("on", next === "before");
+  document.getElementById("showHand").classList.toggle("on", next === "hand");
   document.getElementById("showAfter").classList.toggle("on", next === "after");
-  document.getElementById("hint").textContent =
-    next === "before"
-      ? "Showing the anchors the map ships. Switch to After to edit."
-      : "Drag a marker to move it. Wheel to zoom, drag the map to pan.";
+  document.getElementById("hint").textContent = HINTS[next] || HINTS.after;
   verdicts.clear();
   for (const key of DATA.keys) judge(key);
   drawAll();
@@ -638,6 +687,7 @@ function setMode(next) {
 }
 
 document.getElementById("showBefore").addEventListener("click", () => setMode("before"));
+document.getElementById("showHand").addEventListener("click", () => { if (DATA.hand) setMode("hand"); });
 document.getElementById("showAfter").addEventListener("click", () => setMode("after"));
 document.getElementById("showDislodged").addEventListener("change", (event) => {
   showDislodged = event.target.checked;

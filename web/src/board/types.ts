@@ -16,9 +16,33 @@ export interface PhaseInfo {
   type?: string;
 }
 
+/*
+Where one province's marker goes, in map units, from the variant's approved
+placement table (placements/<key>.json on the server; DESIGN.md D-003).
+
+A map's own "<abbr>Center" anchors are only a first guess: they put markers on
+province names, half outside their own province, and — on a coast — so close
+to the base province's anchor that neither can be read. The table is measured
+and corrected offline, and the server hands it over with the state. A province
+the table does not mention falls back to its anchor, one province at a time.
+*/
+export interface Placement {
+  /** The centre of the unit marker. */
+  unit: [number, number];
+  /*
+  The marker's size as a fraction of the board's normal radius. A province too
+  narrow for a full marker gets a smaller one rather than a misplaced one.
+  */
+  scale: number;
+  /** Where a unit thrown out of this province stands until it retreats. */
+  dislodged: [number, number];
+}
+
 export interface BoardState {
   phase?: PhaseInfo;
   units?: Record<string, Unit>;
+  /** The variant's approved marker positions, when the server has a table. */
+  placements?: Record<string, Placement> | null;
   /* Units thrown out of their province by the last adjudication, keyed by the
      province they were thrown out of. They stand beside the winner until the
      retreat phase resolves, so the map must draw both. Public knowledge. */

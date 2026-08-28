@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount } from "./board";
 import { emptyPlan, planDuty } from "./phases";
 import type { PhasePlan } from "./phases";
-import type { BoardApi, BoardState, BuilderView, OptionTree } from "./types";
+import type { BoardApi, BoardState, BuilderView, OptionTree, Placement } from "./types";
 
 /*
 The island under a stub map and a stub server. jsdom has no layout, so the
@@ -198,6 +198,86 @@ function planFor(kind: PhasePlan["kind"], power: string, actionable: Record<stri
 afterEach(() => {
   vi.unstubAllGlobals();
   document.body.replaceChildren();
+});
+
+/*
+The approved placement table, as the server hands it over. These are the real
+classical figures: Belgium sits where the owner put it by hand, Gascony takes
+a 0.95x marker and Denmark a 0.8x one because neither province is wide enough
+for a full-size piece.
+*/
+const PLACEMENTS: Record<string, Placement> = {
+  vie: { unit: [712, 812], scale: 1, dislodged: [750, 780] },
+  bud: { unit: [812, 812], scale: 0.8, dislodged: [850, 780] },
+  tri: { unit: [712, 912], scale: 0.95, dislodged: [755, 955] },
+};
+
+function unitAt(index: number): SVGCircleElement | null {
+  return document.querySelectorAll<SVGCircleElement>("#unit-overlay circle.unit")[index] || null;
+}
+
+describe("the server's placement table", () => {
+  it("puts a marker where the table says, not where the anchor is", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    // The map's own anchor for vie is 730,830; the table overrules it.
+    expect(seat.board.debug.centers.get("vie")).toEqual({ x: 730, y: 830 });
+    seat.board.update({ ...MOVEMENT_STATE, placements: PLACEMENTS }, emptyPlan("Austria"));
+
+    const vie = unitAt(0)!;
+    expect(vie.getAttribute("cx")).toBe("712");
+    expect(vie.getAttribute("cy")).toBe("812");
+    seat.board.destroy();
+  });
+
+  it("draws a shrunken province's marker at its own scale", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update({ ...MOVEMENT_STATE, placements: PLACEMENTS }, emptyPlan("Austria"));
+
+    // Both markers are drawn from the same board radius; only the table's
+    // scale separates them, and Budapest's is 0.8 of Vienna's.
+    const full = Number(unitAt(0)!.getAttribute("r"));
+    const shrunk = Number(unitAt(1)!.getAttribute("r"));
+    expect(full).toBeGreaterThan(0);
+    expect(shrunk / full).toBeCloseTo(0.8, 5);
+    seat.board.destroy();
+  });
+
+  it("falls back to the anchor one province at a time", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    // A table that knows Vienna and not Budapest must leave Budapest on its
+    // own anchor rather than borrowing Vienna's position.
+    seat.board.update(
+      { ...MOVEMENT_STATE, placements: { vie: PLACEMENTS.vie } },
+      emptyPlan("Austria"),
+    );
+
+    expect(unitAt(0)!.getAttribute("cx")).toBe("712");
+    expect(unitAt(1)!.getAttribute("cx")).toBe("830");
+    seat.board.destroy();
+  });
+
+  it("puts the dislodged marker where the table says", async () => {
+    const seat = setup("Austria", { tri: {} });
+    await seat.board.ready;
+    seat.board.update({ ...RETREAT_STATE, placements: PLACEMENTS }, emptyPlan("Austria"));
+
+    const ring = document.querySelector<SVGCircleElement>("#unit-overlay circle.dislodged-ring")!;
+    expect(ring.getAttribute("cx")).toBe("755");
+    expect(ring.getAttribute("cy")).toBe("955");
+    seat.board.destroy();
+  });
+
+  it("keeps the map's anchors when the server sends no table", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update({ ...MOVEMENT_STATE, placements: null }, emptyPlan("Austria"));
+
+    expect(unitAt(0)!.getAttribute("cx")).toBe("730");
+    seat.board.destroy();
+  });
 });
 
 describe("a movement phase", () => {
