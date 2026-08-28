@@ -1,8 +1,9 @@
-// Command spike serves in-memory classical Diplomacy games.
+// Command 1901 serves in-memory classical Diplomacy games.
 //
-// Games live under /g/{id}/. An unknown id creates a fresh Spring 1901
-// game, so any shareable URL always shows a live board. The unprefixed
-// endpoints are an alias for the game with id "default".
+// A game is created with POST /games and is then reachable through its GM
+// token, its one shared invite, and one token per seat. The React frontend
+// in web/ is served as a single page application shell; the client routes
+// itself from location.pathname.
 package main
 
 import (
@@ -27,9 +28,6 @@ import (
 // ADDR=:8000 to use a port the host firewall already allows.
 const defaultAddr = ":8190"
 
-// defaultGameID backs the unprefixed endpoints.
-const defaultGameID = "default"
-
 func listenAddr() string {
 	if a := os.Getenv("ADDR"); a != "" {
 		return a
@@ -46,7 +44,7 @@ type game struct {
 	// owner records which power entered the order, so seat views can be
 	// filtered without inspecting the board.
 	owner map[godip.Province]godip.Nation
-	// flow is nil for M0 sandbox games and set for M1 flow games.
+	// flow carries the GM, seat, and phase state.
 	flow *flow
 }
 
@@ -124,30 +122,8 @@ func validID(id string) bool {
 	return idPattern.MatchString(id)
 }
 
-// get returns the sandbox game with the given id, creating it if it is
-// unknown. It refuses to hand out an M1 flow game, whose orders are only
-// reachable through the seat endpoints.
-func (self *registry) get(id string) (*game, error) {
-	self.mu.Lock()
-	defer self.mu.Unlock()
-	if g, found := self.games[id]; found {
-		if g.flow != nil {
-			return nil, errNotSandbox
-		}
-		return g, nil
-	}
-	g, err := newGame()
-	if err != nil {
-		return nil, err
-	}
-	self.games[id] = g
-	log.Printf("created sandbox game %q", id)
-	return g, nil
-}
-
-var errNotSandbox = errors.New("not a sandbox game")
-
-// lookup returns an existing game without creating one.
+// lookup returns an existing game. Games exist only once POST /games has
+// created them.
 func (self *registry) lookup(id string) (*game, bool) {
 	self.mu.Lock()
 	defer self.mu.Unlock()
@@ -155,7 +131,7 @@ func (self *registry) lookup(id string) (*game, bool) {
 	return g, found
 }
 
-// create registers a new flow game under a fresh random id.
+// create registers a new game under a fresh random id.
 func (self *registry) create(f *flow) (*game, string, error) {
 	g, err := newGame()
 	if err != nil {
@@ -201,7 +177,8 @@ type stateJSON struct {
 	Nations       []string            `json:"nations"`
 }
 
-// snapshot renders the current state as JSON. The caller must hold self.mu.
+// snapshot renders the current board as JSON. The caller must hold self.mu.
+// It contains every order; only seatState, which filters it, is exposed.
 func (self *game) snapshot(id string) stateJSON {
 	s := self.state
 	out := stateJSON{
@@ -282,12 +259,8 @@ func writeErr(w http.ResponseWriter, code int, format string, args ...interface{
 	writeJSON(w, code, map[string]string{"error": fmt.Sprintf(format, args...)})
 }
 
-func handleState(g *game, id string, w http.ResponseWriter, r *http.Request) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	writeJSON(w, http.StatusOK, g.snapshot(id))
-}
-
+// handleMap serves the classical map. It is board art, the same for every
+// game, and carries no game state.
 func handleMap(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	b, err := classical.ClassicalVariant.SVGMap()
 	if err != nil {
@@ -309,125 +282,17 @@ func nationFor(s *state.State, prov godip.Province) (godip.Nation, bool) {
 	return "", false
 }
 
-func handleOptions(g *game, id string, w http.ResponseWriter, r *http.Request) {
-	prov := godip.Province(r.URL.Query().Get("province"))
-	if prov == "" {
-		writeErr(w, http.StatusBadRequest, "province query parameter is required")
-		return
-	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	nation := godip.Nation(r.URL.Query().Get("nation"))
-	if nation == "" {
-		found, ok := nationFor(g.state, prov)
-		if !ok {
-			writeErr(w, http.StatusNotFound, "no unit or supply center owner at %v", prov)
-			return
-		}
-		nation = found
-	}
-	all := g.state.Phase().Options(g.state, nation)
-	opts, found := all[prov.Super()]
-	if !found {
-		opts = godip.Options{}
-	}
-	writeJSON(w, http.StatusOK, opts)
-}
-
 type orderRequest struct {
 	Province string   `json:"province"`
 	Parts    []string `json:"parts"`
 }
 
-func handleOrder(g *game, id string, w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
-		return
-	}
-	req := orderRequest{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
-		return
-	}
-	if req.Province == "" {
-		writeErr(w, http.StatusBadRequest, "province is required")
-		return
-	}
-	prov := godip.Province(req.Province)
-
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	// Empty parts cancels the province's order.
-	if len(req.Parts) == 0 {
-		g.clearOrder(prov)
-		writeJSON(w, http.StatusOK, g.snapshot(id))
-		return
-	}
-	if err := g.setOrder(prov, req.Parts); err != nil {
-		writeErr(w, http.StatusBadRequest, "%v", err)
-		return
-	}
-	writeJSON(w, http.StatusOK, g.snapshot(id))
-}
-
-func handleAdjudicate(g *game, id string, w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
-		return
-	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if err := g.state.Next(); err != nil {
-		writeErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
-		return
-	}
-	g.parts = map[godip.Province][]string{}
-	g.owner = map[godip.Province]godip.Nation{}
-	writeJSON(w, http.StatusOK, g.snapshot(id))
-}
-
 type gameHandler func(g *game, id string, w http.ResponseWriter, r *http.Request)
-
-var apiRoutes = map[string]gameHandler{
-	"state":      handleState,
-	"options":    handleOptions,
-	"order":      handleOrder,
-	"adjudicate": handleAdjudicate,
-	"map.svg":    handleMap,
-}
-
-// scoped binds a handler to a fixed game id, for the unprefixed endpoints.
-func scoped(id string, h gameHandler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		g, err := games.get(id)
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "create game %v: %v", id, err)
-			return
-		}
-		h(g, id, w, r)
-	}
-}
 
 // server holds what the request handlers need beyond the registry.
 type server struct {
-	// dir is the M0 sandbox frontend, served as plain files.
-	dir string
-	// spaDir is the built M1 frontend (web/dist), a vite build.
+	// spaDir is the built frontend (web/dist), a vite build.
 	spaDir string
-	static http.Handler
-}
-
-// servePage serves the board shell.
-func (self *server) servePage(w http.ResponseWriter, r *http.Request) {
-	index := filepath.Join(self.dir, "index.html")
-	if !isFile(index) {
-		http.Error(w, "static/index.html not present yet", http.StatusNotFound)
-		return
-	}
-	http.ServeFile(w, r, index)
 }
 
 // isFile reports whether the path exists and is a regular file.
@@ -437,7 +302,7 @@ func isFile(path string) bool {
 }
 
 // serveSPA serves the built single page application shell. The client
-// routes itself from location.pathname, so every M1 page gets this file.
+// routes itself from location.pathname, so every page gets this file.
 func (self *server) serveSPA(w http.ResponseWriter, r *http.Request) {
 	index := filepath.Join(self.spaDir, "index.html")
 	if !isFile(index) {
@@ -466,57 +331,14 @@ func (self *server) serveSPAAsset(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path)
 }
 
-// serveRoot keeps the M0 board at / and lets the files vite emits at the
-// build root (favicon, manifest, and friends) resolve there too.
+// serveRoot sends the bare root to the game-creation page and resolves the
+// files vite emits at the build root (favicon, manifest, and friends).
 func (self *server) serveRoot(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		name := filepath.Clean(strings.TrimPrefix(r.URL.Path, "/"))
-		if !strings.HasPrefix(name, "..") && !isFile(filepath.Join(self.dir, name)) {
-			if isFile(filepath.Join(self.spaDir, name)) {
-				self.serveSPAAsset(w, r)
-				return
-			}
-		}
-	}
-	self.static.ServeHTTP(w, r)
-}
-
-// serveGame routes /g/{id}/... to the game with that id, creating it on demand.
-func (self *server) serveGame(w http.ResponseWriter, r *http.Request) {
-	rest := strings.TrimPrefix(r.URL.Path, "/g/")
-	id, sub, hasSlash := strings.Cut(rest, "/")
-	if !validID(id) {
-		http.NotFound(w, r)
+	if r.URL.Path == "/" {
+		http.Redirect(w, r, "/new", http.StatusFound)
 		return
 	}
-	if !hasSlash {
-		target := "/g/" + id + "/"
-		if r.URL.RawQuery != "" {
-			target += "?" + r.URL.RawQuery
-		}
-		http.Redirect(w, r, target, http.StatusFound)
-		return
-	}
-
-	g, err := games.get(id)
-	if err == errNotSandbox {
-		// An M1 flow game is never reachable through the sandbox routes.
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "create game %v: %v", id, err)
-		return
-	}
-	if sub == "" {
-		self.servePage(w, r)
-		return
-	}
-	if h, found := apiRoutes[sub]; found {
-		h(g, id, w, r)
-		return
-	}
-	http.NotFound(w, r)
+	self.serveSPAAsset(w, r)
 }
 
 // absPath resolves a path against the working directory, leaving it as
@@ -528,39 +350,19 @@ func absPath(path string) string {
 	return path
 }
 
-// staticHandler serves the static directory, or a placeholder while it is missing.
-func staticHandler(dir string) http.Handler {
-	fs := http.FileServer(http.Dir(dir))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := os.Stat(dir); err != nil {
-			http.Error(w, "static directory not present yet", http.StatusNotFound)
-			return
-		}
-		fs.ServeHTTP(w, r)
-	})
-}
-
 func main() {
-	dir := absPath("static")
 	spaDir := absPath(filepath.Join("web", "dist"))
-	srv := &server{dir: dir, spaDir: spaDir, static: staticHandler(dir)}
+	srv := &server{spaDir: spaDir}
 
 	mux := http.NewServeMux()
-	mux.Handle("/static/", http.StripPrefix("/static/", srv.static))
 	mux.HandleFunc("/", srv.serveRoot)
-	mux.HandleFunc("/g/", srv.serveGame)
-	for path, h := range apiRoutes {
-		mux.HandleFunc("/"+path, scoped(defaultGameID, h))
-	}
-
-	// M1 flow.
 	mux.HandleFunc("/assets/", srv.serveSPAAsset)
+	mux.HandleFunc("/new", srv.serveSPA)
 	mux.HandleFunc("/games", handleCreateGame)
 	mux.HandleFunc("/game/", srv.serveFlow)
 	mux.HandleFunc("/join/", srv.serveJoinPage)
-	mux.HandleFunc("/new", srv.serveSPA)
 
 	addr := listenAddr()
-	log.Printf("listening on http://localhost%v (sandbox %v, app %v)", addr, dir, spaDir)
+	log.Printf("listening on http://localhost%v (app from %v)", addr, spaDir)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }

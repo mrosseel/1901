@@ -1,8 +1,8 @@
 # Face-to-Face Diplomacy Adjudicator — Execution Brief
 
-**Status:** M0 spike implemented and browser-verified; phone UX fixes in progress.
+**Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r12 — 2026-08-28
+**Document revision:** r13 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -739,3 +739,4 @@ Recorded so nobody re-derives them.
 | r10 | 2026-08-28 | Terminology session; CONTEXT.md created (Power/Seat/Player, Finalize/Commit/Reveal, Spectator view + Annotation, NMR, Adjudicate/Resolution). D-013's "beamer" renamed spectator view; spectator is strictly read-only for orders, annotations allowed later. |
 | r11 | 2026-08-28 | D-020 single shared invite with random anonymous seat assignment (amends D-005); D-021 GM power = the leftover, revealed at Start; D-022 settings fixed pre-invite, later changes versioned and broadcast. M1 flow implementation begun (in-memory first; SQLite to follow within M1). |
 | r12 | 2026-08-28 | D-017 amended: React + Vite + TypeScript from M1 (owner call — build the flow pages correctly once). web/ scaffolded; board core ported to the imperative island; M0 sandbox stays vanilla meanwhile. |
+| r13 | 2026-08-28 | M1 flow implemented end-to-end (D-020/021/022) as React SPA + Go, verified live. M0 sandbox and static/ deleted; / redirects to /new. Still in-memory — SQLite persistence remains before M1 acceptance. |

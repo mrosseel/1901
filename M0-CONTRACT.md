@@ -1,5 +1,9 @@
 # M0 spike — API contract and scope
 
+> **Historical.** The M0 sandbox was removed after the React M1 flow
+> replaced it (see DESIGN.md r13). Kept as a record of the spike's shape.
+
+
 Scope: DESIGN.md §7 M0 only. One hardcoded classical game, in-memory, no
 auth, no persistence, no commit-reveal, no GM. All seven powers are
 operated from one screen. Success: play a full Spring 1901 movement phase

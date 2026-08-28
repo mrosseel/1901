@@ -897,7 +897,7 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 	}
 	id := segments[0]
 	g, found := games.lookup(id)
-	if !found || g.flow == nil {
+	if !found {
 		http.NotFound(w, r)
 		return
 	}
@@ -913,9 +913,7 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		handleJoin(g, id, segments[2], w, r)
-	case "gm":
-		self.serveTokenScope(g, id, segments, w, r)
-	case "seat":
+	case "gm", "seat":
 		self.serveTokenScope(g, id, segments, w, r)
 	default:
 		http.NotFound(w, r)
@@ -1005,7 +1003,7 @@ func (self *server) serveJoinPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g, found := games.lookup(segments[0])
-	if !found || g.flow == nil {
+	if !found {
 		http.NotFound(w, r)
 		return
 	}
