@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r14 — 2026-08-28
+**Document revision:** r15 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -440,8 +440,11 @@ it sooner.
 **Status:** accepted, r2 (closes Q-006)
 The placement-table generator (D-003) runs over all godip variants with an
 `svg/` dir (17 as of 2026-08-28). Classical is hand-checked, playtested,
-and presented as supported. The rest are selectable at game creation behind
-an explicit "experimental — placement not verified" warning. Promoting a
+and presented as supported. The rest are selectable at game creation.
+UI presentation (changed r15, owner call): supported variants show a
+green checkmark; unverified ones show nothing — no experimental badge or
+warning text. The supported flag itself remains in the API and still
+gates the checkmark. Promoting a
 variant to supported is data work only: check its generated table, remove
 the flag.
 
@@ -808,3 +811,4 @@ Recorded so nobody re-derives them.
 | r12 | 2026-08-28 | D-017 amended: React + Vite + TypeScript from M1 (owner call — build the flow pages correctly once). web/ scaffolded; board core ported to the imperative island; M0 sandbox stays vanilla meanwhile. |
 | r13 | 2026-08-28 | M1 flow implemented end-to-end (D-020/021/022) as React SPA + Go, verified live. M0 sandbox and static/ deleted; / redirects to /new. Still in-memory — SQLite persistence remains before M1 acceptance. |
 | r14 | 2026-08-28 | D-016 activated: pilot port of 1900 and Sail Ho from jDip (translator + map conversion phase 1; LLM-assisted restyle phase 2, needs OpenRouter key). Sources vendored to tools/jdip-import/source. |
+| r15 | 2026-08-28 | D-014 presentation: checkmark for supported, no experimental badge. Restyle shipped as scripted theming (no LLM needed); style system with four named themes underway. Placement pipeline (audit/optimize/editor/serving) complete for classical + sailho. |
