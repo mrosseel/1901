@@ -25,23 +25,16 @@ deliverable; serving them is a separate step once the look is approved.
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { openBrowser, measureMap, type MapGeometry } from "./browser.ts";
+import { openBrowser, measureMap, type MapGeometry, type Terrain } from "./browser.ts";
 import {
   audit,
-  optimize,
+  place,
   shippedPlacement,
   type Audit,
-  type Fixed,
+  type Decision,
   type PlacementTable,
 } from "./audit.ts";
-import {
-  DEFAULT_WEIGHTS,
-  REFERENCE_VIEWPORTS,
-  markerRadius,
-  standardRadius,
-  stressRadius,
-  type Weights,
-} from "./geometry.ts";
+import { REFERENCE_VIEWPORTS, isPlaced, markerRadius, standardRadius, stressRadius } from "./geometry.ts";
 import { renderComparison } from "./render.ts";
 import { buildEditor } from "./editor.ts";
 
@@ -54,7 +47,6 @@ interface Options {
   server: string;
   images: boolean;
   editor: boolean;
-  weights: Weights;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -64,7 +56,6 @@ function parseArgs(argv: string[]): Options {
     server: process.env.MAP_SERVER || "http://localhost:8192",
     images: true,
     editor: false,
-    weights: { ...DEFAULT_WEIGHTS },
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -73,9 +64,6 @@ function parseArgs(argv: string[]): Options {
     else if (arg === "--server") options.server = argv[++i];
     else if (arg === "--no-images") options.images = false;
     else if (arg === "--editor") options.editor = true;
-    else if (arg === "--name-weight") options.weights.name = Number(argv[++i]);
-    else if (arg === "--sc-weight") options.weights.supplyCentre = Number(argv[++i]);
-    else if (arg === "--centre-weight") options.weights.centre = Number(argv[++i]);
     else if (arg === "--help" || arg === "-h") {
       console.log(usage());
       process.exit(0);
@@ -93,9 +81,6 @@ function usage(): string {
     "  --server <url>      where /variants lives (default http://localhost:8192)",
     "  --no-images         skip the before/after PNGs",
     "  --editor            also write the self-contained drag-to-correct page",
-    "  --name-weight <n>   penalty per unit of name overlap (default 1000)",
-    "  --sc-weight <n>     penalty per unit of supply centre overlap (default 25)",
-    "  --centre-weight <n> penalty per marker-radius from the province pole (default 10)",
     "",
     "Writes out/<key>.json, out/<key>.report.txt and out/<key>.compare.png,",
     "and with --editor, out/editor-<key>.html.",
@@ -133,13 +118,13 @@ function report(
   r: number,
   before: Audit,
   after: Audit,
-  fixed: Fixed[],
-  flagged: Fixed[],
+  decisions: Decision[],
+  terrain: Terrain,
   stress: { radius: number; before: Audit; after: Audit },
 ): string {
   const lines: string[] = [];
   lines.push("placement audit — " + key);
-  lines.push("=".repeat(60));
+  lines.push("=".repeat(64));
   lines.push("");
   lines.push("map viewBox        " + [map.viewBox.x, map.viewBox.y, map.viewBox.w, map.viewBox.h].join(" "));
   lines.push("marker radius      " + r.toFixed(2) + " map units — the standard, see below");
@@ -174,39 +159,83 @@ function report(
   lines.push("  hit shapes with no anchor   " + (map.shapesWithoutAnchor.join(", ") || "none"));
   lines.push("");
 
-  if (flagged.length) {
-    lines.push("NEEDS A HUMAN (" + flagged.length + ")");
-    for (const item of flagged) {
-      lines.push("  " + item.key.padEnd(10) + item.reason);
+  const shrunk = decisions.filter((d) => d.scale < 1).sort((a, b) => a.scale - b.scale);
+  lines.push("MARKER SIZES");
+  if (shrunk.length === 0) {
+    lines.push("  every province takes a full-size marker");
+  } else {
+    lines.push("  " + (decisions.length - shrunk.length) + " provinces at full size; these were shrunk to fit:");
+    for (const item of shrunk) {
+      lines.push("  " + item.key.padEnd(10) + item.scale.toFixed(2) + "x  (" + (r * item.scale).toFixed(1) + " map units)");
     }
-    lines.push("");
   }
+  lines.push("");
 
-  const worseAfter = after.violations.filter((v) => {
-    const was = before.violations.find((b) => b.key === v.key);
-    return was && !was.coversName && v.coversName;
-  });
-  if (worseAfter.length) {
-    lines.push("REGRESSED (" + worseAfter.length + ") — a name is now covered where it was not");
-    for (const item of worseAfter) lines.push("  " + item.key);
-    lines.push("");
+  const leaning = decisions.filter((d) => d.overhang);
+  lines.push("PERMITTED OVERHANG (" + leaning.length + ")");
+  if (leaning.length === 0) {
+    lines.push("  no province needed it: every marker sits wholly inside its own border");
+  } else {
+    lines.push("  These provinces take no marker at any size, so the marker is centred");
+    lines.push("  well inside the border and allowed out over it. Leaning over sea or");
+    lines.push("  empty space costs a reader nothing; leaning over a neighbouring land");
+    lines.push("  province is the ambiguity worth counting, so it is counted.");
+    lines.push("  key        over land   over sea   over nothing");
+    for (const item of leaning) {
+      const over = item.overhang!;
+      lines.push(
+        "  " +
+          item.key.padEnd(10) +
+          pct(over.land).padStart(9) +
+          pct(over.sea).padStart(11) +
+          pct(over.open).padStart(14),
+      );
+    }
   }
+  lines.push("");
 
-  lines.push("MOVED (" + fixed.length + " of " + before.summary.placed + " placed)");
-  const byDistance = fixed.slice().sort((a, b) => b.moved - a.moved);
-  for (const item of byDistance.slice(0, 40)) {
+  const proven = decisions.filter((d) => d.unavoidable);
+  lines.push("UNAVOIDABLE (" + proven.length + ")");
+  if (proven.length === 0) {
+    lines.push("  nothing left over: no marker covers a name it could have avoided");
+  } else {
+    lines.push("  Each of these was swept exhaustively at one map unit across its whole");
+    lines.push("  province. No position avoids what it covers. Hand correction here means");
+    lines.push("  moving the LABEL, not the marker.");
+    for (const item of proven) {
+      lines.push(
+        "  " + item.key.padEnd(10) + "covers " + pct(item.quality.name) + " of a name at " + item.scale.toFixed(2) + "x",
+      );
+    }
+  }
+  lines.push("");
+
+  lines.push("TERRAIN (read off the map's own fill, used only to choose overhang direction)");
+  lines.push("  sea fill  " + (terrain.seaFill || "not found"));
+  lines.push("  land fill " + (terrain.landFill || "not found"));
+  const counts = { sea: 0, land: 0, unknown: 0 };
+  for (const value of Object.values(terrain.kind)) counts[value]++;
+  lines.push("  " + counts.sea + " sea, " + counts.land + " land, " + counts.unknown + " unclassified");
+  lines.push("");
+
+  const moved = decisions.filter((d) => d.moved > 0.01).sort((a, b) => b.moved - a.moved);
+  lines.push("MOVED (" + moved.length + " of " + before.summary.placed + " placed)");
+  for (const item of moved.slice(0, 25)) {
     lines.push("  " + item.key.padEnd(10) + item.moved.toFixed(1).padStart(8) + " map units");
   }
-  if (byDistance.length > 40) lines.push("  … and " + (byDistance.length - 40) + " more");
+  if (moved.length > 25) lines.push("  … and " + (moved.length - 25) + " more");
   lines.push("");
 
   lines.push("PER PROVINCE (after)");
-  lines.push("  key        outside  name%   sc%   dislodged");
+  lines.push("  key        size   outside  name%   sc%   dislodged");
+  const scaleOf = new Map(decisions.map((d) => [d.key, d.scale]));
   for (const v of after.violations) {
     if (v.missingAnchor && v.missingShape) continue;
     lines.push(
       "  " +
         v.key.padEnd(10) +
+        (scaleOf.get(v.key) || 1).toFixed(2) +
+        "x  " +
         (v.outside ? "  OUT   " : "   ok   ") +
         (v.nameFraction * 100).toFixed(0).padStart(5) +
         (v.scFraction * 100).toFixed(0).padStart(6) +
@@ -215,6 +244,10 @@ function report(
     );
   }
   return lines.join("\n") + "\n";
+}
+
+function pct(fraction: number): string {
+  return Math.round(fraction * 100) + "%";
 }
 
 async function run(): Promise<void> {
@@ -240,7 +273,7 @@ async function run(): Promise<void> {
 
       const shipped = shippedPlacement(map, r);
       const before = await audit(page, map, shipped, r);
-      const result = await optimize(page, map, shipped, r, options.weights);
+      const result = await place(page, map, shipped, r);
       const after = await audit(page, map, result.table, r);
 
       // The same two tables judged again with the bigger marker a phone draws.
@@ -255,13 +288,12 @@ async function run(): Promise<void> {
         generatedAt: new Date().toISOString(),
         markerRadius: Number(r.toFixed(3)),
         viewBox: [map.viewBox.x, map.viewBox.y, map.viewBox.w, map.viewBox.h],
-        weights: options.weights,
         placement: result.table,
       };
       await writeFile(join(OUT, key + ".json"), JSON.stringify(payload, null, 2) + "\n");
       await writeFile(
         join(OUT, key + ".report.txt"),
-        report(key, map, r, before, after, result.fixed, result.flagged, stress),
+        report(key, map, r, before, after, result.decisions, result.terrain, stress),
       );
       await writeFile(
         join(OUT, key + ".audit.json"),
@@ -327,7 +359,15 @@ async function run(): Promise<void> {
         "outside " + before.summary.outside + "->" + after.summary.outside +
           ", on a name " + before.summary.coversName + "->" + after.summary.coversName +
           ", clean " + before.summary.clean + "->" + after.summary.clean +
-          (result.flagged.length ? ", " + result.flagged.length + " flagged" : ""),
+          (result.decisions.some((d) => d.scale < 1)
+            ? ", " + result.decisions.filter((d) => d.scale < 1).length + " shrunk"
+            : "") +
+          (result.decisions.some((d) => d.overhang)
+            ? ", " + result.decisions.filter((d) => d.overhang).length + " overhang"
+            : "") +
+          (result.decisions.some((d) => d.unavoidable)
+            ? ", " + result.decisions.filter((d) => d.unavoidable).length + " unavoidable"
+            : ""),
       );
     }
   } finally {

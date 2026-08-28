@@ -262,19 +262,28 @@ function coveredFraction(x, y, radius, boxes) {
 }
 
 function verdictFor(key, spot) {
+  /* A province too narrow for a full marker carries its own size, and every
+     test has to use that size or the page and the report disagree. */
+  const scale = spot.scale || 1;
+  const radius = R * scale;
   const [x, y] = spot.unit;
-  const outside = !fitsInside(key, x, y, R * (1 + MARGIN));
-  const name = coveredFraction(x, y, R, DATA.labels);
-  const sc = coveredFraction(x, y, R, DATA.supplyCentres);
+  // A marker the placement deliberately let out over its border is not a
+  // fault; the report names where it leans and why.
+  const overhang = Boolean(spot.overhang);
+  const outside = !overhang && !fitsInside(key, x, y, radius * (1 + MARGIN));
+  const name = coveredFraction(x, y, radius, DATA.labels);
+  const sc = coveredFraction(x, y, radius, DATA.supplyCentres);
   const [dx, dy] = spot.dislodged;
   return {
+    scale: scale,
+    overhang: overhang,
     outside: outside,
     name: name,
     sc: sc,
     coversName: name > COVER_TOLERANCE,
     coversSc: sc > COVER_TOLERANCE,
-    dislodgedOutside: !fitsInside(key, dx, dy, R * DISLODGED_BODY * (1 + MARGIN)),
-    dislodgedName: coveredFraction(dx, dy, R * DISLODGED_RING, DATA.labels) > COVER_TOLERANCE,
+    dislodgedOutside: !overhang && !fitsInside(key, dx, dy, radius * DISLODGED_BODY * (1 + MARGIN)),
+    dislodgedName: coveredFraction(dx, dy, radius * DISLODGED_RING, DATA.labels) > COVER_TOLERANCE,
   };
 }
 
@@ -359,23 +368,24 @@ function drawAll() {
     const spot = showing[key];
     const verdict = verdicts.get(key) || judge(key);
     const colour = colourOf(verdict);
+    const radius = R * (spot.scale || 1);
 
     const u = node.unit;
     u.body.setAttribute("cx", spot.unit[0]);
     u.body.setAttribute("cy", spot.unit[1]);
-    u.body.setAttribute("r", R);
+    u.body.setAttribute("r", radius);
     u.body.setAttribute("fill", colour);
     u.body.setAttribute("fill-opacity", "0.75");
     u.body.setAttribute("stroke", "#0e1013");
-    u.body.setAttribute("stroke-width", String(Math.max(1, R * 0.16)));
+    u.body.setAttribute("stroke-width", String(Math.max(1, radius * 0.16)));
     u.text.setAttribute("x", spot.unit[0]);
     u.text.setAttribute("y", spot.unit[1]);
-    u.text.setAttribute("font-size", R * 1.05);
+    u.text.setAttribute("font-size", radius * 1.05);
     u.text.textContent = "A";
     u.scRing.setAttribute("cx", spot.unit[0]);
     u.scRing.setAttribute("cy", spot.unit[1]);
-    u.scRing.setAttribute("r", R * 1.3);
-    u.scRing.setAttribute("stroke-width", String(Math.max(0.8, R * 0.09)));
+    u.scRing.setAttribute("r", radius * 1.3);
+    u.scRing.setAttribute("stroke-width", String(Math.max(0.8, radius * 0.09)));
     u.scRing.setAttribute("visibility", verdict && verdict.coversSc ? "visible" : "hidden");
 
     const origin = DATA.shipped[key];
@@ -383,21 +393,21 @@ function drawAll() {
     if (origin) {
       u.shipped.setAttribute("cx", origin.unit[0]);
       u.shipped.setAttribute("cy", origin.unit[1]);
-      u.shipped.setAttribute("r", R * 0.5);
+      u.shipped.setAttribute("r", radius * 0.5);
     }
 
     const a = node.away;
     a.group.setAttribute("visibility", showDislodged ? "visible" : "hidden");
     a.body.setAttribute("cx", spot.dislodged[0]);
     a.body.setAttribute("cy", spot.dislodged[1]);
-    a.body.setAttribute("r", R * DISLODGED_BODY);
+    a.body.setAttribute("r", radius * DISLODGED_BODY);
     a.body.setAttribute("fill", verdict && verdict.dislodgedOutside ? "#ff5c5c" : verdict && verdict.dislodgedName ? "#ffba5c" : "#6ede8a");
     a.body.setAttribute("fill-opacity", "0.4");
     a.body.setAttribute("stroke", "#ff5c5c");
-    a.body.setAttribute("stroke-width", String(Math.max(1, R * 0.14)));
+    a.body.setAttribute("stroke-width", String(Math.max(1, radius * 0.14)));
     a.text.setAttribute("x", spot.dislodged[0]);
     a.text.setAttribute("y", spot.dislodged[1]);
-    a.text.setAttribute("font-size", R * 0.8);
+    a.text.setAttribute("font-size", radius * 0.8);
     a.text.textContent = "d";
     a.scRing.setAttribute("visibility", "hidden");
     a.shipped.setAttribute("visibility", "hidden");
@@ -420,11 +430,13 @@ function refreshPanel() {
     if (v.dislodgedOutside || v.dislodgedName) dislodgedBad++;
     const bad = v.outside || v.coversName || v.dislodgedOutside || v.dislodgedName;
     if (!bad) clean++;
-    if (!bad && !v.coversSc) continue;
+    if (!bad && !v.coversSc && v.scale >= 1 && !v.overhang) continue;
     const why = [];
     if (v.outside) why.push(["bad", "leaves its province"]);
     if (v.coversName) why.push(["warn", "covers a name (" + Math.round(v.name * 100) + "%)"]);
     if (v.coversSc) why.push(["", "on a supply centre"]);
+    if (v.scale < 1) why.push(["", "marker at " + v.scale.toFixed(2) + "x"]);
+    if (v.overhang) why.push(["", "allowed to overhang"]);
     if (v.dislodgedOutside) why.push(["bad", "dislodged outside"]);
     else if (v.dislodgedName) why.push(["warn", "dislodged on a name"]);
     rows.push({ key: key, why: why, rank: (v.outside ? 0 : v.coversName ? 1 : 2) });
@@ -644,7 +656,11 @@ document.getElementById("revert").addEventListener("click", () => {
 const dialog = document.getElementById("exportBox");
 document.getElementById("export").addEventListener("click", () => {
   const out = {};
-  for (const key of DATA.keys) out[key] = { unit: table[key].unit, dislodged: table[key].dislodged };
+  for (const key of DATA.keys) {
+    const spot = table[key];
+    out[key] = { unit: spot.unit, scale: spot.scale || 1, dislodged: spot.dislodged };
+    if (spot.overhang) out[key].overhang = spot.overhang;
+  }
   document.getElementById("exportText").value = JSON.stringify(out, null, 2);
   document.getElementById("copied").textContent = "";
   dialog.showModal();

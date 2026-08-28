@@ -214,61 +214,153 @@ export function perimeter(centre: Point, radius: number, samples = 24): Point[] 
 
 // --- scoring --------------------------------------------------------------
 
-export interface Weights {
-  /* A marker over a province name is the failure this whole exercise is
-     about, so it outweighs everything. */
-  name: number;
-  /* A marker over a supply centre glyph is usually not a fault at all — see
-     the note in cli.ts — so it only breaks ties. */
-  supplyCentre: number;
-  /** Per marker-radius of distance from the deepest point of the province. */
-  centre: number;
-}
-
-export const DEFAULT_WEIGHTS: Weights = { name: 1000, supplyCentre: 25, centre: 10 };
-
-export interface Score {
-  nameFraction: number;
-  scFraction: number;
-  /** Distance from the pole, in marker radii. */
-  offCentre: number;
-  total: number;
-}
-
-/*
-What one candidate position is worth.
-
-The pull is toward the pole of inaccessibility — the deepest interior point of
-the province — not toward the anchor the map happens to ship. Markers that all
-sit at the heart of their province read as one system; markers that each sit
-wherever they were first put do not. The anchor the map ships is only ever one
-more candidate, with no privilege of its own.
-*/
-export function scorePoint(
-  point: Point,
-  pole: Point,
-  r: number,
-  labels: Rect[],
-  supplyCentres: Rect[],
-  weights: Weights = DEFAULT_WEIGHTS,
-): Score {
-  const nameFraction = coveredFraction(point, r, labels);
-  const scFraction = coveredFraction(point, r, supplyCentres);
-  const offCentre = distance(point, pole) / (r || 1);
-  return {
-    nameFraction: nameFraction,
-    scFraction: scFraction,
-    offCentre: offCentre,
-    total: weights.name * nameFraction + weights.supplyCentre * scFraction + weights.centre * offCentre,
-  };
-}
-
 /*
 A marker only counts as covering something when it covers enough of it to see.
-A label whose corner grazes one percent of a marker is not the complaint.
+A label whose corner grazes one percent of a marker is not the complaint, and
+treating it as one would send markers scurrying away from nothing.
 */
 export const COVER_TOLERANCE = 0.01;
 
 export function covers(fraction: number): boolean {
   return fraction > COVER_TOLERANCE;
+}
+
+/*
+How good a position is, as a tuple compared in order rather than a single
+blended number.
+
+A weighted sum was the first attempt and it was wrong: a small supply centre
+overlap weighed 25, drifting a marker's width from the pole weighed 10, so the
+optimizer would sit on an overlap a human could clear with one short drag
+because moving cost more than the overlap did. Blending lets a preference
+outvote a defect. Comparing in order does not: any position that covers less
+of a name beats every position that covers more, whatever it costs in
+prettiness, and only positions that are equally clean are judged on how near
+the middle of their province they sit.
+
+The overlap terms are quantised to one percent before comparison, so two
+positions that are equally clean in any way a person could see are treated as
+equal and the tidier one wins. Without that, a hundredth of a percent of
+difference would decide, and the markers would scatter.
+*/
+export interface Quality {
+  /** Quantised share of the marker covering a province name. */
+  name: number;
+  /** Quantised share covering a supply centre glyph. */
+  supplyCentre: number;
+  /** 0 fits with its border margin, 1 overhangs. Lower is better. */
+  containment: number;
+  /** Share of the overhang falling on a neighbouring LAND province. */
+  ambiguity: number;
+  /** Distance from the province's pole, in marker radii. Prettiness only. */
+  offCentre: number;
+}
+
+/* One percent buckets: finer than that is not a thing anyone can see. */
+export function level(fraction: number): number {
+  return fraction <= COVER_TOLERANCE ? 0 : Math.round(fraction * 100) / 100;
+}
+
+export function compareQuality(a: Quality, b: Quality): number {
+  return (
+    a.name - b.name ||
+    a.supplyCentre - b.supplyCentre ||
+    a.containment - b.containment ||
+    a.ambiguity - b.ambiguity ||
+    a.offCentre - b.offCentre
+  );
+}
+
+/** Nothing a reader would call wrong. */
+export function isClean(quality: Quality): boolean {
+  return quality.name === 0 && quality.supplyCentre === 0 && quality.containment === 0;
+}
+
+/** Clean of the two faults every map agrees on, whatever the SC glyph does. */
+export function isPlaced(quality: Quality): boolean {
+  return quality.name === 0 && quality.containment === 0;
+}
+
+export function qualityAt(
+  point: Point,
+  pole: Point,
+  radius: number,
+  labels: Rect[],
+  supplyCentres: Rect[],
+  containment: number,
+  ambiguity = 0,
+): Quality {
+  return {
+    name: level(coveredFraction(point, radius, labels)),
+    supplyCentre: level(coveredFraction(point, radius, supplyCentres)),
+    containment: containment,
+    ambiguity: Math.round(ambiguity * 100) / 100,
+    offCentre: distance(point, pole) / (radius || 1),
+  };
+}
+
+/*
+How far a marker may be shrunk to fit a province that will not take a full
+one. Below three quarters it stops reading as the same piece as its
+neighbours, so that is the floor; a province that still will not take it is
+allowed to overhang instead.
+*/
+export const SCALES = [1, 0.95, 0.9, 0.85, 0.8, 0.75];
+export const MIN_SCALE = 0.75;
+
+/*
+The overhang rule, used only when no scale fits. The marker's centre must be
+inside its own province and at least half a radius from the border, so the
+piece still plainly belongs to the province it stands in.
+*/
+export const OVERHANG_CLEARANCE = 0.5;
+
+/*
+The eight neighbours of a point at a given step: the moves a pattern search
+tries before it shortens its stride.
+
+This is the part that behaves like a hand. The lattice gets a marker roughly
+right; a near miss — a marker whose edge clips a name by a few percent — is
+then walked off the name a map unit at a time, which is exactly the small drag
+a person makes when they see an amber marker and nudge it clear.
+*/
+export function neighbours(point: Point, step: number): Point[] {
+  const out: Point[] = [];
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      if (dx === 0 && dy === 0) continue;
+      out.push({ x: point.x + dx * step, y: point.y + dy * step });
+    }
+  }
+  return out;
+}
+
+/*
+The strides a refinement pass walks, coarse to fine. It ends at half a map
+unit, which is finer than any anchor needs to be and finer than a person could
+place one by hand.
+*/
+export function refinementSteps(radius: number): number[] {
+  const steps: number[] = [];
+  for (let step = Math.max(radius / 4, 2); step >= 0.5; step /= 2) steps.push(step);
+  steps.push(0.5);
+  return steps;
+}
+
+/*
+An exhaustive sweep of a province, used to PROVE that a marker left with a
+violation had nowhere clean to go. One map unit is finer than the marker is by
+a factor of tens, so a clean position that this misses is not a clean position
+anyone would find by dragging either.
+*/
+export function proofGrid(box: Rect, step = 1, budget = 24000): Point[] {
+  let use = step;
+  while ((box.w / use) * (box.h / use) > budget) use *= 1.5;
+  const points: Point[] = [];
+  for (let x = box.x + use / 2; x <= box.x + box.w; x += use) {
+    for (let y = box.y + use / 2; y <= box.y + box.h; y += use) {
+      points.push({ x: x, y: y });
+    }
+  }
+  return points;
 }

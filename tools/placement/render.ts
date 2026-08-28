@@ -122,6 +122,9 @@ function draw(input: {
 
     for (const key of Object.keys(table)) {
       const spot = table[key];
+      // A province too narrow for a full marker carries its own size; drawing
+      // it full size here would make the picture lie about the placement.
+      const r = radius * (spot.scale || 1);
       const verdict = verdicts.get(key);
       const outside = Boolean(verdict && (verdict.outside || verdict.missingShape));
       const onName = Boolean(verdict && verdict.coversName);
@@ -130,17 +133,17 @@ function draw(input: {
       const circle = document.createElementNS(NS, "circle");
       circle.setAttribute("cx", String(spot.unit[0]));
       circle.setAttribute("cy", String(spot.unit[1]));
-      circle.setAttribute("r", String(radius));
+      circle.setAttribute("r", String(r));
       circle.setAttribute("fill", colour);
       circle.setAttribute("fill-opacity", "0.72");
       circle.setAttribute("stroke", "#0e1013");
-      circle.setAttribute("stroke-width", String(Math.max(1, radius * 0.16)));
+      circle.setAttribute("stroke-width", String(Math.max(1, r * 0.16)));
       layer.appendChild(circle);
 
       const text = document.createElementNS(NS, "text");
       text.setAttribute("x", String(spot.unit[0]));
       text.setAttribute("y", String(spot.unit[1]));
-      text.setAttribute("font-size", String(radius * 1.1));
+      text.setAttribute("font-size", String(r * 1.1));
       text.setAttribute("text-anchor", "middle");
       text.setAttribute("dominant-baseline", "central");
       text.setAttribute("fill", "#0e1013");

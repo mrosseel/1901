@@ -643,3 +643,210 @@ export async function testInside(
     return answer;
   }, requests);
 }
+
+/*
+Which provinces are sea and which are land, read off the map itself.
+
+The server has no endpoint for it and the SVG has no attribute for it, but the
+map already says so in the only language a map has: sea is painted one colour
+and land another. So the topmost painted element under each province's pole is
+asked for its fill, the fills are counted, and the two that almost every
+province shares are the two terrains. Sea is whichever of them is also under
+the map's far corner, which on every map in this set is open water.
+
+This is a heuristic and it is reported, not trusted silently — it only ever
+decides which way a marker is allowed to overhang, and the report lists the
+call for every province so a wrong one is visible.
+*/
+export interface Terrain {
+  seaFill: string | null;
+  landFill: string | null;
+  kind: Record<string, "sea" | "land" | "unknown">;
+}
+
+export async function classifyTerrain(page: Page, poles: Pole[]): Promise<Terrain> {
+  return page.evaluate((points: Pole[]) => {
+    const svg = document.querySelector("svg") as SVGSVGElement;
+    const ctm = svg.getScreenCTM();
+    const probe = svg.createSVGPoint();
+
+    // The fill of the topmost thing actually painted at a map point.
+    const fillAt = (x: number, y: number): string | null => {
+      if (!ctm) return null;
+      probe.x = x;
+      probe.y = y;
+      const screen = probe.matrixTransform(ctm);
+      const stack = document.elementsFromPoint(screen.x, screen.y);
+      for (const node of stack) {
+        if (!(node instanceof SVGGraphicsElement)) continue;
+        const fill = getComputedStyle(node).fill;
+        if (!fill || fill === "none" || fill === "rgba(0, 0, 0, 0)") continue;
+        return fill;
+      }
+      return null;
+    };
+
+    const fills = new Map<string, number>();
+    const byKey: Record<string, string | null> = {};
+    for (const pole of points) {
+      const fill = fillAt(pole.point.x, pole.point.y);
+      byKey[pole.key] = fill;
+      if (fill) fills.set(fill, (fills.get(fill) || 0) + 1);
+    }
+
+    const ranked = Array.from(fills.entries()).sort((a, b) => b[1] - a[1]);
+    const box = svg.viewBox.baseVal;
+    // A hand's width in from the corner: far enough to miss a border stroke,
+    // near enough that no map puts a province there.
+    const cornerFill = fillAt(box.x + box.width * 0.02, box.y + box.height * 0.02);
+
+    let seaFill: string | null = null;
+    let landFill: string | null = null;
+    if (ranked.length) {
+      const top = ranked.slice(0, 2).map((entry) => entry[0]);
+      if (cornerFill && top.includes(cornerFill)) {
+        seaFill = cornerFill;
+        landFill = top.find((fill) => fill !== cornerFill) || null;
+      } else {
+        // No corner match: fall back to the two most common fills and leave
+        // the call to the report rather than guessing which is which.
+        landFill = top[0] || null;
+        seaFill = top[1] || null;
+      }
+    }
+
+    const kind: Record<string, "sea" | "land" | "unknown"> = {};
+    for (const pole of points) {
+      const fill = byKey[pole.key];
+      kind[pole.key] = fill === seaFill ? "sea" : fill === landFill ? "land" : "unknown";
+    }
+    return { seaFill: seaFill, landFill: landFill, kind: kind };
+  }, poles);
+}
+
+/*
+What a marker at a point would actually do: how far its centre is from the
+province border, and — for the part of it that hangs out — whose ground it
+hangs over.
+
+Overhanging into open sea or off the edge of the map costs a reader nothing,
+because no one could think the unit belonged to the water. Overhanging into a
+neighbouring LAND province is the ambiguity worth avoiding, because that
+province is a plausible alternative owner. So the perimeter samples that fall
+outside are counted by what they fall into.
+*/
+export interface OverhangRequest {
+  key: string;
+  centres: Array<[number, number]>;
+  radius: number;
+  samples: number;
+}
+
+export interface OverhangResult {
+  /** Is the centre itself inside the province? */
+  inside: boolean;
+  /** Distance from the centre to the nearest border, in map units. */
+  clearance: number;
+  /** Perimeter samples falling into another land province. */
+  land: number;
+  /** Perimeter samples falling into another sea province. */
+  sea: number;
+  /** Perimeter samples falling outside every province. */
+  open: number;
+}
+
+export async function probeOverhang(
+  page: Page,
+  requests: OverhangRequest[],
+  terrain: Record<string, "sea" | "land" | "unknown">,
+): Promise<Record<string, OverhangResult[]>> {
+  return page.evaluate(
+    (input: { batch: OverhangRequest[]; terrain: Record<string, string> }) => {
+      const svg = document.querySelector("svg") as SVGSVGElement;
+      const layer = svg.querySelector("#provinces");
+      const probe = svg.createSVGPoint();
+      const base = (key: string) => (key.includes("/") ? key.slice(0, key.indexOf("/")) : key);
+
+      const svgCTM = svg.getScreenCTM();
+      const matrices = new WeakMap<Element, DOMMatrix | null>();
+      const intoShape = (shape: SVGGraphicsElement): DOMMatrix | null => {
+        if (matrices.has(shape)) return matrices.get(shape) || null;
+        const own = shape.getScreenCTM();
+        const matrix = own && svgCTM ? own.inverse().multiply(svgCTM) : null;
+        matrices.set(shape, matrix);
+        return matrix;
+      };
+
+      const all: SVGGeometryElement[] = [];
+      if (layer) {
+        Array.prototype.forEach.call(layer.children, (shape: Element) => {
+          if (shape instanceof SVGGeometryElement) all.push(shape);
+        });
+      }
+
+      const hits = (shape: SVGGeometryElement, x: number, y: number): boolean => {
+        const matrix = intoShape(shape);
+        probe.x = x;
+        probe.y = y;
+        const local = matrix ? probe.matrixTransform(matrix) : probe;
+        return shape.isPointInFill(local);
+      };
+
+      const answer: Record<string, OverhangResult[]> = {};
+      for (const request of input.batch) {
+        const own = all.filter(
+          (shape) => shape.id === request.key || (request.key === base(request.key) && base(shape.id) === request.key),
+        );
+        const others = all.filter((shape) => !own.includes(shape));
+
+        // The province's own outline as points, for the clearance figure.
+        const border: Array<[number, number]> = [];
+        for (const shape of own) {
+          const length = shape.getTotalLength();
+          if (!length) continue;
+          const count = Math.max(24, Math.min(400, Math.round(length / 3)));
+          const matrix = intoShape(shape);
+          const back = matrix ? matrix.inverse() : null;
+          for (let i = 0; i < count; i++) {
+            const at = shape.getPointAtLength((length * i) / count);
+            probe.x = at.x;
+            probe.y = at.y;
+            const mapped = back ? probe.matrixTransform(back) : at;
+            border.push([mapped.x, mapped.y]);
+          }
+        }
+
+        answer[request.key] = request.centres.map(([cx, cy]) => {
+          const inside = own.some((shape) => hits(shape, cx, cy));
+          let clearance = Infinity;
+          for (const point of border) {
+            const d = Math.hypot(point[0] - cx, point[1] - cy);
+            if (d < clearance) clearance = d;
+          }
+          let land = 0;
+          let sea = 0;
+          let open = 0;
+          for (let i = 0; i < request.samples; i++) {
+            const angle = (2 * Math.PI * i) / request.samples;
+            const x = cx + Math.cos(angle) * request.radius;
+            const y = cy + Math.sin(angle) * request.radius;
+            if (own.some((shape) => hits(shape, x, y))) continue;
+            const neighbour = others.find((shape) => hits(shape, x, y));
+            if (!neighbour) open++;
+            else if (input.terrain[base(neighbour.id)] === "sea") sea++;
+            else land++;
+          }
+          return {
+            inside: inside,
+            clearance: clearance === Infinity ? 0 : clearance,
+            land: land,
+            sea: sea,
+            open: open,
+          };
+        });
+      }
+      return answer;
+    },
+    { batch: requests, terrain: terrain },
+  );
+}
