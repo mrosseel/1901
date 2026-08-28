@@ -178,14 +178,50 @@ button.link {
 
 .nation { color: var(--muted); font-size: 11px; min-width: 62px; }
 
+/* Order drawings. Picking one in the list brings it forward. */
+#order-overlay .order { pointer-events: none; }
+#order-overlay .order.dim { opacity: 0.25; }
+
+.list li.pickable { cursor: pointer; }
+.list li.pickable:hover { background: var(--panel-2); }
+.list li.picked { background: var(--panel-2); box-shadow: inset 2px 0 0 var(--accent); }
+.list li.pickable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Anchored chip: the choices for a tap that means more than one thing. */
+#chip {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+#chip button { padding: 8px 14px; white-space: nowrap; }
+
+#chip .chip-close {
+  padding: 8px 10px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+}
+
 #status { color: var(--muted); font-size: 12px; margin: 0; min-height: 1.4em; }
 #status.error { color: #ff8b8b; }
 
-/* --- Narrow screens ------------------------------------------------------
-   One column: the map gets the whole viewport width and most of its height,
-   the sidebar sits underneath, and the option buttons become a bottom bar so
-   the map never gets pushed off screen while an order is being built. */
-@media (max-width: 780px) {
+/* --- Phone screens -------------------------------------------------------
+   Any viewport that is narrow OR short — which covers a phone held either
+   way. One column: the map gets the whole viewport width and most of its
+   height, the sidebar sits underneath, and the option buttons become a
+   bottom bar so the map is never pushed off screen while an order is being
+   built. Keep the breakpoints in step with NARROW_PX and SHORT_PX in app.js. */
+@media (max-width: 780px), (max-height: 500px) {
   #layout {
     grid-template-columns: 100%;
     grid-template-rows: 58vh minmax(0, 1fr);
@@ -228,4 +264,15 @@ button.link {
   #builder-buttons button { flex: 0 0 auto; padding: 10px 14px; }
 
   button { padding: 9px 14px; }
+}
+
+/* Landscape on a phone: vertical space is the scarce one, so give the map
+   more of it and tighten the panel underneath. */
+@media (max-height: 500px) {
+  #layout { grid-template-rows: 75vh minmax(0, 1fr); }
+
+  #sidebar { padding: 8px 12px 88px; gap: 10px; }
+  #sidebar h2 { margin-bottom: 4px; }
+  #builder { padding: 6px 12px calc(6px + env(safe-area-inset-bottom)); }
+  #builder .crumbs { margin: 0 0 6px; }
 }

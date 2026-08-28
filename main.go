@@ -1,4 +1,8 @@
-// Command spike serves one hardcoded in-memory classical Diplomacy game.
+// Command spike serves in-memory classical Diplomacy games.
+//
+// Games live under /g/{id}/. An unknown id creates a fresh Spring 1901
+// game, so any shareable URL always shows a live board. The unprefixed
+// endpoints are an alias for the game with id "default".
 package main
 
 import (
@@ -8,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -21,6 +26,9 @@ import (
 // ADDR=:8000 to use a port the host firewall already allows.
 const defaultAddr = ":8190"
 
+// defaultGameID backs the unprefixed endpoints.
+const defaultGameID = "default"
+
 func listenAddr() string {
 	if a := os.Getenv("ADDR"); a != "" {
 		return a
@@ -28,7 +36,7 @@ func listenAddr() string {
 	return defaultAddr
 }
 
-// game holds the single in-memory game and guards it against concurrent requests.
+// game holds one in-memory game and guards it against concurrent requests.
 type game struct {
 	mu    sync.Mutex
 	state *state.State
@@ -36,7 +44,43 @@ type game struct {
 	parts map[godip.Province][]string
 }
 
-var g = &game{parts: map[godip.Province][]string{}}
+func newGame() (*game, error) {
+	s, err := classical.Start()
+	if err != nil {
+		return nil, err
+	}
+	return &game{state: s, parts: map[godip.Province][]string{}}, nil
+}
+
+// registry holds every live game, keyed by id.
+type registry struct {
+	mu    sync.Mutex
+	games map[string]*game
+}
+
+var games = &registry{games: map[string]*game{}}
+
+var idPattern = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
+
+func validID(id string) bool {
+	return idPattern.MatchString(id)
+}
+
+// get returns the game with the given id, creating it if it is unknown.
+func (self *registry) get(id string) (*game, error) {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+	if g, found := self.games[id]; found {
+		return g, nil
+	}
+	g, err := newGame()
+	if err != nil {
+		return nil, err
+	}
+	self.games[id] = g
+	log.Printf("created game %q", id)
+	return g, nil
+}
 
 type phaseJSON struct {
 	Season string `json:"season"`
@@ -50,18 +94,21 @@ type unitJSON struct {
 }
 
 type stateJSON struct {
+	GameID        string              `json:"gameId"`
 	Phase         phaseJSON           `json:"phase"`
 	Units         map[string]unitJSON `json:"units"`
 	Orders        map[string]string   `json:"orders"`
+	OrderParts    map[string][]string `json:"orderParts"`
 	Resolutions   map[string]string   `json:"resolutions"`
 	SupplyCenters map[string]string   `json:"supplyCenters"`
 	Nations       []string            `json:"nations"`
 }
 
-// snapshot renders the current state as JSON. The caller must hold g.mu.
-func (self *game) snapshot() stateJSON {
+// snapshot renders the current state as JSON. The caller must hold self.mu.
+func (self *game) snapshot(id string) stateJSON {
 	s := self.state
 	out := stateJSON{
+		GameID: id,
 		Phase: phaseJSON{
 			Season: string(s.Phase().Season()),
 			Year:   s.Phase().Year(),
@@ -69,6 +116,7 @@ func (self *game) snapshot() stateJSON {
 		},
 		Units:         map[string]unitJSON{},
 		Orders:        map[string]string{},
+		OrderParts:    map[string][]string{},
 		Resolutions:   map[string]string{},
 		SupplyCenters: map[string]string{},
 	}
@@ -80,6 +128,7 @@ func (self *game) snapshot() stateJSON {
 	}
 	for prov, bits := range self.parts {
 		out.Orders[string(prov)] = self.describe(prov, bits)
+		out.OrderParts[string(prov)] = bits
 	}
 	for prov, err := range s.Resolutions() {
 		if err == nil {
@@ -136,13 +185,13 @@ func writeErr(w http.ResponseWriter, code int, format string, args ...interface{
 	writeJSON(w, code, map[string]string{"error": fmt.Sprintf(format, args...)})
 }
 
-func handleState(w http.ResponseWriter, r *http.Request) {
+func handleState(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	writeJSON(w, http.StatusOK, g.snapshot())
+	writeJSON(w, http.StatusOK, g.snapshot(id))
 }
 
-func handleMap(w http.ResponseWriter, r *http.Request) {
+func handleMap(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	b, err := classical.ClassicalVariant.SVGMap()
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "svg map: %v", err)
@@ -163,7 +212,7 @@ func nationFor(s *state.State, prov godip.Province) (godip.Nation, bool) {
 	return "", false
 }
 
-func handleOptions(w http.ResponseWriter, r *http.Request) {
+func handleOptions(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	prov := godip.Province(r.URL.Query().Get("province"))
 	if prov == "" {
 		writeErr(w, http.StatusBadRequest, "province query parameter is required")
@@ -194,7 +243,7 @@ type orderRequest struct {
 	Parts    []string `json:"parts"`
 }
 
-func handleOrder(w http.ResponseWriter, r *http.Request) {
+func handleOrder(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
@@ -247,10 +296,10 @@ func handleOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	g.parts[prov] = parts
 
-	writeJSON(w, http.StatusOK, g.snapshot())
+	writeJSON(w, http.StatusOK, g.snapshot(id))
 }
 
-func handleAdjudicate(w http.ResponseWriter, r *http.Request) {
+func handleAdjudicate(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
@@ -263,7 +312,78 @@ func handleAdjudicate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.parts = map[godip.Province][]string{}
-	writeJSON(w, http.StatusOK, g.snapshot())
+	writeJSON(w, http.StatusOK, g.snapshot(id))
+}
+
+type gameHandler func(g *game, id string, w http.ResponseWriter, r *http.Request)
+
+var apiRoutes = map[string]gameHandler{
+	"state":      handleState,
+	"options":    handleOptions,
+	"order":      handleOrder,
+	"adjudicate": handleAdjudicate,
+	"map.svg":    handleMap,
+}
+
+// scoped binds a handler to a fixed game id, for the unprefixed endpoints.
+func scoped(id string, h gameHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		g, err := games.get(id)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "create game %v: %v", id, err)
+			return
+		}
+		h(g, id, w, r)
+	}
+}
+
+// server holds what the request handlers need beyond the registry.
+type server struct {
+	dir    string
+	static http.Handler
+}
+
+// servePage serves the single page application shell.
+func (self *server) servePage(w http.ResponseWriter, r *http.Request) {
+	index := filepath.Join(self.dir, "index.html")
+	if _, err := os.Stat(index); err != nil {
+		http.Error(w, "static/index.html not present yet", http.StatusNotFound)
+		return
+	}
+	http.ServeFile(w, r, index)
+}
+
+// serveGame routes /g/{id}/... to the game with that id, creating it on demand.
+func (self *server) serveGame(w http.ResponseWriter, r *http.Request) {
+	rest := strings.TrimPrefix(r.URL.Path, "/g/")
+	id, sub, hasSlash := strings.Cut(rest, "/")
+	if !validID(id) {
+		http.NotFound(w, r)
+		return
+	}
+	if !hasSlash {
+		target := "/g/" + id + "/"
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, target, http.StatusFound)
+		return
+	}
+
+	g, err := games.get(id)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "create game %v: %v", id, err)
+		return
+	}
+	if sub == "" {
+		self.servePage(w, r)
+		return
+	}
+	if h, found := apiRoutes[sub]; found {
+		h(g, id, w, r)
+		return
+	}
+	http.NotFound(w, r)
 }
 
 // staticHandler serves the static directory, or a placeholder while it is missing.
@@ -279,26 +399,19 @@ func staticHandler(dir string) http.Handler {
 }
 
 func main() {
-	s, err := classical.Start()
-	if err != nil {
-		log.Fatalf("classical start: %v", err)
-	}
-	g.state = s
-
 	dir := "static"
 	if abs, err := filepath.Abs(dir); err == nil {
 		dir = abs
 	}
-	static := staticHandler(dir)
+	srv := &server{dir: dir, static: staticHandler(dir)}
 
 	mux := http.NewServeMux()
-	mux.Handle("/static/", http.StripPrefix("/static/", static))
-	mux.Handle("/", static)
-	mux.HandleFunc("/map.svg", handleMap)
-	mux.HandleFunc("/state", handleState)
-	mux.HandleFunc("/options", handleOptions)
-	mux.HandleFunc("/order", handleOrder)
-	mux.HandleFunc("/adjudicate", handleAdjudicate)
+	mux.Handle("/static/", http.StripPrefix("/static/", srv.static))
+	mux.Handle("/", srv.static)
+	mux.HandleFunc("/g/", srv.serveGame)
+	for path, h := range apiRoutes {
+		mux.HandleFunc("/"+path, scoped(defaultGameID, h))
+	}
 
 	addr := listenAddr()
 	log.Printf("listening on http://localhost%v (static from %v)", addr, dir)

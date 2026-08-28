@@ -42,6 +42,7 @@ let STATE = {
     tri: { type: "Fleet", nation: "Austria" },
   },
   orders: {},
+  orderParts: {},
   resolutions: {},
 };
 
@@ -80,8 +81,18 @@ const OPTIONS = {
 
 window.__calls = [];
 
+// Lets the harness put a board together without going through the UI.
+window.__setOrder = (province, parts) => {
+  STATE = Object.assign({}, STATE, {
+    orders: Object.assign({}, STATE.orders, { [province]: parts.join(" ") }),
+    orderParts: Object.assign({}, STATE.orderParts, { [province]: parts }),
+  });
+};
+
 window.fetch = async function (url, opts) {
-  const path = String(url);
+  // app.js addresses endpoints relative to the page, so match on the tail.
+  const path = "/" + new URL(String(url), location.href).pathname.split("/").pop() +
+    (String(url).includes("?") ? "?" + String(url).split("?")[1] : "");
   window.__calls.push({ url: path, body: opts && opts.body ? JSON.parse(opts.body) : null });
   const ok = (payload, text) => ({
     ok: true,
@@ -99,11 +110,12 @@ window.fetch = async function (url, opts) {
     const body = JSON.parse(opts.body);
     STATE = Object.assign({}, STATE, {
       orders: Object.assign({}, STATE.orders, { [body.province]: body.parts.join(" ") }),
+      orderParts: Object.assign({}, STATE.orderParts, { [body.province]: body.parts }),
     });
     return ok(STATE);
   }
   if (path === "/adjudicate") {
-    STATE = Object.assign({}, STATE, { resolutions: { vie: "OK" } });
+    STATE = Object.assign({}, STATE, { orders: {}, orderParts: {}, resolutions: { vie: "OK" } });
     return ok(STATE);
   }
   return { ok: false, status: 404, text: async () => "no stub", json: async () => ({}) };
@@ -171,23 +183,161 @@ async function run() {
   const types = Array.from(document.querySelectorAll("#builder-buttons button")).map((b) => b.textContent);
   check("root Province node skipped", types.join(",") === "Hold,Move,Support", types.join(","));
 
-  buttonNamed("Move").click();
-  await wait(() => buttonNamed("TRI"), "move targets");
-  const targets = Array.from(document.querySelectorAll("#builder-buttons button")).map((b) => b.textContent);
-  check("SrcProvince auto-selected", targets.join(",") === "BUD,TRI", targets.join(","));
-  check("targets highlighted", document.querySelectorAll("#provinces .legal").length === 2);
+  // Move is pre-selected: the targets are highlighted with no button press.
+  const preLegal = Array.from(document.querySelectorAll("#provinces .legal")).map((e) => e.id).sort();
+  check("move targets highlighted at once", preLegal.join(",") === "bud,tri", preLegal.join(","));
   check("source highlighted", document.querySelectorAll("#provinces .selected").length === 1);
 
-  buttonNamed("TRI").click();
+  // Second tap on a highlighted province is the whole order.
+  document.querySelector("#provinces #tri").dispatchEvent(new MouseEvent("click", { bubbles: true }));
   await wait(() => window.__calls.some((c) => c.url === "/order"), "POST /order");
   const posted = window.__calls.find((c) => c.url === "/order").body;
   check(
-    "order body",
+    "two-tap move body",
     JSON.stringify(posted) === JSON.stringify({ province: "vie", parts: ["Move", "tri"] }),
     JSON.stringify(posted)
   );
   await wait(() => document.querySelectorAll("#orders li").length === 1, "sidebar order");
   check("builder closed", document.getElementById("builder").hidden === true);
+
+  // An occupied reachable province raises the chip.
+  const tapProvince = (id) => {
+    const el = document.querySelector("#provinces #" + CSS.escape(id));
+    const r = el.getBoundingClientRect();
+    el.dispatchEvent(new MouseEvent("click", {
+      bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+  };
+  const chipButton = (label) => Array.from(document.querySelectorAll("#chip button"))
+    .find((b) => b.textContent === label);
+  // The unit is picked and no branch has been entered yet.
+  const pickMode = () => /Tap an empty province/.test(document.getElementById("status").textContent);
+
+  tapProvince("vie");
+  await wait(pickMode, "reachable set");
+  tapProvince("bud");
+  await wait(() => document.getElementById("chip"), "chip");
+  check("chip offers both readings",
+        Array.from(document.querySelectorAll("#chip button")).map((b) => b.textContent).join(",") === "Attack,Support,×",
+        Array.from(document.querySelectorAll("#chip button")).map((b) => b.textContent).join(","));
+  check("chip is anchored on screen", (() => {
+    const r = document.getElementById("chip").getBoundingClientRect();
+    return r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight;
+  })());
+  check("chip narrates", /Attack or support/.test(document.getElementById("status").textContent),
+        document.getElementById("status").textContent);
+
+  // Support from the chip: highlight the supported unit's destinations.
+  chipButton("Support").click();
+  await wait(() => /Supporting/.test(document.getElementById("status").textContent), "support mode");
+  const supLegal = Array.from(document.querySelectorAll("#provinces .legal")).map((e) => e.id).sort();
+  check("support destinations highlighted", supLegal.join(",") === "bud,ser", supLegal.join(","));
+  check("chip dismissed after picking", document.getElementById("chip") === null);
+  tapProvince("ser");
+  await wait(() => window.__calls.filter((c) => c.url === "/order").length === 2, "support POST");
+  check("support-move via chip",
+        JSON.stringify(window.__calls.filter((c) => c.url === "/order")[1].body) ===
+          JSON.stringify({ province: "vie", parts: ["Support", "bud", "ser"] }),
+        JSON.stringify(window.__calls.filter((c) => c.url === "/order")[1].body));
+
+  // Support-hold: in support mode, tap the supported unit itself.
+  tapProvince("vie");
+  await wait(pickMode, "reachable set again");
+  tapProvince("bud");
+  await wait(() => document.getElementById("chip"), "chip again");
+  chipButton("Support").click();
+  await wait(() => /Supporting/.test(document.getElementById("status").textContent), "support mode again");
+  tapProvince("bud");
+  await wait(() => window.__calls.filter((c) => c.url === "/order").length === 3, "support-hold POST");
+  check("support-hold via chip",
+        JSON.stringify(window.__calls.filter((c) => c.url === "/order")[2].body) ===
+          JSON.stringify({ province: "vie", parts: ["Support", "bud", "bud"] }),
+        JSON.stringify(window.__calls.filter((c) => c.url === "/order")[2].body));
+
+  // Attack from the chip is a plain move.
+  tapProvince("vie");
+  await wait(pickMode, "reachable set once more");
+  tapProvince("bud");
+  await wait(() => document.getElementById("chip"), "chip once more");
+  chipButton("Attack").click();
+  await wait(() => window.__calls.filter((c) => c.url === "/order").length === 4, "attack POST");
+  check("attack via chip",
+        JSON.stringify(window.__calls.filter((c) => c.url === "/order")[3].body) ===
+          JSON.stringify({ province: "vie", parts: ["Move", "bud"] }),
+        JSON.stringify(window.__calls.filter((c) => c.url === "/order")[3].body));
+
+  // Escape backs out of support mode, then out of the order.
+  tapProvince("vie");
+  await wait(pickMode, "reachable set for escape");
+  tapProvince("bud");
+  await wait(() => document.getElementById("chip"), "chip for escape");
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  check("escape closes the chip first", document.getElementById("chip") === null &&
+        document.getElementById("builder").hidden === false);
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  check("escape then closes the order", document.getElementById("builder").hidden === true);
+  check("escape posted nothing", window.__calls.filter((c) => c.url === "/order").length === 4);
+
+  // The Move button still works, and reaching it drops the shortcut.
+  document.querySelector("#provinces #vie").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  await wait(() => buttonNamed("Move"), "options for vie");
+  buttonNamed("Move").click();
+  await wait(() => buttonNamed("TRI"), "move target buttons");
+  const targets = Array.from(document.querySelectorAll("#builder-buttons button")).map((b) => b.textContent);
+  check("SrcProvince auto-selected", targets.join(",") === "BUD,TRI", targets.join(","));
+  buttonNamed("BUD").click();
+  await wait(() => window.__calls.filter((c) => c.url === "/order").length === 5, "move-by-button POST");
+  check(
+    "move via buttons body",
+    JSON.stringify(window.__calls.filter((c) => c.url === "/order")[4].body) ===
+      JSON.stringify({ province: "vie", parts: ["Move", "bud"] })
+  );
+
+  // Hold from the bottom bar posts at once.
+  document.querySelector("#provinces #vie").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  await wait(() => buttonNamed("Hold"), "options for vie");
+  buttonNamed("Hold").click();
+  await wait(() => window.__calls.filter((c) => c.url === "/order").length === 6, "hold POST");
+  check(
+    "hold body",
+    JSON.stringify(window.__calls.filter((c) => c.url === "/order")[5].body) ===
+      JSON.stringify({ province: "vie", parts: ["Hold"] })
+  );
+  await wait(() => document.getElementById("builder").hidden === true, "builder to close");
+  check("builder closed after hold", document.getElementById("builder").hidden === true);
+
+  // Double tapping a unit holds; double tapping open sea zooms.
+  const doubleTap = async (x, y) => {
+    const map = document.getElementById("map");
+    for (let i = 0; i < 2; i++) {
+      map.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 20 + i, pointerType: "touch", clientX: x, clientY: y, bubbles: true }));
+      map.dispatchEvent(new PointerEvent("pointerup", { pointerId: 20 + i, pointerType: "touch", clientX: x, clientY: y, bubbles: true }));
+    }
+  };
+  const midOf = (id) => {
+    const r = document.querySelector("#provinces #" + CSS.escape(id)).getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  };
+  const vieMid = midOf("vie");
+  await doubleTap(vieMid.x, vieMid.y);
+  await wait(() => window.__calls.filter((c) => c.url === "/order").length === 7, "double tap hold POST");
+  check(
+    "double tap on unit posts Hold",
+    JSON.stringify(window.__calls.filter((c) => c.url === "/order")[6].body) ===
+      JSON.stringify({ province: "vie", parts: ["Hold"] })
+  );
+  check("double tap leaves no builder open", document.getElementById("builder").hidden === true);
+  check("double tap reports it", /^Ordered: vie Hold/.test(document.getElementById("status").textContent),
+        document.getElementById("status").textContent);
+
+  const zoomBefore = window.__app.getZoom();
+  const sea = midOf("ser");   // no unit in this stub province
+  await doubleTap(sea.x, sea.y);
+  await wait(() => window.__app.getZoom() > zoomBefore, "double tap zoom off-unit");
+  check("double tap off a unit zooms", window.__app.getZoom() > zoomBefore,
+        zoomBefore.toFixed(2) + " → " + window.__app.getZoom().toFixed(2));
+  check("no extra order from the zoom tap", window.__calls.filter((c) => c.url === "/order").length === 7);
+  window.__app.resetView();
+  await new Promise((r) => setTimeout(r, 320));   // let the gesture's click block lapse
 
   // A three-step support order, chosen by clicking the map instead of buttons.
   document.querySelector("#provinces #bud").dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -200,17 +350,74 @@ async function run() {
   buttonNamed("BUD").click();
   await wait(() => buttonNamed("SER"), "support target");
   document.querySelector("#provinces #ser").dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  await wait(() => window.__calls.filter((c) => c.url === "/order").length === 2, "second POST /order");
-  const support = window.__calls.filter((c) => c.url === "/order")[1].body;
+  await wait(() => window.__calls.filter((c) => c.url === "/order").length === 8, "support-by-button POST");
+  const support = window.__calls.filter((c) => c.url === "/order")[7].body;
   check(
     "support order body",
     JSON.stringify(support) === JSON.stringify({ province: "vie", parts: ["Support", "bud", "ser"] }),
     JSON.stringify(support)
   );
 
+  // --- Order graphics and the clickable list.
+  const graphic = (p) => document.querySelector('#order-overlay .order[data-province="' + p + '"]');
+  // Put one of every order kind on the board at once.
+  window.__setOrder("vie", ["Move", "tri"]);
+  window.__setOrder("bud", ["Hold"]);
+  window.__setOrder("tri", ["Support", "bud", "ser"]);
+  window.__setOrder("ser", ["Support", "bud"]);
+  window.__app.refresh();
+  await wait(() => graphic("ser"), "all graphics");
+  check("move graphic is one closed arrow outline", (() => {
+    const g = graphic("vie");
+    const poly = g && g.querySelector("polygon.order-line");
+    const halo = g && g.querySelector("polygon.order-halo");
+    // Shaft and head in a single 7-point polygon, with a dark twin behind it.
+    return Boolean(poly && halo &&
+      poly.getAttribute("points").trim().split(/\s+/).length === 7 &&
+      halo.getAttribute("points") === poly.getAttribute("points") &&
+      poly.getAttribute("fill") !== "none" &&
+      parseFloat(halo.getAttribute("stroke-width")) > 0);
+  })(), graphic("vie") ? graphic("vie").innerHTML.slice(0, 80) : "missing");
+  check("arrow halo is painted before the colour", (() => {
+    const kids = Array.from(graphic("vie").children).map((n) => n.getAttribute("class"));
+    return kids.indexOf("order-halo") < kids.indexOf("order-line");
+  })());
+  check("hold graphic is a ring",
+        Boolean(graphic("bud") && graphic("bud").querySelector("circle.order-line")));
+  check("support-move graphic is a dashed curve", (() => {
+    const path = graphic("tri") && graphic("tri").querySelector("path.order-line");
+    return Boolean(path && path.getAttribute("stroke-dasharray") && /^M .* Q /.test(path.getAttribute("d")));
+  })());
+  check("support-hold graphic ends in an open circle",
+        Boolean(graphic("ser") && graphic("ser").querySelector("path.order-line") &&
+                graphic("ser").querySelector("circle.order-line")));
+  check("every graphic has a dark halo under it",
+        Array.from(document.querySelectorAll("#order-overlay .order"))
+          .every((g) => g.querySelector(".order-halo") &&
+            Array.from(g.children).map((n) => n.getAttribute("class")).lastIndexOf("order-halo") <
+            Array.from(g.children).map((n) => n.getAttribute("class")).indexOf("order-line")));
+
+  const beforeWidth = parseFloat(graphic("vie").querySelector(".order-halo").getAttribute("stroke-width"));
+  const row = document.querySelector('#orders li[data-province="vie"]');
+  check("orders list rows are pickable", Boolean(row));
+  row.click();
+  await wait(() => graphic("vie").classList.contains("hot"), "picked graphic");
+  check("picking a row thickens its graphic",
+        parseFloat(graphic("vie").querySelector(".order-halo").getAttribute("stroke-width")) > beforeWidth);
+  check("picking a row dims the others",
+        graphic("bud").classList.contains("dim") && graphic("ser").classList.contains("dim"));
+  check("picked row is marked",
+        document.querySelector('#orders li[data-province="vie"]').classList.contains("picked"));
+  document.querySelector('#orders li[data-province="vie"]').click();
+  await wait(() => !graphic("vie").classList.contains("hot"), "unpicked");
+  check("clicking again clears the highlight",
+        !graphic("bud").classList.contains("dim"));
+
   document.getElementById("adjudicate").click();
   await wait(() => !document.getElementById("resolutions-pane").hidden, "resolutions");
   check("resolutions listed", document.querySelectorAll("#resolutions li").length === 1);
+  check("adjudication clears the order graphics",
+        document.querySelectorAll("#order-overlay .order").length === 0);
 
   check("no uncaught JS errors", window.__errors.length === 0, window.__errors.join(" | "));
 }
