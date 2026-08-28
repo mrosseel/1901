@@ -3,9 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Restyles converted jDip maps in godip's classical style (DESIGN.md D-016).",
+  "description": "Puts converted jDip maps into a named style (DESIGN.md D-016, D-017).",
   "scripts": {
     "restyle": "node restyle.ts",
-    "test": "node --test tokens.test.ts"
+    "extract-parchment": "node extract-parchment.ts",
+    "test": "node --test tokens.test.ts styles.test.ts"
   }
 }

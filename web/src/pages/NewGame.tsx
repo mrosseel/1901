@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createGame, fetchVariants, type CreatedGame } from "../api";
 import { LinkShare } from "../components/LinkShare";
 import { VariantGallery } from "../components/VariantGallery";
+import { StylePicker, useMapStyle } from "../components/StylePicker";
 import {
   DEFAULT_VARIANT,
   claimLine,
@@ -28,6 +29,7 @@ export function NewGame() {
   const [game, setGame] = useState<CreatedGame | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [chosen, setChosen] = useState(DEFAULT_VARIANT);
+  const [style, setStyle] = useMapStyle();
   const [loadingVariants, setLoadingVariants] = useState(true);
 
   useEffect(() => {
@@ -123,14 +125,18 @@ export function NewGame() {
           </p>
         ) : (
           <>
-            <p className="note">
-              Only classical has been checked against its map. The rest are drawn from
-              godip and are open to try.
-            </p>
+            <div className="gallery-head">
+              <p className="note">
+                A tick marks a map that has been checked against its board. Tap a map to
+                look at it closely; tap the card to pick it.
+              </p>
+              <StylePicker value={style} onChange={setStyle} />
+            </div>
             <VariantGallery
               variants={variants}
               chosen={chosen}
               gmPlays={gmPlays}
+              style={style}
               onChoose={setChosen}
             />
           </>
@@ -165,7 +171,6 @@ export function NewGame() {
         {picked ? (
           <p className="muted">
             {picked.name}
-            {picked.supported ? "" : " · experimental"}
             {picked.powerCount ? " — " + claimLine(picked.powerCount, gmPlays) : ""}
           </p>
         ) : null}

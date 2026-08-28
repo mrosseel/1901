@@ -1,0 +1,69 @@
+{
+  "name": "midnight",
+  "title": "Midnight",
+  "description": "Dark sea, muted land, light names with a dark halo. For a phone in a dim room.",
+  "referenceWidth": 1524,
+  "terrain": {
+    "land": "#49545f",
+    "sea": "#13202e",
+    "impassable": "url(#impassableStripes)",
+    "ground": "#0b131c"
+  },
+  "border": {
+    "stroke": "#8d9db1",
+    "width": 0.9,
+    "opacity": 0.8,
+    "dash": null,
+    "linejoin": "round"
+  },
+  "coast": {
+    "mode": "none",
+    "stroke": "#050a10",
+    "width": 4,
+    "blur": 5.76
+  },
+  "grain": {
+    "patternId": "pattern1827",
+    "opacity": 0.04,
+    "defs": [
+      "assets/paper-grain.svg"
+    ]
+  },
+  "defs": [
+    "assets/hatch-midnight.svg"
+  ],
+  "fonts": [
+    "assets/libre-baskerville.css"
+  ],
+  "typography": {
+    "land": {
+      "family": "LibreBaskerville-Bold, 'Libre Baskerville'",
+      "weight": "bold",
+      "style": "normal",
+      "letterSpacing": -0.5,
+      "fill": "#eef3f9",
+      "halo": {
+        "color": "#131c26",
+        "width": 1.1
+      }
+    },
+    "sea": {
+      "family": "LibreBaskerville-Italic, 'Libre Baskerville'",
+      "weight": "normal",
+      "style": "italic",
+      "letterSpacing": 0,
+      "fill": "#9dc2e2",
+      "halo": {
+        "color": "#070d14",
+        "width": 1.1
+      }
+    },
+    "seaAbbrevLetterSpacing": 3
+  },
+  "supplyCentre": {
+    "fill": "#f0d79a",
+    "stroke": "#0b131c",
+    "strokeWidth": 0.8,
+    "opacity": 1
+  }
+}

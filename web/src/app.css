@@ -250,8 +250,25 @@ input[type="number"] {
   justify-content: center;
 }
 
+/* The preview is a button, so it has to shed the button chrome and keep the
+   box the card was laid out around. */
+button.variant-map {
+  width: 100%;
+  padding: 0;
+  cursor: zoom-in;
+  font: inherit;
+  color: inherit;
+}
+button.variant-map:disabled { cursor: default; }
+button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
+
 /* A thumb has to be able to hit it, so the link gets a row of its own. */
 .variant button.link { align-self: flex-start; padding: 9px 0; }
+
+/* The card is one big tap target for picking, so its cursor says so — except
+   over the two things that do something else. */
+.variant { cursor: pointer; }
+.variant [data-no-select] { cursor: pointer; }
 
 .variant-map-img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .variant-map .muted { font-size: 12px; padding: 8px; text-align: center; }
@@ -551,4 +568,114 @@ input[type="number"] {
   .side { padding: 8px 12px 112px; gap: 10px; }
   .builder { padding: 6px 12px calc(6px + env(safe-area-inset-bottom)); }
   .builder .crumbs { margin: 0 0 6px; }
+}
+
+/* --- the map style picker ------------------------------------------------- */
+/* Small, and never the loudest thing on a page: it changes how the map looks
+   and nothing about the game. */
+.style-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.style-picker-label {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.style-picker select {
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+/* The note and the picker share a line on a wide screen and stack on a phone. */
+.gallery-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.gallery-head .note { margin: 0; flex: 1 1 240px; }
+
+/* The tick beside a variant whose board art is verified. Nothing marks the
+   others: silence is the honest default. */
+.supported-mark {
+  color: var(--good);
+  font-size: 14px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+/* --- the gallery lightbox ------------------------------------------------- */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(6, 8, 11, 0.97);
+  display: flex;
+  flex-direction: column;
+  /* The browser's own pan and pinch must not fight the map's. */
+  touch-action: none;
+  overscroll-behavior: contain;
+  transition: transform 90ms linear, opacity 90ms linear;
+}
+
+.lightbox-stage {
+  flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The map is laid out at its own size and then transformed, so the pan and
+   zoom arithmetic can work in the image's own pixels. */
+.lightbox-map {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.lightbox-note {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.lightbox-hint {
+  margin: 0;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  right: 10px;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
+  border-radius: 22px;
+  background: var(--panel-2);
 }

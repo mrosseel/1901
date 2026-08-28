@@ -1,0 +1,55 @@
+{
+  "name": "print",
+  "title": "Print",
+  "description": "Light greys, black hairlines, no texture. Survives a projector and a photocopier.",
+  "referenceWidth": 1524,
+  "terrain": {
+    "land": "#ffffff",
+    "sea": "#dfe4e8",
+    "impassable": "url(#impassableStripes)",
+    "ground": "#dfe4e8"
+  },
+  "border": {
+    "stroke": "#12171c",
+    "width": 0.8,
+    "opacity": 1,
+    "dash": null,
+    "linejoin": "miter"
+  },
+  "coast": {
+    "mode": "none",
+    "stroke": "#12171c",
+    "width": 3,
+    "blur": 4
+  },
+  "grain": null,
+  "defs": [
+    "assets/hatch-print.svg"
+  ],
+  "fonts": [],
+  "typography": {
+    "land": {
+      "family": "'Helvetica Neue', Helvetica, Arial, sans-serif",
+      "weight": "bold",
+      "style": "normal",
+      "letterSpacing": -0.3,
+      "fill": "#0d1114",
+      "halo": null
+    },
+    "sea": {
+      "family": "'Helvetica Neue', Helvetica, Arial, sans-serif",
+      "weight": "normal",
+      "style": "italic",
+      "letterSpacing": 0,
+      "fill": "#3b4a56",
+      "halo": null
+    },
+    "seaAbbrevLetterSpacing": 2
+  },
+  "supplyCentre": {
+    "fill": "#0d1114",
+    "stroke": "#ffffff",
+    "strokeWidth": 0.8,
+    "opacity": 1
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "name": "parchment",
+  "title": "Parchment",
+  "description": "godip's own classical map: two paper tones, a hairline border and Libre Baskerville.",
+  "referenceWidth": 1524,
+  "terrain": {
+    "land": "#f4d7b5",
+    "sea": "#d4d0ad",
+    "impassable": "url(#impassableStripes)",
+    "ground": "#d4d0ad"
+  },
+  "border": {
+    "stroke": "#000000",
+    "width": 1,
+    "opacity": 1,
+    "dash": null,
+    "linejoin": "round"
+  },
+  "coast": {
+    "mode": "shadow",
+    "stroke": "#000000",
+    "width": 4,
+    "blur": 5.7648684
+  },
+  "grain": {
+    "patternId": "pattern1827",
+    "opacity": 0.05,
+    "defs": [
+      "assets/paper-grain.svg"
+    ]
+  },
+  "defs": [
+    "assets/impassable-stripes.svg"
+  ],
+  "fonts": [
+    "assets/libre-baskerville.css"
+  ],
+  "typography": {
+    "land": {
+      "family": "LibreBaskerville-Bold, 'Libre Baskerville'",
+      "weight": "bold",
+      "style": "normal",
+      "letterSpacing": -0.5,
+      "fill": "#000000",
+      "halo": null
+    },
+    "sea": {
+      "family": "LibreBaskerville-Italic, 'Libre Baskerville'",
+      "weight": "normal",
+      "style": "italic",
+      "letterSpacing": 0,
+      "fill": "#000000",
+      "halo": null
+    },
+    "seaAbbrevLetterSpacing": 3
+  },
+  "supplyCentre": {
+    "fill": "#000000",
+    "stroke": "#000000",
+    "strokeWidth": 1,
+    "opacity": 1
+  }
+}

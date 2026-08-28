@@ -1,0 +1,16 @@
+<pattern
+       patternTransform="rotate(35)"
+       height="16"
+       width="16"
+       patternUnits="userSpaceOnUse"
+       id="impassableStripes">
+      <line
+         id="impassableStripesLine"
+         stroke-width="18"
+         stroke-opacity="0.1"
+         stroke="#000000"
+         y2="16"
+         x2="0"
+         y="0"
+         x1="0" />
+    </pattern>

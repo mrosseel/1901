@@ -3,7 +3,8 @@ import { ApiError, GmClient, type GmState } from "../api";
 import { LinkShare } from "../components/LinkShare";
 import { phaseLabel, powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
-import { EXPERIMENTAL_BADGE, SUPPORTED_BADGE } from "../variants";
+import { StylePicker, useMapStyle } from "../components/StylePicker";
+import { SupportedMark } from "../components/SupportedMark";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
 import { ReviewOverlay } from "../components/ReviewOverlay";
@@ -21,6 +22,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   const [notice, setNotice] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+  const [style, setStyle] = useMapStyle();
 
   const refresh = async () => {
     try {
@@ -105,10 +107,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           </p>
           {game.variant ? (
             <p className="variant-line">
-              <strong>{game.variant.name}</strong>{" "}
-              <span className={game.variant.supported ? "badge in" : "badge warn"}>
-                {game.variant.supported ? SUPPORTED_BADGE : EXPERIMENTAL_BADGE}
-              </span>
+              <strong>{game.variant.name}</strong> <SupportedMark supported={game.variant.supported} />
             </p>
           ) : null}
         </div>
@@ -211,6 +210,20 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           </p>
         </section>
       ) : null}
+
+      {/*
+      This device, not this game. The style is presentation: it belongs to the
+      screen looking at the map, so the game master's laptop and a player's
+      phone can each draw the board the way that room needs. Saved here, it is
+      the style the game master's own board opens in.
+      */}
+      <section className="card">
+        <h2>This device</h2>
+        <StylePicker value={style} onChange={setStyle} />
+        <p className="note">
+          Only this screen. It changes nothing any other player sees, and nothing about the game.
+        </p>
+      </section>
 
       {game.events && game.events.length ? (
         <section className="card">

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { claimSeat, fetchPublic, type PublicState } from "../api";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
-import { EXPERIMENTAL_BADGE, SUPPORTED_BADGE } from "../variants";
+import { SupportedMark } from "../components/SupportedMark";
 import { noteServerTime } from "../clock";
 
 /*
@@ -46,14 +46,11 @@ export function JoinPage({ gameId, inviteToken }: { gameId: string; inviteToken:
 
       <section className="card">
         <h2>The rules of this game</h2>
-        {/* The map comes before the rules: a player is claiming a power on
-            this board, and an unverified one is worth knowing about first. */}
+        {/* The variant comes before the rules: a player is claiming a power
+            on this board, so its name is the first thing to read. */}
         {game?.variant ? (
           <p className="variant-line">
-            <strong>{game.variant.name}</strong>{" "}
-            <span className={game.variant.supported ? "badge in" : "badge warn"}>
-              {game.variant.supported ? SUPPORTED_BADGE : EXPERIMENTAL_BADGE}
-            </span>
+            <strong>{game.variant.name}</strong> <SupportedMark supported={game.variant.supported} />
           </p>
         ) : null}
         {settingsLines(game?.settings).map((line) => (

@@ -7,9 +7,9 @@ nothing here trusts the shape. Every card line is built by a pure function and
 comes back as "" when there is nothing true to say, and the page simply leaves
 out the empty ones.
 
-Only classical is verified (D-014). Every other variant draws its map from
-godip but its start position has not been checked against the map, so the
-badge says so before anyone picks it.
+Only classical is verified (D-014): it is the one card that carries a tick.
+Every other variant draws its map from godip and plays, and says nothing about
+itself either way.
 */
 
 export interface Variant {
@@ -29,9 +29,6 @@ export interface Variant {
 
 /** The one variant whose placement is verified, and the preselected card. */
 export const DEFAULT_VARIANT = "classical";
-
-export const EXPERIMENTAL_BADGE = "Experimental — placement not verified";
-export const SUPPORTED_BADGE = "Supported";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -103,8 +100,8 @@ export function findVariant(list: Variant[], key: string): Variant | null {
 export interface VariantCard {
   key: string;
   name: string;
+  /** True for a variant whose board art is verified: it gets a tick. */
   supported: boolean;
-  badge: string;
   /** "7 powers", or "" when the server did not say. */
   powersLine: string;
   /** "Austria, England, …", or "" when the server did not say. */
@@ -141,7 +138,6 @@ export function variantCard(variant: Variant): VariantCard {
     key: variant.key,
     name: variant.name,
     supported: variant.supported,
-    badge: variant.supported ? SUPPORTED_BADGE : EXPERIMENTAL_BADGE,
     powersLine: powers ? powers + (powers === 1 ? " power" : " powers") : "",
     powerNames: variant.powers.join(", "),
     soloLine:

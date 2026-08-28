@@ -1,0 +1,22 @@
+[
+  {
+    "name": "parchment",
+    "title": "Parchment",
+    "description": "godip's own classical map: two paper tones, a hairline border and Libre Baskerville."
+  },
+  {
+    "name": "flat",
+    "title": "Flat",
+    "description": "Clear saturated sea and soft land tints, in the modern web-Diplomacy manner."
+  },
+  {
+    "name": "midnight",
+    "title": "Midnight",
+    "description": "Dark sea, muted land, light names with a dark halo. For a phone in a dim room."
+  },
+  {
+    "name": "print",
+    "title": "Print",
+    "description": "Light greys, black hairlines, no texture. Survives a projector and a photocopier."
+  }
+]

@@ -1,0 +1,4 @@
+<pattern patternTransform="rotate(35)" height="16" width="16" patternUnits="userSpaceOnUse" id="impassableStripes">
+  <rect id="impassableStripesGround" x="0" y="0" width="16" height="16" fill="#2b3440"/>
+  <line id="impassableStripesLine" stroke-width="8" stroke-opacity="0.45" stroke="#8496ab" y1="0" x1="0" y2="16" x2="0"/>
+</pattern>

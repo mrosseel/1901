@@ -28,6 +28,9 @@ import type {
 import { settingsLines, usePoll, useTicker } from "../hooks";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
+import { StylePicker, useMapStyle } from "../components/StylePicker";
+import { SupportedMark } from "../components/SupportedMark";
+import { styledMapUrl } from "../style";
 import { ReviewOverlay } from "../components/ReviewOverlay";
 import {
   dismiss,
@@ -55,6 +58,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const [gone, setGone] = useState(false);
   const [plan, setPlan] = useState<PhasePlan>(emptyPlan(""));
   const [reviewing, setReviewing] = useState(false);
+  const [style, setStyle] = useMapStyle();
   const handle = useRef<BoardHandle | null>(null);
   const knownVersion = useRef<number | null>(null);
   const fingerprint = useRef<string>("");
@@ -203,14 +207,22 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     };
   }, [reviewing, review]);
 
-  // The board island only ever talks to this seat's endpoints.
+  /*
+  The board island only ever talks to this seat's endpoints.
+
+  The style is in the map URL, so changing it changes this object, and the
+  island is mounted afresh against the new one — which refetches the map. That
+  is the whole of the refetch: a style change is rare and deliberate, and
+  starting the board over on it is simpler than teaching it to swap its own
+  art underneath a half-built order.
+  */
   const api = useMemo<BoardApi>(
     () => ({
-      mapUrl: client.mapUrl,
+      mapUrl: styledMapUrl(client.mapUrl, style),
       options: (province) => client.options(province),
       order: (province, parts) => client.order(province, parts),
     }),
-    [client],
+    [client, style],
   );
 
   const canOrder = useCallback(
@@ -314,8 +326,8 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           </h1>
           <p className="muted">
             {state?.started ? phaseLabel(state.phase) : "The game has not started"}
-            {state?.variant ? " · " + state.variant.name : ""}
-            {state?.variant && !state.variant.supported ? " (experimental)" : ""}
+            {state?.variant ? " · " + state.variant.name : ""}{" "}
+            {state?.variant ? <SupportedMark supported={state.variant.supported} /> : null}
           </p>
           {/* The deadline is the one thing on this page that must never be
               hunted for, so it gets its own line and its own size. */}
@@ -449,6 +461,10 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             </ul>
           </section>
         ) : null}
+
+        {/* Presentation, and this device's alone: it changes what this screen
+            draws and nothing any other player sees. */}
+        <StylePicker value={style} onChange={setStyle} />
       </aside>
     </div>
   );

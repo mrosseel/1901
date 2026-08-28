@@ -1,0 +1,59 @@
+{
+  "name": "flat",
+  "title": "Flat",
+  "description": "Clear saturated sea and soft land tints, in the modern web-Diplomacy manner.",
+  "referenceWidth": 1524,
+  "terrain": {
+    "land": "#eae2d0",
+    "sea": "#8cc0e4",
+    "impassable": "#b3aa98",
+    "ground": "#8cc0e4"
+  },
+  "border": {
+    "stroke": "#5a6672",
+    "width": 1.1,
+    "opacity": 0.9,
+    "dash": null,
+    "linejoin": "round"
+  },
+  "coast": {
+    "mode": "none",
+    "stroke": "#43586b",
+    "width": 3,
+    "blur": 4
+  },
+  "grain": null,
+  "defs": [],
+  "fonts": [],
+  "typography": {
+    "land": {
+      "family": "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      "weight": "bold",
+      "style": "normal",
+      "letterSpacing": -0.3,
+      "fill": "#1f2a33",
+      "halo": {
+        "color": "#f6f1e6",
+        "width": 0.9
+      }
+    },
+    "sea": {
+      "family": "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      "weight": "normal",
+      "style": "italic",
+      "letterSpacing": 0,
+      "fill": "#0f3f5c",
+      "halo": {
+        "color": "#e4f1fa",
+        "width": 0.9
+      }
+    },
+    "seaAbbrevLetterSpacing": 2
+  },
+  "supplyCentre": {
+    "fill": "#ffffff",
+    "stroke": "#33414d",
+    "strokeWidth": 1,
+    "opacity": 1
+  }
+}

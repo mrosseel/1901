@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { claimLine, variantCard, type Variant } from "../variants";
+import { MapLightbox } from "./MapLightbox";
+import { SupportedMark } from "./SupportedMark";
+import { styledMapUrl } from "../style";
 
 /*
 The variant gallery on /new: one card for each map godip can draw, and the
@@ -48,13 +51,44 @@ function useOnScreen(node: React.RefObject<HTMLElement | null>): boolean {
 The box keeps its height whether or not there is a map in it yet, so a card
 never changes size and the page never jumps under a scrolling thumb.
 */
-function MapPreview({ src, name, load }: { src: string; name: string; load: boolean }) {
+function MapPreview({
+  src,
+  name,
+  load,
+  onOpen,
+}: {
+  src: string;
+  name: string;
+  load: boolean;
+  onOpen: () => void;
+}) {
   const [failed, setFailed] = useState(false);
-  return (
-    <div className="variant-map">
-      {failed ? (
+  if (failed) {
+    return (
+      <div className="variant-map">
         <p className="muted">The map for this variant could not be drawn.</p>
-      ) : load ? (
+      </div>
+    );
+  }
+  /*
+  The map is its own tap target, and it is a button.
+
+  Tapping the card picks the variant; tapping the map opens it big. Those are
+  two different things to want from a card, so they are two different targets
+  — and data-no-select is what keeps the map's tap from also picking the card
+  it sits in. A button rather than a div, so a keyboard reaches it too.
+  */
+  return (
+    <button
+      type="button"
+      className="variant-map"
+      data-no-select="yes"
+      disabled={!load}
+      title={"Look at the " + name + " map"}
+      aria-label={"Look at the " + name + " map"}
+      onClick={onOpen}
+    >
+      {load ? (
         <img
           className="variant-map-img"
           src={src}
@@ -64,17 +98,20 @@ function MapPreview({ src, name, load }: { src: string; name: string; load: bool
           onError={() => setFailed(true)}
         />
       ) : null}
-    </div>
+    </button>
   );
 }
 
 function VariantCardView({
   variant,
+  mapUrl,
   picked,
   gmPlays,
   onPick,
 }: {
   variant: Variant;
+  /** The card's map, in this device's style. */
+  mapUrl: string;
   picked: boolean;
   gmPlays: boolean;
   onPick: () => void;
@@ -83,16 +120,37 @@ function VariantCardView({
   const box = useRef<HTMLLIElement | null>(null);
   const onScreen = useOnScreen(box);
   const [open, setOpen] = useState(false);
+  const [looking, setLooking] = useState(false);
+
+  /*
+  Anywhere on the card picks it, except the two things that are not a choice
+  of variant: the map, which opens big, and the notes, which unfold. Both are
+  marked data-no-select, so this handler can tell them apart without knowing
+  what they are.
+  */
+  const pickUnlessHandled = (event: React.MouseEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (target && target.closest("[data-no-select]")) return;
+    onPick();
+  };
 
   return (
-    <li className={picked ? "variant picked" : "variant"} ref={box}>
+    <li className={picked ? "variant picked" : "variant"} ref={box} onClick={pickUnlessHandled}>
       <label className="variant-pick">
         <input type="radio" name="variant" value={card.key} checked={picked} onChange={onPick} />
         <span className="variant-name">{card.name}</span>
-        <span className={card.supported ? "badge in" : "badge warn"}>{card.badge}</span>
+        <SupportedMark supported={card.supported} />
       </label>
 
-      <MapPreview src={card.mapUrl} name={card.name} load={onScreen} />
+      <MapPreview
+        src={mapUrl}
+        name={card.name}
+        load={onScreen}
+        onOpen={() => setLooking(true)}
+      />
+      {looking ? (
+        <MapLightbox src={mapUrl} name={card.name} onClose={() => setLooking(false)} />
+      ) : null}
 
       <p className="variant-powers">{card.powersLine}</p>
       {card.blurb ? <p className="variant-note">{card.blurb}</p> : null}
@@ -106,6 +164,7 @@ function VariantCardView({
       <button
         type="button"
         className="link"
+        data-no-select="yes"
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
       >
@@ -137,11 +196,14 @@ export function VariantGallery({
   variants,
   chosen,
   gmPlays,
+  style,
   onChoose,
 }: {
   variants: Variant[];
   chosen: string;
   gmPlays: boolean;
+  /** This device's map style, or "" for whatever the server serves. */
+  style?: string;
   onChoose: (key: string) => void;
 }) {
   return (
@@ -150,6 +212,7 @@ export function VariantGallery({
         <VariantCardView
           key={variant.key}
           variant={variant}
+          mapUrl={styledMapUrl(variant.mapUrl, style || "")}
           picked={variant.key === chosen}
           gmPlays={gmPlays}
           onPick={() => onChoose(variant.key)}

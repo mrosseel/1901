@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r15 — 2026-08-28
+**Document revision:** r16 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -277,9 +277,9 @@ whose map is 7300 units wide, that is a two-pixel smudge.
 `tools/restyle` reads godip's classical map for its visual system — two paper
 tones, a hairline border, a diagonal hatch, a paper grain, and Libre
 Baskerville set bold for land and italic for water — and applies it to a jDip
-map through that map's own semantic classes. It writes `map-styled.svg` beside
-`map.svg`; the server serves the styled file by default and the faithful
-original at `?style=original`.
+map through that map's own semantic classes. It writes `map-<style>.svg`
+beside `map.svg` (D-023 made the style itself data); the server serves the
+default style, parchment, and the faithful original at `?style=original`.
 
 The restyle may change fills, strokes and text presentation. It may not move a
 coordinate, rename an id, or add an element to `#provinces`,
@@ -292,6 +292,48 @@ shape, moves and if necessary shrinks the ones that escape, keeps them clear
 of the unit and dislodged markers in `placements/<key>.json` by the RULE B
 margin, and falls back to jDip's own three-letter brief label where a name
 cannot fit at any size. sailho is the pilot; classical's labels wait.
+
+### D-023 — Map styles are named data, chosen per device
+**Status:** accepted, r16
+A style is a JSON file in `tools/restyle/styles/`: two terrain tones, a
+border, an optional grain, how the two kinds of name are set, and how a supply
+centre is painted. Nothing a style can say is anything but a presentation
+property, and every length in it is quoted against a reference width, so a
+style knows nothing about the map it lands on.
+
+The first style is not written by hand. `extract-parchment.ts` reads godip's
+classical map and writes `parchment.json` plus the three assets it shares —
+the embedded Libre Baskerville faces, the hatch, the paper grain — so the
+house style stays the file's own rather than someone's memory of it. Three
+more are designed: **midnight** (dark sea, muted land, haloed light names, for
+a phone in a dim room), **print** (light greys, black hairlines, no texture,
+for a projector) and **flat** (saturated sea, soft land tints, the modern web
+manner). Legibility is the constraint every style is held to, and the halo —
+a stroke painted under the glyph with `paint-order` — is how a dark or
+saturated ground is paid for without touching a label's size, which the
+placement tables were measured against.
+
+`restyle --style <name> --variant <key>` writes `map-<style>.svg` beside
+`map.svg`, and the structural-equality check of D-016 runs on every
+style × map pair. The server loads them all and serves
+`?style=<name>`; unknown answers 404 rather than falling back, because a
+silent fallback makes a typo in a saved preference look like a style.
+`?style=original` and the default are unchanged.
+
+The choice is per DEVICE, in localStorage, never in the game: it changes what
+one screen draws and nothing anyone else sees. One table can have the game
+master on parchment, a player on midnight, and the projector on print.
+
+**Limits.** Only maps converted from jDip can be styled, because the restyle
+works through the semantic classes those maps carry (`nopower`, `seapoly`,
+`neutral`). No godip map has them: classical and classicalcrowded paint their
+whole landmass as one path with an inline fill, and the rest paint a handful
+of big paths the same way. Restyling them needs a second applier that
+substitutes inline fill VALUES — which is a different and more fragile thing
+than painting by class — and classicalcrowded is the first candidate, since
+it has classical's exact structure. Classical's blurred coastline is carried
+in every style and applied by neither: it needs a single landmass path, and a
+per-province map would draw it along every inland border too.
 
 ### D-004 — Order secrecy via commit-reveal
 **Status:** accepted, r1
@@ -812,3 +854,4 @@ Recorded so nobody re-derives them.
 | r13 | 2026-08-28 | M1 flow implemented end-to-end (D-020/021/022) as React SPA + Go, verified live. M0 sandbox and static/ deleted; / redirects to /new. Still in-memory — SQLite persistence remains before M1 acceptance. |
 | r14 | 2026-08-28 | D-016 activated: pilot port of 1900 and Sail Ho from jDip (translator + map conversion phase 1; LLM-assisted restyle phase 2, needs OpenRouter key). Sources vendored to tools/jdip-import/source. |
 | r15 | 2026-08-28 | D-014 presentation: checkmark for supported, no experimental badge. Restyle shipped as scripted theming (no LLM needed); style system with four named themes underway. Placement pipeline (audit/optimize/editor/serving) complete for classical + sailho. |
+| r16 | 2026-08-28 | D-023: map styles as named JSON data (parchment extracted from classical, plus midnight, print and flat), applied to any converted map, served at `?style=`, chosen per device. Gallery map previews open in a pan-and-zoom lightbox; the pan/zoom arithmetic is shared with the board. Experimental badge removed per D-014 presentation (r15). |

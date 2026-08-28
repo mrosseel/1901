@@ -29,7 +29,7 @@
 	
 	<title>Sail Ho!</title>
   	<defs>
-<!-- classical style, added by tools/restyle -->
+<!-- parchment style, added by tools/restyle -->
 <pattern
        patternTransform="rotate(35)"
        height="16"
@@ -68,8 +68,10 @@
 
 		<style type="text/css">
 <![CDATA[
-/* Restyled from godip's classical map by tools/restyle (D-016).
-   Terrain, borders and names follow classical; everything the board
+/* Style: parchment — Parchment.
+   godip's own classical map: two paper tones, a hairline border and Libre Baskerville.
+   Written by tools/restyle from styles/parchment.json (D-016, D-023).
+   Terrain, borders and names follow the style; everything the board
    draws for itself is left as jDip wrote it. */
 @font-face {
 	 font-family: 'Libre Baskerville';
@@ -93,26 +95,26 @@
 	 font-style: normal;
 	 }
 
-/* terrain — two paper tones and a hatch, which is all classical has */
-#MapLayer .nopower { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; }
-#MapLayer .water { fill:#d4d0ad; stroke:#000000; stroke-width:4.79; }
-#MapLayer .seapoly { fill:#d4d0ad; stroke:#000000; stroke-width:4.79; }
-#MapLayer .neutral { fill:url(#impassableStripes); stroke:#000000; stroke-width:4.79; }
-#MapLayer .impassable { fill:url(#impassableStripes); stroke:#000000; stroke-width:4.79; }
+/* terrain — two tones and whatever the style paints impassable with */
+#MapLayer .nopower { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
+#MapLayer .water { fill:#d4d0ad; stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
+#MapLayer .seapoly { fill:#d4d0ad; stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
+#MapLayer .neutral { fill:url(#impassableStripes); stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
+#MapLayer .impassable { fill:url(#impassableStripes); stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
 
 /* power colours: the board draws ownership, so the map does not */
-#MapLayer .cyprus { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; }
-#MapLayer .dissentos { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; }
-#MapLayer .east { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; }
-#MapLayer .north { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; }
-#MapLayer .south { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; }
-#MapLayer .west { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; }
+#MapLayer .cyprus { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
+#MapLayer .dissentos { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
+#MapLayer .east { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
+#MapLayer .north { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
+#MapLayer .south { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
+#MapLayer .west { fill:#f4d7b5; stroke:#000000; stroke-width:4.79; stroke-opacity:1; stroke-linejoin:round; }
 
-/* the ground and the backdrop behind the art, in the water tone */
+/* the ground and the backdrop behind the art */
 svg:has(#MapLayer) { background:#d4d0ad; }
 #MapLayer > rect:first-of-type { fill:#d4d0ad; stroke:none; }
 
-/* names: classical's typography on jDip's own sizes and positions */
+/* names: the style's typography on jDip's own sizes and positions */
 #FullLabelLayer text, #BriefLabelLayer text { font-family:LibreBaskerville-Bold, 'Libre Baskerville'; fill:#000000; stroke:none; }
 #FullLabelLayer .coasttext, #BriefLabelLayer .coasttext { font-size:150px; text-anchor:middle }
 #FullLabelLayer.coasttext, #BriefLabelLayer.coasttext { font-size:150px; text-anchor:middle }
@@ -122,11 +124,14 @@ svg:has(#MapLayer) { background:#d4d0ad; }
 #FullLabelLayer.ltmed, #BriefLabelLayer.ltmed { font-size:150px; text-anchor:middle }
 #FullLabelLayer .ltsmall, #BriefLabelLayer .ltsmall { font-size:120px; text-anchor:middle }
 #FullLabelLayer.ltsmall, #BriefLabelLayer.ltsmall { font-size:120px; text-anchor:middle }
-.map-landname { font-family:LibreBaskerville-Bold, 'Libre Baskerville'; font-weight:bold; font-style:normal; letter-spacing:-2.395; }
-.map-seaname { font-family:LibreBaskerville-Italic, 'Libre Baskerville'; font-weight:normal; font-style:italic; letter-spacing:14.37; }
+.map-landname { font-family:LibreBaskerville-Bold, 'Libre Baskerville'; font-weight:bold; font-style:normal; letter-spacing:-2.395; fill:#000000; stroke:none; }
+.map-seaname { font-family:LibreBaskerville-Italic, 'Libre Baskerville'; font-weight:normal; font-style:italic; letter-spacing:14.37; fill:#000000; stroke:none; }
 .map-seaname.map-longname { letter-spacing:0; }
 
-/* classical's paper grain, laid over the finished map */
+/* supply-centre glyphs, for a map that draws its own */
+#SupplyCenterLayer path, #SupplyCenterLayer circle, #SupplyCenterLayer polygon, #SupplyCenterLayer rect, #SupplyCenterLayer use { fill:#000000; stroke:#000000; stroke-width:4.79; opacity:1; }
+
+/* the style's grain, laid over the finished map */
 #paper-grain { fill:url(#pattern1827); fill-opacity:0.05; stroke:none; pointer-events:none; }
 
 /* kept from jDip: these are the board's business, not the map's */
@@ -322,21 +327,21 @@ svg:has(#MapLayer) { background:#d4d0ad; }
 		<text  class="ltsmall map-landname" x="3950" y="7420">Autolycus'</text><text  class="ltsmall map-landname" x="3950" y="7550">Hideout</text>
 		<text  class="ltsmall map-landname" x="3040" y="7420">Callisto's</text><text  class="ltsmall map-landname" x="3040" y="7550">Stronghold</text>
 		<text  x="5782" y="6750" class="map-seaname map-longname">Cecrops' Channel</text>
-		<text  x="5947.39" y="2098.21" class="map-landname">Centaur Forest</text>
+		<text  x="5947.39" y="2215.54" class="map-landname">Centaur Forest</text>
 		<text  class="ltsmall map-landname" x="841"  y="7000">Charon's</text><text class="ltsmall map-landname" x="841" y="7130">Crossing</text>
 		<text  x="5160" y="1333" class="map-landname">Chiron's Cave</text>
-		<text  class="ltsmall map-landname" x="3900" y="4800">Cupid's</text><text class="ltsmall map-landname" x="3900" y="4930">Cloud</text>
+		<text  class="ltsmall map-landname" x="4085.67" y="4757.43">Cupid's</text><text class="ltsmall map-landname" x="4085.67" y="4887.43">Cloud</text>
 		<text  x="2166" y="470" class="map-landname">Deianeira's</text><text  x="2166"   y="680" class="map-landname">Grave</text>
 		<text  x="6758" y="4587" class="map-seaname map-longname">Eastern</text><text x="6758" y="4797" class="map-seaname">Ocean</text>
 		<text  x="5885" y="2907" class="map-landname">Echo's Glade</text>
 		<text  class="ltsmall map-landname" x="500"  y="7500">Elysian Fields</text>
 		<text  x="805"   y="270" class="map-landname">Field of the</text><text  x="805"   y="480" class="map-landname">Golden Fleece</text>
 		<text  x="1587" y="5849" class="map-seaname map-longname">Sea of Fire</text>
-		<text  class="ltsmall map-landname" x="1967" y="7420">Realm of</text><text  class="ltsmall map-landname" x="1967" y="7550">the 3 Furies</text>
+		<text  class="ltsmall map-landname" x="1830.2" y="7451.21">Realm of</text><text  class="ltsmall map-landname" x="1830.2" y="7581.21">the 3 Furies</text>
 		<text  class="ltsmall map-landname" x="3675" y="6950">Gab</text><text class="ltsmall map-landname" x="3675" y="7080"></text>
 		<text  class="ltmed map-seaname map-longname" x="4110" y="2580">Glittering</text><text class="ltmed map-seaname" x="4110" y="2760">Gulf</text>
 		<text  class="ltmed map-seaname map-longname" x="2293" y="3433">Gulf of</text><text class="ltmed map-seaname map-longname" x="2293" y="3613">Chains</text>
-		<text  class="ltsmall map-landname" x="3012" y="6900">Depths of</text><text class="ltsmall map-landname"  x="3012" y="7030">Hades</text>
+		<text  class="ltsmall map-landname" x="3034.3" y="7031.14">Depths of</text><text class="ltsmall map-landname"  x="3034.3" y="7161.14">Hades</text>
 		<text  x="2120" y="1633" class="map-landname">Hercules'</text><text  x="2120" y="1843" class="map-landname">Respite</text>
 		<text  class="ltsmall map-landname" x="1761" y="4905">Hes</text>
 		<text  class="ltsmall map-landname" x="5523" y="5890">Hin</text><text class="ltsmall map-landname"  x="5523" y="6020"></text><text class="ltsmall map-landname"  x="5523" y="6150"></text><text class="ltsmall map-landname"  x="5570" y="6280"></text>

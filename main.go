@@ -366,6 +366,10 @@ func writeErr(w http.ResponseWriter, code int, format string, args ...interface{
 // reaching a board.
 func handleMap(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	b, err := variantMapBytes(g.variantKey, g.variant, r)
+	if errors.Is(err, errUnknownStyle) {
+		http.NotFound(w, r)
+		return
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "svg map: %v", err)
 		return
@@ -481,6 +485,9 @@ func main() {
 	if err := loadStyledMaps(); err != nil {
 		log.Fatalf("load styled maps: %v", err)
 	}
+	if err := loadStyleCards(); err != nil {
+		log.Fatalf("load styles: %v", err)
+	}
 
 	spaDir := absPath(filepath.Join("web", "dist"))
 	srv := &server{spaDir: spaDir}
@@ -491,6 +498,7 @@ func main() {
 	mux.HandleFunc("/new", srv.serveSPA)
 	mux.HandleFunc("/games", handleCreateGame)
 	mux.HandleFunc("/variants", handleVariants)
+	mux.HandleFunc("/styles", handleStyles)
 	mux.HandleFunc("/variants/", handleVariantMap)
 	mux.HandleFunc("/game/", srv.serveFlow)
 	mux.HandleFunc("/join/", srv.serveJoinPage)

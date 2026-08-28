@@ -12,23 +12,11 @@
 	
 	<desc>1900 Map by Ian Scrivins</desc>
 	<defs>
-<!-- classical style, added by tools/restyle -->
-<pattern
-       patternTransform="rotate(35)"
-       height="16"
-       width="16"
-       patternUnits="userSpaceOnUse"
-       id="impassableStripes">
-      <line
-         id="impassableStripesLine"
-         stroke-width="18"
-         stroke-opacity="0.1"
-         stroke="#000000"
-         y2="16"
-         x2="0"
-         y="0"
-         x1="0" />
-    </pattern>
+<!-- midnight style, added by tools/restyle -->
+<pattern patternTransform="rotate(35)" height="16" width="16" patternUnits="userSpaceOnUse" id="impassableStripes">
+  <rect id="impassableStripesGround" x="0" y="0" width="16" height="16" fill="#2b3440"/>
+  <line id="impassableStripesLine" stroke-width="8" stroke-opacity="0.45" stroke="#8496ab" y1="0" x1="0" y2="16" x2="0"/>
+</pattern>
 <pattern
        xlink:href="#pattern-4-3"
        id="pattern1827"
@@ -51,8 +39,10 @@
 
 		<style type="text/css">
 <![CDATA[
-/* Restyled from godip's classical map by tools/restyle (D-016).
-   Terrain, borders and names follow classical; everything the board
+/* Style: midnight — Midnight.
+   Dark sea, muted land, light names with a dark halo. For a phone in a dim room.
+   Written by tools/restyle from styles/midnight.json (D-016, D-023).
+   Terrain, borders and names follow the style; everything the board
    draws for itself is left as jDip wrote it. */
 @font-face {
 	 font-family: 'Libre Baskerville';
@@ -76,28 +66,28 @@
 	 font-style: normal;
 	 }
 
-/* terrain — two paper tones and a hatch, which is all classical has */
-#MapLayer .nopower { fill:#f4d7b5; stroke:#000000; stroke-width:4.993; }
-#MapLayer .water { fill:#d4d0ad; stroke:#000000; stroke-width:4.993; }
-#MapLayer .seapoly { fill:#d4d0ad; stroke:#000000; stroke-width:4.993; }
-#MapLayer .neutral { fill:url(#impassableStripes); stroke:#000000; stroke-width:4.993; }
-#MapLayer .impassable { fill:url(#impassableStripes); stroke:#000000; stroke-width:4.993; }
+/* terrain — two tones and whatever the style paints impassable with */
+#MapLayer .nopower { fill:#49545f; stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
+#MapLayer .water { fill:#13202e; stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
+#MapLayer .seapoly { fill:#13202e; stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
+#MapLayer .neutral { fill:url(#impassableStripes); stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
+#MapLayer .impassable { fill:url(#impassableStripes); stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
 
 /* power colours: the board draws ownership, so the map does not */
-#MapLayer .austria { fill:#f4d7b5; stroke:#000000; stroke-width:4.993; }
-#MapLayer .britain { fill:#f4d7b5; stroke:#000000; stroke-width:4.993; }
-#MapLayer .france { fill:#f4d7b5; stroke:#000000; stroke-width:4.993; }
-#MapLayer .germany { fill:#f4d7b5; stroke:#000000; stroke-width:4.993; }
-#MapLayer .italy { fill:#f4d7b5; stroke:#000000; stroke-width:4.993; }
-#MapLayer .russia { fill:#f4d7b5; stroke:#000000; stroke-width:4.993; }
-#MapLayer .turkey { fill:#f4d7b5; stroke:#000000; stroke-width:4.993; }
+#MapLayer .austria { fill:#49545f; stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
+#MapLayer .britain { fill:#49545f; stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
+#MapLayer .france { fill:#49545f; stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
+#MapLayer .germany { fill:#49545f; stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
+#MapLayer .italy { fill:#49545f; stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
+#MapLayer .russia { fill:#49545f; stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
+#MapLayer .turkey { fill:#49545f; stroke:#8d9db1; stroke-width:4.494; stroke-opacity:0.8; stroke-linejoin:round; }
 
-/* the ground and the backdrop behind the art, in the water tone */
-svg:has(#MapLayer) { background:#d4d0ad; }
-#MapLayer > rect:first-of-type { fill:#d4d0ad; stroke:none; }
+/* the ground and the backdrop behind the art */
+svg:has(#MapLayer) { background:#0b131c; }
+#MapLayer > rect:first-of-type { fill:#0b131c; stroke:none; }
 
-/* names: classical's typography on jDip's own sizes and positions */
-#FullLabelLayer text, #BriefLabelLayer text { font-family:LibreBaskerville-Bold, 'Libre Baskerville'; fill:#000000; stroke:none; }
+/* names: the style's typography on jDip's own sizes and positions */
+#FullLabelLayer text, #BriefLabelLayer text { font-family:LibreBaskerville-Bold, 'Libre Baskerville'; fill:#eef3f9; stroke:none; }
 #FullLabelLayer .labeltext06, #BriefLabelLayer .labeltext06 { font-size:06px; text-anchor:middle }
 #FullLabelLayer.labeltext06, #BriefLabelLayer.labeltext06 { font-size:06px; text-anchor:middle }
 #FullLabelLayer .labeltext08, #BriefLabelLayer .labeltext08 { font-size:08px; text-anchor:middle }
@@ -108,12 +98,15 @@ svg:has(#MapLayer) { background:#d4d0ad; }
 #FullLabelLayer.labeltext12, #BriefLabelLayer.labeltext12 { font-size:12px; text-anchor:middle }
 #FullLabelLayer .labeltext14, #BriefLabelLayer .labeltext14 { font-size:14px; text-anchor:middle }
 #FullLabelLayer.labeltext14, #BriefLabelLayer.labeltext14 { font-size:14px; text-anchor:middle }
-.map-landname { font-family:LibreBaskerville-Bold, 'Libre Baskerville'; font-weight:bold; font-style:normal; letter-spacing:-2.497; }
-.map-seaname { font-family:LibreBaskerville-Italic, 'Libre Baskerville'; font-weight:normal; font-style:italic; letter-spacing:14.98; }
+.map-landname { font-family:LibreBaskerville-Bold, 'Libre Baskerville'; font-weight:bold; font-style:normal; letter-spacing:-2.497; fill:#eef3f9; paint-order:stroke; stroke:#131c26; stroke-width:5.493; stroke-linejoin:round; stroke-linecap:round; }
+.map-seaname { font-family:LibreBaskerville-Italic, 'Libre Baskerville'; font-weight:normal; font-style:italic; letter-spacing:14.98; fill:#9dc2e2; paint-order:stroke; stroke:#070d14; stroke-width:5.493; stroke-linejoin:round; stroke-linecap:round; }
 .map-seaname.map-longname { letter-spacing:0; }
 
-/* classical's paper grain, laid over the finished map */
-#paper-grain { fill:url(#pattern1827); fill-opacity:0.05; stroke:none; pointer-events:none; }
+/* supply-centre glyphs, for a map that draws its own */
+#SupplyCenterLayer path, #SupplyCenterLayer circle, #SupplyCenterLayer polygon, #SupplyCenterLayer rect, #SupplyCenterLayer use { fill:#f0d79a; stroke:#0b131c; stroke-width:3.995; opacity:1; }
+
+/* the style's grain, laid over the finished map */
+#paper-grain { fill:url(#pattern1827); fill-opacity:0.04; stroke:none; pointer-events:none; }
 
 /* kept from jDip: these are the board's business, not the map's */
 .invisible { stroke:#000000; fill:#000000; fill-opacity:0.0; opacity:0.0; }
@@ -128,7 +121,7 @@ svg:has(#MapLayer) { background:#d4d0ad; }
 	</defs>
 
 	<g id="MapLayer" transform="translate(0,713) scale(0.1,-0.1)">
-		<rect x="0" y="0" width="7610" height="7130" fill="#d4d0ad"/>
+		<rect x="0" y="0" width="7610" height="7130" fill="#0b131c"/>
 		<path id="_adr" class="water" d="M3978 2772 c-33 -20 -42 -40 -28 -58 8 -9 7 -19 -5 -37 -14 -22 -14
 -25 0 -37 9 -8 15 -25 13 -40 -2 -21 12 -40 74 -101 62 -60 77 -81 83 -114 3
 -22 13 -50 20 -62 15 -22 68 -53 92 -53 8 0 22 -13 31 -30 15 -26 23 -30 58

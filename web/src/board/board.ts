@@ -32,26 +32,28 @@ import type {
   ReviewDraw,
   Unit,
 } from "./types";
+import {
+  MAX_ZOOM,
+  baseBoxOf,
+  centredView,
+  clamp,
+  clampedSize,
+  fitAllWidth,
+  pannedView,
+  placeView,
+  toMapPoint,
+  zoomedView,
+  type Box,
+  type Point,
+} from "./viewbox";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const MAX_ZOOM = 8;
 const NARROW_PX = 780;
 const SHORT_PX = 500;
 const TAP_SLOP_PX = 8;
 // How long a finished gesture keeps the click it produced from landing.
 const CLICK_BLOCK_MS = 250;
 
-interface Point {
-  x: number;
-  y: number;
-}
-
-interface Box {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
 
 interface Builder {
   province: string;
@@ -130,11 +132,7 @@ export function mount(
     svgRoot.setAttribute("height", "100%");
     svgRoot.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
-    const box = (svgRoot.getAttribute("viewBox") || "0 0 1524 1357")
-      .trim()
-      .split(/[\s,]+/)
-      .map(Number);
-    baseBox = { x: box[0], y: box[1], w: box[2], h: box[3] };
+    baseBox = baseBoxOf(svgRoot, baseBox);
     view = null;
 
     host.replaceChildren(svgRoot);
@@ -283,17 +281,15 @@ export function mount(
   testing, getBBox and the unit anchors all stay in map coordinates. The widest
   allowed view is "fit all" for the current container shape, the narrowest is
   MAX_ZOOM times closer.
+
+  The arithmetic lives in viewbox.ts, because the gallery lightbox needs the
+  same rules and two copies of a clamp like this one would drift. What stays
+  here is everything the ORDERING needs — which gesture counts as a tap, what
+  a second tap means on one of your own units — and none of that is shared.
   */
 
   function mapRect(): DOMRect {
     return host.getBoundingClientRect();
-  }
-
-  // Width of the view that just fits the whole map into the container.
-  function fitAllWidth(): number {
-    const rect = mapRect();
-    if (!rect.width || !rect.height) return baseBox.w;
-    return Math.max(baseBox.w, baseBox.h * (rect.width / rect.height));
   }
 
   function applyView(): void {
@@ -301,34 +297,10 @@ export function mount(
     svgRoot.setAttribute("viewBox", [view.x, view.y, view.w, view.h].join(" "));
   }
 
-  /*
-  Sets the view from a wanted width and top-left corner. The height always
-  follows the container's aspect ratio, the width is clamped to the zoom range,
-  and the box is kept over the map (centred on any axis where it is larger).
-  */
-  function clampedSize(wantedWidth: number): { w: number; h: number } {
-    const rect = mapRect();
-    const aspect = rect.width && rect.height ? rect.height / rect.width : baseBox.h / baseBox.w;
-    const widest = fitAllWidth();
-    const w = Math.min(widest, Math.max(widest / MAX_ZOOM, wantedWidth));
-    return { w: w, h: w * aspect };
-  }
-
+  /** Sets the view from a wanted width and top-left corner, and draws it. */
   function setView(x: number, y: number, wantedWidth: number): void {
-    const size = clampedSize(wantedWidth);
-    const w = size.w;
-    const h = size.h;
-    view = {
-      w: w,
-      h: h,
-      x: w >= baseBox.w ? baseBox.x + (baseBox.w - w) / 2 : clamp(x, baseBox.x, baseBox.x + baseBox.w - w),
-      y: h >= baseBox.h ? baseBox.y + (baseBox.h - h) / 2 : clamp(y, baseBox.y, baseBox.y + baseBox.h - h),
-    };
+    view = placeView(baseBox, clampedSize(baseBox, mapRect(), wantedWidth), x, y);
     applyView();
-  }
-
-  function clamp(value: number, low: number, high: number): number {
-    return Math.min(high, Math.max(low, value));
   }
 
   /*
@@ -367,27 +339,19 @@ export function mount(
   }
 
   function zoomLevel(): number {
-    return view ? fitAllWidth() / view.w : 1;
+    return view ? fitAllWidth(baseBox, mapRect()) / view.w : 1;
   }
 
   // Client coordinates → map coordinates.
   function toMap(clientX: number, clientY: number): Point {
-    const rect = mapRect();
-    return {
-      x: view!.x + ((clientX - rect.left) / rect.width) * view!.w,
-      y: view!.y + ((clientY - rect.top) / rect.height) * view!.h,
-    };
+    return toMapPoint(view!, mapRect(), clientX, clientY);
   }
 
   // Zooms by `factor` while the map point under (clientX, clientY) stays put.
   function zoomAt(clientX: number, clientY: number, factor: number): void {
     if (!view) return;
-    const rect = mapRect();
-    const anchor = toMap(clientX, clientY);
-    const fx = (clientX - rect.left) / rect.width;
-    const fy = (clientY - rect.top) / rect.height;
-    const size = clampedSize(view.w / factor);
-    setView(anchor.x - fx * size.w, anchor.y - fy * size.h, size.w);
+    view = zoomedView(baseBox, mapRect(), view, clientX, clientY, factor);
+    applyView();
     renderOverlays();
   }
 
@@ -401,10 +365,10 @@ export function mount(
   in a little further, so provinces are big enough to tap straight away.
   */
   function resetView(): void {
-    const widest = fitAllWidth();
-    const size = clampedSize(isNarrow() ? Math.min(widest, baseBox.w) / 1.6 : widest);
-    const centre = { x: baseBox.x + baseBox.w / 2, y: baseBox.y + baseBox.h / 2 };
-    setView(centre.x - size.w / 2, centre.y - size.h / 2, size.w);
+    const rect = mapRect();
+    const widest = fitAllWidth(baseBox, rect);
+    view = centredView(baseBox, rect, isNarrow() ? Math.min(widest, baseBox.w) / 1.6 : widest);
+    applyView();
     renderOverlays();
   }
 
@@ -469,13 +433,11 @@ export function mount(
       const next = { x: event.clientX, y: event.clientY };
 
       if (pointers.size === 1 && dragging) {
-        const rect = mapRect();
-        const dx = ((next.x - previous.x) / rect.width) * view.w;
-        const dy = ((next.y - previous.y) / rect.height) * view.h;
         moved += Math.hypot(next.x - previous.x, next.y - previous.y);
         if (moved > TAP_SLOP_PX) {
           blockNextClick();
-          setView(view.x - dx, view.y - dy, view.w);
+          view = pannedView(baseBox, mapRect(), view, next.x - previous.x, next.y - previous.y);
+          applyView();
           renderOverlays();
         }
       }

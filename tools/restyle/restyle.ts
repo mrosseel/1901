@@ -1,15 +1,16 @@
 /*
-Restyles a converted jDip map in godip's classical parchment style (D-016).
+Puts a converted jDip map into a named style (D-016, D-023).
 
-    node restyle.ts --variant sailho --variant jdip1900
-    node restyle.ts --all
+    node restyle.ts --variant sailho --style midnight
+    node restyle.ts --all --all-styles
 
 jDip's maps are correct and unlovely: flat #B5DEF8 sea, flat #F7DB94 land, a
-black backdrop, and labels in whatever serif the browser has. godip's classical
-map is the house style — two paper tones, a hairline border, a diagonal hatch
-over impassable ground, a grain wash, and Libre Baskerville set bold for land
-and italic for water. This tool reads that system off classical's own map.svg
-and applies it to a jDip one.
+black backdrop, and labels in whatever serif the browser has. A style says what
+they should look like instead — two terrain tones, a border weight, an optional
+grain, and how the two kinds of name are set. Styles are data: they live in
+styles/*.json and none of them is written into this file. The first one,
+"parchment", is godip's classical system extracted from classical's own map by
+extract-parchment.ts.
 
 It is a restyle and nothing else. Every jDip map paints its provinces through
 semantic CSS classes — `nopower`, `water`, `seapoly`, `neutral` — so almost
@@ -41,13 +42,19 @@ import { MIN_CLEARANCE_RADII } from "../placement/geometry.ts";
 import {
   carryLength,
   compareStructure,
-  extractClassical,
   layerTransform,
   transformScale,
   viewBoxWidth,
-  type ClassicalTokens,
   type StructureDiff,
 } from "./tokens.ts";
+import {
+  listStyles,
+  loadStyle,
+  styleCard,
+  stylesDir,
+  type LoadedStyle,
+  type StyleCard,
+} from "./styles.ts";
 import {
   ABBREVIATE_ABOVE,
   SPILL_TOLERANCE,
@@ -63,6 +70,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const VARIANTS = resolve(HERE, "..", "..", "variants1901");
 const OUT = join(HERE, "out");
 const PLACEMENTS = resolve(HERE, "..", "..", "placements");
+const STYLES = stylesDir(HERE);
+
+/** The style a map is served in when nobody asks for one. */
+export const DEFAULT_STYLE = "parchment";
 
 /*
 Which of a jDip map's classes mean what.
@@ -93,8 +104,8 @@ export const POWER_CLASS_PATTERN =
 interface Options {
   variants: string[];
   all: boolean;
-  classical: string | null;
-  server: string;
+  styles: string[];
+  allStyles: boolean;
   grain: boolean;
   write: boolean;
   /** Run the label audit after restyling. */
@@ -113,20 +124,20 @@ interface Options {
 
 function usage(): string {
   return [
-    "restyle — put a converted jDip map into godip's classical style (D-016)",
+    "restyle — put a converted jDip map into a named style (D-016, D-023)",
     "",
     "  --variant <key>    a directory under variants1901/; repeatable",
     "  --all              every variant1901 directory holding a map.svg",
-    "  --classical <path> the style source (default: godip's classical map.svg)",
-    "  --server <url>     where to fetch classical from when there is no path",
-    "  --no-grain         leave off the paper-grain wash",
+    "  --style <name>     a style in styles/; repeatable (default: parchment)",
+    "  --all-styles       every style in styles/",
+    "  --no-grain         leave off the style's grain, whatever it says",
     "  --no-labels        skip the label audit",
     "  --fix-labels [key] apply the label repairs; bare applies to every",
     "                     variant in the run, with a key only to that one",
     "  --dry-run          report and check, but write nothing",
     "",
-    "Writes variants1901/<key>/map-styled.svg beside the original, plus",
-    "before/after renders under tools/restyle/out/.",
+    "Writes variants1901/<key>/map-<style>.svg beside the original, the style",
+    "manifest variants1901/styles.json, and renders under tools/restyle/out/.",
   ].join("\n");
 }
 
@@ -134,8 +145,8 @@ function parseArgs(argv: string[]): Options {
   const options: Options = {
     variants: [],
     all: false,
-    classical: null,
-    server: process.env.MAP_SERVER || "http://localhost:8192",
+    styles: [],
+    allStyles: false,
     grain: true,
     write: true,
     labels: true,
@@ -145,8 +156,8 @@ function parseArgs(argv: string[]): Options {
     const arg = argv[i];
     if (arg === "--variant" || arg === "-v") options.variants.push(argv[++i]);
     else if (arg === "--all") options.all = true;
-    else if (arg === "--classical") options.classical = argv[++i];
-    else if (arg === "--server") options.server = argv[++i];
+    else if (arg === "--style" || arg === "-s") options.styles.push(argv[++i]);
+    else if (arg === "--all-styles") options.allStyles = true;
     else if (arg === "--no-grain") options.grain = false;
     else if (arg === "--no-labels") options.labels = false;
     else if (arg === "--fix-labels") {
@@ -163,34 +174,6 @@ function parseArgs(argv: string[]): Options {
     } else throw new Error("unknown argument " + JSON.stringify(arg));
   }
   return options;
-}
-
-/*
-Where classical's map lives.
-
-The Go module cache is the honest source — it is the file the server itself
-serves — but a checkout without a warm cache has to fall back to the running
-server, which answers with the same bytes.
-*/
-async function readClassical(options: Options): Promise<{ svg: string; from: string }> {
-  if (options.classical) {
-    return { svg: await readFile(options.classical, "utf8"), from: options.classical };
-  }
-  const home = process.env.HOME || "";
-  const modules = join(home, "go", "pkg", "mod", "github.com", "zond");
-  if (existsSync(modules)) {
-    const { readdir } = await import("node:fs/promises");
-    const entries = await readdir(modules);
-    const godip = entries.filter((name: string) => name.startsWith("godip@")).sort().pop();
-    if (godip) {
-      const path = join(modules, godip, "variants", "classical", "svg", "map.svg");
-      if (existsSync(path)) return { svg: await readFile(path, "utf8"), from: path };
-    }
-  }
-  const url = options.server + "/variants/classical/map.svg";
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(url + " answered " + response.status);
-  return { svg: await response.text(), from: url };
 }
 
 // --- what the map says about itself ---------------------------------------
@@ -447,31 +430,42 @@ rule that paints the map: the terrain classes, the label classes, and the
 backdrop.
 */
 export function buildStylesheet(
-  tokens: ClassicalTokens,
+  style: LoadedStyle,
   facts: MapFacts,
   grain: boolean,
 ): string {
-  const carry = (value: number) => carryLength(value, tokens.referenceWidth, facts.width, facts.artScale);
-  const border = carry(tokens.borderWidth);
+  const carry = (value: number) => carryLength(value, style.referenceWidth, facts.width, facts.artScale);
   const lines: string[] = [];
 
-  lines.push("/* Restyled from godip's classical map by tools/restyle (D-016).");
-  lines.push("   Terrain, borders and names follow classical; everything the board");
+  lines.push("/* Style: " + style.name + " — " + style.title + ".");
+  lines.push("   " + style.description);
+  lines.push("   Written by tools/restyle from styles/" + style.name + ".json (D-016, D-023).");
+  lines.push("   Terrain, borders and names follow the style; everything the board");
   lines.push("   draws for itself is left as jDip wrote it. */");
-  lines.push(tokens.fontFaces);
+  if (style.fontFaces) lines.push(style.fontFaces);
   lines.push("");
+
+  /* The border, once. Every terrain rule draws the same line, because a
+     province edge is a province edge whichever side of it you are on. */
+  const edge =
+    "stroke:" + style.border.stroke +
+    "; stroke-width:" + carry(style.border.width) +
+    "; stroke-opacity:" + style.border.opacity +
+    "; stroke-linejoin:" + style.border.linejoin +
+    (style.border.dash
+      ? "; stroke-dasharray:" + style.border.dash.map(carry).join(",")
+      : "");
 
   /* Qualified by the art layer, so a class name as ordinary as ".water"
      cannot reach into the app that embeds this map. */
   const terrain = (selector: string, fill: string) =>
-    "#MapLayer " + selector + " { fill:" + fill + "; stroke:" + tokens.borderStroke +
-    "; stroke-width:" + border + "; }";
+    "#MapLayer " + selector + " { fill:" + fill + "; " + edge + "; }";
 
-  lines.push("/* terrain — two paper tones and a hatch, which is all classical has */");
-  for (const name of LAND_CLASSES) lines.push(terrain("." + name, tokens.landFill));
-  for (const name of SEA_CLASSES) lines.push(terrain("." + name, tokens.seaFill));
+  lines.push("/* terrain — two tones and whatever the style paints impassable with */");
+  for (const name of LAND_CLASSES) lines.push(terrain("." + name, style.terrain.land));
+  for (const name of SEA_CLASSES) lines.push(terrain("." + name, style.terrain.sea));
   for (const name of IMPASSABLE_CLASSES) {
-    lines.push(terrain("." + name, "url(#" + tokens.impassablePatternId + ")"));
+    lines.push(terrain("." + name, style.terrain.impassable));
   }
   lines.push("");
 
@@ -497,7 +491,7 @@ export function buildStylesheet(
   );
   if (powers.length) {
     lines.push("/* power colours: the board draws ownership, so the map does not */");
-    for (const name of powers) lines.push(terrain("." + name, tokens.landFill));
+    for (const name of powers) lines.push(terrain("." + name, style.terrain.land));
     lines.push("");
   }
 
@@ -507,14 +501,14 @@ export function buildStylesheet(
   quite reach the edge of the viewBox, so the page showed through in a thin
   frame. Painting the root as well closes the gap without adding an element.
   */
-  lines.push("/* the ground and the backdrop behind the art, in the water tone */");
+  lines.push("/* the ground and the backdrop behind the art */");
   /*
   Scoped to an SVG that actually holds this map. The board injects the map
   INLINE into the app's own document, where an SVG stylesheet is not sandboxed
   — a bare `svg { }` rule here would repaint every other SVG on the page.
   */
-  lines.push("svg:has(#MapLayer) { background:" + tokens.seaFill + "; }");
-  lines.push("#MapLayer > rect:first-of-type { fill:" + tokens.seaFill + "; stroke:none; }");
+  lines.push("svg:has(#MapLayer) { background:" + style.terrain.ground + "; }");
+  lines.push("#MapLayer > rect:first-of-type { fill:" + style.terrain.ground + "; stroke:none; }");
   lines.push("");
 
   /*
@@ -523,10 +517,10 @@ export function buildStylesheet(
   the label boxes they produce. What changes is the face, the weight and the
   tracking — classical's typography, on jDip's layout.
   */
-  const land = tokens.land;
-  const sea = tokens.sea;
+  const land = style.typography.land;
+  const sea = style.typography.sea;
   const track = (value: number) => carry(value);
-  lines.push("/* names: classical's typography on jDip's own sizes and positions */");
+  lines.push("/* names: the style's typography on jDip's own sizes and positions */");
   /* Scoped to the label layers for the same reason: an unqualified `text`
      rule would reach every other SVG in the page that embeds this map. */
   lines.push(
@@ -548,24 +542,58 @@ export function buildStylesheet(
     lines.push("#FullLabelLayer ." + name + ", #BriefLabelLayer ." + name + " { " + metrics + " }");
     lines.push("#FullLabelLayer." + name + ", #BriefLabelLayer." + name + " { " + metrics + " }");
   }
+  /*
+  The halo, which is the whole of the legibility budget.
+
+  A dark sea or a saturated one puts a name over a tone nobody chose it
+  against. `paint-order:stroke` draws the stroke UNDER the glyph, so a halo
+  widens nothing and moves nothing — the label box the placements were
+  measured against is the same box. A style with no halo emits none.
+  */
+  const halo = (one: typeof land) =>
+    one.halo
+      ? "; paint-order:stroke; stroke:" + one.halo.color +
+        "; stroke-width:" + carry(one.halo.width) +
+        "; stroke-linejoin:round; stroke-linecap:round"
+      : "; stroke:none";
+
   lines.push(
     ".map-landname { font-family:" + land.family + "; font-weight:" + land.weight +
-      "; font-style:" + land.style + "; letter-spacing:" + track(land.letterSpacing) + "; }",
+      "; font-style:" + land.style + "; letter-spacing:" + track(land.letterSpacing) +
+      "; fill:" + land.fill + halo(land) + "; }",
   );
   lines.push(
     ".map-seaname { font-family:" + sea.family + "; font-weight:" + sea.weight +
-      "; font-style:" + sea.style + "; letter-spacing:" + track(tokens.seaAbbrevLetterSpacing) + "; }",
+      "; font-style:" + sea.style + "; letter-spacing:" +
+      track(style.typography.seaAbbrevLetterSpacing) +
+      "; fill:" + sea.fill + halo(sea) + "; }",
   );
   lines.push(
     ".map-seaname.map-longname { letter-spacing:" + track(sea.letterSpacing) + "; }",
   );
   lines.push("");
 
-  if (grain) {
-    lines.push("/* classical's paper grain, laid over the finished map */");
+  /*
+  Supply-centre glyphs, where the map draws any. jDip's converted maps ship
+  SupplyCenterLayer empty and the board draws ownership itself, so on those
+  this rule matches nothing — it is emitted anyway, because a map that DOES
+  carry glyphs should get the style's rather than jDip's.
+  */
+  lines.push("/* supply-centre glyphs, for a map that draws its own */");
+  lines.push(
+    "#SupplyCenterLayer path, #SupplyCenterLayer circle, #SupplyCenterLayer polygon," +
+      " #SupplyCenterLayer rect, #SupplyCenterLayer use { fill:" + style.supplyCentre.fill +
+      "; stroke:" + style.supplyCentre.stroke +
+      "; stroke-width:" + carry(style.supplyCentre.strokeWidth) +
+      "; opacity:" + style.supplyCentre.opacity + "; }",
+  );
+  lines.push("");
+
+  if (grain && style.grain) {
+    lines.push("/* the style's grain, laid over the finished map */");
     lines.push(
-      "#paper-grain { fill:url(#" + tokens.noisePatternId + "); fill-opacity:" +
-        tokens.noiseOpacity + "; stroke:none; pointer-events:none; }",
+      "#paper-grain { fill:url(#" + style.grain.patternId + "); fill-opacity:" +
+        style.grain.opacity + "; stroke:none; pointer-events:none; }",
     );
     lines.push("");
   }
@@ -589,7 +617,7 @@ export interface RestyleResult {
 
 function restyleOne(
   original: string,
-  tokens: ClassicalTokens,
+  style: LoadedStyle,
   facts: MapFacts,
   labels: LabelVerdict[],
   grain: boolean,
@@ -600,7 +628,7 @@ function restyleOne(
   // 1. The stylesheet. jDip wraps it in CDATA, which is kept.
   const styleBlock = /<style\b[^>]*>([\s\S]*?)<\/style>/.exec(svg);
   if (!styleBlock) throw new Error("this map has no <style> block to replace");
-  const sheet = buildStylesheet(tokens, facts, grain);
+  const sheet = buildStylesheet(style, facts, grain);
   svg =
     svg.slice(0, styleBlock.index) +
     styleBlock[0].replace(styleBlock[1], "\n<![CDATA[\n" + sheet + "\n]]>\n").replace(/<!\[CDATA\[\s*<!\[CDATA\[/, "<![CDATA[").replace(/\]\]>\s*\]\]>/, "]]>") +
@@ -609,14 +637,27 @@ function restyleOne(
   // 2. Patterns into <defs>. Nothing outside defs is added by this step.
   const defs = /<defs\b[^>]*>/.exec(svg);
   if (!defs) throw new Error("this map has no <defs> to put patterns in");
-  const additions = [tokens.impassablePattern, grain ? tokens.noisePattern : ""].filter(Boolean);
+  const additions = [...style.defs, grain && style.grain ? style.grain.svg : ""].filter(Boolean);
   svg =
     svg.slice(0, defs.index + defs[0].length) +
-    "\n<!-- classical style, added by tools/restyle -->\n" +
+    "\n<!-- " + style.name + " style, added by tools/restyle -->\n" +
     additions.join("\n") +
     "\n" +
     svg.slice(defs.index + defs[0].length);
-  notes.push("added " + additions.length + " pattern definition(s) to <defs>");
+  notes.push("added " + additions.length + " definition(s) to <defs>");
+
+  /*
+  The coast. A style may carry classical's blurred coastline, but classical
+  can draw it because its whole landmass is one path: a converted jDip map
+  draws one polygon per province, so the same shadow would fall along every
+  inland border as well. The treatment is recorded, not applied, and said so.
+  */
+  if (style.coast.mode === "shadow") {
+    notes.push(
+      "coast shadow NOT applied: this map draws land per province, so a shadow " +
+        "would fall on every inland border too (needs a single landmass path)",
+    );
+  }
 
   /*
   3. The backdrop. jDip paints a black rectangle behind the art, which under a
@@ -626,9 +667,9 @@ function restyleOne(
   */
   const backdrop = /(<rect\b[^>]*\bfill=")black("[^>]*>)/.exec(svg);
   if (backdrop) {
-    svg = svg.slice(0, backdrop.index) + backdrop[1] + tokens.seaFill + backdrop[2] +
+    svg = svg.slice(0, backdrop.index) + backdrop[1] + style.terrain.ground + backdrop[2] +
       svg.slice(backdrop.index + backdrop[0].length);
-    notes.push("repainted the black backdrop rect in the sea tone");
+    notes.push("repainted the black backdrop rect in the style's ground tone");
   } else {
     notes.push("no black backdrop rect found; nothing to repaint");
   }
@@ -663,7 +704,7 @@ function restyleOne(
   notes.push("classified " + labels.length + " labels: " + land + " as land, " + sea + " as water");
 
   // 5. The grain overlay, into a drawing layer that ships empty.
-  if (grain) {
+  if (grain && style.grain) {
     const box = /<svg\b[^>]*\bviewBox="([^"]+)"/.exec(svg);
     const parts = (box ? box[1] : "0 0 0 0").trim().split(/[\s,]+/).map(Number);
     const rect =
@@ -685,50 +726,65 @@ function restyleOne(
 
 // --- reporting --------------------------------------------------------------
 
-function tokenReport(tokens: ClassicalTokens, from: string): string {
+function styleReport(style: LoadedStyle): string {
   const lines: string[] = [];
-  lines.push("CLASSICAL STYLE TOKENS");
-  lines.push("  read from            " + from);
-  lines.push("  reference width      " + tokens.referenceWidth + " map units");
-  lines.push("  land (parchment)     " + tokens.landFill);
-  lines.push("  sea / ground         " + tokens.seaFill);
-  lines.push("  map frame stroke     " + tokens.frameStroke);
-  lines.push("  province border      " + tokens.borderStroke + " at " + tokens.borderWidth + " units");
-  lines.push("  coastline shadow     " + tokens.shadowStroke + " at " + tokens.shadowWidth +
-    " units, blurred " + tokens.shadowBlur);
-  lines.push("  impassable hatch     #" + tokens.impassablePatternId + " (" +
-    tokens.impassablePattern.length + " bytes)");
-  lines.push("  paper grain          #" + tokens.noisePatternId + " at " +
-    tokens.noiseOpacity + " opacity (" + tokens.noisePattern.length + " bytes)");
-  lines.push("  embedded faces       " + tokens.fontFaces.length + " bytes");
-  lines.push("  land name            " + tokens.land.family + ", " + tokens.land.weight +
-    " " + tokens.land.style + ", " + tokens.land.size + "px, tracking " + tokens.land.letterSpacing);
-  lines.push("  sea name             " + tokens.sea.family + ", " + tokens.sea.weight +
-    " " + tokens.sea.style + ", " + tokens.sea.size + "px, tracking " + tokens.sea.letterSpacing);
-  lines.push("  sea abbreviation     tracked out to " + tokens.seaAbbrevLetterSpacing);
+  const name = (one: LoadedStyle["typography"]["land"]) =>
+    one.family + ", " + one.weight + " " + one.style + ", tracking " + one.letterSpacing +
+    ", " + one.fill + (one.halo ? ", haloed " + one.halo.color + " at " + one.halo.width : ", no halo");
+  lines.push("STYLE " + style.name.toUpperCase() + " — " + style.title);
+  lines.push("  read from            " + style.source);
+  lines.push("  " + style.description);
+  lines.push("  reference width      " + style.referenceWidth + " map units");
+  lines.push("  land                 " + style.terrain.land);
+  lines.push("  sea                  " + style.terrain.sea);
+  lines.push("  ground               " + style.terrain.ground);
+  lines.push("  impassable           " + style.terrain.impassable);
+  lines.push("  province border      " + style.border.stroke + " at " + style.border.width +
+    " units, opacity " + style.border.opacity + ", " + style.border.linejoin +
+    (style.border.dash ? ", dashed " + style.border.dash.join(",") : ", solid"));
+  lines.push("  coast                " + (style.coast.mode === "none"
+    ? "none"
+    : style.coast.stroke + " at " + style.coast.width + " units, blurred " + style.coast.blur +
+      " (needs a single landmass path)"));
+  lines.push("  grain                " + (style.grain
+    ? "#" + style.grain.patternId + " at " + style.grain.opacity + " opacity (" +
+      style.grain.svg.length + " bytes)"
+    : "none"));
+  lines.push("  definitions          " + (style.defs.length
+    ? style.defs.length + " (" + style.defs.reduce((n, one) => n + one.length, 0) + " bytes)"
+    : "none"));
+  lines.push("  embedded faces       " + (style.fontFaces
+    ? style.fontFaces.length + " bytes"
+    : "none; the family stack is the system's"));
+  lines.push("  land name            " + name(style.typography.land));
+  lines.push("  sea name             " + name(style.typography.sea));
+  lines.push("  sea abbreviation     tracked out to " + style.typography.seaAbbrevLetterSpacing);
+  lines.push("  supply centre        " + style.supplyCentre.fill + " on " +
+    style.supplyCentre.stroke + " at " + style.supplyCentre.strokeWidth + " units");
   return lines.join("\n");
 }
 
-function mapReport(result: RestyleResult, tokens: ClassicalTokens): string {
+function mapReport(result: RestyleResult, style: LoadedStyle): string {
   const lines: string[] = [];
   const facts = result.facts;
   lines.push("");
   lines.push("=".repeat(66));
-  lines.push(facts.key);
+  lines.push(facts.key + "  in  " + style.name);
   lines.push("=".repeat(66));
-  lines.push("  viewBox width        " + facts.width + " (classical is " + tokens.referenceWidth + ")");
+  lines.push("  viewBox width        " + facts.width +
+    " (the style quotes against " + style.referenceWidth + ")");
   lines.push("  art layer scale      " + facts.artScale);
   lines.push("  border carried to    " +
-    carryLength(tokens.borderWidth, tokens.referenceWidth, facts.width, facts.artScale) +
+    carryLength(style.border.width, style.referenceWidth, facts.width, facts.artScale) +
     " units inside #MapLayer");
   lines.push("");
   lines.push("  CLASS MAPPING (what the map actually uses)");
   const rows: string[] = [];
   for (const [name, count] of Array.from(facts.used.entries()).sort()) {
     let role = "label / behaviour, left alone";
-    if (LAND_CLASSES.includes(name)) role = "-> land parchment " + tokens.landFill;
-    else if (SEA_CLASSES.includes(name)) role = "-> sea tone " + tokens.seaFill;
-    else if (IMPASSABLE_CLASSES.includes(name)) role = "-> impassable hatch";
+    if (LAND_CLASSES.includes(name)) role = "-> land " + style.terrain.land;
+    else if (SEA_CLASSES.includes(name)) role = "-> sea " + style.terrain.sea;
+    else if (IMPASSABLE_CLASSES.includes(name)) role = "-> impassable " + style.terrain.impassable;
     rows.push("    " + name.padEnd(16) + String(count).padStart(4) + " uses   " + role);
   }
   lines.push(rows.join("\n"));
@@ -950,36 +1006,74 @@ result is worth looking at, and that is the question the restyle exists to
 answer. Both halves are drawn through the same headless Chromium the rest of
 the tooling uses, so what the file shows here is what a browser will show.
 */
-async function renderComparison(page: Page, key: string, before: string, after: string): Promise<void> {
-  /*
-  Each map goes in its own <img>, not inline.
+/*
+Each map goes in its own <img>, not inline.
 
-  An inline SVG's <style> applies to the whole HTML document, so the first
-  attempt at this drew both maps in one page and the styled sheet repainted
-  the original — a before-and-after where both halves were "after". A data
-  URI renders the file exactly as a browser would on its own, which is also
-  the honest thing for a comparison to show.
-  */
-  const dataUri = (svg: string) =>
-    "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-  const frame = (title: string, svg: string) =>
-    "<figure><figcaption>" + title + '</figcaption><img src="' + dataUri(svg) + '"></figure>';
+An inline SVG's <style> applies to the whole HTML document, so the first
+attempt at this drew both maps in one page and the styled sheet repainted the
+original — a before-and-after where both halves were "after". A data URI
+renders the file exactly as a browser would on its own, which is also the
+honest thing for a comparison to show.
+*/
+function dataUri(svg: string): string {
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+
+function frame(title: string, svg: string): string {
+  return "<figure><figcaption>" + title + '</figcaption><img src="' + dataUri(svg) + '"></figure>';
+}
+
+const SHEET =
+  "html,body{margin:0;background:#14161a;font:13px system-ui,sans-serif;color:#9aa3b2}" +
+  "figure{margin:0;min-width:0}" +
+  "figcaption{padding:0 0 8px}" +
+  "img{display:block;width:100%;height:auto;background:#0e1013}";
+
+/** Grabs one screenshot of `main` once the images have settled. */
+async function shoot(page: Page, body: string, file: string): Promise<void> {
   await page.setContent(
-    "<!doctype html><html><head><style>" +
-      "html,body{margin:0;background:#14161a;font:13px system-ui,sans-serif;color:#9aa3b2}" +
-      "main{display:flex;gap:14px;padding:14px}" +
-      "figure{margin:0;flex:1;min-width:0}" +
-      "figcaption{padding:0 0 8px}" +
-      "img{display:block;width:100%;height:auto;background:#0e1013}" +
-      "</style></head><body><main>" +
-      frame(key + " — as converted from jDip", before) +
-      frame(key + " — classical style", after) +
-      "</main></body></html>",
+    "<!doctype html><html><head><style>" + SHEET + "</style></head><body>" + body + "</body></html>",
     { waitUntil: "load" },
   );
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1400);
   const main = await page.$("main");
-  if (main) await main.screenshot({ path: join(OUT, key + ".compare.png") });
+  if (main) await main.screenshot({ path: join(OUT, file) });
+}
+
+async function renderComparison(
+  page: Page, key: string, style: string, before: string, after: string,
+): Promise<void> {
+  await shoot(
+    page,
+    '<main style="display:flex;gap:14px;padding:14px">' +
+      frame(key + " — as converted from jDip", before) +
+      frame(key + " — " + style, after) +
+      "</main>",
+    key + "." + style + ".compare.png",
+  );
+}
+
+/*
+Every style of one map in a single picture.
+
+Four maps side by side is the only way to judge a set of styles: a style is
+not good or bad on its own, it is better or worse than the one next to it, and
+legibility in particular only shows up in comparison.
+*/
+async function renderStyleGrid(
+  page: Page, key: string, drawn: Array<{ style: LoadedStyle; svg: string }>,
+): Promise<string> {
+  const columns = drawn.length <= 2 ? drawn.length : 2;
+  await shoot(
+    page,
+    '<main style="display:grid;grid-template-columns:repeat(' + columns +
+      ',1fr);gap:14px;padding:14px">' +
+      drawn.map((one) =>
+        frame(key + " — " + one.style.title + " · " + one.style.description, one.svg)).join("") +
+      "</main>",
+    key + ".styles.png",
+  );
+  return key + ".styles.png";
 }
 
 // --- running ----------------------------------------------------------------
@@ -1000,9 +1094,13 @@ async function run(): Promise<void> {
     process.exit(1);
   }
 
-  const classical = await readClassical(options);
-  const tokens = extractClassical(classical.svg);
-  const report: string[] = [tokenReport(tokens, classical.from)];
+  let styleNames = options.styles;
+  if (options.allStyles) styleNames = await listStyles(STYLES);
+  if (styleNames.length === 0) styleNames = [DEFAULT_STYLE];
+  const styles: LoadedStyle[] = [];
+  for (const name of styleNames) styles.push(await loadStyle(STYLES, name));
+
+  const report: string[] = [styles.map(styleReport).join("\n\n")];
   console.log(report[0]);
 
   await mkdir(OUT, { recursive: true });
@@ -1015,6 +1113,12 @@ async function run(): Promise<void> {
       const path = join(VARIANTS, key, "map.svg");
       const original = await readFile(path, "utf8");
       const facts = readMapFacts(key, original);
+      /*
+      Which labels stand over water is a fact about the MAP, not about the
+      style, so it is asked once and reused for every style of this variant.
+      It costs a browser round trip per map and there is nothing in it a
+      colour could change.
+      */
       const labels = (await classifyLabels(page, original)).map((label) => ({
         ...label,
         kind: kindOf(label.over),
@@ -1035,83 +1139,114 @@ async function run(): Promise<void> {
           !["coasttext", "unittext", "provtext", "titletext", "invisible"].includes(name))
         .sort();
       const missing = Array.from(painting).filter((name) => !facts.used.has(name)).sort();
+      const drawn: Array<{ style: LoadedStyle; svg: string }> = [];
 
-      const built = restyleOne(original, tokens, facts, labels, options.grain);
-      const diff = compareStructure(original, built.svg);
-      /*
-      SVG is XML, and a map that does not parse renders as nothing at all.
-      Inline in an HTML page the browser forgives it — which is how a stray
-      namespace prefix got as far as being served — so the file is parsed the
-      strict way, as an image would be, before it is written.
-      */
-      const wellFormed = await checkWellFormed(page, built.svg);
-      if (wellFormed) {
-        diff.ok = false;
-        diff.problems.push("the styled map is not well-formed XML: " + wellFormed);
-      }
-      const result: RestyleResult = {
-        svg: built.svg,
-        facts: facts,
-        labels: labels,
-        unmappedClasses: unmapped,
-        missingClasses: missing,
-        diff: diff,
-        notes: built.notes,
-      };
+      for (const style of styles) {
+        const built = restyleOne(original, style, facts, labels, options.grain);
+        const diff = compareStructure(original, built.svg);
+        /*
+        SVG is XML, and a map that does not parse renders as nothing at all.
+        Inline in an HTML page the browser forgives it — which is how a stray
+        namespace prefix got as far as being served — so the file is parsed the
+        strict way, as an image would be, before it is written.
+        */
+        const wellFormed = await checkWellFormed(page, built.svg);
+        if (wellFormed) {
+          diff.ok = false;
+          diff.problems.push("the styled map is not well-formed XML: " + wellFormed);
+        }
+        const result: RestyleResult = {
+          svg: built.svg,
+          facts: facts,
+          labels: labels,
+          unmappedClasses: unmapped,
+          missingClasses: missing,
+          diff: diff,
+          notes: built.notes,
+        };
 
-      const text = mapReport(result, tokens);
-      report.push(text);
-      console.log(text);
+        const text = mapReport(result, style);
+        report.push(text);
+        console.log(text);
 
-      if (!diff.ok) {
-        failed++;
-        console.error("\n  REFUSING to write " + key + ": the structure check failed.\n");
-        continue;
-      }
-      /*
-      The label pass. It runs on the STYLED map, because the sizes it measures
-      are the ones the restyle just made real — measuring jDip's broken 16px
-      labels would repair a problem nobody sees and miss the one they do.
-      */
-      let styled = built.svg;
-      let labelReport = "";
-      if (options.labels) {
-        const placements = await readPlacements(key);
-        const brief = readBriefLabels(original);
-        const verdicts = await auditLabels(page, styled, {
-          placements: placements,
-          radius: markerRadiusFor(facts.width),
-          minClearanceRadii: MIN_CLEARANCE_RADII,
-          scales: LABEL_SCALES,
-          tolerance: SPILL_TOLERANCE,
-          abbreviateAbove: ABBREVIATE_ABOVE,
-          brief: brief,
-        });
-        const applied = applyLabelFixes(styled, verdicts, new Map());
-        const labelProblems = checkLabelStructure(styled, applied.svg);
-        const applyIt = options.fixLabels.includes("*") || options.fixLabels.includes(key);
-        labelReport = labelReportOf(
-          key, verdicts, applied, labelProblems, Boolean(placements.__any), applyIt);
-        report.push(labelReport);
-        console.log(labelReport);
-        if (applyIt && labelProblems.length === 0) styled = applied.svg;
+        if (!diff.ok) {
+          failed++;
+          console.error("\n  REFUSING to write " + key + " in " + style.name +
+            ": the structure check failed.\n");
+          continue;
+        }
+        /*
+        The label pass. It runs on the STYLED map, because the sizes it measures
+        are the ones the restyle just made real — measuring jDip's broken 16px
+        labels would repair a problem nobody sees and miss the one they do. It
+        is per style as well as per map: a name set in a different face is a
+        different width, so it escapes its province in different places.
+        */
+        let styled = built.svg;
+        if (options.labels) {
+          const placements = await readPlacements(key);
+          const brief = readBriefLabels(original);
+          const verdicts = await auditLabels(page, styled, {
+            placements: placements,
+            radius: markerRadiusFor(facts.width),
+            minClearanceRadii: MIN_CLEARANCE_RADII,
+            scales: LABEL_SCALES,
+            tolerance: SPILL_TOLERANCE,
+            abbreviateAbove: ABBREVIATE_ABOVE,
+            brief: brief,
+          });
+          const applied = applyLabelFixes(styled, verdicts, new Map());
+          const labelProblems = checkLabelStructure(styled, applied.svg);
+          const applyIt = options.fixLabels.includes("*") || options.fixLabels.includes(key);
+          const labelReport = labelReportOf(
+            key, verdicts, applied, labelProblems, Boolean(placements.__any), applyIt);
+          report.push(labelReport);
+          console.log(labelReport);
+          if (applyIt && labelProblems.length === 0) styled = applied.svg;
+        }
+
+        if (options.write) {
+          const file = "map-" + style.name + ".svg";
+          await writeFile(join(VARIANTS, key, file), styled);
+          console.log("\n  wrote variants1901/" + key + "/" + file + " (" +
+            Math.round(styled.length / 1024) + " KB, was " +
+            Math.round(original.length / 1024) + " KB)");
+        }
+        drawn.push({ style: style, svg: styled });
+        await renderComparison(page, key, style.name, original, styled);
+        console.log("  rendered tools/restyle/out/" + key + "." + style.name + ".compare.png");
       }
 
-      if (options.write) {
-        await writeFile(join(VARIANTS, key, "map-styled.svg"), styled);
-        console.log("\n  wrote variants1901/" + key + "/map-styled.svg (" +
-          Math.round(styled.length / 1024) + " KB, was " +
-          Math.round(original.length / 1024) + " KB)");
+      if (drawn.length > 1) {
+        const file = await renderStyleGrid(page, key, drawn);
+        console.log("  rendered tools/restyle/out/" + file + " — every style at once");
       }
-      await renderComparison(page, key, original, styled);
-      console.log("  rendered tools/restyle/out/" + key + ".compare.png");
     }
   } finally {
     await browser.close();
   }
 
+  /*
+  The manifest. The server has to answer "which styles are there" without
+  knowing anything about this tool, and the styles are files on disk that the
+  server does not read, so the run that writes the maps writes the list too.
+  */
+  if (options.write) {
+    const names = await listStyles(STYLES);
+    /* The default first, the rest alphabetically. A picker is drawn in this
+       order, and the style a map already has belongs at the top of it. */
+    names.sort((a, b) =>
+      a === DEFAULT_STYLE ? -1 : b === DEFAULT_STYLE ? 1 : a.localeCompare(b));
+    const cards: StyleCard[] = await Promise.all(
+      names.map(async (name) => styleCard(await loadStyle(STYLES, name))),
+    );
+    await writeFile(join(VARIANTS, "styles.json"), JSON.stringify(cards, null, 2) + "\n");
+    console.log("\nwrote variants1901/styles.json: " +
+      cards.map((one) => one.name).join(", "));
+  }
+
   await writeFile(join(OUT, "restyle.report.txt"), report.join("\n") + "\n");
-  console.log("\nreport written to " + join(OUT, "restyle.report.txt"));
+  console.log("report written to " + join(OUT, "restyle.report.txt"));
   if (failed) process.exit(1);
 }
 

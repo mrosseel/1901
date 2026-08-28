@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  EXPERIMENTAL_BADGE,
-  SUPPORTED_BADGE,
   blurb,
   claimLine,
   findVariant,
@@ -92,7 +90,7 @@ describe("what a card says", () => {
     expect(card.soloLine).toBe("Solo at 18 of 34 supply centres.");
     expect(card.startLine).toBe("Starts in 1901.");
     expect(card.credit).toBe("By Allan B. Calhamer");
-    expect(card.badge).toBe(SUPPORTED_BADGE);
+    expect(card.supported).toBe(true);
   });
 
   it("counts the powers of the variant, not of classical", () => {
@@ -101,7 +99,7 @@ describe("what a card says", () => {
     expect(card.powerNames).toBe("Burgundy, England, France");
     expect(card.soloLine).toBe("Solo at 9 of 17 supply centres.");
     expect(card.startLine).toBe("Starts in 1425.");
-    expect(card.badge).toBe(EXPERIMENTAL_BADGE);
+    expect(card.supported).toBe(false);
   });
 
   it("cuts the closed card's line at a word, and leaves a short one alone", () => {
