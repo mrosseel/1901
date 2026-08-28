@@ -79,7 +79,14 @@ type flow struct {
 	byDevice    map[string]godip.Nation
 	gmPower     godip.Nation // empty until start, and always empty when !gmPlays
 
+	// phaseIndex counts completed adjudications. It keys the stored order
+	// history that replay() feeds back into godip.
+	phaseIndex int
+	createdAt  time.Time
+
 	events []string
+	// persistedEvents is how many events are already in the database.
+	persistedEvents int
 }
 
 func newFlow(s settings) (*flow, error) {
@@ -95,6 +102,7 @@ func newFlow(s settings) (*flow, error) {
 		gmToken:     gmToken,
 		inviteToken: inviteToken,
 		settings:    s,
+		createdAt:   time.Now().UTC(),
 		seats:       map[godip.Nation]*seat{},
 		bySeatToken: map[string]godip.Nation{},
 		byDevice:    map[string]godip.Nation{},
@@ -319,6 +327,7 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 	g.mu.Lock()
 	f.logEvent(id, "game created, deadlineMinutes=%v gmPlays=%v", s.DeadlineMinutes, s.GMPlays)
+	g.persist(id)
 	g.mu.Unlock()
 
 	writeJSON(w, http.StatusOK, createResponse{
@@ -400,6 +409,7 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	f.bySeatToken[seatToken] = power
 	f.byDevice[device] = power
 	f.logEvent(id, "seat claimed (%v of %v)", f.joinedCount(), f.joinerSeats())
+	g.persist(id)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     deviceCookieName(id),
@@ -515,6 +525,7 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	if f.started && neu.DeadlineMinutes != old.DeadlineMinutes {
 		f.resetDeadline()
 	}
+	g.persist(id)
 	writeJSON(w, http.StatusOK, g.gmState(id, r))
 }
 
@@ -561,6 +572,7 @@ func handleGMStart(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	f.started = true
 	f.resetDeadline()
 	f.logEvent(id, "game started")
+	g.persist(id)
 	writeJSON(w, http.StatusOK, g.gmState(id, r))
 }
 
@@ -616,6 +628,7 @@ func handleGMExtend(g *game, id string, w http.ResponseWriter, r *http.Request) 
 	at := from.Add(time.Duration(body.Minutes) * time.Minute)
 	f.deadlineAt = &at
 	f.logEvent(id, "deadline extended by %v minutes to %v", body.Minutes, at.UTC().Format(time.RFC3339))
+	g.persist(id)
 	writeJSON(w, http.StatusOK, g.gmState(id, r))
 }
 
@@ -780,6 +793,7 @@ func handleSeatOrder(g *game, id string, power godip.Nation, w http.ResponseWrit
 	}
 	if len(req.Parts) == 0 {
 		g.clearOrder(prov)
+		g.persist(id)
 		writeJSON(w, http.StatusOK, g.seatState(id, power))
 		return
 	}
@@ -787,6 +801,7 @@ func handleSeatOrder(g *game, id string, power godip.Nation, w http.ResponseWrit
 		writeErr(w, http.StatusBadRequest, "%v", err)
 		return
 	}
+	g.persist(id)
 	writeJSON(w, http.StatusOK, g.seatState(id, power))
 }
 
@@ -824,6 +839,8 @@ func (self *game) seatFinalize(id string, power godip.Nation, want bool, w http.
 			writeErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
 			return
 		}
+	} else {
+		self.persist(id)
 	}
 	writeJSON(w, http.StatusOK, self.seatState(id, power))
 }
@@ -854,6 +871,10 @@ func (self *game) adjudicate(id string, dropUnfinalized bool) error {
 		f.logEvent(id, "every power finalized — adjudicating")
 	}
 
+	// Freeze this phase's order rows as they will actually be applied,
+	// NMR drops included. Replay reads them back exactly like this.
+	self.persist(id)
+
 	if err := self.state.Next(); err != nil {
 		return err
 	}
@@ -862,9 +883,11 @@ func (self *game) adjudicate(id string, dropUnfinalized bool) error {
 	for _, s := range f.seats {
 		s.finalized = false
 	}
+	f.phaseIndex++
 	f.resetDeadline()
 	f.logEvent(id, "phase is now %v %v %v",
 		self.state.Phase().Season(), self.state.Phase().Year(), self.state.Phase().Type())
+	self.persist(id)
 	return nil
 }
 

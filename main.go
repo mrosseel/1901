@@ -351,6 +351,16 @@ func absPath(path string) string {
 }
 
 func main() {
+	handle, err := openDB(dbPath())
+	if err != nil {
+		log.Fatalf("open %v: %v", dbPath(), err)
+	}
+	defer handle.Close()
+	db = handle
+	if err := loadAll(); err != nil {
+		log.Fatalf("load games: %v", err)
+	}
+
 	spaDir := absPath(filepath.Join("web", "dist"))
 	srv := &server{spaDir: spaDir}
 
@@ -363,6 +373,6 @@ func main() {
 	mux.HandleFunc("/join/", srv.serveJoinPage)
 
 	addr := listenAddr()
-	log.Printf("listening on http://localhost%v (app from %v)", addr, spaDir)
+	log.Printf("listening on http://localhost%v (app from %v, database %v)", addr, spaDir, dbPath())
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
