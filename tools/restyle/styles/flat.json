@@ -7,7 +7,8 @@
     "land": "#eae2d0",
     "sea": "#8cc0e4",
     "impassable": "#b3aa98",
-    "ground": "#8cc0e4"
+    "ground": "#8cc0e4",
+    "groundInland": "#cec7b7"
   },
   "border": {
     "stroke": "#5a6672",

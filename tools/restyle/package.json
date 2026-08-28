@@ -7,6 +7,7 @@
   "scripts": {
     "restyle": "node restyle.ts",
     "extract-parchment": "node extract-parchment.ts",
-    "test": "node --test tokens.test.ts styles.test.ts"
+    "restyle-godip": "node restyle-godip.ts",
+    "test": "node --test tokens.test.ts styles.test.ts godip.test.ts"
   }
 }

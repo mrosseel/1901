@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { listStyles, loadStyle, parseStyle, styleCard, stylesDir } from "./styles.ts";
+import { colourDistance, luma } from "./tokens.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STYLES = stylesDir(HERE);
@@ -14,7 +15,9 @@ const WHOLE = {
   title: "Example",
   description: "A style that exists only in this test.",
   referenceWidth: 1524,
-  terrain: { land: "#fff", sea: "#000", impassable: "#888", ground: "#000" },
+  terrain: {
+    land: "#fff", sea: "#000", impassable: "#888", ground: "#000", groundInland: "#ddd",
+  },
   border: { stroke: "#000", width: 1, opacity: 1, dash: null, linejoin: "round" },
   coast: { mode: "none", stroke: "#000", width: 4, blur: 5 },
   grain: null,
@@ -52,6 +55,7 @@ test("a missing tone is refused rather than defaulted", () => {
   /* A style with no sea would paint every water province `undefined`, which a
      browser draws as black, and nobody sees it until it is served. */
   assert.throws(() => parseStyle(without("terrain.sea"), "test"), /terrain\.sea/);
+  assert.throws(() => parseStyle(without("terrain.groundInland"), "test"), /terrain\.groundInland/);
   assert.throws(() => parseStyle(without("border.width"), "test"), /border\.width/);
   assert.throws(() => parseStyle(without("typography.land.fill"), "test"), /typography\.land\.fill/);
   assert.throws(() => parseStyle(without("supplyCentre.opacity"), "test"), /supplyCentre\.opacity/);
@@ -94,6 +98,19 @@ test("the four checked-in styles load, assets and all", async () => {
         name + " points at #" + reference[1] + " and must define it",
       );
     }
+    /* The inland ground is what shows between the provinces of a per-province
+       map. Painted the sea tone it turns every inland border into a channel
+       of water, which is the bug it exists to fix. So it has to be
+       tellable-apart from the sea, and it has to be a seam rather than a
+       highlight: darker than the land it borders. */
+    assert.ok(
+      colourDistance(style.terrain.groundInland, style.terrain.sea) > 0.04,
+      name + "'s inland ground is too close to its sea tone to fix anything",
+    );
+    assert.ok(
+      luma(style.terrain.groundInland) < luma(style.terrain.land),
+      name + "'s inland ground must be darker than its land: it is a seam",
+    );
     if (style.grain) {
       assert.ok(
         style.grain.svg.includes('id="' + style.grain.patternId + '"'),

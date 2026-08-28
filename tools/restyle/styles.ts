@@ -60,6 +60,17 @@ export interface StyleDefinition {
     impassable: string;
     /** The ground behind the art, which is usually the sea tone. */
     ground: string;
+    /*
+    The ground behind a map that draws one polygon per province.
+
+    `ground` is the sea tone, which is right for classical: its art is one
+    landmass over a sea-coloured rect, so anything showing through is sea. A
+    converted jDip map is the other shape — every province is its own polygon
+    and the hairline gaps BETWEEN them show the ground — so the sea tone there
+    turns every inland border into a channel of water. This is a land-adjacent
+    tone, a darkened land, and it is what those maps are given instead.
+    */
+    groundInland: string;
   };
   border: {
     stroke: string;
@@ -197,6 +208,7 @@ export function parseStyle(raw: unknown, source: string): StyleDefinition {
       sea: str(terrain.sea, source, "terrain.sea"),
       impassable: str(terrain.impassable, source, "terrain.impassable"),
       ground: str(terrain.ground, source, "terrain.ground"),
+      groundInland: str(terrain.groundInland, source, "terrain.groundInland"),
     },
     border: {
       stroke: str(border.stroke, source, "border.stroke"),

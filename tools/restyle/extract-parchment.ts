@@ -19,12 +19,21 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readdir } from "node:fs/promises";
-import { extractClassical, type ClassicalTokens } from "./tokens.ts";
+import { darken, extractClassical, type ClassicalTokens } from "./tokens.ts";
 import { stylesDir, type StyleDefinition } from "./styles.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STYLES = stylesDir(HERE);
 const ASSETS = join(STYLES, "assets");
+
+/*
+How far the inland ground sits below the land it is derived from.
+
+Far enough that a border gap reads as a seam rather than as sea, close enough
+that the map still reads as one paper. Twelve per cent is what survived
+looking at sailho in all four styles.
+*/
+const INLAND_GROUND_DARKENING = 0.12;
 
 /** classical's map.svg, out of the Go module cache. */
 async function readClassical(given: string | null): Promise<{ svg: string; from: string }> {
@@ -53,6 +62,13 @@ function definitionFrom(tokens: ClassicalTokens): StyleDefinition {
       sea: tokens.seaFill,
       impassable: "url(#" + tokens.impassablePatternId + ")",
       ground: tokens.seaFill,
+      /*
+      classical has no inland ground of its own — its art is one landmass over
+      a sea-coloured rect, so nothing but sea ever shows through. The tone a
+      per-province map needs is therefore derived rather than read: classical's
+      own land, darkened, which is the same paper one shade down.
+      */
+      groundInland: darken(tokens.landFill, INLAND_GROUND_DARKENING),
     },
     border: {
       stroke: tokens.borderStroke,

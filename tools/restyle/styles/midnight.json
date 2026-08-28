@@ -7,7 +7,8 @@
     "land": "#49545f",
     "sea": "#13202e",
     "impassable": "url(#impassableStripes)",
-    "ground": "#0b131c"
+    "ground": "#0b131c",
+    "groundInland": "#404a54"
   },
   "border": {
     "stroke": "#8d9db1",

@@ -500,6 +500,12 @@ export function buildStylesheet(
   parchment palette reads as a hole; and on sailho that rectangle does not
   quite reach the edge of the viewBox, so the page showed through in a thin
   frame. Painting the root as well closes the gap without adding an element.
+
+  It is the INLAND ground that goes here, not the sea tone. This map draws one
+  polygon per province, and the polygons do not quite meet: what shows in the
+  hairline gaps between them is this rectangle. Painted the sea tone — which
+  is what classical's single landmass wants — every inland border down the
+  middle of a continent reads as a channel of water.
   */
   lines.push("/* the ground and the backdrop behind the art */");
   /*
@@ -507,8 +513,8 @@ export function buildStylesheet(
   INLINE into the app's own document, where an SVG stylesheet is not sandboxed
   — a bare `svg { }` rule here would repaint every other SVG on the page.
   */
-  lines.push("svg:has(#MapLayer) { background:" + style.terrain.ground + "; }");
-  lines.push("#MapLayer > rect:first-of-type { fill:" + style.terrain.ground + "; stroke:none; }");
+  lines.push("svg:has(#MapLayer) { background:" + style.terrain.groundInland + "; }");
+  lines.push("#MapLayer > rect:first-of-type { fill:" + style.terrain.groundInland + "; stroke:none; }");
   lines.push("");
 
   /*
@@ -667,9 +673,10 @@ function restyleOne(
   */
   const backdrop = /(<rect\b[^>]*\bfill=")black("[^>]*>)/.exec(svg);
   if (backdrop) {
-    svg = svg.slice(0, backdrop.index) + backdrop[1] + style.terrain.ground + backdrop[2] +
+    svg = svg.slice(0, backdrop.index) + backdrop[1] + style.terrain.groundInland + backdrop[2] +
       svg.slice(backdrop.index + backdrop[0].length);
-    notes.push("repainted the black backdrop rect in the style's ground tone");
+    notes.push("repainted the black backdrop rect in the style's inland ground tone " +
+      style.terrain.groundInland + ", so a border gap does not read as sea");
   } else {
     notes.push("no black backdrop rect found; nothing to repaint");
   }
@@ -738,6 +745,8 @@ function styleReport(style: LoadedStyle): string {
   lines.push("  land                 " + style.terrain.land);
   lines.push("  sea                  " + style.terrain.sea);
   lines.push("  ground               " + style.terrain.ground);
+  lines.push("  inland ground        " + style.terrain.groundInland +
+    " (what shows between the provinces of a per-province map)");
   lines.push("  impassable           " + style.terrain.impassable);
   lines.push("  province border      " + style.border.stroke + " at " + style.border.width +
     " units, opacity " + style.border.opacity + ", " + style.border.linejoin +

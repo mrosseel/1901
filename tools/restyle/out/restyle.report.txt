@@ -1,57 +1,3 @@
-STYLE PARCHMENT — Parchment
-  read from            /home/mike/dev/1901/tools/restyle/styles/parchment.json
-  godip's own classical map: two paper tones, a hairline border and Libre Baskerville.
-  reference width      1524 map units
-  land                 #f4d7b5
-  sea                  #d4d0ad
-  ground               #d4d0ad
-  impassable           url(#impassableStripes)
-  province border      #000000 at 1 units, opacity 1, round, solid
-  coast                #000000 at 4 units, blurred 5.7648684 (needs a single landmass path)
-  grain                #pattern1827 at 0.05 opacity (29947 bytes)
-  definitions          1 (363 bytes)
-  embedded faces       290632 bytes
-  land name            LibreBaskerville-Bold, 'Libre Baskerville', bold normal, tracking -0.5, #000000, no halo
-  sea name             LibreBaskerville-Italic, 'Libre Baskerville', normal italic, tracking 0, #000000, no halo
-  sea abbreviation     tracked out to 3
-  supply centre        #000000 on #000000 at 1 units
-
-STYLE MIDNIGHT — Midnight
-  read from            /home/mike/dev/1901/tools/restyle/styles/midnight.json
-  Dark sea, muted land, light names with a dark halo. For a phone in a dim room.
-  reference width      1524 map units
-  land                 #49545f
-  sea                  #13202e
-  ground               #0b131c
-  impassable           url(#impassableStripes)
-  province border      #8d9db1 at 0.9 units, opacity 0.8, round, solid
-  coast                none
-  grain                #pattern1827 at 0.04 opacity (29947 bytes)
-  definitions          1 (337 bytes)
-  embedded faces       290632 bytes
-  land name            LibreBaskerville-Bold, 'Libre Baskerville', bold normal, tracking -0.5, #eef3f9, haloed #131c26 at 1.1
-  sea name             LibreBaskerville-Italic, 'Libre Baskerville', normal italic, tracking 0, #9dc2e2, haloed #070d14 at 1.1
-  sea abbreviation     tracked out to 3
-  supply centre        #f0d79a on #0b131c at 0.8 units
-
-STYLE PRINT — Print
-  read from            /home/mike/dev/1901/tools/restyle/styles/print.json
-  Light greys, black hairlines, no texture. Survives a projector and a photocopier.
-  reference width      1524 map units
-  land                 #ffffff
-  sea                  #dfe4e8
-  ground               #dfe4e8
-  impassable           url(#impassableStripes)
-  province border      #12171c at 0.8 units, opacity 1, miter, solid
-  coast                none
-  grain                none
-  definitions          1 (336 bytes)
-  embedded faces       none; the family stack is the system's
-  land name            'Helvetica Neue', Helvetica, Arial, sans-serif, bold normal, tracking -0.3, #0d1114, no halo
-  sea name             'Helvetica Neue', Helvetica, Arial, sans-serif, normal italic, tracking 0, #3b4a56, no halo
-  sea abbreviation     tracked out to 2
-  supply centre        #0d1114 on #ffffff at 0.8 units
-
 STYLE FLAT — Flat
   read from            /home/mike/dev/1901/tools/restyle/styles/flat.json
   Clear saturated sea and soft land tints, in the modern web-Diplomacy manner.
@@ -59,6 +5,7 @@ STYLE FLAT — Flat
   land                 #eae2d0
   sea                  #8cc0e4
   ground               #8cc0e4
+  inland ground        #cec7b7 (what shows between the provinces of a per-province map)
   impassable           #b3aa98
   province border      #5a6672 at 1.1 units, opacity 0.9, round, solid
   coast                none
@@ -70,12 +17,69 @@ STYLE FLAT — Flat
   sea abbreviation     tracked out to 2
   supply centre        #ffffff on #33414d at 1 units
 
+STYLE MIDNIGHT — Midnight
+  read from            /home/mike/dev/1901/tools/restyle/styles/midnight.json
+  Dark sea, muted land, light names with a dark halo. For a phone in a dim room.
+  reference width      1524 map units
+  land                 #49545f
+  sea                  #13202e
+  ground               #0b131c
+  inland ground        #404a54 (what shows between the provinces of a per-province map)
+  impassable           url(#impassableStripes)
+  province border      #8d9db1 at 0.9 units, opacity 0.8, round, solid
+  coast                none
+  grain                #pattern1827 at 0.04 opacity (29947 bytes)
+  definitions          1 (337 bytes)
+  embedded faces       290632 bytes
+  land name            LibreBaskerville-Bold, 'Libre Baskerville', bold normal, tracking -0.5, #eef3f9, haloed #131c26 at 1.1
+  sea name             LibreBaskerville-Italic, 'Libre Baskerville', normal italic, tracking 0, #9dc2e2, haloed #070d14 at 1.1
+  sea abbreviation     tracked out to 3
+  supply centre        #f0d79a on #0b131c at 0.8 units
+
+STYLE PARCHMENT — Parchment
+  read from            /home/mike/dev/1901/tools/restyle/styles/parchment.json
+  godip's own classical map: two paper tones, a hairline border and Libre Baskerville.
+  reference width      1524 map units
+  land                 #f4d7b5
+  sea                  #d4d0ad
+  ground               #d4d0ad
+  inland ground        #d7bd9f (what shows between the provinces of a per-province map)
+  impassable           url(#impassableStripes)
+  province border      #000000 at 1 units, opacity 1, round, solid
+  coast                #000000 at 4 units, blurred 5.7648684 (needs a single landmass path)
+  grain                #pattern1827 at 0.05 opacity (29947 bytes)
+  definitions          1 (363 bytes)
+  embedded faces       290632 bytes
+  land name            LibreBaskerville-Bold, 'Libre Baskerville', bold normal, tracking -0.5, #000000, no halo
+  sea name             LibreBaskerville-Italic, 'Libre Baskerville', normal italic, tracking 0, #000000, no halo
+  sea abbreviation     tracked out to 3
+  supply centre        #000000 on #000000 at 1 units
+
+STYLE PRINT — Print
+  read from            /home/mike/dev/1901/tools/restyle/styles/print.json
+  Light greys, black hairlines, no texture. Survives a projector and a photocopier.
+  reference width      1524 map units
+  land                 #ffffff
+  sea                  #dfe4e8
+  ground               #dfe4e8
+  inland ground        #cfcfcf (what shows between the provinces of a per-province map)
+  impassable           url(#impassableStripes)
+  province border      #12171c at 0.8 units, opacity 1, miter, solid
+  coast                none
+  grain                none
+  definitions          1 (336 bytes)
+  embedded faces       none; the family stack is the system's
+  land name            'Helvetica Neue', Helvetica, Arial, sans-serif, bold normal, tracking -0.3, #0d1114, no halo
+  sea name             'Helvetica Neue', Helvetica, Arial, sans-serif, normal italic, tracking 0, #3b4a56, no halo
+  sea abbreviation     tracked out to 2
+  supply centre        #0d1114 on #ffffff at 0.8 units
+
 ==================================================================
-jdip1900  in  parchment
+jdip1900  in  flat
 ==================================================================
   viewBox width        761 (the style quotes against 1524)
   art layer scale      0.1
-  border carried to    4.993 units inside #MapLayer
+  border carried to    5.493 units inside #MapLayer
 
   CLASS MAPPING (what the map actually uses)
     labeltext06       21 uses   label / behaviour, left alone
@@ -83,9 +87,9 @@ jdip1900  in  parchment
     labeltext10       36 uses   label / behaviour, left alone
     labeltext12       46 uses   label / behaviour, left alone
     labeltext14        2 uses   label / behaviour, left alone
-    neutral            1 uses   -> impassable url(#impassableStripes)
-    nopower           71 uses   -> land #f4d7b5
-    water             23 uses   -> sea #d4d0ad
+    neutral            1 uses   -> impassable #b3aa98
+    nopower           71 uses   -> land #eae2d0
+    water             23 uses   -> sea #8cc0e4
   every painting class the map uses is mapped
   MAPPED BUT UNUSED      impassable, seapoly  (this map does not use them)
 
@@ -112,14 +116,147 @@ jdip1900  in  parchment
 
   STRUCTURE CHECK — the restyle must not have moved anything
     locked layers        503 elements compared
-    document elements    514 -> 520
-    ids added            impassableStripes, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
+    document elements    514 -> 514
+    ids added            none
+    verdict              PASS — geometry and ids identical
+
+  WHAT CHANGED
+    added 0 definition(s) to <defs>
+    repainted the black backdrop rect in the style's inland ground tone #cec7b7, so a border gap does not read as sea
+    classified 181 labels: 140 as land, 41 as water
+
+  LABELS IN BOUNDS — a name belongs inside the province it names
+    AUDIT ONLY: nothing below was applied. Re-run with --fix-labels to apply.
+    labels found         89
+    already inside       47
+    spilled over         35
+    repaired             6 (6 moved, 0 shrunk)
+    could not be fixed   29 — 25 replaced by jDip's brief code, 4 left as they were
+    inside but on a marker 0 — the name fits; the marker is what moves, in the placement pass
+    markers avoided      no placement table yet, so only the border constrained the search
+
+    PER LABEL (only the ones that were out of bounds)
+    province   outside before  after   moved      size   name
+    null              100%  STUCK        0    1.00   Constantinople
+    null              100%  STUCK        0    1.00   Denmark
+    null              100%  STUCK        0    1.00   Gibraltar
+    bel                60%  STUCK        0    1.00   Belgium
+    edi                59%  STUCK        0    1.00   Edinburgh
+    nap                58%  STUCK        0    1.00   Naples
+    als                57%  STUCK        0    1.00   Alsace
+    sil                53%  STUCK        0    1.00   Silesia
+    pru                52%  STUCK        0    1.00   Prussia
+    ire                49%  STUCK        0    1.00   Ireland Irish Sea
+    ven                48%  STUCK        0    1.00   Venetia
+    adr                47%  STUCK        0    1.00   Adriatic Sea
+    apu                42%  STUCK        0    1.00   Apulia
+    rom                40%  STUCK        0    1.00   Rome
+    bos                36%  STUCK        0    1.00   Bosnia
+    por                32%  STUCK        0    1.00   Portugal
+    cly                31%  STUCK        0    1.00   Clyde
+    ska                31%  STUCK        0    1.00   Skagerrak
+    net                21%  STUCK        0    1.00   Neth'ds
+    pie                20%  STUCK        0    1.00   Piedmont
+    mil                17%  STUCK        0    1.00   Milan
+    col                15%  STUCK        0    1.00   Cologne
+    lvp                12%  STUCK        0    1.00   Liv'l
+    swe                11%     0%       10    1.00   Sweden
+    vie                11%     0%       18    1.00   Vienna
+    wal                10%  STUCK        0    1.00   Wales
+    gre                 9%  STUCK        0    1.00   Greece
+    pic                 9%  STUCK        0    1.00   Picardy
+    rum                 9%     0%        6    1.00   Rumania
+    ser                 9%     2%       10    1.00   Serbia
+    swi                 9%  STUCK        0    1.00   Switzerland
+    tri                 9%  STUCK        0    1.00   Trieste
+    mar                 7%  STUCK        0    1.00   Marseilles
+    lon                 6%     1%       12    1.00   London
+    tun                 5%     1%       30    1.00   Tunisia
+
+    WILL NOT FIT INSIDE ITS PROVINCE AT ANY SIZE OR POSITION
+    The province is too small for the name. jDip's own brief label is
+    used where it has one — which is what jDip does on a crowded board.
+      adr       "Adriatic Sea"  -> Adr
+      als       "Alsace"  -> Als
+      apu       "Apulia"  -> Apu
+      bel       "Belgium"  -> Bel
+      bos       "Bosnia"  -> Bos
+      cly       "Clyde"  -> Cly
+      col       "Cologne"  -> Col
+      null      "Constantinople"  (no brief label; left where it was)
+      null      "Denmark"  (no brief label; left where it was)
+      edi       "Edinburgh"  -> Edi
+      null      "Gibraltar"  (no brief label; left where it was)
+      gre       "Greece"  -> Gre
+      ire       "Ireland Irish Sea"  -> Ire
+      lvp       "Liv'l"  -> Lvp
+      mar       "Marseilles"  (no brief label; left where it was)
+      mil       "Milan"  -> Mil
+      nap       "Naples"  -> Nap
+      net       "Neth'ds"  -> Net
+      pic       "Picardy"  -> Pic
+      pie       "Piedmont"  -> Pie
+      por       "Portugal"  -> Por
+      pru       "Prussia"  -> Pru
+      rom       "Rome"  -> Rom
+      sil       "Silesia"  -> Sil
+      ska       "Skagerrak"  -> Ska
+      swi       "Switzerland"  -> Swi
+      tri       "Trieste"  -> Tri
+      ven       "Venetia"  -> Ven
+      wal       "Wales"  -> Wal
+
+    STRUCTURE  PASS — positions and sizes only; every element, id and order kept
+
+==================================================================
+jdip1900  in  midnight
+==================================================================
+  viewBox width        761 (the style quotes against 1524)
+  art layer scale      0.1
+  border carried to    4.494 units inside #MapLayer
+
+  CLASS MAPPING (what the map actually uses)
+    labeltext06       21 uses   label / behaviour, left alone
+    labeltext08       13 uses   label / behaviour, left alone
+    labeltext10       36 uses   label / behaviour, left alone
+    labeltext12       46 uses   label / behaviour, left alone
+    labeltext14        2 uses   label / behaviour, left alone
+    neutral            1 uses   -> impassable url(#impassableStripes)
+    nopower           71 uses   -> land #49545f
+    water             23 uses   -> sea #13202e
+  every painting class the map uses is mapped
+  MAPPED BUT UNUSED      impassable, seapoly  (this map does not use them)
+
+  SUPPLY CENTRE MARKERS
+    SupplyCenterLayer ships empty: this map draws no SC markers, so there
+    is nothing to restyle. The board draws ownership itself.
+
+  LABELS
+    jDip wrote these sizes without a CSS unit, so every browser threw
+    the declaration away and drew the label at the 16px default. The
+    unit is put back; the number is jDip's own:
+      .labeltext14 14 -> 14px
+      .labeltext12 12 -> 12px
+      .labeltext10 10 -> 10px
+      .labeltext08 08 -> 08px
+      .labeltext06 06 -> 06px
+    land         138
+    sea           41
+    unknown        2
+    UNCLASSIFIABLE — these sit over no shape at all and are set as
+    land names, which is the safe default:
+      "Edinburgh"
+      "Neth'ds"
+
+  STRUCTURE CHECK — the restyle must not have moved anything
+    locked layers        503 elements compared
+    document elements    514 -> 521
+    ids added            impassableStripes, impassableStripesGround, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
     verdict              PASS — geometry and ids identical
 
   WHAT CHANGED
     added 2 definition(s) to <defs>
-    coast shadow NOT applied: this map draws land per province, so a shadow would fall on every inland border too (needs a single landmass path)
-    repainted the black backdrop rect in the style's ground tone
+    repainted the black backdrop rect in the style's inland ground tone #404a54, so a border gap does not read as sea
     classified 181 labels: 140 as land, 41 as water
     laid the paper grain into HighestOrderLayer, which shipped empty
 
@@ -220,11 +357,11 @@ jdip1900  in  parchment
     STRUCTURE  PASS — positions and sizes only; every element, id and order kept
 
 ==================================================================
-jdip1900  in  midnight
+jdip1900  in  parchment
 ==================================================================
   viewBox width        761 (the style quotes against 1524)
   art layer scale      0.1
-  border carried to    4.494 units inside #MapLayer
+  border carried to    4.993 units inside #MapLayer
 
   CLASS MAPPING (what the map actually uses)
     labeltext06       21 uses   label / behaviour, left alone
@@ -233,8 +370,8 @@ jdip1900  in  midnight
     labeltext12       46 uses   label / behaviour, left alone
     labeltext14        2 uses   label / behaviour, left alone
     neutral            1 uses   -> impassable url(#impassableStripes)
-    nopower           71 uses   -> land #49545f
-    water             23 uses   -> sea #13202e
+    nopower           71 uses   -> land #f4d7b5
+    water             23 uses   -> sea #d4d0ad
   every painting class the map uses is mapped
   MAPPED BUT UNUSED      impassable, seapoly  (this map does not use them)
 
@@ -261,13 +398,14 @@ jdip1900  in  midnight
 
   STRUCTURE CHECK — the restyle must not have moved anything
     locked layers        503 elements compared
-    document elements    514 -> 521
-    ids added            impassableStripes, impassableStripesGround, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
+    document elements    514 -> 520
+    ids added            impassableStripes, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
     verdict              PASS — geometry and ids identical
 
   WHAT CHANGED
     added 2 definition(s) to <defs>
-    repainted the black backdrop rect in the style's ground tone
+    coast shadow NOT applied: this map draws land per province, so a shadow would fall on every inland border too (needs a single landmass path)
+    repainted the black backdrop rect in the style's inland ground tone #d7bd9f, so a border gap does not read as sea
     classified 181 labels: 140 as land, 41 as water
     laid the paper grain into HighestOrderLayer, which shipped empty
 
@@ -415,7 +553,7 @@ jdip1900  in  print
 
   WHAT CHANGED
     added 1 definition(s) to <defs>
-    repainted the black backdrop rect in the style's ground tone
+    repainted the black backdrop rect in the style's inland ground tone #cfcfcf, so a border gap does not read as sea
     classified 181 labels: 140 as land, 41 as water
 
   LABELS IN BOUNDS — a name belongs inside the province it names
@@ -502,153 +640,19 @@ jdip1900  in  print
     STRUCTURE  PASS — positions and sizes only; every element, id and order kept
 
 ==================================================================
-jdip1900  in  flat
-==================================================================
-  viewBox width        761 (the style quotes against 1524)
-  art layer scale      0.1
-  border carried to    5.493 units inside #MapLayer
-
-  CLASS MAPPING (what the map actually uses)
-    labeltext06       21 uses   label / behaviour, left alone
-    labeltext08       13 uses   label / behaviour, left alone
-    labeltext10       36 uses   label / behaviour, left alone
-    labeltext12       46 uses   label / behaviour, left alone
-    labeltext14        2 uses   label / behaviour, left alone
-    neutral            1 uses   -> impassable #b3aa98
-    nopower           71 uses   -> land #eae2d0
-    water             23 uses   -> sea #8cc0e4
-  every painting class the map uses is mapped
-  MAPPED BUT UNUSED      impassable, seapoly  (this map does not use them)
-
-  SUPPLY CENTRE MARKERS
-    SupplyCenterLayer ships empty: this map draws no SC markers, so there
-    is nothing to restyle. The board draws ownership itself.
-
-  LABELS
-    jDip wrote these sizes without a CSS unit, so every browser threw
-    the declaration away and drew the label at the 16px default. The
-    unit is put back; the number is jDip's own:
-      .labeltext14 14 -> 14px
-      .labeltext12 12 -> 12px
-      .labeltext10 10 -> 10px
-      .labeltext08 08 -> 08px
-      .labeltext06 06 -> 06px
-    land         138
-    sea           41
-    unknown        2
-    UNCLASSIFIABLE — these sit over no shape at all and are set as
-    land names, which is the safe default:
-      "Edinburgh"
-      "Neth'ds"
-
-  STRUCTURE CHECK — the restyle must not have moved anything
-    locked layers        503 elements compared
-    document elements    514 -> 514
-    ids added            none
-    verdict              PASS — geometry and ids identical
-
-  WHAT CHANGED
-    added 0 definition(s) to <defs>
-    repainted the black backdrop rect in the style's ground tone
-    classified 181 labels: 140 as land, 41 as water
-
-  LABELS IN BOUNDS — a name belongs inside the province it names
-    AUDIT ONLY: nothing below was applied. Re-run with --fix-labels to apply.
-    labels found         89
-    already inside       47
-    spilled over         35
-    repaired             6 (6 moved, 0 shrunk)
-    could not be fixed   29 — 25 replaced by jDip's brief code, 4 left as they were
-    inside but on a marker 0 — the name fits; the marker is what moves, in the placement pass
-    markers avoided      no placement table yet, so only the border constrained the search
-
-    PER LABEL (only the ones that were out of bounds)
-    province   outside before  after   moved      size   name
-    null              100%  STUCK        0    1.00   Constantinople
-    null              100%  STUCK        0    1.00   Denmark
-    null              100%  STUCK        0    1.00   Gibraltar
-    bel                60%  STUCK        0    1.00   Belgium
-    edi                59%  STUCK        0    1.00   Edinburgh
-    nap                58%  STUCK        0    1.00   Naples
-    als                57%  STUCK        0    1.00   Alsace
-    sil                53%  STUCK        0    1.00   Silesia
-    pru                52%  STUCK        0    1.00   Prussia
-    ire                49%  STUCK        0    1.00   Ireland Irish Sea
-    ven                48%  STUCK        0    1.00   Venetia
-    adr                47%  STUCK        0    1.00   Adriatic Sea
-    apu                42%  STUCK        0    1.00   Apulia
-    rom                40%  STUCK        0    1.00   Rome
-    bos                36%  STUCK        0    1.00   Bosnia
-    por                32%  STUCK        0    1.00   Portugal
-    cly                31%  STUCK        0    1.00   Clyde
-    ska                31%  STUCK        0    1.00   Skagerrak
-    net                21%  STUCK        0    1.00   Neth'ds
-    pie                20%  STUCK        0    1.00   Piedmont
-    mil                17%  STUCK        0    1.00   Milan
-    col                15%  STUCK        0    1.00   Cologne
-    lvp                12%  STUCK        0    1.00   Liv'l
-    swe                11%     0%       10    1.00   Sweden
-    vie                11%     0%       18    1.00   Vienna
-    wal                10%  STUCK        0    1.00   Wales
-    gre                 9%  STUCK        0    1.00   Greece
-    pic                 9%  STUCK        0    1.00   Picardy
-    rum                 9%     0%        6    1.00   Rumania
-    ser                 9%     2%       10    1.00   Serbia
-    swi                 9%  STUCK        0    1.00   Switzerland
-    tri                 9%  STUCK        0    1.00   Trieste
-    mar                 7%  STUCK        0    1.00   Marseilles
-    lon                 6%     1%       12    1.00   London
-    tun                 5%     1%       30    1.00   Tunisia
-
-    WILL NOT FIT INSIDE ITS PROVINCE AT ANY SIZE OR POSITION
-    The province is too small for the name. jDip's own brief label is
-    used where it has one — which is what jDip does on a crowded board.
-      adr       "Adriatic Sea"  -> Adr
-      als       "Alsace"  -> Als
-      apu       "Apulia"  -> Apu
-      bel       "Belgium"  -> Bel
-      bos       "Bosnia"  -> Bos
-      cly       "Clyde"  -> Cly
-      col       "Cologne"  -> Col
-      null      "Constantinople"  (no brief label; left where it was)
-      null      "Denmark"  (no brief label; left where it was)
-      edi       "Edinburgh"  -> Edi
-      null      "Gibraltar"  (no brief label; left where it was)
-      gre       "Greece"  -> Gre
-      ire       "Ireland Irish Sea"  -> Ire
-      lvp       "Liv'l"  -> Lvp
-      mar       "Marseilles"  (no brief label; left where it was)
-      mil       "Milan"  -> Mil
-      nap       "Naples"  -> Nap
-      net       "Neth'ds"  -> Net
-      pic       "Picardy"  -> Pic
-      pie       "Piedmont"  -> Pie
-      por       "Portugal"  -> Por
-      pru       "Prussia"  -> Pru
-      rom       "Rome"  -> Rom
-      sil       "Silesia"  -> Sil
-      ska       "Skagerrak"  -> Ska
-      swi       "Switzerland"  -> Swi
-      tri       "Trieste"  -> Tri
-      ven       "Venetia"  -> Ven
-      wal       "Wales"  -> Wal
-
-    STRUCTURE  PASS — positions and sizes only; every element, id and order kept
-
-==================================================================
-sailho  in  parchment
+sailho  in  flat
 ==================================================================
   viewBox width        7300 (the style quotes against 1524)
   art layer scale      1
-  border carried to    4.79 units inside #MapLayer
+  border carried to    5.269 units inside #MapLayer
 
   CLASS MAPPING (what the map actually uses)
     coasttext          4 uses   label / behaviour, left alone
     labeltext          2 uses   label / behaviour, left alone
     ltmed             12 uses   label / behaviour, left alone
     ltsmall           45 uses   label / behaviour, left alone
-    nopower           43 uses   -> land #f4d7b5
-    seapoly           17 uses   -> sea #d4d0ad
+    nopower           43 uses   -> land #eae2d0
+    seapoly           17 uses   -> sea #8cc0e4
   every painting class the map uses is mapped
   MAPPED BUT UNUSED      impassable, neutral, water  (this map does not use them)
 
@@ -669,14 +673,91 @@ sailho  in  parchment
 
   STRUCTURE CHECK — the restyle must not have moved anything
     locked layers        363 elements compared
-    document elements    380 -> 386
-    ids added            impassableStripes, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
+    document elements    380 -> 380
+    ids added            none
+    verdict              PASS — geometry and ids identical
+
+  WHAT CHANGED
+    added 0 definition(s) to <defs>
+    repainted the black backdrop rect in the style's inland ground tone #cec7b7, so a border gap does not read as sea
+    classified 169 labels: 126 as land, 43 as water
+
+  LABELS IN BOUNDS — a name belongs inside the province it names
+    APPLIED: the repairs below are in the file this run wrote.
+    labels found         60
+    already inside       45
+    spilled over         8
+    repaired             1 (4 moved, 1 shrunk)
+    could not be fixed   7 — 4 replaced by jDip's brief code, 3 left as they were
+    inside but on a marker 8 — the name fits; the marker is what moves, in the placement pass
+    markers avoided      yes — placements/sailho.json was read, and a repaired label clears
+                         the unit and dislodged markers by the RULE B margin
+
+    PER LABEL (only the ones that were out of bounds)
+    province   outside before  after   moved      size   name
+    hes                30%  STUCK        0    1.00   Shrine to Hestia
+    pro                23%  STUCK        0    1.00   Prometheus' Cliff
+    sal                12%  STUCK        0    1.00   Salmonius' Scheme
+    hin                 9%  STUCK        0    1.00   Forest of the Golden Hind
+    ama                 6%  STUCK        0    1.00   Amazon Village
+    per                 5%  STUCK        0    1.00   Persephone's Garden
+    alc                 4%     0%       34    0.80   Alcmene's Village
+    ves                 4%  STUCK        0    1.00   Convent of the Vestal Virgins
+
+    WILL NOT FIT INSIDE ITS PROVINCE AT ANY SIZE OR POSITION
+    The province is too small for the name. jDip's own brief label is
+    used where it has one — which is what jDip does on a crowded board.
+      hes       "Shrine to Hestia"  -> Hes
+      hin       "Forest of the Golden Hind"  -> Hin
+      ama       "Amazon Village"  (no brief label; left where it was)
+      per       "Persephone's Garden"  (no brief label; left where it was)
+      pro       "Prometheus' Cliff"  -> Pro
+      sal       "Salmonius' Scheme"  -> Sal
+      ves       "Convent of the Vestal Virgins"  (no brief label; left where it was)
+
+    STRUCTURE  PASS — positions and sizes only; every element, id and order kept
+
+==================================================================
+sailho  in  midnight
+==================================================================
+  viewBox width        7300 (the style quotes against 1524)
+  art layer scale      1
+  border carried to    4.311 units inside #MapLayer
+
+  CLASS MAPPING (what the map actually uses)
+    coasttext          4 uses   label / behaviour, left alone
+    labeltext          2 uses   label / behaviour, left alone
+    ltmed             12 uses   label / behaviour, left alone
+    ltsmall           45 uses   label / behaviour, left alone
+    nopower           43 uses   -> land #49545f
+    seapoly           17 uses   -> sea #13202e
+  every painting class the map uses is mapped
+  MAPPED BUT UNUSED      impassable, neutral, water  (this map does not use them)
+
+  SUPPLY CENTRE MARKERS
+    SupplyCenterLayer ships empty: this map draws no SC markers, so there
+    is nothing to restyle. The board draws ownership itself.
+
+  LABELS
+    jDip wrote these sizes without a CSS unit, so every browser threw
+    the declaration away and drew the label at the 16px default. The
+    unit is put back; the number is jDip's own:
+      .coasttext 150 -> 150px
+      .labeltext 180 -> 180px
+      .ltsmall 120 -> 120px
+      .ltmed 150 -> 150px
+    land         126
+    sea           43
+
+  STRUCTURE CHECK — the restyle must not have moved anything
+    locked layers        363 elements compared
+    document elements    380 -> 387
+    ids added            impassableStripes, impassableStripesGround, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
     verdict              PASS — geometry and ids identical
 
   WHAT CHANGED
     added 2 definition(s) to <defs>
-    coast shadow NOT applied: this map draws land per province, so a shadow would fall on every inland border too (needs a single landmass path)
-    repainted the black backdrop rect in the style's ground tone
+    repainted the black backdrop rect in the style's inland ground tone #404a54, so a border gap does not read as sea
     classified 169 labels: 126 as land, 43 as water
     laid the paper grain into HighestOrderLayer, which shipped empty
 
@@ -725,19 +806,19 @@ sailho  in  parchment
     STRUCTURE  PASS — positions and sizes only; every element, id and order kept
 
 ==================================================================
-sailho  in  midnight
+sailho  in  parchment
 ==================================================================
   viewBox width        7300 (the style quotes against 1524)
   art layer scale      1
-  border carried to    4.311 units inside #MapLayer
+  border carried to    4.79 units inside #MapLayer
 
   CLASS MAPPING (what the map actually uses)
     coasttext          4 uses   label / behaviour, left alone
     labeltext          2 uses   label / behaviour, left alone
     ltmed             12 uses   label / behaviour, left alone
     ltsmall           45 uses   label / behaviour, left alone
-    nopower           43 uses   -> land #49545f
-    seapoly           17 uses   -> sea #13202e
+    nopower           43 uses   -> land #f4d7b5
+    seapoly           17 uses   -> sea #d4d0ad
   every painting class the map uses is mapped
   MAPPED BUT UNUSED      impassable, neutral, water  (this map does not use them)
 
@@ -758,13 +839,14 @@ sailho  in  midnight
 
   STRUCTURE CHECK — the restyle must not have moved anything
     locked layers        363 elements compared
-    document elements    380 -> 387
-    ids added            impassableStripes, impassableStripesGround, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
+    document elements    380 -> 386
+    ids added            impassableStripes, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
     verdict              PASS — geometry and ids identical
 
   WHAT CHANGED
     added 2 definition(s) to <defs>
-    repainted the black backdrop rect in the style's ground tone
+    coast shadow NOT applied: this map draws land per province, so a shadow would fall on every inland border too (needs a single landmass path)
+    repainted the black backdrop rect in the style's inland ground tone #d7bd9f, so a border gap does not read as sea
     classified 169 labels: 126 as land, 43 as water
     laid the paper grain into HighestOrderLayer, which shipped empty
 
@@ -852,7 +934,7 @@ sailho  in  print
 
   WHAT CHANGED
     added 1 definition(s) to <defs>
-    repainted the black backdrop rect in the style's ground tone
+    repainted the black backdrop rect in the style's inland ground tone #cfcfcf, so a border gap does not read as sea
     classified 169 labels: 126 as land, 43 as water
 
   LABELS IN BOUNDS — a name belongs inside the province it names
@@ -891,7 +973,7 @@ sailho  in  print
     STRUCTURE  PASS — positions and sizes only; every element, id and order kept
 
 ==================================================================
-sailho  in  flat
+sailhocrowded  in  flat
 ==================================================================
   viewBox width        7300 (the style quotes against 1524)
   art layer scale      1
@@ -930,19 +1012,18 @@ sailho  in  flat
 
   WHAT CHANGED
     added 0 definition(s) to <defs>
-    repainted the black backdrop rect in the style's ground tone
+    repainted the black backdrop rect in the style's inland ground tone #cec7b7, so a border gap does not read as sea
     classified 169 labels: 126 as land, 43 as water
 
   LABELS IN BOUNDS — a name belongs inside the province it names
-    APPLIED: the repairs below are in the file this run wrote.
+    AUDIT ONLY: nothing below was applied. Re-run with --fix-labels to apply.
     labels found         60
     already inside       45
     spilled over         8
-    repaired             1 (4 moved, 1 shrunk)
-    could not be fixed   7 — 4 replaced by jDip's brief code, 3 left as they were
-    inside but on a marker 8 — the name fits; the marker is what moves, in the placement pass
-    markers avoided      yes — placements/sailho.json was read, and a repaired label clears
-                         the unit and dislodged markers by the RULE B margin
+    repaired             2 (2 moved, 2 shrunk)
+    could not be fixed   6 — 4 replaced by jDip's brief code, 2 left as they were
+    inside but on a marker 0 — the name fits; the marker is what moves, in the placement pass
+    markers avoided      no placement table yet, so only the border constrained the search
 
     PER LABEL (only the ones that were out of bounds)
     province   outside before  after   moved      size   name
@@ -950,7 +1031,7 @@ sailho  in  flat
     pro                23%  STUCK        0    1.00   Prometheus' Cliff
     sal                12%  STUCK        0    1.00   Salmonius' Scheme
     hin                 9%  STUCK        0    1.00   Forest of the Golden Hind
-    ama                 6%  STUCK        0    1.00   Amazon Village
+    ama                 6%     2%      147    0.80   Amazon Village
     per                 5%  STUCK        0    1.00   Persephone's Garden
     alc                 4%     0%       34    0.80   Alcmene's Village
     ves                 4%  STUCK        0    1.00   Convent of the Vestal Virgins
@@ -960,7 +1041,6 @@ sailho  in  flat
     used where it has one — which is what jDip does on a crowded board.
       hes       "Shrine to Hestia"  -> Hes
       hin       "Forest of the Golden Hind"  -> Hin
-      ama       "Amazon Village"  (no brief label; left where it was)
       per       "Persephone's Garden"  (no brief label; left where it was)
       pro       "Prometheus' Cliff"  -> Pro
       sal       "Salmonius' Scheme"  -> Sal
@@ -969,19 +1049,19 @@ sailho  in  flat
     STRUCTURE  PASS — positions and sizes only; every element, id and order kept
 
 ==================================================================
-sailhocrowded  in  parchment
+sailhocrowded  in  midnight
 ==================================================================
   viewBox width        7300 (the style quotes against 1524)
   art layer scale      1
-  border carried to    4.79 units inside #MapLayer
+  border carried to    4.311 units inside #MapLayer
 
   CLASS MAPPING (what the map actually uses)
     coasttext          4 uses   label / behaviour, left alone
     labeltext          2 uses   label / behaviour, left alone
     ltmed             12 uses   label / behaviour, left alone
     ltsmall           45 uses   label / behaviour, left alone
-    nopower           43 uses   -> land #f4d7b5
-    seapoly           17 uses   -> sea #d4d0ad
+    nopower           43 uses   -> land #49545f
+    seapoly           17 uses   -> sea #13202e
   every painting class the map uses is mapped
   MAPPED BUT UNUSED      impassable, neutral, water  (this map does not use them)
 
@@ -1002,14 +1082,13 @@ sailhocrowded  in  parchment
 
   STRUCTURE CHECK — the restyle must not have moved anything
     locked layers        363 elements compared
-    document elements    380 -> 386
-    ids added            impassableStripes, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
+    document elements    380 -> 387
+    ids added            impassableStripes, impassableStripesGround, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
     verdict              PASS — geometry and ids identical
 
   WHAT CHANGED
     added 2 definition(s) to <defs>
-    coast shadow NOT applied: this map draws land per province, so a shadow would fall on every inland border too (needs a single landmass path)
-    repainted the black backdrop rect in the style's ground tone
+    repainted the black backdrop rect in the style's inland ground tone #404a54, so a border gap does not read as sea
     classified 169 labels: 126 as land, 43 as water
     laid the paper grain into HighestOrderLayer, which shipped empty
 
@@ -1057,19 +1136,19 @@ sailhocrowded  in  parchment
     STRUCTURE  PASS — positions and sizes only; every element, id and order kept
 
 ==================================================================
-sailhocrowded  in  midnight
+sailhocrowded  in  parchment
 ==================================================================
   viewBox width        7300 (the style quotes against 1524)
   art layer scale      1
-  border carried to    4.311 units inside #MapLayer
+  border carried to    4.79 units inside #MapLayer
 
   CLASS MAPPING (what the map actually uses)
     coasttext          4 uses   label / behaviour, left alone
     labeltext          2 uses   label / behaviour, left alone
     ltmed             12 uses   label / behaviour, left alone
     ltsmall           45 uses   label / behaviour, left alone
-    nopower           43 uses   -> land #49545f
-    seapoly           17 uses   -> sea #13202e
+    nopower           43 uses   -> land #f4d7b5
+    seapoly           17 uses   -> sea #d4d0ad
   every painting class the map uses is mapped
   MAPPED BUT UNUSED      impassable, neutral, water  (this map does not use them)
 
@@ -1090,13 +1169,14 @@ sailhocrowded  in  midnight
 
   STRUCTURE CHECK — the restyle must not have moved anything
     locked layers        363 elements compared
-    document elements    380 -> 387
-    ids added            impassableStripes, impassableStripesGround, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
+    document elements    380 -> 386
+    ids added            impassableStripes, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
     verdict              PASS — geometry and ids identical
 
   WHAT CHANGED
     added 2 definition(s) to <defs>
-    repainted the black backdrop rect in the style's ground tone
+    coast shadow NOT applied: this map draws land per province, so a shadow would fall on every inland border too (needs a single landmass path)
+    repainted the black backdrop rect in the style's inland ground tone #d7bd9f, so a border gap does not read as sea
     classified 169 labels: 126 as land, 43 as water
     laid the paper grain into HighestOrderLayer, which shipped empty
 
@@ -1183,83 +1263,7 @@ sailhocrowded  in  print
 
   WHAT CHANGED
     added 1 definition(s) to <defs>
-    repainted the black backdrop rect in the style's ground tone
-    classified 169 labels: 126 as land, 43 as water
-
-  LABELS IN BOUNDS — a name belongs inside the province it names
-    AUDIT ONLY: nothing below was applied. Re-run with --fix-labels to apply.
-    labels found         60
-    already inside       45
-    spilled over         8
-    repaired             2 (2 moved, 2 shrunk)
-    could not be fixed   6 — 4 replaced by jDip's brief code, 2 left as they were
-    inside but on a marker 0 — the name fits; the marker is what moves, in the placement pass
-    markers avoided      no placement table yet, so only the border constrained the search
-
-    PER LABEL (only the ones that were out of bounds)
-    province   outside before  after   moved      size   name
-    hes                30%  STUCK        0    1.00   Shrine to Hestia
-    pro                23%  STUCK        0    1.00   Prometheus' Cliff
-    sal                12%  STUCK        0    1.00   Salmonius' Scheme
-    hin                 9%  STUCK        0    1.00   Forest of the Golden Hind
-    ama                 6%     2%      147    0.80   Amazon Village
-    per                 5%  STUCK        0    1.00   Persephone's Garden
-    alc                 4%     0%       34    0.80   Alcmene's Village
-    ves                 4%  STUCK        0    1.00   Convent of the Vestal Virgins
-
-    WILL NOT FIT INSIDE ITS PROVINCE AT ANY SIZE OR POSITION
-    The province is too small for the name. jDip's own brief label is
-    used where it has one — which is what jDip does on a crowded board.
-      hes       "Shrine to Hestia"  -> Hes
-      hin       "Forest of the Golden Hind"  -> Hin
-      per       "Persephone's Garden"  (no brief label; left where it was)
-      pro       "Prometheus' Cliff"  -> Pro
-      sal       "Salmonius' Scheme"  -> Sal
-      ves       "Convent of the Vestal Virgins"  (no brief label; left where it was)
-
-    STRUCTURE  PASS — positions and sizes only; every element, id and order kept
-
-==================================================================
-sailhocrowded  in  flat
-==================================================================
-  viewBox width        7300 (the style quotes against 1524)
-  art layer scale      1
-  border carried to    5.269 units inside #MapLayer
-
-  CLASS MAPPING (what the map actually uses)
-    coasttext          4 uses   label / behaviour, left alone
-    labeltext          2 uses   label / behaviour, left alone
-    ltmed             12 uses   label / behaviour, left alone
-    ltsmall           45 uses   label / behaviour, left alone
-    nopower           43 uses   -> land #eae2d0
-    seapoly           17 uses   -> sea #8cc0e4
-  every painting class the map uses is mapped
-  MAPPED BUT UNUSED      impassable, neutral, water  (this map does not use them)
-
-  SUPPLY CENTRE MARKERS
-    SupplyCenterLayer ships empty: this map draws no SC markers, so there
-    is nothing to restyle. The board draws ownership itself.
-
-  LABELS
-    jDip wrote these sizes without a CSS unit, so every browser threw
-    the declaration away and drew the label at the 16px default. The
-    unit is put back; the number is jDip's own:
-      .coasttext 150 -> 150px
-      .labeltext 180 -> 180px
-      .ltsmall 120 -> 120px
-      .ltmed 150 -> 150px
-    land         126
-    sea           43
-
-  STRUCTURE CHECK — the restyle must not have moved anything
-    locked layers        363 elements compared
-    document elements    380 -> 380
-    ids added            none
-    verdict              PASS — geometry and ids identical
-
-  WHAT CHANGED
-    added 0 definition(s) to <defs>
-    repainted the black backdrop rect in the style's ground tone
+    repainted the black backdrop rect in the style's inland ground tone #cfcfcf, so a border gap does not read as sea
     classified 169 labels: 126 as land, 43 as water
 
   LABELS IN BOUNDS — a name belongs inside the province it names

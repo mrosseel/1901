@@ -33,7 +33,6 @@ import type {
   Unit,
 } from "./types";
 import {
-  MAX_ZOOM,
   baseBoxOf,
   centredView,
   clamp,
@@ -41,7 +40,6 @@ import {
   fitAllWidth,
   pannedView,
   placeView,
-  toMapPoint,
   zoomedView,
   type Box,
   type Point,
@@ -343,9 +341,6 @@ export function mount(
   }
 
   // Client coordinates → map coordinates.
-  function toMap(clientX: number, clientY: number): Point {
-    return toMapPoint(view!, mapRect(), clientX, clientY);
-  }
 
   // Zooms by `factor` while the map point under (clientX, clientY) stays put.
   function zoomAt(clientX: number, clientY: number, factor: number): void {

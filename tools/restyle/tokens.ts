@@ -79,6 +79,90 @@ export const PRESENTATION_PROPERTIES = [
   "opacity",
 ];
 
+// --- colour arithmetic ------------------------------------------------------
+
+/*
+The little colour arithmetic the tool needs, and no more.
+
+Two things ask for it. A style's inland ground is a darkened land tone, and
+parchment's is derived from classical's own land rather than typed out, so the
+house style stays the file's. And a godip map that paints more than one land
+tone keeps the distinction between them: the extra tone is carried onto the
+style's land by the same lightness difference it had from the map's own.
+
+Everything is sRGB. A perceptual space would be more correct and would need a
+dependency; the differences here are small enough that the two agree.
+*/
+
+/** #rgb, #rrggbb or rgb(r, g, b) as three 0-255 channels, or null. */
+export function parseColour(value: string): [number, number, number] | null {
+  const text = value.trim().toLowerCase();
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/.exec(text);
+  if (short) {
+    return [
+      parseInt(short[1] + short[1], 16),
+      parseInt(short[2] + short[2], 16),
+      parseInt(short[3] + short[3], 16),
+    ];
+  }
+  const long = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/.exec(text);
+  if (long) {
+    return [parseInt(long[1], 16), parseInt(long[2], 16), parseInt(long[3], 16)];
+  }
+  const rgb = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/.exec(text);
+  if (rgb) return [Math.round(+rgb[1]), Math.round(+rgb[2]), Math.round(+rgb[3])];
+  return null;
+}
+
+function clamp(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+/** Three channels back as #rrggbb. */
+export function toHex(rgb: [number, number, number]): string {
+  return "#" + rgb.map((one) => clamp(one).toString(16).padStart(2, "0")).join("");
+}
+
+/** A colour with every channel scaled down: 0.12 is 12 per cent darker. */
+export function darken(value: string, fraction: number): string {
+  const rgb = parseColour(value);
+  if (!rgb) return value;
+  const factor = 1 - fraction;
+  return toHex([rgb[0] * factor, rgb[1] * factor, rgb[2] * factor]);
+}
+
+/** Rec. 601 luma, 0 for black and 1 for white. */
+export function luma(value: string): number {
+  const rgb = parseColour(value);
+  if (!rgb) return 0.5;
+  return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+}
+
+/** How far apart two colours are, as the plain RGB distance in 0..1. */
+export function colourDistance(a: string, b: string): number {
+  const one = parseColour(a);
+  const two = parseColour(b);
+  if (!one || !two) return 1;
+  return Math.hypot(one[0] - two[0], one[1] - two[1], one[2] - two[2]) / (255 * Math.sqrt(3));
+}
+
+/*
+`target` moved by the lightness difference between `variant` and `base`.
+
+A map whose land is two tones — a paler province, a darker one — should still
+be two tones after the restyle. The style names one land colour, so the second
+is made by giving the style's land the same lightness step the map gave its
+own. The step is capped, because a map with a very dark second tone would
+otherwise drive the result to black.
+*/
+export function carryTone(target: string, base: string, variant: string): string {
+  const step = Math.max(-0.35, Math.min(0.35, luma(variant) - luma(base)));
+  const rgb = parseColour(target);
+  if (!rgb) return target;
+  const shift = step * 255;
+  return toHex([rgb[0] + shift, rgb[1] + shift, rgb[2] + shift]);
+}
+
 function must<T>(value: T | null | undefined, what: string): T {
   if (value === null || value === undefined) {
     throw new Error("the classical map has no " + what + "; it cannot be the style source");
@@ -395,9 +479,17 @@ export const LOCKED_LAYERS = [
   "BriefLabelLayer",
 ];
 
-/** One layer's text, from its opening tag to its matching close. */
+/*
+One layer's text, from its opening tag to its matching close.
+
+A layer is found by id, or — for godip's own maps, which are Inkscape files
+where the drawing layers carry their name as a label and their id as whatever
+the editor last generated — by that label.
+*/
 export function layerText(svg: string, id: string): string | null {
-  const open = new RegExp('<g\\b[^>]*\\bid="' + id + '"[^>]*?(/)?>').exec(svg);
+  const open = new RegExp(
+    '<g\\b[^>]*\\b(?:id|inkscape:label)="' + id + '"[^>]*?(/)?>',
+  ).exec(svg);
   if (!open) return null;
   if (open[1]) return open[0];
   // Nested <g> is possible, so the close is found by counting depth.
@@ -426,16 +518,36 @@ export interface StructureDiff {
 }
 
 /*
+The document with its definitions cut out.
+
+A definition draws nothing by itself. A style that paints impassable ground
+with its own hatch swaps the insides of the map's pattern for its own, and the
+two are not the same shape — parchment's is one line, midnight's is a line
+over a ground rect — so the element count inside a `<defs>`, or inside a
+`<pattern>` that some maps keep outside one, legitimately differs. Everything
+that IS drawn is elsewhere, and that is what the whole-document check compares.
+*/
+function withoutDefs(svg: string): string {
+  return svg
+    .replace(/<defs\b[^>]*>[\s\S]*?<\/defs>/g, "<defs/>")
+    .replace(/<pattern\b[^>]*>[\s\S]*?<\/pattern>/g, "<pattern/>");
+}
+
+/*
 Compares two maps and says, in words, anything a restyle must not have done.
 
 Each locked layer is compared on its own so a failure names the layer, and the
 whole document is counted as well so an addition can never hide inside one.
 */
-export function compareStructure(original: string, styled: string): StructureDiff {
+export function compareStructure(
+  original: string,
+  styled: string,
+  layers: string[] = LOCKED_LAYERS,
+): StructureDiff {
   const problems: string[] = [];
   let lockedElements = 0;
 
-  for (const id of LOCKED_LAYERS) {
+  for (const id of layers) {
     const before = layerText(original, id);
     const after = layerText(styled, id);
     if (before === null && after === null) continue;
@@ -480,7 +592,18 @@ export function compareStructure(original: string, styled: string): StructureDif
   const whole = summariseStructure(original);
   const wholeStyled = summariseStructure(styled);
   const addedIds = wholeStyled.ids.filter((id) => !whole.ids.includes(id));
-  const lostIds = whole.ids.filter((id) => !wholeStyled.ids.includes(id));
+  /*
+  An id may only go missing if it was a definition's.
+
+  A style brings its own hatch, and its insides are not the map's insides: a
+  different number of shapes, under different ids, all of them reached through
+  the one id that matters — the pattern's, which is kept. Everything that
+  DRAWS must still be there under the name it had, and that is checked on the
+  document with its definitions cut out.
+  */
+  const drawnBefore = summariseStructure(withoutDefs(original));
+  const drawnAfter = summariseStructure(withoutDefs(styled));
+  const lostIds = drawnBefore.ids.filter((id) => !drawnAfter.ids.includes(id));
   if (lostIds.length) problems.push("ids lost from the document: " + lostIds.slice(0, 8).join(", "));
 
   return {
@@ -491,4 +614,46 @@ export function compareStructure(original: string, styled: string): StructureDif
     totalAfter: wholeStyled.tags.length,
     addedIds: addedIds,
   };
+}
+
+/*
+The whole document compared, element for element.
+
+A layer lock only guards the layers it knows the names of, and a restyle that
+adds nothing at all can afford a stricter promise than that: every element in
+the file, in order, with the same geometry. The applier for godip's own maps
+adds no element, so this is the check it is held to on top of the layer lock.
+The jDip applier does add — a grain overlay, definitions — and is not.
+*/
+export function compareWholeGeometry(original: string, styled: string): string[] {
+  const problems: string[] = [];
+  const before = summariseStructure(withoutDefs(original));
+  const after = summariseStructure(withoutDefs(styled));
+  if (before.tags.length !== after.tags.length) {
+    problems.push(
+      "the document's element count changed, " +
+        before.tags.length + " -> " + after.tags.length,
+    );
+    return problems;
+  }
+  for (let i = 0; i < before.tags.length; i++) {
+    if (before.tags[i] !== after.tags[i]) {
+      problems.push("element " + i + " changed tag, " + before.tags[i] + " -> " + after.tags[i]);
+      break;
+    }
+  }
+  for (const [key, value] of before.geometry) {
+    const other = after.geometry.get(key);
+    if (other === undefined) {
+      problems.push("element " + key + " is gone from the document");
+      break;
+    }
+    if (other !== value) {
+      problems.push(
+        "element " + key + " moved — " + value.slice(0, 80) + " -> " + other.slice(0, 80),
+      );
+      break;
+    }
+  }
+  return problems;
 }

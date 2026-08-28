@@ -333,16 +333,76 @@ The choice is per DEVICE, in localStorage, never in the game: it changes what
 one screen draws and nothing anyone else sees. One table can have the game
 master on parchment, a player on midnight, and the projector on print.
 
-**Limits.** Only maps converted from jDip can be styled, because the restyle
-works through the semantic classes those maps carry (`nopower`, `seapoly`,
-`neutral`). No godip map has them: classical and classicalcrowded paint their
-whole landmass as one path with an inline fill, and the rest paint a handful
-of big paths the same way. Restyling them needs a second applier that
-substitutes inline fill VALUES — which is a different and more fragile thing
-than painting by class — and classicalcrowded is the first candidate, since
-it has classical's exact structure. Classical's blurred coastline is carried
-in every style and applied by neither: it needs a single landmass path, and a
-per-province map would draw it along every inland border too.
+**Superseded limit.** This decision first said that only maps converted from
+jDip could be styled, because the restyle works through the semantic classes
+those maps carry (`nopower`, `seapoly`, `neutral`) and no godip map has any.
+D-024 built the second applier and every map is now styled. Classical's
+blurred coastline is still carried in every style and applied by neither
+applier: it needs a single landmass path, and a per-province map would draw it
+along every inland border too.
+
+### D-024 — godip's own maps are styled by palette substitution
+**Status:** accepted, r17
+A jDip conversion is restyled through its classes (D-016). godip's twenty-three
+own maps have no classes at all: classical paints its landmass as one path
+with `style="fill:#f4d7b5"` over a sea-coloured rect, and the rest do the same
+with more paths. `tools/restyle/restyle-godip.ts` styles them by substituting
+fill VALUES, which is more fragile than painting by class, so the fragility is
+made visible rather than hidden:
+
+- **The palette is not guessed from the tone.** The adjudicator is asked which
+  provinces are sea (`GET /variants/<key>/provinces.json`, new), each
+  province's own hit shape is sampled against the art in a real renderer, and
+  the tone is decided by a vote that has to carry two thirds. A named coast —
+  `spa/nc` — votes for nothing: it is sea to the adjudicator and land on the
+  map, and counting it lost classical, Cold War and Twenty Twenty their first
+  vote. A map that cannot be classified is left in godip's own colours and
+  named with the reason in the coverage table; honest partial coverage beats a
+  silent hundred per cent.
+- **Only what the vote identified is touched.** Black stays black: on these
+  maps it is the coastline's drop shadow and the outlines round the names. A
+  second land tone is carried rather than flattened — it keeps the lightness
+  step it had from the base tone.
+- Also restyled: the impassable hatch (the style's pattern replaces the
+  insides of the map's, keeping the id, so no reference and no id changes),
+  the strength of the paper grain, the province border strokes, and the
+  typography of the names layer. A foreground carrying many times more dark
+  strokes than the map has provinces is decoration — North Sea Wars draws a
+  celtic knot — and is left exactly as drawn.
+- Sizes and positions are not touched, and the applier adds no element, so it
+  is held to a stricter lock than the jDip one: the layer lock of D-016 widened
+  to godip's layer names, and then every drawing element in the document
+  compared for tag, id and geometry.
+
+**Where they are served from.** A godip map is embedded in the dependency and
+is not a file in this checkout, so its styled art cannot live beside an
+original that is not there. It goes in `styledmaps/<key>/map-<style>.svg`,
+named by the URL key since there is no Go package to name it after, and
+`variants.go` globs that directory alongside `variants1901/<package>/`. Both
+land in the same table and are served the same way. `STYLEDMAPS` moves the
+directory the way `VARIANTS1901` moves the other one.
+
+The tool is a client, not a library: the maps and the province types come from
+a running server (`--server`, default `http://localhost:8195`), because a
+running server is the only thing that can hand over art that lives inside the
+dependency.
+
+### D-025 — A per-province map has its own ground tone
+**Status:** accepted, r17
+A style's `terrain.ground` is the tone behind the art, and for classical it is
+the sea tone: the art is one landmass over a sea-coloured rect, so anything
+showing through IS sea. A converted jDip map is the other shape. Every
+province is its own polygon, the polygons do not quite meet, and what shows in
+the hairline gaps between them is the ground — which painted the sea tone
+turned every inland border, down the middle of a continent, into a channel of
+water.
+
+Styles therefore carry a second tone, `terrain.groundInland`: a darkened land,
+which reads as a seam rather than as water. It is what the jDip applier paints
+the backdrop rect and the root background with; `ground` is unchanged and is
+what a single-landmass map still uses. parchment's is derived rather than
+typed — classical's own land, twelve per cent darker, by
+`extract-parchment.ts` — so the house style stays the file's own.
 
 ### D-004 — Order secrecy via commit-reveal
 **Status:** accepted, r1

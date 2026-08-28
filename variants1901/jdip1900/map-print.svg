@@ -43,8 +43,8 @@
 #MapLayer .turkey { fill:#ffffff; stroke:#12171c; stroke-width:3.995; stroke-opacity:1; stroke-linejoin:miter; }
 
 /* the ground and the backdrop behind the art */
-svg:has(#MapLayer) { background:#dfe4e8; }
-#MapLayer > rect:first-of-type { fill:#dfe4e8; stroke:none; }
+svg:has(#MapLayer) { background:#cfcfcf; }
+#MapLayer > rect:first-of-type { fill:#cfcfcf; stroke:none; }
 
 /* names: the style's typography on jDip's own sizes and positions */
 #FullLabelLayer text, #BriefLabelLayer text { font-family:'Helvetica Neue', Helvetica, Arial, sans-serif; fill:#0d1114; stroke:none; }
@@ -78,7 +78,7 @@ svg:has(#MapLayer) { background:#dfe4e8; }
 	</defs>
 
 	<g id="MapLayer" transform="translate(0,713) scale(0.1,-0.1)">
-		<rect x="0" y="0" width="7610" height="7130" fill="#dfe4e8"/>
+		<rect x="0" y="0" width="7610" height="7130" fill="#cfcfcf"/>
 		<path id="_adr" class="water" d="M3978 2772 c-33 -20 -42 -40 -28 -58 8 -9 7 -19 -5 -37 -14 -22 -14
 -25 0 -37 9 -8 15 -25 13 -40 -2 -21 12 -40 74 -101 62 -60 77 -81 83 -114 3
 -22 13 -50 20 -62 15 -22 68 -53 92 -53 8 0 22 -13 31 -30 15 -26 23 -30 58

@@ -7,3 +7,4 @@ web/*.tsbuildinfo
 *.db
 *.db-wal
 *.db-shm
+styledmaps/
