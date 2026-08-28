@@ -422,7 +422,12 @@ type server struct {
 
 // servePage serves the board shell.
 func (self *server) servePage(w http.ResponseWriter, r *http.Request) {
-	self.servePageFile(w, r, "index.html")
+	index := filepath.Join(self.dir, "index.html")
+	if !isFile(index) {
+		http.Error(w, "static/index.html not present yet", http.StatusNotFound)
+		return
+	}
+	http.ServeFile(w, r, index)
 }
 
 // isFile reports whether the path exists and is a regular file.
@@ -514,6 +519,15 @@ func (self *server) serveGame(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
+// absPath resolves a path against the working directory, leaving it as
+// given when that fails.
+func absPath(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
+}
+
 // staticHandler serves the static directory, or a placeholder while it is missing.
 func staticHandler(dir string) http.Handler {
 	fs := http.FileServer(http.Dir(dir))
@@ -527,29 +541,26 @@ func staticHandler(dir string) http.Handler {
 }
 
 func main() {
-	dir := "static"
-	if abs, err := filepath.Abs(dir); err == nil {
-		dir = abs
-	}
-	srv := &server{dir: dir, static: staticHandler(dir)}
+	dir := absPath("static")
+	spaDir := absPath(filepath.Join("web", "dist"))
+	srv := &server{dir: dir, spaDir: spaDir, static: staticHandler(dir)}
 
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.StripPrefix("/static/", srv.static))
-	mux.Handle("/", srv.static)
+	mux.HandleFunc("/", srv.serveRoot)
 	mux.HandleFunc("/g/", srv.serveGame)
 	for path, h := range apiRoutes {
 		mux.HandleFunc("/"+path, scoped(defaultGameID, h))
 	}
 
 	// M1 flow.
+	mux.HandleFunc("/assets/", srv.serveSPAAsset)
 	mux.HandleFunc("/games", handleCreateGame)
 	mux.HandleFunc("/game/", srv.serveFlow)
 	mux.HandleFunc("/join/", srv.serveJoinPage)
-	mux.HandleFunc("/new", func(w http.ResponseWriter, r *http.Request) {
-		srv.servePageFile(w, r, "new.html")
-	})
+	mux.HandleFunc("/new", srv.serveSPA)
 
 	addr := listenAddr()
-	log.Printf("listening on http://localhost%v (static from %v)", addr, dir)
+	log.Printf("listening on http://localhost%v (sandbox %v, app %v)", addr, dir, spaDir)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }

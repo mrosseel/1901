@@ -961,11 +961,8 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 	}
 
 	if action == "" {
-		if kind == "gm" {
-			self.servePageFile(w, r, "gm.html")
-		} else {
-			self.servePageFile(w, r, "seat.html")
-		}
+		// Both pages are routes inside the same SPA shell.
+		self.serveSPA(w, r)
 		return
 	}
 	if kind == "gm" {
@@ -1019,5 +1016,5 @@ func (self *server) serveJoinPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	self.servePageFile(w, r, "join.html")
+	self.serveSPA(w, r)
 }
