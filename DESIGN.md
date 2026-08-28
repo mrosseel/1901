@@ -58,6 +58,9 @@ entry at a physical table.
   (Long-term direction changed in r6 — see D-018: a hosted multi-game
   service with logins is a post-v1 target. Still out of v1.)
 - Press/messaging. People are sitting at a table talking to each other.
+  (Narrowed r16 by D-023: a pressMode game setting exists; the
+  "fullpress" mode, which implies in-app messaging, is a post-v1 /
+  hosted-mode feature.)
 - AI players.
 - Tournament scoring, ratings, brackets.
 - Mobile app stores. It's a PWA.
@@ -550,6 +553,22 @@ What this explicitly does not change: no account system, lobby, or
 multi-tenancy work before M5 is accepted. Hosted mode gets its own
 milestones after v1 ships.
 
+### D-023 — Press mode is a game setting: ftf, gunboat, fullpress
+**Status:** accepted, r16
+The GM chooses the press mode at creation, shown to players on the join
+page as part of the rules (D-022):
+
+- **ftf** (default): negotiation is verbal at the table; the app carries
+  no messages. Identity is social.
+- **gunboat**: no negotiation. App-identical to ftf today, but declared —
+  and seat anonymity (D-020) is load-bearing rather than incidental.
+- **fullpress**: in-app messaging between powers. Post-v1 (hosted-mode
+  territory, D-018); selectable in the UI only when implemented — until
+  then visible but disabled with a "later" note, so the model is
+  established in data now.
+
+Immutable after start, like gmPlays.
+
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
 The GM shares ONE invite link/QR. Claiming it assigns a random
@@ -854,4 +873,5 @@ Recorded so nobody re-derives them.
 | r13 | 2026-08-28 | M1 flow implemented end-to-end (D-020/021/022) as React SPA + Go, verified live. M0 sandbox and static/ deleted; / redirects to /new. Still in-memory — SQLite persistence remains before M1 acceptance. |
 | r14 | 2026-08-28 | D-016 activated: pilot port of 1900 and Sail Ho from jDip (translator + map conversion phase 1; LLM-assisted restyle phase 2, needs OpenRouter key). Sources vendored to tools/jdip-import/source. |
 | r15 | 2026-08-28 | D-014 presentation: checkmark for supported, no experimental badge. Restyle shipped as scripted theming (no LLM needed); style system with four named themes underway. Placement pipeline (audit/optimize/editor/serving) complete for classical + sailho. |
+| r16 | 2026-08-28 | D-023: pressMode setting (ftf default / gunboat / fullpress-later); §1 press non-goal narrowed accordingly. |
 | r16 | 2026-08-28 | D-023: map styles as named JSON data (parchment extracted from classical, plus midnight, print and flat), applied to any converted map, served at `?style=`, chosen per device. Gallery map previews open in a pan-and-zoom lightbox; the pan/zoom arithmetic is shared with the board. Experimental badge removed per D-014 presentation (r15). |
