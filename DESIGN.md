@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r16 — 2026-08-28
+**Document revision:** r17 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -37,11 +37,17 @@ A Diplomacy adjudicator built for **face-to-face play at a physical table**,
 where each player enters orders on their own phone and a game master runs
 the session. Server-side adjudication, browser frontend, no accounts.
 
-The gap this fills: jDip has the only real desktop face-to-face mode, but it
-means passing one laptop around the table. Backstabbr's sandbox is the de
-facto tournament tool but is a single shared screen with no per-player
-secrecy, and is closed and hosted. Nothing currently does per-player order
-entry at a physical table.
+The gap this fills (restated r17 after the platform survey,
+research/platforms.md): tournament tables today run paper orders plus a
+human "sandboxer" typing the game into Backstabbr; diplomacy.mylootcave.com
+(July 2026, godip-derived PWA) serves FtF tables but is HOT-SEAT — one
+device passed around, a queue that cannot fit a 15-minute tournament
+season. avieth/diplomacy-server (2015) described our model and died for
+want of a client. The unserved thing, precisely: **seven players entering
+orders in parallel, each on their own device**. The pitch: we delete the
+sandboxer role. Also confirmed: no platform anywhere does commit-reveal —
+D-004 is this project's strongest novel claim (Backstabbr's answer to a
+playing GM is stripping GM powers instead).
 
 ### Hard requirements
 
@@ -696,6 +702,13 @@ that surface mid-game at a table.
   feature.
 - **Q-006 — Which variants ship in v1?** *resolved → D-014.* Classical
   supported; all other generated variants behind an experimental flag.
+- **Q-007 — Illegal and bluff orders (r17).** The tap grammar builds from
+  godip's Options() and cannot express an illegal order. Backstabbr
+  allows illegal orders deliberately (bluffing is part of the game), WDC
+  house rules mandate lenient interpretation, and the main field
+  complaint about mylootcave was exactly this. Decide whether (and how)
+  a player can enter an order the engine will fail. Evidence in
+  research/platforms.md.
 
 ---
 
@@ -803,8 +816,10 @@ Single binary, embedded assets, mDNS, hotspot mode. Offline start-to-finish.
 internet physically disabled.
 
 ### Then
-Playtest at a table with real players before adding anything. Q-004 and Q-006
-should be answered by that playtest, not before it.
+Playtest at a table with real players before adding anything. Q-004 and
+Q-006 should be answered by that playtest, not before it. Timing
+acceptance (r17, from tournament reality): seven seats finalize a
+movement phase in under 3 minutes.
 
 ---
 
@@ -874,4 +889,5 @@ Recorded so nobody re-derives them.
 | r14 | 2026-08-28 | D-016 activated: pilot port of 1900 and Sail Ho from jDip (translator + map conversion phase 1; LLM-assisted restyle phase 2, needs OpenRouter key). Sources vendored to tools/jdip-import/source. |
 | r15 | 2026-08-28 | D-014 presentation: checkmark for supported, no experimental badge. Restyle shipped as scripted theming (no LLM needed); style system with four named themes underway. Placement pipeline (audit/optimize/editor/serving) complete for classical + sailho. |
 | r16 | 2026-08-28 | D-023: pressMode setting (ftf default / gunboat / fullpress-later); §1 press non-goal narrowed accordingly. |
+| r17 | 2026-08-28 | Platform survey (research/platforms.md). §1 gap restated: parallel per-device entry, delete-the-sandboxer pitch; mylootcave (hot-seat) and avieth/diplomacy-server noted; commit-reveal confirmed novel. Q-007 opened (illegal/bluff orders). Playtest gains a 3-minute finalize criterion. D-023 may later gain a 'rulebook' press mode. Stale facts flagged: godip variant count, diplomacy/diplomacy status. |
 | r16 | 2026-08-28 | D-023: map styles as named JSON data (parchment extracted from classical, plus midnight, print and flat), applied to any converted map, served at `?style=`, chosen per device. Gallery map previews open in a pan-and-zoom lightbox; the pan/zoom arithmetic is shared with the board. Experimental badge removed per D-014 presentation (r15). |
