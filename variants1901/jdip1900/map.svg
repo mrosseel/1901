@@ -1438,7 +1438,7 @@ l-56 -12 -6 -56 c-3 -31 -11 -61 -16 -66 -22 -22 -9 -24 50 -9 45 11 66 12 78
 		<text x="276" y="306" class="labeltext12">Yor</text>
 	</g>
 	
-	<g id="provinces" transform="translate(0,713) scale(0.1,-0.1)">
+	<g id="provinces" style="fill:none;stroke:none" transform="translate(0,713) scale(0.1,-0.1)">
 		<path id="adr" d="M3978 2772 c-33 -20 -42 -40 -28 -58 8 -9 7 -19 -5 -37 -14 -22 -14
 -25 0 -37 9 -8 15 -25 13 -40 -2 -21 12 -40 74 -101 62 -60 77 -81 83 -114 3
 -22 13 -50 20 -62 15 -22 68 -53 92 -53 8 0 22 -13 31 -30 15 -26 23 -30 58

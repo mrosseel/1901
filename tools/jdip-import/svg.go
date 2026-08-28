@@ -170,9 +170,12 @@ func renameMouseLayer(body string, m *model) (string, map[string]bool, []string,
 
 	attrs := body[open[2]:open[3]]
 	// The invisible class is jDip's way of hiding the layer; our stylesheet
-	// takes that job over and needs the layer left alone.
+	// takes that job over and needs the layer left alone. An inline
+	// fill:none keeps the layer from painting black in a bare <img> (no
+	// stylesheet there); the board CSS overrides it per shape with
+	// fill:transparent !important, which still receives pointer events.
 	attrs = strings.ReplaceAll(attrs, ` class="invisible"`, "")
-	head := `<g id="provinces"` + attrs + `>`
+	head := `<g id="provinces" style="fill:none;stroke:none"` + attrs + `>`
 
 	inner := body[open[1]:closing]
 	shapes := map[string]bool{}

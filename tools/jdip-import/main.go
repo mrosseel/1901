@@ -99,6 +99,23 @@ Two provinces have named coasts: Hesperides and Psyche's Isle.`,
 			"Sail Ho! declares no RULEOPTIONS, so standard Diplomacy rules apply throughout and nothing needed hand work.",
 		},
 	},
+	{
+		key:         "sailhocrowded",
+		pkg:         "sailhocrowded",
+		ident:       "SailHoCrowded",
+		dir:         "tools/jdip-import/source/sailho",
+		adjacency:   "sailho_adjacency.xml",
+		variants:    "variants.xml",
+		svg:         "sail_ho.svg",
+		variantName: "Sail Ho! Crowded",
+		displayName: "Sail Ho! Crowded",
+		createdBy:   "Tarzan",
+		rules: `Sail Ho! with six powers on the same 60-province island map.
+Convoys decide the game; expect early contact.`,
+		notes: []string{
+			"Same map and adjacency as Sail Ho!; only powers, starting units and center ownership differ.",
+		},
+	},
 }
 
 const outputRoot = "variants1901"

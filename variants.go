@@ -17,6 +17,7 @@ import (
 
 	"spring1901/spike/variants1901/jdip1900"
 	"spring1901/spike/variants1901/sailho"
+	"spring1901/spike/variants1901/sailhocrowded"
 )
 
 // localVariants are the ones translated from jDip by tools/jdip-import.
@@ -24,6 +25,7 @@ import (
 var localVariants = []common.Variant{
 	jdip1900.Nineteen00Variant,
 	sailho.SailHoVariant,
+	sailhocrowded.SailHoCrowdedVariant,
 }
 
 // allVariants is every variant this server can play.
