@@ -7,6 +7,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -42,6 +43,11 @@ type game struct {
 	state *state.State
 	// parts keeps the raw order bits per province, for readable order strings.
 	parts map[godip.Province][]string
+	// owner records which power entered the order, so seat views can be
+	// filtered without inspecting the board.
+	owner map[godip.Province]godip.Nation
+	// flow is nil for M0 sandbox games and set for M1 flow games.
+	flow *flow
 }
 
 func newGame() (*game, error) {
@@ -49,7 +55,59 @@ func newGame() (*game, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &game{state: s, parts: map[godip.Province][]string{}}, nil
+	return &game{
+		state: s,
+		parts: map[godip.Province][]string{},
+		owner: map[godip.Province]godip.Nation{},
+	}, nil
+}
+
+// clearOrder removes any order for the province. The caller must hold g.mu.
+func (self *game) clearOrder(prov godip.Province) {
+	next := map[godip.Province]godip.Adjudicator{}
+	for p, o := range self.state.Orders() {
+		if p.Super() != prov.Super() {
+			next[p] = o
+		}
+	}
+	self.state.SetOrders(next)
+	for p := range self.parts {
+		if p.Super() == prov.Super() {
+			delete(self.parts, p)
+			delete(self.owner, p)
+		}
+	}
+}
+
+// setOrder validates and stores one order, replacing any earlier order for
+// the same province. The caller must hold g.mu.
+func (self *game) setOrder(prov godip.Province, rawParts []string) error {
+	// The Options tree repeats the source province after the order type.
+	// The parser does not want it, so drop it if the client kept it.
+	parts := rawParts
+	if len(parts) >= 2 && parts[1] == string(prov) {
+		parts = append([]string{parts[0]}, parts[2:]...)
+	}
+	bits := append([]string{string(prov)}, parts...)
+	order, err := classical.Parser.Parse(bits)
+	if err != nil {
+		return fmt.Errorf("cannot parse %v: %v", bits, err)
+	}
+	if _, err := order.Validate(self.state); err != nil {
+		return fmt.Errorf("illegal order %v: %v", bits, err)
+	}
+	power, _ := nationFor(self.state, prov)
+
+	self.clearOrder(prov)
+	next := map[godip.Province]godip.Adjudicator{}
+	for p, o := range self.state.Orders() {
+		next[p] = o
+	}
+	next[prov] = order
+	self.state.SetOrders(next)
+	self.parts[prov] = parts
+	self.owner[prov] = power
+	return nil
 }
 
 // registry holds every live game, keyed by id.
@@ -66,11 +124,16 @@ func validID(id string) bool {
 	return idPattern.MatchString(id)
 }
 
-// get returns the game with the given id, creating it if it is unknown.
+// get returns the sandbox game with the given id, creating it if it is
+// unknown. It refuses to hand out an M1 flow game, whose orders are only
+// reachable through the seat endpoints.
 func (self *registry) get(id string) (*game, error) {
 	self.mu.Lock()
 	defer self.mu.Unlock()
 	if g, found := self.games[id]; found {
+		if g.flow != nil {
+			return nil, errNotSandbox
+		}
 		return g, nil
 	}
 	g, err := newGame()
@@ -78,8 +141,42 @@ func (self *registry) get(id string) (*game, error) {
 		return nil, err
 	}
 	self.games[id] = g
-	log.Printf("created game %q", id)
+	log.Printf("created sandbox game %q", id)
 	return g, nil
+}
+
+var errNotSandbox = errors.New("not a sandbox game")
+
+// lookup returns an existing game without creating one.
+func (self *registry) lookup(id string) (*game, bool) {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+	g, found := self.games[id]
+	return g, found
+}
+
+// create registers a new flow game under a fresh random id.
+func (self *registry) create(f *flow) (*game, string, error) {
+	g, err := newGame()
+	if err != nil {
+		return nil, "", err
+	}
+	g.flow = f
+
+	self.mu.Lock()
+	defer self.mu.Unlock()
+	for attempt := 0; attempt < 10; attempt++ {
+		id, err := newGameID()
+		if err != nil {
+			return nil, "", err
+		}
+		if _, taken := self.games[id]; taken {
+			continue
+		}
+		self.games[id] = g
+		return g, id, nil
+	}
+	return nil, "", errors.New("could not find a free game id")
 }
 
 type phaseJSON struct {
@@ -264,56 +361,14 @@ func handleOrder(g *game, id string, w http.ResponseWriter, r *http.Request) {
 
 	// Empty parts cancels the province's order.
 	if len(req.Parts) == 0 {
-		next := map[godip.Province]godip.Adjudicator{}
-		for p, o := range g.state.Orders() {
-			if p.Super() != prov.Super() {
-				next[p] = o
-			}
-		}
-		g.state.SetOrders(next)
-		for p := range g.parts {
-			if p.Super() == prov.Super() {
-				delete(g.parts, p)
-			}
-		}
+		g.clearOrder(prov)
 		writeJSON(w, http.StatusOK, g.snapshot(id))
 		return
 	}
-
-	// The Options tree repeats the source province after the order type.
-	// The parser does not want it, so drop it if the client kept it.
-	parts := req.Parts
-	if len(parts) >= 2 && parts[1] == string(prov) {
-		parts = append([]string{parts[0]}, parts[2:]...)
-	}
-	bits := append([]string{string(prov)}, parts...)
-	order, err := classical.Parser.Parse(bits)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "cannot parse %v: %v", bits, err)
+	if err := g.setOrder(prov, req.Parts); err != nil {
+		writeErr(w, http.StatusBadRequest, "%v", err)
 		return
 	}
-	if _, err := order.Validate(g.state); err != nil {
-		writeErr(w, http.StatusBadRequest, "illegal order %v: %v", bits, err)
-		return
-	}
-
-	// SetOrder refuses to overwrite, so rebuild the whole order map.
-	next := map[godip.Province]godip.Adjudicator{}
-	for p, o := range g.state.Orders() {
-		if p.Super() != prov.Super() {
-			next[p] = o
-		}
-	}
-	next[prov] = order
-	g.state.SetOrders(next)
-
-	for p := range g.parts {
-		if p.Super() == prov.Super() {
-			delete(g.parts, p)
-		}
-	}
-	g.parts[prov] = parts
-
 	writeJSON(w, http.StatusOK, g.snapshot(id))
 }
 
@@ -330,6 +385,7 @@ func handleAdjudicate(g *game, id string, w http.ResponseWriter, r *http.Request
 		return
 	}
 	g.parts = map[godip.Province][]string{}
+	g.owner = map[godip.Province]godip.Nation{}
 	writeJSON(w, http.StatusOK, g.snapshot(id))
 }
 
@@ -357,18 +413,67 @@ func scoped(id string, h gameHandler) http.HandlerFunc {
 
 // server holds what the request handlers need beyond the registry.
 type server struct {
-	dir    string
+	// dir is the M0 sandbox frontend, served as plain files.
+	dir string
+	// spaDir is the built M1 frontend (web/dist), a vite build.
+	spaDir string
 	static http.Handler
 }
 
-// servePage serves the single page application shell.
+// servePage serves the board shell.
 func (self *server) servePage(w http.ResponseWriter, r *http.Request) {
-	index := filepath.Join(self.dir, "index.html")
-	if _, err := os.Stat(index); err != nil {
-		http.Error(w, "static/index.html not present yet", http.StatusNotFound)
+	self.servePageFile(w, r, "index.html")
+}
+
+// isFile reports whether the path exists and is a regular file.
+func isFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
+}
+
+// serveSPA serves the built single page application shell. The client
+// routes itself from location.pathname, so every M1 page gets this file.
+func (self *server) serveSPA(w http.ResponseWriter, r *http.Request) {
+	index := filepath.Join(self.spaDir, "index.html")
+	if !isFile(index) {
+		http.Error(w,
+			"the frontend is not built yet — run `npm install && npm run build` in web/ to create web/dist",
+			http.StatusServiceUnavailable)
 		return
 	}
+	// The shell must not be cached; the hashed assets beside it may be.
+	w.Header().Set("Cache-Control", "no-store")
 	http.ServeFile(w, r, index)
+}
+
+// serveSPAAsset serves one file from the build output, by URL path.
+func (self *server) serveSPAAsset(w http.ResponseWriter, r *http.Request) {
+	name := filepath.Clean(strings.TrimPrefix(r.URL.Path, "/"))
+	if name == "." || strings.HasPrefix(name, "..") {
+		http.NotFound(w, r)
+		return
+	}
+	path := filepath.Join(self.spaDir, name)
+	if !isFile(path) {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, path)
+}
+
+// serveRoot keeps the M0 board at / and lets the files vite emits at the
+// build root (favicon, manifest, and friends) resolve there too.
+func (self *server) serveRoot(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		name := filepath.Clean(strings.TrimPrefix(r.URL.Path, "/"))
+		if !strings.HasPrefix(name, "..") && !isFile(filepath.Join(self.dir, name)) {
+			if isFile(filepath.Join(self.spaDir, name)) {
+				self.serveSPAAsset(w, r)
+				return
+			}
+		}
+	}
+	self.static.ServeHTTP(w, r)
 }
 
 // serveGame routes /g/{id}/... to the game with that id, creating it on demand.
@@ -389,6 +494,11 @@ func (self *server) serveGame(w http.ResponseWriter, r *http.Request) {
 	}
 
 	g, err := games.get(id)
+	if err == errNotSandbox {
+		// An M1 flow game is never reachable through the sandbox routes.
+		http.NotFound(w, r)
+		return
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "create game %v: %v", id, err)
 		return
@@ -430,6 +540,14 @@ func main() {
 	for path, h := range apiRoutes {
 		mux.HandleFunc("/"+path, scoped(defaultGameID, h))
 	}
+
+	// M1 flow.
+	mux.HandleFunc("/games", handleCreateGame)
+	mux.HandleFunc("/game/", srv.serveFlow)
+	mux.HandleFunc("/join/", srv.serveJoinPage)
+	mux.HandleFunc("/new", func(w http.ResponseWriter, r *http.Request) {
+		srv.servePageFile(w, r, "new.html")
+	})
 
 	addr := listenAddr()
 	log.Printf("listening on http://localhost%v (static from %v)", addr, dir)
