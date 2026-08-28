@@ -53,6 +53,24 @@ export const REFERENCE_VIEWPORTS: Viewport[] = [LAPTOP_PANE, PHONE_PANE];
 const MAX_ZOOM = 8;
 
 /*
+The bounds on a marker's size, and why one of them is a fraction.
+
+The lower bound is a count of map units: it keeps a marker tappable when the
+board is zoomed all the way in, which is a fact about fingers and the same on
+every map. The upper bound cannot be a count, because "60 map units" means a
+third of France on classical and less than a hundredth of sailho — the flat 60
+this replaced left sailho's markers as dots. A twenty-fifth of the map's width
+means the same thing on every map, and on classical it lands at 60.96, above
+the 18.42 the laptop pane asks for, so classical does not move.
+
+board.ts computes the same number. If these two drift apart, the table is
+measured for a marker the board does not draw.
+*/
+const MARKER_PIXELS = 12;
+const MARKER_MIN_UNITS = 8;
+const MARKER_MAX_FRACTION = 1 / 25;
+
+/*
 The marker's radius in map units, worked out exactly as board.ts does it:
 
   fitAllWidth = max(baseW, baseH * paneAspect)      the widest view allowed
@@ -72,7 +90,13 @@ export function markerRadius(box: Rect, pane: Viewport): number {
   const widest = fitAll;
   const viewW = Math.min(widest, Math.max(widest / MAX_ZOOM, wanted));
   void aspect;
-  return clamp(12 * (viewW / pane.width), 8, 60);
+  return clamp(
+    MARKER_PIXELS * (viewW / pane.width),
+    MARKER_MIN_UNITS,
+    // A map narrower than 200 units would put the ceiling under the floor and
+    // clamp() would then answer with the ceiling. The floor wins instead.
+    Math.max(MARKER_MIN_UNITS, box.w * MARKER_MAX_FRACTION),
+  );
 }
 
 /** The radius placement is judged on: the whole map on a laptop. */

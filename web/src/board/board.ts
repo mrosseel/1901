@@ -331,6 +331,41 @@ export function mount(
     return Math.min(high, Math.max(low, value));
   }
 
+  /*
+  How big a unit marker is, in map units.
+
+  A marker is a constant twelve pixels on screen, so its size in map units
+  falls out of the zoom — that part is right and stays. What was wrong was the
+  ceiling: a flat 60 map units, chosen on the classical map where 60 is a
+  third of France and the cap never binds. On sailho, whose viewBox is 7300
+  units wide against classical's 1524, 60 units is under a hundredth of the
+  map, and every marker came out as a dot no thicker than a border.
+
+  So the ceiling is a fraction of the map instead of a count of its units. A
+  twenty-fifth of the width lands at 60.96 on classical — over the 18.42 the
+  laptop pane actually asks for, so classical is unchanged to the decimal —
+  and at 292 on sailho, which lets that map's markers reach the 104 units they
+  should. The floor stays absolute: it exists to keep a marker tappable at
+  full zoom, which is a fact about fingers, not about maps.
+
+  tools/placement/geometry.ts computes this same number to decide where a
+  marker will fit. The two must not drift apart, or the placement table is
+  measured for a marker the board does not draw.
+  */
+  const MARKER_PIXELS = 12;
+  const MARKER_MIN_UNITS = 8;
+  const MARKER_MAX_FRACTION = 1 / 25;
+
+  function markerRadius(): number {
+    return clamp(
+      MARKER_PIXELS * unitsPerPixel(),
+      MARKER_MIN_UNITS,
+      // A map narrower than 200 units would put the ceiling under the floor,
+      // and clamp() would then answer with the ceiling. The floor wins.
+      Math.max(MARKER_MIN_UNITS, baseBox.w * MARKER_MAX_FRACTION),
+    );
+  }
+
   function zoomLevel(): number {
     return view ? fitAllWidth() / view.w : 1;
   }
@@ -652,7 +687,7 @@ export function mount(
        the same set as the ones standing dislodged right now. */
     const dislodged = review ? review.dislodged : state?.dislodged || {};
     const orders = review ? {} : state?.orders || {};
-    const r = clamp(12 * unitsPerPixel(), 8, 60);
+    const r = markerRadius();
 
     Object.keys(units).forEach((province) => {
       const unit = units[province];
@@ -777,7 +812,7 @@ export function mount(
     const parts = review ? review.orderParts : state?.orderParts || {};
     const units = state?.units || {};
     const kind = review ? review.kind : plan.kind;
-    const r = clamp(12 * unitsPerPixel(), 8, 60);
+    const r = markerRadius();
     const base = Math.max(1.5, r * 0.3);
 
     const dislodged = review ? review.dislodged : state?.dislodged || {};

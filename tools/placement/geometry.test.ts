@@ -48,10 +48,43 @@ test("a phone draws the same marker over more map, not less", () => {
 });
 
 test("the radius never leaves the range board.ts clamps to", () => {
+  // The floor is absolute: it keeps a marker tappable at full zoom. On a map
+  // narrower than 200 units the ceiling would fall below it, and the floor
+  // still has to win — clamp() answers with its high argument otherwise.
   const tiny: Rect = { x: 0, y: 0, w: 10, h: 10 };
-  const huge: Rect = { x: 0, y: 0, w: 400000, h: 400000 };
   assert.equal(markerRadius(tiny, LAPTOP_PANE), 8);
-  assert.equal(markerRadius(huge, LAPTOP_PANE), 60);
+
+  /*
+  The ceiling is a safety rail rather than a working limit. At the two panes
+  the board opens in, a marker lands between one and two percent of the map's
+  width, so a twenty-fifth never cuts — which is the point: the flat 60 units
+  it replaced DID cut, on every map wider than about 5000 units.
+  */
+  for (const width of [761, 1524, 7300, 400000]) {
+    const box: Rect = { x: 0, y: 0, w: width, h: Math.round(width * 0.9) };
+    for (const pane of [LAPTOP_PANE, PHONE_PANE]) {
+      const r = markerRadius(box, pane);
+      assert.ok(r <= Math.max(8, width / 25) + 1e-9, "within the ceiling at " + width);
+      assert.ok(r >= 8 - 1e-9, "and never under the floor");
+    }
+  }
+});
+
+test("the marker keeps its presence on a map drawn at another scale", () => {
+  // The flat 60-unit ceiling this replaced was chosen on classical, where it
+  // never binds, and left sailho — five times wider — with markers thinner
+  // than its own borders.
+  const classical: Rect = { x: 0, y: 0, w: 1524, h: 1357 };
+  const sailho: Rect = { x: 0, y: 0, w: 7300, h: 7695 };
+
+  // Classical must not have moved by so much as a hundredth.
+  assert.equal(Number(markerRadius(classical, LAPTOP_PANE).toFixed(2)), 18.42);
+
+  // And a marker should cover about the same share of either map.
+  const share = (box: Rect) => markerRadius(box, LAPTOP_PANE) / box.w;
+  assert.ok(share(sailho) > share(classical) * 0.8);
+  assert.ok(share(sailho) < share(classical) * 1.5);
+  assert.ok(markerRadius(sailho, LAPTOP_PANE) > 60, "the old ceiling no longer binds");
 });
 
 test("overlap is measured as a fraction of the marker, not of the label", () => {

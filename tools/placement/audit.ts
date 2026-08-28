@@ -46,6 +46,7 @@ import {
 import {
   classifyTerrain,
   computePoles,
+  probeCoasts,
   probeOverhang,
   testInside,
   type InsideRequest,
@@ -138,6 +139,61 @@ export const BORDER_MARGIN = 0.12;
 const EDGE_SAMPLES = 24;
 
 /*
+How far a coast marker's centre may sit from its own strip and still count as
+standing on that coast, in marker radii.
+
+One radius means the marker is at worst touching the strip with its edge —
+straddling the shoreline, which is the whole point of the rule. Beyond that it
+has walked inland and is no longer describing a coast.
+*/
+export const COAST_REACH = 1;
+
+/** A key naming one coast of a province, rather than the province. */
+export function isCoast(key: string): boolean {
+  return key.includes("/");
+}
+
+/*
+Runs the containment test appropriate to each key.
+
+An ordinary province asks "does the whole marker fit inside my border". A
+named coast asks the coast question instead — see probeCoasts() — because a
+coast strip is usually narrower than a marker and a fleet is supposed to sit
+on the shoreline. Both answer in the same shape, a boolean per candidate, so
+every caller below is unchanged by which one ran.
+*/
+async function testPlaceable(
+  page: Page,
+  requests: InsideRequest[],
+  terrain: Record<string, "sea" | "land" | "unknown">,
+  radiusOf: (key: string) => number,
+): Promise<Record<string, boolean[]>> {
+  const plain = requests.filter((request) => !isCoast(request.key));
+  const coasts = requests.filter((request) => isCoast(request.key));
+  const answer = plain.length ? await testInside(page, plain) : {};
+  if (coasts.length) {
+    const probes = await probeCoasts(
+      page,
+      coasts.map((request) => ({
+        key: request.key,
+        base: baseKey(request.key),
+        centres: request.centres,
+        // The margin an ordinary province keeps from its border makes no
+        // sense on a shoreline the marker is meant to sit across.
+        radius: radiusOf(request.key),
+        samples: request.samples,
+        reach: COAST_REACH * radiusOf(request.key),
+      })),
+      terrain,
+    );
+    for (const request of coasts) {
+      answer[request.key] = (probes[request.key] || []).map((one) => one.ok);
+    }
+  }
+  return answer;
+}
+
+/*
 Runs the three tests over a whole placement table. The inside test is the one
 that needs the browser, so every province's questions are asked at once.
 */
@@ -146,6 +202,7 @@ export async function audit(
   map: MapGeometry,
   table: PlacementTable,
   r: number,
+  terrain: Record<string, "sea" | "land" | "unknown"> = {},
   margin = BORDER_MARGIN,
 ): Promise<Audit> {
   const unitRequests = [];
@@ -167,8 +224,12 @@ export async function audit(
       samples: EDGE_SAMPLES,
     });
   }
-  const unitInside = await testInside(page, unitRequests);
-  const dislodgedInside = await testInside(page, dislodgedRequests);
+  /* The same test the placer used, coast rule included, or a marker the
+     placer called clean would be reported here as a violation. */
+  const radiusOf = (key: string) => r * ((table[key] && table[key].scale) || 1);
+  const unitInside = await testPlaceable(page, unitRequests, terrain, radiusOf);
+  const dislodgedInside = await testPlaceable(
+    page, dislodgedRequests, terrain, (key) => radiusOf(key) * DISLODGED_BODY);
 
   const violations: Violation[] = map.provinces.map((province) => {
     const placed = table[province.key];
@@ -513,7 +574,7 @@ export async function place(
   for (const scale of SCALES) {
     fitsAtScale.set(
       scale,
-      await testInside(
+      await testPlaceable(
         page,
         drawable.map((province) => ({
           key: province.key,
@@ -521,6 +582,8 @@ export async function place(
           radius: r * scale * (1 + margin),
           samples: EDGE_SAMPLES,
         })),
+        terrain.kind,
+        () => r * scale,
       ),
     );
   }
@@ -642,7 +705,7 @@ export async function place(
       for (const province of moving) {
         trials.set(province.key, neighbours(best.get(province.key)!.point, step));
       }
-      const masks = await testInside(
+      const masks = await testPlaceable(
         page,
         moving.map((province) => ({
           key: province.key,
@@ -650,6 +713,8 @@ export async function place(
           radius: r * best.get(province.key)!.scale * (1 + margin),
           samples: EDGE_SAMPLES,
         })),
+        terrain.kind,
+        (key) => r * (best.get(key)?.scale || 1),
       );
       let improved = false;
       for (const province of moving) {
@@ -694,7 +759,7 @@ export async function place(
     for (const province of offenders) sweeps.set(province.key, proofGrid(province.box));
 
     for (const scale of SCALES) {
-      const masks = await testInside(
+      const masks = await testPlaceable(
         page,
         offenders.map((province) => ({
           key: province.key,
@@ -702,6 +767,8 @@ export async function place(
           radius: r * scale * (1 + margin),
           samples: EDGE_SAMPLES,
         })),
+        terrain.kind,
+        () => r * scale,
       );
       for (const province of offenders) {
         const held = best.get(province.key)!;
@@ -751,7 +818,7 @@ export async function place(
   if (seed) {
     const seeded = drawable.filter((province) => seed[province.key]);
     const seedPoint = (key: string): Point => ({ x: seed[key].unit[0], y: seed[key].unit[1] });
-    const seedFits = await testInside(
+    const seedFits = await testPlaceable(
       page,
       seeded.map((province) => ({
         key: province.key,
@@ -759,6 +826,8 @@ export async function place(
         radius: r * (seed[province.key].scale || 1) * (1 + margin),
         samples: EDGE_SAMPLES,
       })),
+      terrain.kind,
+      (key) => r * (seed[key].scale || 1),
     );
     const onCoast = await standsOnOwnCoast(
       page,
@@ -830,7 +899,7 @@ export async function place(
     for (const scale of SCALES) {
       fitsAt.set(
         scale,
-        await testInside(
+        await testPlaceable(
           page,
           coastKeys.map((key) => ({
             key: key,
@@ -838,6 +907,8 @@ export async function place(
             radius: r * scale * (1 + margin),
             samples: EDGE_SAMPLES,
           })),
+          terrain.kind,
+          () => r * scale,
         ),
       );
     }
@@ -988,7 +1059,7 @@ export async function place(
     }
     awayCandidates.set(province.key, points);
   }
-  const awayFits = await testInside(
+  const awayFits = await testPlaceable(
     page,
     withMarker.map((province) => {
       const held = best.get(province.key)!;
@@ -999,13 +1070,15 @@ export async function place(
         samples: EDGE_SAMPLES,
       };
     }),
+    terrain.kind,
+    (key) => r * (best.get(key)?.scale || 1) * DISLODGED_BODY,
   );
 
   /*
   The fallback lattice, tested once for every province that might need it, so
   the rescue below costs one round trip rather than one per province.
   */
-  const lateFits = await testInside(
+  const lateFits = await testPlaceable(
     page,
     withMarker.map((province) => {
       const held = best.get(province.key)!;
@@ -1016,6 +1089,8 @@ export async function place(
         samples: EDGE_SAMPLES,
       };
     }),
+    terrain.kind,
+    (key) => r * (best.get(key)?.scale || 1) * DISLODGED_BODY,
   );
 
   for (const province of withMarker) {

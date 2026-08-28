@@ -645,6 +645,145 @@ export async function testInside(
 }
 
 /*
+Whether a coast marker sits where a coast marker should.
+
+A named coast — "stp/nc", "bul/ec" — is drawn on the map as a thin strip along
+a shoreline, often narrower than a marker. Asking such a strip to contain a
+whole marker is asking the wrong question: it rules out nearly every position,
+forces the marker to shrink, and leaves the coast crowded against its own base
+province. A fleet on the north coast of St Petersburg standing half on the
+land and half in the water is not a defect. It is what a fleet on a coast
+LOOKS like, and it is how every hand-drawn Diplomacy map has ever shown one.
+
+So a coast marker is judged on three things instead of containment:
+
+  belongs   its centre is inside its own coast strip, or inside the base
+            province the strip belongs to — it is standing on its own ground
+  hugs      its centre is no further than a marker's reach from the strip
+            itself, so a coast marker cannot wander inland and claim to be a
+            coast
+  unclaimed nothing it overhangs is a DIFFERENT land province. Sea and open
+            water are free, because no reader thinks a unit belongs to the
+            water it is dipped in; another country is the ambiguity that
+            matters, and it is the same rule the overhang probe uses.
+*/
+export interface CoastRequest {
+  /** The coast key, e.g. "stp/nc". */
+  key: string;
+  /** The base province whose ground the coast may also stand on. */
+  base: string;
+  centres: Array<[number, number]>;
+  radius: number;
+  samples: number;
+  /** How far from its own strip the centre may stray, in map units. */
+  reach: number;
+}
+
+export interface CoastResult {
+  ok: boolean;
+  /** Perimeter samples over another land province — the fault worth counting. */
+  land: number;
+  sea: number;
+  open: number;
+}
+
+export async function probeCoasts(
+  page: Page,
+  requests: CoastRequest[],
+  terrain: Record<string, "sea" | "land" | "unknown">,
+): Promise<Record<string, CoastResult[]>> {
+  return page.evaluate(
+    (input: { batch: CoastRequest[]; terrain: Record<string, string> }) => {
+      const svg = document.querySelector("svg") as SVGSVGElement;
+      const layer = svg.querySelector("#provinces");
+      const probe = svg.createSVGPoint();
+      const base = (key: string) => (key.includes("/") ? key.slice(0, key.indexOf("/")) : key);
+
+      const svgCTM = svg.getScreenCTM();
+      const matrices = new WeakMap<Element, DOMMatrix | null>();
+      const intoShape = (shape: SVGGraphicsElement): DOMMatrix | null => {
+        if (matrices.has(shape)) return matrices.get(shape) || null;
+        const own = shape.getScreenCTM();
+        const matrix = own && svgCTM ? own.inverse().multiply(svgCTM) : null;
+        matrices.set(shape, matrix);
+        return matrix;
+      };
+      const hits = (shape: SVGGeometryElement, x: number, y: number): boolean => {
+        const matrix = intoShape(shape);
+        probe.x = x;
+        probe.y = y;
+        const local = matrix ? probe.matrixTransform(matrix) : probe;
+        return shape.isPointInFill(local);
+      };
+
+      const all: SVGGeometryElement[] = [];
+      if (layer) {
+        Array.prototype.forEach.call(layer.children, (shape: Element) => {
+          if (shape instanceof SVGGeometryElement) all.push(shape);
+        });
+      }
+
+      const answer: Record<string, CoastResult[]> = {};
+      for (const request of input.batch) {
+        // The strip itself, and the whole province it belongs to.
+        const strip = all.filter((shape) => shape.id === request.key);
+        const home = all.filter(
+          (shape) => shape.id === request.base || base(shape.id) === request.base,
+        );
+        const others = all.filter((shape) => !home.includes(shape));
+
+        // The strip's outline as points, for the "hugs its own coast" test.
+        const outline: Array<[number, number]> = [];
+        for (const shape of strip) {
+          const length = shape.getTotalLength();
+          if (!length) continue;
+          const count = Math.max(24, Math.min(400, Math.round(length / 3)));
+          const matrix = intoShape(shape);
+          const back = matrix ? matrix.inverse() : null;
+          for (let i = 0; i < count; i++) {
+            const at = shape.getPointAtLength((length * i) / count);
+            probe.x = at.x;
+            probe.y = at.y;
+            const mapped = back ? probe.matrixTransform(back) : at;
+            outline.push([mapped.x, mapped.y]);
+          }
+        }
+
+        answer[request.key] = request.centres.map(([cx, cy]) => {
+          const belongs = home.some((shape) => hits(shape, cx, cy));
+          if (!belongs) return { ok: false, land: 0, sea: 0, open: 0 };
+
+          let nearest = Infinity;
+          for (const point of outline) {
+            const d = Math.hypot(point[0] - cx, point[1] - cy);
+            if (d < nearest) nearest = d;
+          }
+          const insideStrip = strip.some((shape) => hits(shape, cx, cy));
+          const hugs = insideStrip || nearest <= request.reach;
+
+          let land = 0;
+          let sea = 0;
+          let open = 0;
+          for (let i = 0; i < request.samples; i++) {
+            const angle = (2 * Math.PI * i) / request.samples;
+            const x = cx + Math.cos(angle) * request.radius;
+            const y = cy + Math.sin(angle) * request.radius;
+            if (home.some((shape) => hits(shape, x, y))) continue;
+            const neighbour = others.find((shape) => hits(shape, x, y));
+            if (!neighbour) open++;
+            else if (input.terrain[base(neighbour.id)] === "sea") sea++;
+            else land++;
+          }
+          return { ok: hugs && land === 0, land: land, sea: sea, open: open };
+        });
+      }
+      return answer;
+    },
+    { batch: requests, terrain: terrain },
+  );
+}
+
+/*
 Which provinces are sea and which are land, read off the map itself.
 
 The server has no endpoint for it and the SVG has no attribute for it, but the

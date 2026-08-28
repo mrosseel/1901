@@ -1,0 +1,337 @@
+CLASSICAL STYLE TOKENS
+  read from            /home/mike/go/pkg/mod/github.com/zond/godip@v0.6.6-0.20251114160713-cd2444219282/variants/classical/svg/map.svg
+  reference width      1524 map units
+  land (parchment)     #f4d7b5
+  sea / ground         #d4d0ad
+  map frame stroke     #979797
+  province border      #000000 at 1 units
+  coastline shadow     #000000 at 4 units, blurred 5.7648684
+  impassable hatch     #impassableStripes (363 bytes)
+  paper grain          #pattern1827 at 0.05 opacity (29947 bytes)
+  embedded faces       290632 bytes
+  land name            LibreBaskerville-Bold, 'Libre Baskerville', bold normal, 16px, tracking -0.5
+  sea name             LibreBaskerville-Italic, 'Libre Baskerville', normal italic, 16px, tracking 0
+  sea abbreviation     tracked out to 3
+
+==================================================================
+sailho
+==================================================================
+  viewBox width        7300 (classical is 1524)
+  art layer scale      1
+  border carried to    4.79 units inside #MapLayer
+
+  CLASS MAPPING (what the map actually uses)
+    coasttext          4 uses   label / behaviour, left alone
+    labeltext          2 uses   label / behaviour, left alone
+    ltmed             12 uses   label / behaviour, left alone
+    ltsmall           45 uses   label / behaviour, left alone
+    nopower           43 uses   -> land parchment #f4d7b5
+    seapoly           17 uses   -> sea tone #d4d0ad
+  every painting class the map uses is mapped
+  MAPPED BUT UNUSED      impassable, neutral, water  (this map does not use them)
+
+  SUPPLY CENTRE MARKERS
+    SupplyCenterLayer ships empty: this map draws no SC markers, so there
+    is nothing to restyle. The board draws ownership itself.
+
+  LABELS
+    jDip wrote these sizes without a CSS unit, so every browser threw
+    the declaration away and drew the label at the 16px default. The
+    unit is put back; the number is jDip's own:
+      .coasttext 150 -> 150px
+      .labeltext 180 -> 180px
+      .ltsmall 120 -> 120px
+      .ltmed 150 -> 150px
+    land         126
+    sea           43
+
+  STRUCTURE CHECK — the restyle must not have moved anything
+    locked layers        363 elements compared
+    document elements    380 -> 386
+    ids added            impassableStripes, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
+    verdict              PASS — geometry and ids identical
+
+  WHAT CHANGED
+    added 2 pattern definition(s) to <defs>
+    repainted the black backdrop rect in the sea tone
+    classified 169 labels: 126 as land, 43 as water
+    laid the paper grain into HighestOrderLayer, which shipped empty
+
+  LABELS IN BOUNDS — a name belongs inside the province it names
+    APPLIED: the repairs below are in the file this run wrote.
+    labels found         60
+    already inside       38
+    spilled over         15
+    repaired             6 (9 moved, 4 shrunk)
+    could not be fixed   9 — 9 replaced by jDip's brief code, 0 left as they were
+    inside but on a marker 8 — the name fits; the marker is what moves, in the placement pass
+    markers avoided      yes — placements/sailho.json was read, and a repaired label clears
+                         the unit and dislodged markers by the RULE B margin
+
+    PER LABEL (only the ones that were out of bounds)
+    province   outside before  after   moved      size   name
+    hes                33%  STUCK        0    1.00   Shrine to Hestia
+    pro                30%  STUCK        0    1.00   Prometheus' Cliff
+    sal                27%  STUCK        0    1.00   Salmonius' Scheme
+    per                19%  STUCK        0    1.00   Persephone's Garden
+    min                15%     2%       51    0.90   Minotaur's Labyrinth
+    hin                14%  STUCK        0    1.00   Forest of the Golden Hind
+    mid                12%  STUCK        0    1.00   Realm of King Midas
+    gab                10%  STUCK        0    1.00   Gabrielle's Village
+    ama                10%  STUCK        0    1.00   Amazon Village
+    mor                10%     2%      106    0.80   Morpheus' Palace
+    alc                 9%     0%       35    0.75   Alcmene's Village
+    ves                 9%  STUCK        0    1.00   Convent of the Vestal Virgins
+    cen                 7%     0%      151    1.00   Centaur Forest
+    hip                 5%     1%       71    0.80   Amazon Girdle
+    str                 4%     0%       41    1.00   Strife's Cave
+
+    WILL NOT FIT INSIDE ITS PROVINCE AT ANY SIZE OR POSITION
+    The province is too small for the name. jDip's own brief label is
+    used where it has one — which is what jDip does on a crowded board.
+      gab       "Gabrielle's Village"  -> Gab
+      hes       "Shrine to Hestia"  -> Hes
+      hin       "Forest of the Golden Hind"  -> Hin
+      ama       "Amazon Village"  -> Ama
+      mid       "Realm of King Midas"  -> Mid
+      per       "Persephone's Garden"  -> Per
+      pro       "Prometheus' Cliff"  -> Pro
+      sal       "Salmonius' Scheme"  -> Sal
+      ves       "Convent of the Vestal Virgins"  -> Ves
+
+    STRUCTURE  PASS — positions and sizes only; every element, id and order kept
+
+==================================================================
+sailhocrowded
+==================================================================
+  viewBox width        7300 (classical is 1524)
+  art layer scale      1
+  border carried to    4.79 units inside #MapLayer
+
+  CLASS MAPPING (what the map actually uses)
+    coasttext          4 uses   label / behaviour, left alone
+    labeltext          2 uses   label / behaviour, left alone
+    ltmed             12 uses   label / behaviour, left alone
+    ltsmall           45 uses   label / behaviour, left alone
+    nopower           43 uses   -> land parchment #f4d7b5
+    seapoly           17 uses   -> sea tone #d4d0ad
+  every painting class the map uses is mapped
+  MAPPED BUT UNUSED      impassable, neutral, water  (this map does not use them)
+
+  SUPPLY CENTRE MARKERS
+    SupplyCenterLayer ships empty: this map draws no SC markers, so there
+    is nothing to restyle. The board draws ownership itself.
+
+  LABELS
+    jDip wrote these sizes without a CSS unit, so every browser threw
+    the declaration away and drew the label at the 16px default. The
+    unit is put back; the number is jDip's own:
+      .coasttext 150 -> 150px
+      .labeltext 180 -> 180px
+      .ltsmall 120 -> 120px
+      .ltmed 150 -> 150px
+    land         126
+    sea           43
+
+  STRUCTURE CHECK — the restyle must not have moved anything
+    locked layers        363 elements compared
+    document elements    380 -> 386
+    ids added            impassableStripes, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
+    verdict              PASS — geometry and ids identical
+
+  WHAT CHANGED
+    added 2 pattern definition(s) to <defs>
+    repainted the black backdrop rect in the sea tone
+    classified 169 labels: 126 as land, 43 as water
+    laid the paper grain into HighestOrderLayer, which shipped empty
+
+  LABELS IN BOUNDS — a name belongs inside the province it names
+    APPLIED: the repairs below are in the file this run wrote.
+    labels found         60
+    already inside       38
+    spilled over         15
+    repaired             6 (6 moved, 4 shrunk)
+    could not be fixed   9 — 9 replaced by jDip's brief code, 0 left as they were
+    inside but on a marker 0 — the name fits; the marker is what moves, in the placement pass
+    markers avoided      no placement table yet, so only the border constrained the search
+
+    PER LABEL (only the ones that were out of bounds)
+    province   outside before  after   moved      size   name
+    hes                33%  STUCK        0    1.00   Shrine to Hestia
+    pro                30%  STUCK        0    1.00   Prometheus' Cliff
+    sal                27%  STUCK        0    1.00   Salmonius' Scheme
+    per                19%  STUCK        0    1.00   Persephone's Garden
+    min                15%     2%       51    0.90   Minotaur's Labyrinth
+    hin                14%  STUCK        0    1.00   Forest of the Golden Hind
+    mid                12%  STUCK        0    1.00   Realm of King Midas
+    gab                10%  STUCK        0    1.00   Gabrielle's Village
+    ama                10%  STUCK        0    1.00   Amazon Village
+    mor                10%     2%      106    0.80   Morpheus' Palace
+    alc                 9%     0%       35    0.75   Alcmene's Village
+    ves                 9%  STUCK        0    1.00   Convent of the Vestal Virgins
+    cen                 7%     0%      114    1.00   Centaur Forest
+    hip                 5%     1%       71    0.80   Amazon Girdle
+    str                 4%     0%       41    1.00   Strife's Cave
+
+    WILL NOT FIT INSIDE ITS PROVINCE AT ANY SIZE OR POSITION
+    The province is too small for the name. jDip's own brief label is
+    used where it has one — which is what jDip does on a crowded board.
+      gab       "Gabrielle's Village"  -> Gab
+      hes       "Shrine to Hestia"  -> Hes
+      hin       "Forest of the Golden Hind"  -> Hin
+      ama       "Amazon Village"  -> Ama
+      mid       "Realm of King Midas"  -> Mid
+      per       "Persephone's Garden"  -> Per
+      pro       "Prometheus' Cliff"  -> Pro
+      sal       "Salmonius' Scheme"  -> Sal
+      ves       "Convent of the Vestal Virgins"  -> Ves
+
+    STRUCTURE  PASS — positions and sizes only; every element, id and order kept
+
+==================================================================
+jdip1900
+==================================================================
+  viewBox width        761 (classical is 1524)
+  art layer scale      0.1
+  border carried to    4.993 units inside #MapLayer
+
+  CLASS MAPPING (what the map actually uses)
+    labeltext06       21 uses   label / behaviour, left alone
+    labeltext08       13 uses   label / behaviour, left alone
+    labeltext10       36 uses   label / behaviour, left alone
+    labeltext12       46 uses   label / behaviour, left alone
+    labeltext14        2 uses   label / behaviour, left alone
+    neutral            1 uses   -> impassable hatch
+    nopower           71 uses   -> land parchment #f4d7b5
+    water             23 uses   -> sea tone #d4d0ad
+  every painting class the map uses is mapped
+  MAPPED BUT UNUSED      impassable, seapoly  (this map does not use them)
+
+  SUPPLY CENTRE MARKERS
+    SupplyCenterLayer ships empty: this map draws no SC markers, so there
+    is nothing to restyle. The board draws ownership itself.
+
+  LABELS
+    jDip wrote these sizes without a CSS unit, so every browser threw
+    the declaration away and drew the label at the 16px default. The
+    unit is put back; the number is jDip's own:
+      .labeltext14 14 -> 14px
+      .labeltext12 12 -> 12px
+      .labeltext10 10 -> 10px
+      .labeltext08 08 -> 08px
+      .labeltext06 06 -> 06px
+    land         138
+    sea           41
+    unknown        2
+    UNCLASSIFIABLE — these sit over no shape at all and are set as
+    land names, which is the safe default:
+      "Edinburgh"
+      "Neth'ds"
+
+  STRUCTURE CHECK — the restyle must not have moved anything
+    locked layers        503 elements compared
+    document elements    514 -> 520
+    ids added            impassableStripes, impassableStripesLine, paper-grain, pattern-4-3, pattern1827, use11-6
+    verdict              PASS — geometry and ids identical
+
+  WHAT CHANGED
+    added 2 pattern definition(s) to <defs>
+    repainted the black backdrop rect in the sea tone
+    classified 181 labels: 140 as land, 41 as water
+    laid the paper grain into HighestOrderLayer, which shipped empty
+
+  LABELS IN BOUNDS — a name belongs inside the province it names
+    AUDIT ONLY: nothing below was applied. Re-run with --fix-labels to apply.
+    labels found         89
+    already inside       26
+    spilled over         49
+    repaired             13 (13 moved, 1 shrunk)
+    could not be fixed   36 — 33 replaced by jDip's brief code, 3 left as they were
+    inside but on a marker 0 — the name fits; the marker is what moves, in the placement pass
+    markers avoided      no placement table yet, so only the border constrained the search
+
+    PER LABEL (only the ones that were out of bounds)
+    province   outside before  after   moved      size   name
+    null              100%  STUCK        0    1.00   Constantinople
+    null              100%  STUCK        0    1.00   Denmark
+    null              100%  STUCK        0    1.00   Gibraltar
+    edi                68%  STUCK        0    1.00   Edinburgh
+    bel                64%  STUCK        0    1.00   Belgium
+    nap                64%  STUCK        0    1.00   Naples
+    als                62%  STUCK        0    1.00   Alsace
+    sil                58%  STUCK        0    1.00   Silesia
+    adr                56%  STUCK        0    1.00   Adriatic Sea
+    ven                56%  STUCK        0    1.00   Venetia
+    ire                54%  STUCK        0    1.00   Ireland Irish Sea
+    pru                53%  STUCK        0    1.00   Prussia
+    apu                49%  STUCK        0    1.00   Apulia
+    rom                48%  STUCK        0    1.00   Rome
+    ska                41%  STUCK        0    1.00   Skagerrak
+    bos                37%  STUCK        0    1.00   Bosnia
+    cly                37%  STUCK        0    1.00   Clyde
+    por                37%  STUCK        0    1.00   Portugal
+    col                28%  STUCK        0    1.00   Cologne
+    mil                28%  STUCK        0    1.00   Milan
+    net                28%  STUCK        0    1.00   Neth'ds
+    pie                26%  STUCK        0    1.00   Piedmont
+    lvp                25%  STUCK        0    1.00   Liv'l
+    eas                22%     0%        3    0.80   Eastern Mediterranean
+    tun                21%     1%       27    1.00   Tunisia
+    vie                21%     2%       24    1.00   Vienna
+    wal                20%  STUCK        0    1.00   Wales
+    pic                19%  STUCK        0    1.00   Picardy
+    swe                19%     0%       44    1.00   Sweden
+    rum                17%     0%        7    1.00   Rumania
+    mar                16%  STUCK        0    1.00   Marseilles
+    tri                16%  STUCK        0    1.00   Trieste
+    swi                15%  STUCK        0    1.00   Switzerland
+    yor                15%  STUCK        0    1.00   Yorkshire
+    gre                14%  STUCK        0    1.00   Greece
+    lon                14%  STUCK        0    1.00   London
+    eng                12%  STUCK        0    1.00   English Channel
+    ser                12%  STUCK        0    1.00   Serbia
+    tys                12%     0%        8    1.00   Tyrrhenian Sea
+    gbo                11%  STUCK        0    1.00   Gulf of Bothnia
+    … and 9 more
+
+    WILL NOT FIT INSIDE ITS PROVINCE AT ANY SIZE OR POSITION
+    The province is too small for the name. jDip's own brief label is
+    used where it has one — which is what jDip does on a crowded board.
+      adr       "Adriatic Sea"  -> Adr
+      als       "Alsace"  -> Als
+      apu       "Apulia"  -> Apu
+      bal       "Baltic Sea"  -> Bal
+      bel       "Belgium"  -> Bel
+      bos       "Bosnia"  -> Bos
+      cly       "Clyde"  -> Cly
+      col       "Cologne"  -> Col
+      null      "Constantinople"  (no brief label; left where it was)
+      null      "Denmark"  (no brief label; left where it was)
+      edi       "Edinburgh"  -> Edi
+      eng       "English Channel"  -> Eng
+      gbo       "Gulf of Bothnia"  -> GBo
+      null      "Gibraltar"  (no brief label; left where it was)
+      gre       "Greece"  -> Gre
+      ire       "Ireland Irish Sea"  -> Ire
+      lon       "London"  -> Lon
+      lvp       "Liv'l"  -> Lvp
+      mar       "Marseilles"  -> Mar
+      mil       "Milan"  -> Mil
+      nap       "Naples"  -> Nap
+      net       "Neth'ds"  -> Net
+      pic       "Picardy"  -> Pic
+      pie       "Piedmont"  -> Pie
+      por       "Portugal"  -> Por
+      pru       "Prussia"  -> Pru
+      rom       "Rome"  -> Rom
+      ser       "Serbia"  -> Ser
+      sil       "Silesia"  -> Sil
+      ska       "Skagerrak"  -> Ska
+      swi       "Switzerland"  -> Swi
+      tri       "Trieste"  -> Tri
+      tyr       "Tyrolia"  -> Tyr
+      ven       "Venetia"  -> Ven
+      wal       "Wales"  -> Wal
+      yor       "Yorkshire"  -> Yor
+
+    STRUCTURE  PASS — positions and sizes only; every element, id and order kept

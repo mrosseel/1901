@@ -35,6 +35,10 @@ export interface EditorOptions {
   decided", and that needs the two side by side.
   */
   hand?: PlacementTable | null;
+  /** Province keys the map paints as water, for the coast rule. */
+  sea?: string[];
+  /** How far a coast marker's centre may sit from its strip, in radii. */
+  coastReach?: number;
   /** The keys the run moved away from the hand table, with the reason. */
   deviations?: Array<{ key: string; reason: string; moved: number }>;
 }
@@ -60,6 +64,10 @@ export function buildEditor(options: EditorOptions): string {
     supplyCentres: options.map.supplyCentres.map((r) => [r.x, r.y, r.w, r.h]),
     shipped: options.shipped,
     optimized: options.optimized,
+    /* What the page needs to apply the coast rule live: which keys are sea,
+       so it can tell free water from a neighbouring country. */
+    sea: options.sea || [],
+    coastReach: options.coastReach || 1,
     hand: options.hand || null,
     deviations: options.deviations || [],
     keys: Object.keys(options.optimized).sort(),
@@ -253,6 +261,82 @@ function fitsInside(key, x, y, radius) {
   return true;
 }
 
+/*
+The coast rule, live under the fingers — the same one audit.ts applies.
+
+A named coast is a thin strip along a shoreline, usually narrower than a
+marker, and a fleet standing half on the land and half in the water is what a
+coast unit looks like rather than a mistake. So a coast marker is asked three
+things instead of containment: is it standing on its own province, is it
+hugging its own strip rather than wandering inland, and is anything it
+overhangs a DIFFERENT country. Water and open sea are free.
+*/
+const SEA = new Set(DATA.sea || []);
+const outlineCache = new Map();
+function stripOutline(key) {
+  if (outlineCache.has(key)) return outlineCache.get(key);
+  const points = [];
+  for (const shape of shapesFor(key)) {
+    if (typeof shape.getTotalLength !== "function") continue;
+    const length = shape.getTotalLength();
+    if (!length) continue;
+    const count = Math.max(24, Math.min(400, Math.round(length / 3)));
+    const matrix = intoShape(shape);
+    const back = matrix ? matrix.inverse() : null;
+    for (let i = 0; i < count; i++) {
+      const at = shape.getPointAtLength((length * i) / count);
+      probe.x = at.x; probe.y = at.y;
+      const mapped = back ? probe.matrixTransform(back) : at;
+      points.push([mapped.x, mapped.y]);
+    }
+  }
+  outlineCache.set(key, points);
+  return points;
+}
+
+function provinceAt(x, y) {
+  if (!provinceLayer) return null;
+  let found = null;
+  for (const shape of provinceLayer.children) {
+    if (typeof shape.isPointInFill !== "function") continue;
+    const matrix = intoShape(shape);
+    probe.x = x; probe.y = y;
+    const local = matrix ? probe.matrixTransform(matrix) : probe;
+    if (shape.isPointInFill(local)) found = shape.id;
+  }
+  return found;
+}
+
+function coastPlaced(key, x, y, radius) {
+  const home = base(key);
+  // Standing on its own ground: the strip, or the province the strip is part of.
+  if (!insideProvince(home, x, y) && !insideProvince(key, x, y)) return false;
+  // Hugging its own coast rather than walking inland.
+  if (!insideProvince(key, x, y)) {
+    let nearest = Infinity;
+    for (const point of stripOutline(key)) {
+      const d = Math.hypot(point[0] - x, point[1] - y);
+      if (d < nearest) nearest = d;
+    }
+    if (nearest > (DATA.coastReach || 1) * radius) return false;
+  }
+  // Nothing it overhangs may be another country. Water is free.
+  for (let i = 0; i < 24; i++) {
+    const angle = (2 * Math.PI * i) / 24;
+    const px = x + Math.cos(angle) * radius;
+    const py = y + Math.sin(angle) * radius;
+    if (insideProvince(home, px, py)) continue;
+    const over = provinceAt(px, py);
+    if (over && !SEA.has(base(over))) return false;
+  }
+  return true;
+}
+
+/** Whether this marker sits where its own kind of province allows. */
+function placed(key, x, y, radius) {
+  return key.includes("/") ? coastPlaced(key, x, y, radius) : fitsInside(key, x, y, radius);
+}
+
 function coveredFraction(x, y, radius, boxes) {
   if (radius <= 0) return 0;
   const near = boxes.filter((b) => x - radius < b[0] + b[2] && b[0] < x + radius && y - radius < b[1] + b[3] && b[1] < y + radius);
@@ -284,7 +368,9 @@ function verdictFor(key, spot) {
   // A marker the placement deliberately let out over its border is not a
   // fault; the report names where it leans and why.
   const overhang = Boolean(spot.overhang);
-  const outside = !overhang && !fitsInside(key, x, y, radius * (1 + MARGIN));
+  /* A coast marker is judged by the coast rule, which has no border margin:
+     the shoreline is the thing it is meant to be sitting on. */
+  const outside = !overhang && !placed(key, x, y, key.includes("/") ? radius : radius * (1 + MARGIN));
   const name = coveredFraction(x, y, radius, DATA.labels);
   const sc = coveredFraction(x, y, radius, DATA.supplyCentres);
   const [dx, dy] = spot.dislodged;
@@ -296,7 +382,8 @@ function verdictFor(key, spot) {
     sc: sc,
     coversName: name > COVER_TOLERANCE,
     coversSc: sc > COVER_TOLERANCE,
-    dislodgedOutside: !overhang && !fitsInside(key, dx, dy, radius * DISLODGED_BODY * (1 + MARGIN)),
+    dislodgedOutside: !overhang && !placed(
+      key, dx, dy, radius * DISLODGED_BODY * (key.includes("/") ? 1 : 1 + MARGIN)),
     dislodgedName: coveredFraction(dx, dy, radius * DISLODGED_RING, DATA.labels) > COVER_TOLERANCE,
   };
 }

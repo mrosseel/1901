@@ -359,8 +359,13 @@ func writeErr(w http.ResponseWriter, code int, format string, args ...interface{
 
 // handleMap serves this game's variant map. It is board art, the same for
 // every game on that variant, and carries no game state.
+//
+// This is the route the board actually loads its map from, so it has to make
+// the same styled-or-original choice /variants/{key}/map.svg makes — sharing
+// variantMapBytes is what stops a restyle from reaching the gallery and never
+// reaching a board.
 func handleMap(g *game, id string, w http.ResponseWriter, r *http.Request) {
-	b, err := g.variant.SVGMap()
+	b, err := variantMapBytes(g.variantKey, g.variant, r)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "svg map: %v", err)
 		return
@@ -471,6 +476,10 @@ func main() {
 	// table would be worse than one drawn from none.
 	if err := loadPlacements(); err != nil {
 		log.Fatalf("load placements: %v", err)
+	}
+	// The restyled variant art, likewise: read once, then only ever read.
+	if err := loadStyledMaps(); err != nil {
+		log.Fatalf("load styled maps: %v", err)
 	}
 
 	spaDir := absPath(filepath.Join("web", "dist"))

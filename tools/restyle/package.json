@@ -1,0 +1,11 @@
+{
+  "name": "1901-restyle",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Restyles converted jDip maps in godip's classical style (DESIGN.md D-016).",
+  "scripts": {
+    "restyle": "node restyle.ts",
+    "test": "node --test tokens.test.ts"
+  }
+}

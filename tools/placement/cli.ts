@@ -28,6 +28,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openBrowser, measureMap, type MapGeometry, type Terrain } from "./browser.ts";
 import {
+  COAST_REACH,
   audit,
   measureClearance,
   place,
@@ -517,22 +518,28 @@ async function run(): Promise<void> {
       const minClearance =
         options.minClearance !== null ? options.minClearance : study ? study.medianRadii : MIN_CLEARANCE_RADII;
 
-      const before = await audit(page, map, shipped, r);
-      /* The hand table judged by the same tests, so the report can say what
-         this run cost or bought against the placement it started from. */
-      const seedAudit = seed ? await audit(page, map, seed, r) : null;
+      /*
+      The placer runs first because it works out which provinces are sea and
+      which are land, and every audit needs that: the coast rule asks what a
+      marker is hanging over, and water is free where another country is not.
+      */
       const result = await place(page, map, shipped, r, {
         seed: seed || undefined,
         minClearanceRadii: minClearance,
       });
-      const after = await audit(page, map, result.table, r);
+      const kind = result.terrain.kind;
+      const before = await audit(page, map, shipped, r, kind);
+      /* The hand table judged by the same tests, so the report can say what
+         this run cost or bought against the placement it started from. */
+      const seedAudit = seed ? await audit(page, map, seed, r, kind) : null;
+      const after = await audit(page, map, result.table, r, kind);
       const outcome = measureClearance(map, result.table, r);
 
       // The same two tables judged again with the bigger marker a phone draws.
       const stress = {
         radius: rStress,
-        before: await audit(page, map, shippedPlacement(map, rStress), rStress),
-        after: await audit(page, map, result.table, rStress),
+        before: await audit(page, map, shippedPlacement(map, rStress), rStress, kind),
+        after: await audit(page, map, result.table, rStress, kind),
       };
 
       const payload = {
@@ -634,6 +641,8 @@ async function run(): Promise<void> {
             shipped: shipped,
             optimized: result.table,
             hand: seed,
+            sea: Object.keys(result.terrain.kind).filter((key) => result.terrain.kind[key] === "sea"),
+            coastReach: COAST_REACH,
             deviations: result.deviations.map((d) => ({
               key: d.key,
               reason: d.dislodgedOnly ? "dislodged marker only" : d.reason,
