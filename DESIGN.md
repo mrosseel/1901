@@ -2,7 +2,7 @@
 
 **Status:** M0 spike implemented and browser-verified; phone UX fixes in progress.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r10 — 2026-08-28
+**Document revision:** r11 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -443,6 +443,33 @@ What this explicitly does not change: no account system, lobby, or
 multi-tenancy work before M5 is accepted. Hosted mode gets its own
 milestones after v1 ships.
 
+### D-020 — One shared invite; random seat assignment; anonymous seats
+**Status:** accepted, r11. Amends D-005's per-power QR model.
+The GM shares ONE invite link/QR. Claiming it assigns a random
+still-unassigned Power, transactionally (no double assignment under
+concurrent scans). A device that claims again gets its existing seat back,
+so re-scanning cannot re-roll; changing seats requires GM token rotation
+(D-012). Seats carry no player name — the server never learns who is who.
+At a face-to-face table identity is social anyway; for gunboat play the
+app must not leak it. A later setting may add open identities; the default
+is anonymous.
+
+### D-021 — The GM's power is the leftover, revealed at start
+**Status:** accepted, r11
+When the GM plays, joiners are assigned from the pool at random and the
+GM's Power is whatever remains when the GM presses Start — revealed to the
+GM only then. The GM never draws from the pool, so there is nothing to
+re-roll by refreshing. A `gmPlays` game setting covers the GM-only case
+(all powers go to joiners).
+
+### D-022 — Game settings before invite; changes after join are broadcast
+**Status:** accepted, r11
+The GM fixes settings (deadline length, gmPlays, future: variant,
+identity mode) when creating the game, before invites go out, so joiners
+see the rules up front. The GM may change settings later; every change
+bumps a settings version and all seats are notified ("rules changed")
+with the diff. Every change lands in the event log (D-007).
+
 ### D-019 — Touch order grammar
 **Status:** accepted, r7. Refine from playtest; log changes here.
 The phone UI's order entry follows a tap grammar rather than menus:
@@ -704,3 +731,4 @@ Recorded so nobody re-derives them.
 | r8 | 2026-08-28 | D-013 addition: beamer view gets URL-chosen layout variants (board only, board + move list, …). M1 direction started in code: /g/{id} lazily-created games in the spike. |
 | r9 | 2026-08-28 | D-019 additions: highlight color grammar (green/amber/pulsing blue), staged hints, order Change/Cancel; server-side order cancellation. Debt noted: province names table in the client, move server-side at M2. |
 | r10 | 2026-08-28 | Terminology session; CONTEXT.md created (Power/Seat/Player, Finalize/Commit/Reveal, Spectator view + Annotation, NMR, Adjudicate/Resolution). D-013's "beamer" renamed spectator view; spectator is strictly read-only for orders, annotations allowed later. |
+| r11 | 2026-08-28 | D-020 single shared invite with random anonymous seat assignment (amends D-005); D-021 GM power = the leftover, revealed at Start; D-022 settings fixed pre-invite, later changes versioned and broadcast. M1 flow implementation begun (in-memory first; SQLite to follow within M1). |
