@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "key": "gatewaywest",
+  "name": "Gateway West",
+  "kind": "godip",
+  "map": {
+    "bytes": 1808258,
+    "sha256": "46caedc139a1a854d95a35262fb28edc918bcafc11349709955f7a56ee20fa9f",
+    "viewBoxWidth": 2050
+  },
+  "godip": {
+    "styleable": true,
+    "reason": "",
+    "sea": "#d4d0ad",
+    "land": "#f4d7b5",
+    "seaConfidence": 1,
+    "landConfidence": 1,
+    "extras": [
+      {
+        "fill": "#ffffff",
+        "near": "land"
+      }
+    ],
+    "impassablePattern": "impassableStripes",
+    "grainPattern": "pattern683",
+    "grainOverlayId": "Noise",
+    "borders": {
+      "found": true,
+      "candidates": 252,
+      "provinceCount": 71,
+      "decoration": false
+    },
+    "names": {
+      "found": true,
+      "kinds": []
+    }
+  }
+}

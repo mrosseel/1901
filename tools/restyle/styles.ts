@@ -1,7 +1,7 @@
 /*
 Named map styles, as data.
 
-A style is a JSON file under tools/restyle/styles/. It says what the two
+A style is a JSON file under mapstyles/. It says what the two
 terrain tones are, how a border is drawn, whether there is a grain, what the
 names are set in, and how a supply-centre glyph is painted — and nothing else.
 Everything a style can say is a presentation property, because a style that
@@ -130,9 +130,15 @@ export interface LoadedStyle extends Omit<StyleDefinition, "defs" | "fonts" | "g
   source: string;
 }
 
-/** The default directory: tools/restyle/styles. */
+/*
+The default directory: mapstyles/ at the top of the repository.
+
+The styles moved out of this tool when the server learned to apply them
+itself (D-026). They are read by two programs now — this tool and the Go
+server, which embeds the directory — so they belong to neither.
+*/
 export function stylesDir(here: string): string {
-  return join(here, "styles");
+  return resolve(here, "..", "..", "mapstyles");
 }
 
 function fail(source: string, what: string): never {

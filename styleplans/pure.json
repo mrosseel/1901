@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "key": "pure",
+  "name": "Pure",
+  "kind": "godip",
+  "map": {
+    "bytes": 129991,
+    "sha256": "ad0e73cf914b5b0d74295cdceff12cd7e5bacaa40af401f0a9d5edc44fb2d271",
+    "viewBoxWidth": 700
+  },
+  "godip": {
+    "styleable": true,
+    "reason": "",
+    "sea": "#d4d0ad",
+    "land": "#f4d7b5",
+    "seaConfidence": 1,
+    "landConfidence": 1,
+    "extras": [],
+    "impassablePattern": null,
+    "grainPattern": "pattern1827",
+    "grainOverlayId": "Noise",
+    "borders": {
+      "found": true,
+      "candidates": 1,
+      "provinceCount": 7,
+      "decoration": false
+    },
+    "names": {
+      "found": true,
+      "kinds": [
+        "sea",
+        "sea",
+        "sea",
+        "sea",
+        "sea",
+        "sea",
+        "sea"
+      ]
+    }
+  }
+}

@@ -46,6 +46,10 @@ type game struct {
 	owner map[godip.Province]godip.Nation
 	// flow carries the GM, seat, and phase state.
 	flow *flow
+	// watch is one entry per resolved phase: the public per-phase history
+	// the /watch URLs serve (D-013). It is rebuilt by replay(), so a
+	// historical link survives a restart.
+	watch []*watchSnapshot
 	// previousPhase is the review of the phase that resolved most
 	// recently, nil until the first adjudication.
 	previousPhase *phaseReviewJSON
@@ -481,12 +485,14 @@ func main() {
 	if err := loadPlacements(); err != nil {
 		log.Fatalf("load placements: %v", err)
 	}
-	// The restyled variant art, likewise: read once, then only ever read.
-	if err := loadStyledMaps(); err != nil {
-		log.Fatalf("load styled maps: %v", err)
+	// The map styles and the plans that apply them, likewise. A broken style
+	// or a plan from a schema this server does not read is a startup error:
+	// serving three styles of four, silently, would be worse.
+	if err := loadStyles(); err != nil {
+		log.Fatalf("load map styles: %v", err)
 	}
-	if err := loadStyleCards(); err != nil {
-		log.Fatalf("load styles: %v", err)
+	if err := loadPlans(); err != nil {
+		log.Fatalf("load style plans: %v", err)
 	}
 
 	spaDir := absPath(filepath.Join("web", "dist"))
@@ -502,6 +508,7 @@ func main() {
 	mux.HandleFunc("/variants/", handleVariantMap)
 	mux.HandleFunc("/game/", srv.serveFlow)
 	mux.HandleFunc("/join/", srv.serveJoinPage)
+	mux.HandleFunc("/watch/", srv.serveWatchPage)
 
 	addr := listenAddr()
 	log.Printf("listening on http://localhost%v (app from %v, database %v)", addr, spaDir, dbPath())

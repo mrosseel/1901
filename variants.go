@@ -6,13 +6,11 @@
 package main
 
 import (
-	"encoding/json"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -150,33 +148,27 @@ func handleVariants(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, variantCatalogue())
 }
 
-// styledMaps holds the restyled art for the variants that have any: variant
-// key, then style name, then the file.
+// STYLED MAP SERVING (D-023, D-024, D-026)
 //
 // A converted jDip map is correct and unlovely: flat blue water, flat yellow
-// land, a black backdrop. tools/restyle puts it into a named style — the
-// styles are data, one JSON file each — and writes the result beside the
-// original as map-<style>.svg (D-016, D-017). A restyle touches fills,
-// strokes and text presentation only: the province shapes, their ids, the
-// #provinces layer and the #province-centers anchors are byte-identical,
-// which the tool checks and refuses to write without.
+// land, a black backdrop. godip's own maps are handsome but come in one
+// palette. A named style — the styles are data, one JSON file each in
+// mapstyles/ — puts either into another one. A restyle touches fills, strokes
+// and text presentation only: the province shapes, their ids, the #provinces
+// layer and the #province-centers anchors come through byte-identical, which
+// restyle_test.go checks.
 //
-// So a styled file is what is served by default, in defaultMapStyle: it is
-// the same map, drawn better. The original stays reachable at ?style=original,
-// because a faithful copy of the source art is worth being able to look at
-// when a conversion is in question.
+// So a styled map is what is served by default, in defaultMapStyle: the same
+// map, drawn better. The original stays reachable at ?style=original, because
+// a faithful copy of the source art is worth being able to look at when a
+// conversion is in question.
 //
-// Styled art arrives from two directories, because the two kinds of map are
-// stored differently (D-024):
-//
-//   - variants1901/<package>/map-<style>.svg, beside the jDip-converted
-//     original this checkout also holds the Go package for;
-//   - styledmaps/<key>/map-<style>.svg, for a godip variant whose original is
-//     embedded in the dependency and is not a file here at all. The directory
-//     is named by the URL key, since there is no package to name it after.
-//
-// Both are globbed the same way and land in the same table.
-var styledMaps = map[string]map[string][]byte{}
+// The styled art used to be generated ahead of time and checked in — every
+// map in every style, 156 MB of SVG that a clone had to carry. It is now
+// composed here, on demand, out of three things: the original art, the style
+// plan the browser tool measured from it (styleplans/<key>.json), and the
+// style's own tokens. Both are embedded in the binary; the composition is
+// string substitution and takes milliseconds. See restyle.go and D-026.
 
 // defaultMapStyle is the style a map is served in when nobody asks for one.
 const defaultMapStyle = "parchment"
@@ -186,148 +178,88 @@ const defaultMapStyle = "parchment"
 // silent fallback would let a typo in a saved preference look like a style.
 var errUnknownStyle = errors.New("unknown style")
 
-// styleCard is one entry in the style picker: what tools/restyle wrote into
-// variants1901/styles.json. The server does not read the style definitions —
-// it serves art that is already drawn — so the tool leaves it this list.
-type styleCard struct {
-	Name        string `json:"name"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-}
-
-var styleCards = []styleCard{}
-
-// loadStyleCards reads the manifest tools/restyle wrote beside the maps. A
-// checkout with no manifest serves no picker, which is right: there is then
-// nothing to pick between.
-func loadStyleCards() error {
-	path := filepath.Join(styledMapDir(), "styles.json")
-	b, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("read %v: %w", path, err)
-	}
-	if err := json.Unmarshal(b, &styleCards); err != nil {
-		return fmt.Errorf("parse %v: %w", path, err)
-	}
-	return nil
-}
-
 // handleStyles serves /styles: the named styles a map can be asked for.
 func handleStyles(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, styleCards)
+	writeJSON(w, http.StatusOK, styleCards())
 }
 
-// styledMapDir can be pointed elsewhere with VARIANTS1901, which is what a
-// run from another working directory needs.
-func styledMapDir() string {
-	if p := os.Getenv("VARIANTS1901"); p != "" {
-		return p
-	}
-	return "variants1901"
-}
-
-// godipStyledMapDir holds the styled art for godip's own variants, whose
-// originals live in the dependency rather than in this checkout. STYLEDMAPS
-// points it elsewhere, the way VARIANTS1901 does for the other directory.
-func godipStyledMapDir() string {
-	if p := os.Getenv("STYLEDMAPS"); p != "" {
-		return p
-	}
-	return "styledmaps"
-}
-
-// loadStyledMaps reads both styled-map directories into memory.
-func loadStyledMaps() error {
-	loaded, err := loadStyledMapsFrom(styledMapDir(), keyForPackageDir)
-	if err != nil {
-		return err
-	}
-	// A godip map has no package here, so its directory is named by the URL
-	// key and the registry only has to confirm that key is served.
-	more, err := loadStyledMapsFrom(godipStyledMapDir(), func(dir string) (string, bool) {
-		_, found := lookupVariant(dir)
-		return dir, found
-	})
-	if err != nil {
-		return err
-	}
-	loaded = append(loaded, more...)
-	sort.Strings(loaded)
-	if len(loaded) > 0 {
-		log.Printf("styled maps: %v", strings.Join(loaded, "; "))
-	}
-	return nil
-}
-
-// loadStyledMapsFrom reads every <dir>/*/map-<style>.svg into the table.
+// styledArt is the composed styled maps, keyed by variant key and style name.
 //
-// In variants1901 the directory name is the Go package's, which is not always
-// the URL key — "1900" is served from jdip1900/ — so the caller passes the
-// rule for turning a directory name into a key. A directory that matches
-// nothing is skipped and named, since it can only be a leftover.
-func loadStyledMapsFrom(dir string, keyFor func(string) (string, bool)) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("read %v: %w", dir, err)
-	}
-	loaded := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		files, err := filepath.Glob(filepath.Join(dir, entry.Name(), "map-*.svg"))
-		if err != nil {
-			return nil, fmt.Errorf("glob %v: %w", entry.Name(), err)
-		}
-		if len(files) == 0 {
-			continue
-		}
-		key, found := keyFor(entry.Name())
-		if !found {
-			log.Printf("styled map: %v matches no served variant, skipped", entry.Name())
-			continue
-		}
-		names := make([]string, 0, len(files))
-		for _, path := range files {
-			style := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(path), "map-"), ".svg")
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return nil, fmt.Errorf("read %v: %w", path, err)
-			}
-			if styledMaps[key] == nil {
-				styledMaps[key] = map[string][]byte{}
-			}
-			styledMaps[key][style] = b
-			names = append(names, fmt.Sprintf("%v %dKB", style, len(b)/1024))
-		}
-		sort.Strings(names)
-		loaded = append(loaded, fmt.Sprintf("%v [%v]", key, strings.Join(names, ", ")))
-	}
-	return loaded, nil
-}
+// Composition is deterministic and the inputs never change while the process
+// runs, so a map is composed once and then only ever read. The cache is
+// unbounded on purpose: it can hold at most one entry per variant per style,
+// and it only fills with what someone actually asked to look at.
+var styledArt = struct {
+	mu sync.RWMutex
+	by map[string][]byte
+}{by: map[string][]byte{}}
 
-// keyForPackageDir resolves a variants1901 directory name to the URL key the
-// variant is served under. The directory holds a package whose variant name
-// the registry knows; "sailho" is served as "sailho", "jdip1900" as "1900".
-func keyForPackageDir(dir string) (string, bool) {
-	for _, v := range localVariants {
-		key := variantKey(v.Name)
-		if key == dir {
-			return key, true
-		}
-		// "jdip1900" holds the variant served as "1900": a Go package name
-		// may not start with a digit, so the directory carries a prefix.
-		if strings.HasSuffix(dir, key) {
-			return key, true
-		}
+// stalePlans names the maps whose art no longer matches the plan measured
+// from it, so the warning is logged once rather than per request.
+var stalePlans = struct {
+	mu sync.Mutex
+	by map[string]bool
+}{by: map[string]bool{}}
+
+// styledMapBytes composes one variant's map in one style, or reports that it
+// cannot be styled.
+//
+// A plan is keyed to the art it was measured on by SHA-256. When a godip
+// upgrade redraws a map, the plan is stale — the fill values it names may
+// paint something else now — and the map is served in its own colours rather
+// than styled from measurements of a picture that no longer exists. That is
+// the same treatment a map with no plan at all gets, because it is the same
+// situation: nothing here knows how to style this map.
+func styledMapBytes(key string, v common.Variant, style string) ([]byte, error) {
+	plan, found := plans[key]
+	if !found || !plan.styleable() {
+		return nil, fmt.Errorf("%q: %w", style, errUnknownStyle)
 	}
-	return "", false
+	tokens, found := styles[style]
+	if !found {
+		return nil, fmt.Errorf("%q: %w", style, errUnknownStyle)
+	}
+	cacheKey := key + "/" + style
+
+	styledArt.mu.RLock()
+	cached, hit := styledArt.by[cacheKey]
+	styledArt.mu.RUnlock()
+	if hit {
+		return cached, nil
+	}
+
+	original, err := v.SVGMap()
+	if err != nil {
+		return nil, err
+	}
+	sum := fmt.Sprintf("%x", sha256.Sum256(original))
+	if sum != plan.Map.SHA256 {
+		stalePlans.mu.Lock()
+		if !stalePlans.by[key] {
+			stalePlans.by[key] = true
+			log.Printf("style plan: %v was measured on different art (%v, now %v) — "+
+				"serving godip's own colours until tools/restyle/plans.ts is re-run",
+				key, plan.Map.SHA256[:12], sum[:12])
+		}
+		stalePlans.mu.Unlock()
+		return nil, fmt.Errorf("%q: %w", style, errUnknownStyle)
+	}
+
+	composed, err := applyStyle(string(original), plan, tokens)
+	if err != nil {
+		return nil, fmt.Errorf("style %v for %v: %w", style, key, err)
+	}
+	out := []byte(composed)
+	styledArt.mu.Lock()
+	// Another request may have composed the same map first; its bytes are
+	// the same bytes, and keeping one of the two keeps the cache stable.
+	if first, raced := styledArt.by[cacheKey]; raced {
+		out = first
+	} else {
+		styledArt.by[cacheKey] = out
+	}
+	styledArt.mu.Unlock()
+	return out, nil
 }
 
 // variantMapBytes returns the art to serve for one variant: the map in the
@@ -345,17 +277,17 @@ func variantMapBytes(key string, v common.Variant, r *http.Request) ([]byte, err
 	if style == "original" {
 		return v.SVGMap()
 	}
-	drawn := styledMaps[key]
 	if style == "" {
-		if b, ok := drawn[defaultMapStyle]; ok {
+		if b, err := styledMapBytes(key, v, defaultMapStyle); err == nil {
 			return b, nil
+		} else if !errors.Is(err, errUnknownStyle) {
+			return nil, err
 		}
+		// A map with no plan, or one whose plan no longer matches the art, is
+		// served as it was drawn. It is the right map; it is not restyled.
 		return v.SVGMap()
 	}
-	if b, ok := drawn[style]; ok {
-		return b, nil
-	}
-	return nil, fmt.Errorf("%q: %w", style, errUnknownStyle)
+	return styledMapBytes(key, v, style)
 }
 
 // provinceJSON says what one province IS: the terrain a unit may stand on.

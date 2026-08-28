@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r17 — 2026-08-28
+**Document revision:** r18 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -304,10 +304,11 @@ cannot fit at any size. sailho is the pilot; classical's labels wait.
 
 ### D-023 — Map styles are named data, chosen per device
 **Status:** accepted, r16
-A style is a JSON file in `tools/restyle/styles/`: two terrain tones, a
-border, an optional grain, how the two kinds of name are set, and how a supply
-centre is painted. Nothing a style can say is anything but a presentation
-property, and every length in it is quoted against a reference width, so a
+A style is a JSON file in `mapstyles/`, which is where they moved in r18
+(D-026) once the server read them too. It says what the two terrain tones are,
+what a border looks like, whether there is a grain, how the two kinds of name
+are set, and how a supply centre is painted. Nothing a style can say is
+anything but a presentation property, and every length in it is quoted against a reference width, so a
 style knows nothing about the map it lands on.
 
 The first style is not written by hand. `extract-parchment.ts` reads godip's
@@ -374,13 +375,13 @@ made visible rather than hidden:
   to godip's layer names, and then every drawing element in the document
   compared for tag, id and geometry.
 
-**Where they are served from.** A godip map is embedded in the dependency and
-is not a file in this checkout, so its styled art cannot live beside an
-original that is not there. It goes in `styledmaps/<key>/map-<style>.svg`,
-named by the URL key since there is no Go package to name it after, and
-`variants.go` globs that directory alongside `variants1901/<package>/`. Both
-land in the same table and are served the same way. `STYLEDMAPS` moves the
-directory the way `VARIANTS1901` moves the other one.
+**Where they are served from.** *Superseded by D-026 (r18). The styled files
+are gone. A styled map is composed at serve time from the original art and a
+style plan.* As written in r17: a godip map is embedded in the dependency and
+is not a file in this checkout, so its styled art went to
+`styledmaps/<key>/map-<style>.svg`, named by the URL key because there is no
+Go package to name it after, and `variants.go` globbed that directory
+alongside `variants1901/<package>/`.
 
 The tool is a client, not a library: the maps and the province types come from
 a running server (`--server`, default `http://localhost:8195`), because a
@@ -403,6 +404,135 @@ the backdrop rect and the root background with; `ground` is unchanged and is
 what a single-landmass map still uses. parchment's is derived rather than
 typed — classical's own land, twelve per cent darker, by
 `extract-parchment.ts` — so the house style stays the file's own.
+
+### D-026 — A styled map is composed at serve time from a style plan
+**Status:** accepted, r18. Supersedes the storage half of D-024 and D-016.
+Every map in every style used to be generated ahead of time and kept as a
+file. That was 156 MB under `styledmaps/` plus 3.3 MB checked in under
+`variants1901/`, regenerated in full whenever a style changed one colour. The
+files are gone. What is kept instead is the measurement.
+
+A restyle has two halves and only one of them is expensive.
+
+**Detection** loads the art in a real rendering engine and asks what is
+painted under each province, what each label stands on, how much of the board
+each tone covers, and whether a foreground layer holds province borders or
+drawing. It needs a browser, takes seconds per map, and depends on the map
+alone. It gives the same answer for every style.
+
+**Application** substitutes fill values, swaps a pattern's insides, and sets a
+stroke and a typography. It is string work, it takes milliseconds, and it
+depends on the style.
+
+`tools/restyle/plans.ts` writes the detection half to
+`styleplans/<key>.json`, 120 KB for all 26 maps, checked in. `restyle.go`
+does the application half in Go, at serve time, and caches the result in
+memory per map and style. The style tokens moved to `mapstyles/` at the top of
+the repository and are embedded in the binary with `go:embed`, because two
+programs read them now and they belong to neither.
+
+**What a plan holds.** For a godip map: the sea and land fill values the
+palette vote settled on with their confidences, the extra tones with the base
+each one is carried from, the impassable-hatch and paper-grain pattern ids and
+the element that lays the grain, the border decision (how many dark strokes
+the foreground holds, how many provinces the map has, and whether that ratio
+makes it decoration), and one land or water verdict per name. For a converted
+jDip map: the label metrics jDip wrote without a CSS unit, the classes that
+paint power-owned ground, and the class each label is given. Nothing in a plan
+is a style decision. Everything in it is a measurement.
+
+**Staleness is loud.** A plan names the SHA-256 of the art it was measured on.
+A godip upgrade that redraws a map makes its plan stale, because a fill value
+measured on the old picture may paint something else in the new one. Such a
+map is served in godip's own colours with a logged warning, which is how a map
+with no plan at all is treated. It is never styled from measurements of a
+picture that no longer exists.
+
+**Verified against what it replaced.** Before the pregenerated files were
+deleted, the Go applier's output was compared byte for byte with them. Eight
+godip maps came out identical (classical in all four styles, North Sea Wars,
+Pure, Cold War, Twenty Twenty), and so did 1900 in midnight once the
+provenance comment matched. Sail Ho differs only in the attribute order of
+four repaired labels. `restyle_test.go` keeps the standing promise, that
+element count, ids and geometry are unchanged in the document and in each
+locked layer, and it checks the cache for byte stability.
+
+**One consequence worth knowing.** The label repair that `restyle.ts
+--fix-labels` applied to sailho's styled output is now baked into
+`variants1901/sailho/map.svg` itself. It has to be. The repair is
+style-independent and there is no styled file left to hold it. The tools still
+write styled SVGs under `tools/restyle/out/styled/`, but those are renderings
+for a person to look at, not assets the server reads.
+
+### D-027 — Deadline humanity: phase multiplier, grace, first turn, anti-rush
+**Status:** accepted, r18 (research/platforms.md, steal 8). Extends D-022.
+One deadline number is not enough for a real table. Every platform that has
+run real games has learned the same four rules, and all four are now settings:
+versioned, event-logged, and GM-editable before and after start like every
+other setting under D-022.
+
+`retreatBuildPercent` (default 50, Backstabbr's) gives a retreat or build
+phase that share of the movement clock. Those phases are not negotiation
+phases. Nobody is talking, the orders are forced or nearly so, and a table
+waiting the full clock for two disbands is a table doing nothing. The result
+is rounded up and never falls below a minute, because a phase with no clock is
+a phase nobody can order in.
+
+`graceMinutes` (default 0) keeps taking orders that long after the deadline.
+The deadline the clock shows does not move, since a grace period that is
+announced is not a grace period. What moves is the moment `canForce` turns
+true for the GM.
+
+`firstTurnExtraMinutes` (default 0) is added to the first movement phase only.
+Spring 1901 is the one turn where everybody has to talk to everybody.
+
+The **anti-rush rule** is Backstabbr's, copied exactly. A phase that resolves
+early with `R` still on the clock, into a next phase of period `T`, gets
+`R + T` when `R < T`, and `R` otherwise. Both are at least `T`, so finalizing
+early never shortens the next phase for anybody. That is what makes D-008's
+auto-advance safe once deadlines are long. A phase the GM forced carries
+nothing, because its clock had run out or the GM chose to spend it.
+
+Not taken here, and still worth taking later: the weekend skip, the per-game
+timezone, and a wall-clock deadline that does not drift daily. None of them
+matters for a table in a room. All of them matter for hosted mode (D-018).
+
+### D-028 — Public, permanent, login-free per-phase URLs
+**Status:** accepted, r18 (research/platforms.md, steal 1). Extends D-013.
+Backstabbr's most valuable property is not a feature. It is that
+`/game/<id>/<year>/<season>` renders the board, the orders and the results to
+a signed-out visitor, forever. That is why it owns post-game analysis, why its
+links are the community's citation format, and why the tournament pipeline
+scrapes it rather than asking for an API.
+
+Our spectator view was already secret-free by D-013, so the data model was
+done. What was missing was the URL:
+
+    /watch/{gameId}/                 the page, at the phase being played
+    /watch/{gameId}/{phaseIndex}     the page, at one phase of the past
+    /game/{id}/watch                 the JSON behind the first
+    /game/{id}/watch/{phaseIndex}    the JSON behind the second
+
+A resolved phase shows everything: the position it was played from, every
+applied order with the power that gave it, every resolution, what was
+dislodged, and the NMR list. All of that is public the moment the phase
+resolves, since it is what the players see in their own review. There is
+nothing there to leak.
+
+The current phase shows the board, the phase, the deadline, the grace and who
+has finalized. It shows no order of any kind. This endpoint carries no token
+and cannot know who is asking, so it may never carry a draft.
+
+**Where the history comes from.** Not a table of its own. The snapshots are
+built by the same replay that rebuilds a game from its order rows after a
+restart (D-011's write-through store). Each phase records what it saw on the
+way past, on the live path and on the restore path alike. A historical URL is
+therefore a function of the stored orders, which is why it is stable forever
+and survives a `kill -9`. That was verified by killing the server and diffing
+the JSON before and after. Only the `now` field differed.
+
+Still open, and cheap once wanted: the layout variants D-013 asked for (board
+only, board plus move list), and the referee guide of steal 2.
 
 ### D-004 — Order secrecy via commit-reveal
 **Status:** accepted, r1
@@ -530,7 +660,7 @@ holding one seat with divergent state is exactly what commit-reveal cannot
 tolerate.
 
 ### D-013 — The GM view is secret-free and safe for a shared screen
-**Status:** accepted, r2
+**Status:** accepted, r2. Extended r18 by D-028 (public per-phase URLs).
 The GM view may show who has committed or revealed, the deadline, the audit
 feed, and admin controls — never order content and never any power's
 `Options()` output. Invite QRs appear only in a pre-game seating screen and
@@ -632,8 +762,20 @@ page as part of the rules (D-022):
   territory, D-018); selectable in the UI only when implemented — until
   then visible but disabled with a "later" note, so the model is
   established in data now.
+- **rulebook** (added r18): press during movement phases, none during
+  retreat and build. This is webDiplomacy's fourth mode, and it says this is
+  how face-to-face Diplomacy is played. Backstabbr defaults to the same
+  behaviour (research/platforms.md, steal 7). It is outside evidence for
+  Q-004, that retreat and build phases are not negotiation phases and should
+  not make the whole table wait.
 
 Immutable after start, like gmPlays.
+
+**Implementation (r18).** Data only. `settings.pressMode` is accepted at
+creation and by the GM before start, validated against the four names,
+event-logged, persisted in `game.press_mode` and returned in the GM, seat and
+public views. No behaviour is attached to it, and the app carries no messages
+in any mode.
 
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
@@ -949,5 +1091,6 @@ Recorded so nobody re-derives them.
 | r14 | 2026-08-28 | D-016 activated: pilot port of 1900 and Sail Ho from jDip (translator + map conversion phase 1; LLM-assisted restyle phase 2, needs OpenRouter key). Sources vendored to tools/jdip-import/source. |
 | r15 | 2026-08-28 | D-014 presentation: checkmark for supported, no experimental badge. Restyle shipped as scripted theming (no LLM needed); style system with four named themes underway. Placement pipeline (audit/optimize/editor/serving) complete for classical + sailho. |
 | r16 | 2026-08-28 | D-023: pressMode setting (ftf default / gunboat / fullpress-later); §1 press non-goal narrowed accordingly. |
+| r18 | 2026-08-28 | D-026: styled maps composed at serve time from a style plan (styleplans/*.json) plus embedded style tokens (mapstyles/), with an in-memory cache; styledmaps/ (156 MB) and the checked-in map-<style>.svg files deleted after a byte-for-byte comparison against them; sailho's label repair baked into its own map.svg. D-027: deadline humanity — retreatBuildPercent (50), graceMinutes, firstTurnExtraMinutes, and Backstabbr's anti-rush rule. D-028: public per-phase watch URLs, /watch/{id}/{phaseIndex}, snapshots derived from replay and stable across a hard kill. D-023 gains the rulebook press mode and is implemented as data. |
 | r17 | 2026-08-28 | Platform survey (research/platforms.md). §1 gap restated: parallel per-device entry, delete-the-sandboxer pitch; mylootcave (hot-seat) and avieth/diplomacy-server noted; commit-reveal confirmed novel. Q-007 opened (illegal/bluff orders). Playtest gains a 3-minute finalize criterion. D-023 may later gain a 'rulebook' press mode. Stale facts flagged: godip variant count, diplomacy/diplomacy status. |
 | r16 | 2026-08-28 | D-023: map styles as named JSON data (parchment extracted from classical, plus midnight, print and flat), applied to any converted map, served at `?style=`, chosen per device. Gallery map previews open in a pan-and-zoom lightbox; the pan/zoom arithmetic is shared with the board. Experimental badge removed per D-014 presentation (r15). |

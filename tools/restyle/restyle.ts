@@ -50,10 +50,8 @@ import {
 import {
   listStyles,
   loadStyle,
-  styleCard,
   stylesDir,
   type LoadedStyle,
-  type StyleCard,
 } from "./styles.ts";
 import {
   ABBREVIATE_ABOVE,
@@ -128,16 +126,16 @@ function usage(): string {
     "",
     "  --variant <key>    a directory under variants1901/; repeatable",
     "  --all              every variant1901 directory holding a map.svg",
-    "  --style <name>     a style in styles/; repeatable (default: parchment)",
-    "  --all-styles       every style in styles/",
+    "  --style <name>     a style in mapstyles/; repeatable (default: parchment)",
+    "  --all-styles       every style in mapstyles/",
     "  --no-grain         leave off the style's grain, whatever it says",
     "  --no-labels        skip the label audit",
     "  --fix-labels [key] apply the label repairs; bare applies to every",
     "                     variant in the run, with a key only to that one",
     "  --dry-run          report and check, but write nothing",
     "",
-    "Writes variants1901/<key>/map-<style>.svg beside the original, the style",
-    "manifest variants1901/styles.json, and renders under tools/restyle/out/.",
+    "Writes renderings under tools/restyle/out/. The server styles maps itself,",
+    "from the plans tools/restyle/plans.ts writes (D-026).",
   ].join("\n");
 }
 
@@ -178,7 +176,7 @@ function parseArgs(argv: string[]): Options {
 
 // --- what the map says about itself ---------------------------------------
 
-interface MapFacts {
+export interface MapFacts {
   key: string;
   width: number;
   /** The scale the art layer applies, so lengths can be pre-divided by it. */
@@ -260,7 +258,31 @@ function readLabelMetrics(svg: string): { metrics: Map<string, string>; repaired
   return { metrics: metrics, repaired: repaired };
 }
 
-function readMapFacts(key: string, svg: string): MapFacts {
+/*
+Every class the map declares that paints ground a power owns.
+
+The board colours ownership itself from the game state, so a power colour
+baked into the map is only ever a chance to contradict it: they are all
+painted as plain land. What is filtered out here is everything that is NOT
+ground — labels, unit and supply-centre glyphs, and jDip's order-drawing
+classes, which carry a fill but style the arrows the board draws.
+*/
+export function powerClasses(declared: string[]): string[] {
+  return declared.filter(
+    (name) =>
+      !LAND_CLASSES.includes(name) &&
+      !SEA_CLASSES.includes(name) &&
+      !IMPASSABLE_CLASSES.includes(name) &&
+      !name.startsWith("unit") &&
+      !name.startsWith("sc") &&
+      !name.startsWith("label") &&
+      !name.startsWith("lt") &&
+      !/^(shadow|varwidth)|order$|line$/.test(name) &&
+      !["invisible", "unordered", "coasttext", "unittext", "provtext", "titletext"].includes(name),
+  );
+}
+
+export function readMapFacts(key: string, svg: string): MapFacts {
   const declared = Array.from(
     new Set((svg.match(/\.[A-Za-z][\w-]*\s*\{/g) || []).map((one) => one.replace(/[.{\s]/g, ""))),
   ).sort();
@@ -314,7 +336,7 @@ name for the word "Sea" would guess right most of the time on 1900 and would
 be hopeless on sailho, where the water is called things like "Poseidon's
 Cauldron" and the land is called "Amazon".
 */
-async function classifyLabels(page: Page, svg: string): Promise<LabelVerdict[]> {
+export async function classifyLabels(page: Page, svg: string): Promise<LabelVerdict[]> {
   await page.setContent(
     "<!doctype html><html><head><style>html,body{margin:0}svg{display:block;width:1200px;height:auto}</style>" +
       "</head><body>" + svg + "</body></html>",
@@ -410,6 +432,26 @@ async function classifyLabels(page: Page, svg: string): Promise<LabelVerdict[]> 
   }) as Promise<LabelVerdict[]>;
 }
 
+/*
+The classes one label is given, which is the whole of the per-label detection.
+
+Impassable ground and anything unplaceable are named like land, which is what
+they are: the hatch is terrain, not water. A multi-word name is set at plain
+sea tracking; a short one is an abbreviation and is tracked out, as classical
+tracks NRG.
+
+It is a function rather than three lines inside the rewrite because a style
+plan carries its answer (D-026): the Go applier at serve time gets the class
+already decided, and never has to open a browser to work out what a label
+stands on.
+*/
+export function labelClasses(verdict: LabelVerdict): string {
+  const kind = kindOf(verdict.over);
+  const base = kind === "sea" ? "map-seaname" : "map-landname";
+  const longName = /\s/.test(verdict.text) || verdict.text.length > 5;
+  return base + (kind === "sea" && longName ? " map-longname" : "");
+}
+
 function kindOf(over: string | null): LabelVerdict["kind"] {
   if (!over) return "unknown";
   if (SEA_CLASSES.includes(over)) return "sea";
@@ -474,27 +516,12 @@ export function buildStylesheet(
   from the game state, so a power colour baked into the map is only ever a
   chance to contradict it.
   */
-  const powers = facts.declared.filter(
-    (name) =>
-      !LAND_CLASSES.includes(name) &&
-      !SEA_CLASSES.includes(name) &&
-      !IMPASSABLE_CLASSES.includes(name) &&
-      !name.startsWith("unit") &&
-      !name.startsWith("sc") &&
-      !name.startsWith("label") &&
-      !name.startsWith("lt") &&
-      /* jDip's order-drawing classes carry a fill too, but they style the
-         arrows the board draws, not the ground. Painting them parchment
-         would be harmless and is still wrong, so they are named out. */
-      !/^(shadow|varwidth)|order$|line$/.test(name) &&
-      !["invisible", "unordered", "coasttext", "unittext", "provtext", "titletext"].includes(name),
-  );
+  const powers = powerClasses(facts.declared);
   if (powers.length) {
     lines.push("/* power colours: the board draws ownership, so the map does not */");
     for (const name of powers) lines.push(terrain("." + name, style.terrain.land));
     lines.push("");
   }
-
   /*
   The ground. jDip paints a black rectangle behind the art, which under a
   parchment palette reads as a hole; and on sailho that rectangle does not
@@ -692,16 +719,9 @@ function restyleOne(
   svg = svg.replace(/<text\b([^>]*)>/g, (whole, body: string) => {
     const verdict = labels[index++];
     if (!verdict) return whole;
-    const kind = kindOf(verdict.over);
-    // Impassable ground and anything unplaceable are named like land, which
-    // is what they are: the hatch is terrain, not water.
-    const extra = kind === "sea" ? "map-seaname" : "map-landname";
-    if (kind === "sea") sea++;
+    const classes = labelClasses(verdict);
+    if (classes.startsWith("map-seaname")) sea++;
     else land++;
-    /* A multi-word name is set at classical's plain sea tracking; a short
-       one is an abbreviation and is tracked out, as classical tracks NRG. */
-    const longName = /\s/.test(verdict.text) || verdict.text.length > 5;
-    const classes = extra + (kind === "sea" && longName ? " map-longname" : "");
     const existing = /\bclass="([^"]*)"/.exec(body);
     if (existing) {
       return "<text" + body.replace(existing[0], 'class="' + existing[1] + " " + classes + '"') + ">";
@@ -1215,9 +1235,14 @@ async function run(): Promise<void> {
         }
 
         if (options.write) {
+          /* Into the tool's own output, for looking at. The server no longer
+             reads styled files: it composes them from a style plan at serve
+             time (D-026), so a styled map written here is a rendering, not an
+             asset, and nothing but a person ever opens it. */
           const file = "map-" + style.name + ".svg";
-          await writeFile(join(VARIANTS, key, file), styled);
-          console.log("\n  wrote variants1901/" + key + "/" + file + " (" +
+          await mkdir(join(OUT, "styled", key), { recursive: true });
+          await writeFile(join(OUT, "styled", key, file), styled);
+          console.log("\n  wrote tools/restyle/out/styled/" + key + "/" + file + " (" +
             Math.round(styled.length / 1024) + " KB, was " +
             Math.round(original.length / 1024) + " KB)");
         }
@@ -1235,31 +1260,16 @@ async function run(): Promise<void> {
     await browser.close();
   }
 
-  /*
-  The manifest. The server has to answer "which styles are there" without
-  knowing anything about this tool, and the styles are files on disk that the
-  server does not read, so the run that writes the maps writes the list too.
-  */
-  if (options.write) {
-    const names = await listStyles(STYLES);
-    /* The default first, the rest alphabetically. A picker is drawn in this
-       order, and the style a map already has belongs at the top of it. */
-    names.sort((a, b) =>
-      a === DEFAULT_STYLE ? -1 : b === DEFAULT_STYLE ? 1 : a.localeCompare(b));
-    const cards: StyleCard[] = await Promise.all(
-      names.map(async (name) => styleCard(await loadStyle(STYLES, name))),
-    );
-    await writeFile(join(VARIANTS, "styles.json"), JSON.stringify(cards, null, 2) + "\n");
-    console.log("\nwrote variants1901/styles.json: " +
-      cards.map((one) => one.name).join(", "));
-  }
-
   await writeFile(join(OUT, "restyle.report.txt"), report.join("\n") + "\n");
   console.log("report written to " + join(OUT, "restyle.report.txt"));
   if (failed) process.exit(1);
 }
 
-run().catch((err: unknown) => {
-  console.error(err instanceof Error ? err.stack || err.message : String(err));
-  process.exit(1);
-});
+/* Run only when this file IS the program. It is imported for its detection
+   helpers as well — see plans.ts — and an import must not start a run. */
+if (import.meta.filename === process.argv[1]) {
+  run().catch((err: unknown) => {
+    console.error(err instanceof Error ? err.stack || err.message : String(err));
+    process.exit(1);
+  });
+}

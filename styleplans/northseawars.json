@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "key": "northseawars",
+  "name": "North Sea Wars",
+  "kind": "godip",
+  "map": {
+    "bytes": 1399042,
+    "sha256": "c6fb5acb7a159de09de52832bce08c6b99621cb4b856d0b535e89fbdc7e1d838",
+    "viewBoxWidth": 578
+  },
+  "godip": {
+    "styleable": true,
+    "reason": "",
+    "sea": "#d3cfae",
+    "land": "#f3d6b5",
+    "seaConfidence": 1,
+    "landConfidence": 0.9166666666666666,
+    "extras": [],
+    "impassablePattern": null,
+    "grainPattern": null,
+    "grainOverlayId": null,
+    "borders": {
+      "found": true,
+      "candidates": 774,
+      "provinceCount": 33,
+      "decoration": true
+    },
+    "names": {
+      "found": true,
+      "kinds": []
+    }
+  }
+}

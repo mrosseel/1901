@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "key": "ancientmediterranean",
+  "name": "Ancient Mediterranean",
+  "kind": "godip",
+  "map": {
+    "bytes": 4245928,
+    "sha256": "f9b43e7538c57c09d3e06b7c6afaf5e41c91a09a8675d38f6b6b13da6c5bbb31",
+    "viewBoxWidth": 1484.8526
+  },
+  "godip": {
+    "styleable": true,
+    "reason": "",
+    "sea": "#d4d0b2",
+    "land": "#f4d7b5",
+    "seaConfidence": 0.7,
+    "landConfidence": 0.9830508474576272,
+    "extras": [
+      {
+        "fill": "#ccc5a9",
+        "near": "sea"
+      },
+      {
+        "fill": "#ffffff",
+        "near": "land"
+      }
+    ],
+    "impassablePattern": null,
+    "grainPattern": null,
+    "grainOverlayId": null,
+    "borders": {
+      "found": true,
+      "candidates": 87,
+      "provinceCount": 79,
+      "decoration": false
+    },
+    "names": {
+      "found": false,
+      "kinds": []
+    }
+  }
+}

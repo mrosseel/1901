@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "key": "vietnamwar",
+  "name": "Vietnam War",
+  "kind": "godip",
+  "map": {
+    "bytes": 1481982,
+    "sha256": "beea6cc66c0b9e63b7c99e5a6dddc63fde5d62a304cfc5644b95d6d2ec5ba326",
+    "viewBoxWidth": 1654.473
+  },
+  "godip": {
+    "styleable": true,
+    "reason": "",
+    "sea": "#cdebf3",
+    "land": "#f5f5f5",
+    "seaConfidence": 1,
+    "landConfidence": 1,
+    "extras": [
+      {
+        "fill": "#ffffff",
+        "near": "land"
+      }
+    ],
+    "impassablePattern": null,
+    "grainPattern": null,
+    "grainOverlayId": null,
+    "borders": {
+      "found": true,
+      "candidates": 125,
+      "provinceCount": 57,
+      "decoration": false
+    },
+    "names": {
+      "found": true,
+      "kinds": []
+    }
+  }
+}

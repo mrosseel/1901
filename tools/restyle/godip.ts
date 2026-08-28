@@ -736,6 +736,96 @@ function withStyle(tag: string, props: Record<string, string>): string {
   return tag.replace(/(\/?)>$/, ' style="' + next + '"$1>');
 }
 
+// --- detection, separated from application ----------------------------------
+
+/*
+The two decisions the rewrite below makes about the map rather than the style.
+
+They are pulled out because they are DETECTION: they depend on the map and not
+on which style is being applied, they are the expensive half, and they are
+what a style plan carries so that a second applier — the Go one that composes
+maps at serve time — can do the mechanical half without a browser (D-026).
+
+Both read the original map. Neither is disturbed by the fill substitution that
+runs before them in the rewrite: that pass changes `fill` values outside
+`<defs>` and nothing else, so no stroke, no element and no text moves.
+*/
+const SHAPE = /<(path|polygon|polyline|rect|circle|ellipse)\b([^>]*)>/g;
+
+/** A dark hairline, which is a province border, rather than art or a frame. */
+export function isBorderStroke(body: string): boolean {
+  const inline = /\bstyle="([^"]*)"/.exec(body);
+  const declared = inline ? inline[1] : "";
+  if (/filter\s*:/.test(declared) || /\bfilter="/.test(body)) return false;
+  const stroke = /(?:^|;)\s*stroke\s*:\s*([^;]+)/.exec(declared) ||
+    /\bstroke="([^"]+)"/.exec(body);
+  if (!stroke) return false;
+  const colour = stroke[1].trim();
+  return colour !== "none" && luma(colour) <= 0.4;
+}
+
+export interface BorderPlan {
+  /** The map has a foreground layer to look in. */
+  found: boolean;
+  /** Dark strokes in it. */
+  candidates: number;
+  /** Provinces the probe could sample, which the count is judged against. */
+  provinceCount: number;
+  /** The layer is drawing rather than borders, so it is left exactly as-is. */
+  decoration: boolean;
+}
+
+export function borderPlan(svg: string, probe: MapProbe): BorderPlan {
+  const layer = godipLayer(svg, "foreground");
+  if (!layer) {
+    return { found: false, candidates: 0, provinceCount: 0, decoration: false };
+  }
+  const text = svg.slice(layer.start, layer.end);
+  let candidates = 0;
+  for (const hit of text.matchAll(SHAPE)) {
+    if (isBorderStroke(hit[2])) candidates++;
+  }
+  const provinceCount = Object.keys(probe.underProvince).length || 1;
+  return {
+    found: true,
+    candidates: candidates,
+    provinceCount: provinceCount,
+    decoration: candidates > provinceCount * DECORATION_RATIO,
+  };
+}
+
+export interface NamePlan {
+  /** The map has a names layer with live text. */
+  found: boolean;
+  /** One verdict per `<text>` in that layer, in document order. */
+  kinds: Array<"land" | "sea">;
+}
+
+/*
+Which face each name is set in, decided once, from the art under it.
+
+A name over water is a water name. The label's own rendered centre was
+hit-tested against the art by the probe; here that answer is turned into a
+verdict. A name over nothing falls back to how the map itself set it — these
+maps use italics for water, which is classical's convention.
+*/
+export function namePlan(svg: string, palette: Palette, probe: MapProbe): NamePlan {
+  const names = godipLayer(svg, "names");
+  if (!names) return { found: false, kinds: [] };
+  const text = svg.slice(names.start, names.end);
+  const kinds: Array<"land" | "sea"> = [];
+  let index = 0;
+  for (const hit of text.matchAll(/<text\b[^>]*>/g)) {
+    void hit;
+    const label = probe.labels[index++];
+    const over = label ? label.over : null;
+    if (over && normaliseFill(over) === normaliseFill(palette.sea)) kinds.push("sea");
+    else if (over) kinds.push("land");
+    else kinds.push(label && label.italic ? "sea" : "land");
+  }
+  return { found: true, kinds: kinds };
+}
+
 export interface GodipRestyleOptions {
   /** Lay the style's grain over the map, where the map has a grain layer. */
   grain: boolean;
@@ -842,37 +932,22 @@ export function restyleGodipMap(
   foreground carrying many times more strokes than the map has provinces is
   decoration, and decoration is drawing rather than styling.
   */
-  const strokeCandidate = (whole: string, body: string): boolean => {
-    const inline = /\bstyle="([^"]*)"/.exec(body);
-    const declared = inline ? inline[1] : "";
-    if (/filter\s*:/.test(declared) || /\bfilter="/.test(body)) return false;
-    const stroke = /(?:^|;)\s*stroke\s*:\s*([^;]+)/.exec(declared) ||
-      /\bstroke="([^"]+)"/.exec(body);
-    if (!stroke) return false;
-    const colour = stroke[1].trim();
-    return colour !== "none" && luma(colour) <= 0.4;
-  };
-  const SHAPE = /<(path|polygon|polyline|rect|circle|ellipse)\b([^>]*)>/g;
+  const borders = borderPlan(original, probe);
 
   if (options.borders) {
     const layer = godipLayer(svg, "foreground");
-    if (!layer) {
+    if (!borders.found || !layer) {
       notes.push("this map has no foreground layer; its borders were left as drawn");
     } else {
       const text = svg.slice(layer.start, layer.end);
-      let candidates = 0;
-      for (const hit of text.matchAll(SHAPE)) {
-        if (strokeCandidate(hit[0], hit[2])) candidates++;
-      }
-      const provinceCount = Object.keys(probe.underProvince).length || 1;
-      if (candidates > provinceCount * DECORATION_RATIO) {
-        notes.push("the foreground holds " + candidates + " dark strokes for " +
-          provinceCount + " provinces, which is decoration rather than borders: " +
+      if (borders.decoration) {
+        notes.push("the foreground holds " + borders.candidates + " dark strokes for " +
+          borders.provinceCount + " provinces, which is decoration rather than borders: " +
           "they were left exactly as drawn");
       } else {
         let restyled = 0;
         const redrawn = text.replace(SHAPE, (whole: string, tag: string, body: string) => {
-          if (!strokeCandidate(whole, body)) return whole;
+          if (!isBorderStroke(body)) return whole;
           restyled++;
           return withStyle(whole, {
             stroke: style.border.stroke,
@@ -901,8 +976,9 @@ export function restyleGodipMap(
   */
   let landNames = 0;
   let seaNames = 0;
+  const named = namePlan(original, palette, probe);
   const names = godipLayer(svg, "names");
-  if (names) {
+  if (named.found && names) {
     const halo = (one: typeof style.typography.land) =>
       one.halo
         ? {
@@ -923,11 +999,7 @@ export function restyleGodipMap(
       (whole: string, tag: string) => {
         let kind: "land" | "sea";
         if (tag === "text") {
-          const label = probe.labels[index++];
-          const over = label ? label.over : null;
-          if (over && normaliseFill(over) === normaliseFill(palette.sea)) kind = "sea";
-          else if (over) kind = "land";
-          else kind = label && label.italic ? "sea" : "land";
+          kind = named.kinds[index++] || "land";
           if (kind === "sea") seaNames++;
           else landNames++;
           lastKind = kind;

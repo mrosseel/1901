@@ -46,7 +46,13 @@ CREATE TABLE IF NOT EXISTS game (
     gm_power         TEXT    NOT NULL DEFAULT '',
     phase_index      INTEGER NOT NULL DEFAULT 0,
     created_at       TEXT    NOT NULL,
-    variant          TEXT    NOT NULL DEFAULT 'classical'
+    variant          TEXT    NOT NULL DEFAULT 'classical',
+    -- The deadline settings of D-022, each with the default a game gets
+    -- when nobody sets it, so an older row loads as the game it was.
+    retreat_build_percent    INTEGER NOT NULL DEFAULT 50,
+    grace_minutes            INTEGER NOT NULL DEFAULT 0,
+    first_turn_extra_minutes INTEGER NOT NULL DEFAULT 0,
+    press_mode               TEXT    NOT NULL DEFAULT 'ftf'
 );
 
 CREATE TABLE IF NOT EXISTS seat (
@@ -110,14 +116,25 @@ func openDB(path string) (*sql.DB, error) {
 	return handle, nil
 }
 
-// migrate adds columns that older databases lack. A game row written
-// before variants existed is a classical game.
+// gameColumns are the columns a game row has grown since the first schema,
+// each with the definition an older database is missing. A row written before
+// a setting existed loads as the game it was: a classical game with no press
+// mode declared and Backstabbr's retreat clock.
+var gameColumns = []struct{ name, definition string }{
+	{"variant", `TEXT NOT NULL DEFAULT '` + defaultVariant + `'`},
+	{"retreat_build_percent", `INTEGER NOT NULL DEFAULT 50`},
+	{"grace_minutes", `INTEGER NOT NULL DEFAULT 0`},
+	{"first_turn_extra_minutes", `INTEGER NOT NULL DEFAULT 0`},
+	{"press_mode", `TEXT NOT NULL DEFAULT '` + defaultPressMode + `'`},
+}
+
+// migrate adds the columns an older database lacks.
 func migrate(handle *sql.DB) error {
 	rows, err := handle.Query(`PRAGMA table_info(game)`)
 	if err != nil {
 		return err
 	}
-	found := false
+	present := map[string]bool{}
 	for rows.Next() {
 		var cid int
 		var name, ctype string
@@ -127,21 +144,23 @@ func migrate(handle *sql.DB) error {
 			rows.Close()
 			return err
 		}
-		if name == "variant" {
-			found = true
-		}
+		present[name] = true
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	if found {
-		return nil
+	for _, column := range gameColumns {
+		if present[column.name] {
+			continue
+		}
+		log.Printf("migrating: adding game.%v", column.name)
+		if _, err := handle.Exec(
+			`ALTER TABLE game ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
+			return err
+		}
 	}
-	log.Printf("migrating: adding game.variant, defaulting existing games to %v", defaultVariant)
-	_, err = handle.Exec(
-		`ALTER TABLE game ADD COLUMN variant TEXT NOT NULL DEFAULT '` + defaultVariant + `'`)
-	return err
+	return nil
 }
 
 // persist writes the whole game — its settings, seats, current-phase
@@ -173,8 +192,10 @@ func (self *game) persistErr(id string) error {
 	_, err = tx.Exec(`
         INSERT INTO game (id, gm_token, invite_token, deadline_minutes, gm_plays,
                           settings_version, started, deadline_at, gm_power,
-                          phase_index, created_at, variant)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          phase_index, created_at, variant,
+                          retreat_build_percent, grace_minutes,
+                          first_turn_extra_minutes, press_mode)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             deadline_minutes = excluded.deadline_minutes,
             gm_plays         = excluded.gm_plays,
@@ -182,10 +203,16 @@ func (self *game) persistErr(id string) error {
             started          = excluded.started,
             deadline_at      = excluded.deadline_at,
             gm_power         = excluded.gm_power,
-            phase_index      = excluded.phase_index`,
+            phase_index      = excluded.phase_index,
+            retreat_build_percent    = excluded.retreat_build_percent,
+            grace_minutes            = excluded.grace_minutes,
+            first_turn_extra_minutes = excluded.first_turn_extra_minutes,
+            press_mode               = excluded.press_mode`,
 		id, f.gmToken, f.inviteToken, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
-		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey)
+		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
+		f.settings.RetreatBuildPercent, f.settings.GraceMinutes,
+		f.settings.FirstTurnExtraMinutes, f.settings.PressMode)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
@@ -283,8 +310,10 @@ func loadAll() error {
 	rows, err := db.Query(`
         SELECT id, gm_token, invite_token, deadline_minutes, gm_plays,
                settings_version, started, deadline_at, gm_power, phase_index,
-               created_at, COALESCE(variant, ?)
-        FROM game`, defaultVariant)
+               created_at, COALESCE(variant, ?),
+               retreat_build_percent, grace_minutes, first_turn_extra_minutes,
+               COALESCE(press_mode, ?)
+        FROM game`, defaultVariant, defaultPressMode)
 	if err != nil {
 		return err
 	}
@@ -306,7 +335,9 @@ func loadAll() error {
 		var phaseIndex int
 		if err := rows.Scan(&id, &f.gmToken, &f.inviteToken, &f.settings.DeadlineMinutes,
 			&f.settings.GMPlays, &f.settingsVersion, &f.started, &deadline, &gmPower,
-			&phaseIndex, &createdAt, &key); err != nil {
+			&phaseIndex, &createdAt, &key, &f.settings.RetreatBuildPercent,
+			&f.settings.GraceMinutes, &f.settings.FirstTurnExtraMinutes,
+			&f.settings.PressMode); err != nil {
 			rows.Close()
 			return err
 		}
@@ -316,6 +347,7 @@ func loadAll() error {
 			return fmt.Errorf("game %v names unknown variant %q", id, key)
 		}
 		f.settings.Variant = key
+		f.settings = f.settings.normalised()
 		f.powers = sortedNations(v)
 		if deadline.Valid {
 			at, err := time.Parse(time.RFC3339Nano, deadline.String)
@@ -472,13 +504,18 @@ func (self *game) replay(history map[int][]storedOrder, nmr map[int][]string, cu
 			return fmt.Errorf("phase %v: %v", phase, err)
 		}
 		// The same capture the live path does, so the review of the last
-		// replayed phase comes back byte for byte.
+		// replayed phase comes back byte for byte — and so does every
+		// public per-phase snapshot behind the /watch URLs (D-013). That is
+		// what makes a historical link survive a hard kill: it is derived
+		// from the order rows, not stored beside them.
+		position := self.positionNow()
 		review := self.beginReview(nmr[phase])
 		if err := self.state.Next(); err != nil {
 			return fmt.Errorf("phase %v adjudication: %v", phase, err)
 		}
 		self.endReview(review)
 		self.previousPhase = review
+		self.recordWatch(phase, position, review)
 		self.parts = map[godip.Province][]string{}
 		self.owner = map[godip.Province]godip.Nation{}
 	}

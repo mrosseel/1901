@@ -14,11 +14,10 @@ paints sea in without ever guessing from the tone.
     ADDR=:8195 go run .        # in another terminal
     node restyle-godip.ts --all --all-styles --server http://localhost:8195
 
-What it writes is styledmaps/<key>/map-<style>.svg, which the server globs
-alongside variants1901/<package>/map-<style>.svg. The two directories exist
-because the two kinds of map are stored differently: a jDip conversion is a Go
-package in this repo and its styled art belongs beside it; a godip map has no
-package here at all, so its styled art is filed under the URL key.
+What it writes is tools/restyle/out/styled/<key>/map-<style>.svg, for looking
+at. The server does not read it: since D-026 it composes a styled map at serve
+time from the original art, the style plan plans.ts measured, and the style's
+own tokens. This tool's real output is the report and the renderings beside it.
 
 A map whose palette does not come out of the vote decisively is NOT written.
 It is listed in the coverage table with the reason, and it goes on being
@@ -45,7 +44,10 @@ import type { Page } from "playwright-core";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
 const STYLES = stylesDir(HERE);
-const STYLED = resolve(HERE, "..", "..", "styledmaps");
+/* Renderings, not assets. The server composes a styled map at serve time out
+   of the original art and the plan plans.ts writes (D-026); what this tool
+   writes is a picture of the result, for a person to look at. */
+const STYLED = join(OUT, "styled");
 
 /*
 The maps that are NOT this tool's business.
@@ -74,13 +76,13 @@ function usage(): string {
     "  --server <url>     a running 1901 server (default http://localhost:8195)",
     "  --variant <key>    a variant key; repeatable",
     "  --all              every variant the server lists, bar the jDip ones",
-    "  --style <name>     a style in styles/; repeatable (default: parchment)",
-    "  --all-styles       every style in styles/",
+    "  --style <name>     a style in mapstyles/; repeatable (default: parchment)",
+    "  --all-styles       every style in mapstyles/",
     "  --no-grain         leave off the style's grain, whatever it says",
     "  --no-borders       leave the province border strokes as the map drew them",
     "  --dry-run          probe, decide and report, but write nothing",
     "",
-    "Writes styledmaps/<key>/map-<style>.svg and renders under tools/restyle/out/.",
+    "Writes renderings under tools/restyle/out/.",
   ].join("\n");
 }
 
@@ -335,7 +337,11 @@ async function run(): Promise<void> {
   if (failed) process.exit(1);
 }
 
-run().catch((err: unknown) => {
-  console.error(err instanceof Error ? err.stack || err.message : String(err));
-  process.exit(1);
-});
+/* Run only when this file IS the program. It is imported for its detection
+   helpers as well — see plans.ts — and an import must not start a run. */
+if (import.meta.filename === process.argv[1]) {
+  run().catch((err: unknown) => {
+    console.error(err instanceof Error ? err.stack || err.message : String(err));
+    process.exit(1);
+  });
+}

@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "key": "unconstitutional",
+  "name": "Unconstitutional",
+  "kind": "godip",
+  "map": {
+    "bytes": 2766095,
+    "sha256": "c466b48f9f851ec4ed1c9180003e859bb9ec81ed77e1afc7bedcb0553b6da76e",
+    "viewBoxWidth": 1721.0936
+  },
+  "godip": {
+    "styleable": true,
+    "reason": "",
+    "sea": "#cfd0b2",
+    "land": "#edd0b2",
+    "seaConfidence": 1,
+    "landConfidence": 0.9861111111111112,
+    "extras": [
+      {
+        "fill": "#535246",
+        "near": "sea"
+      }
+    ],
+    "impassablePattern": null,
+    "grainPattern": null,
+    "grainOverlayId": null,
+    "borders": {
+      "found": true,
+      "candidates": 105,
+      "provinceCount": 87,
+      "decoration": false
+    },
+    "names": {
+      "found": false,
+      "kinds": []
+    }
+  }
+}

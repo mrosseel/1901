@@ -47,11 +47,60 @@ func newGameID() (string, error) {
 }
 
 // settings are the game rules the GM fixes before inviting (D-022).
+//
+// Everything but the variant may be changed later; every change bumps
+// settingsVersion, lands in the event log and is broadcast to every seat.
 type settings struct {
 	DeadlineMinutes int    `json:"deadlineMinutes"`
 	GMPlays         bool   `json:"gmPlays"`
 	Variant         string `json:"variant"`
+
+	// RetreatBuildPercent is what share of the movement clock a retreat or
+	// build phase gets. Backstabbr's default is 50, and it is right: those
+	// phases are not negotiation phases. Nobody is talking, the orders are
+	// forced or nearly so, and a table waiting the full clock for two
+	// disbands is a table doing nothing.
+	RetreatBuildPercent int `json:"retreatBuildPercent"`
+
+	// GraceMinutes is how long after the deadline orders are still taken.
+	// The deadline the clock shows is unchanged; what moves is the moment
+	// the GM may force the phase. A player mid-sentence with the referee is
+	// the ordinary case at a table, not an exception.
+	GraceMinutes int `json:"graceMinutes"`
+
+	// FirstTurnExtraMinutes is added to the first movement phase only.
+	// Spring 1901 is the one turn where everybody has to talk to everybody,
+	// and every platform that has run real games gives it longer.
+	FirstTurnExtraMinutes int `json:"firstTurnExtraMinutes"`
+
+	// PressMode is how negotiation happens (D-023). Data only for now: no
+	// behaviour is attached to it, and the app carries no messages in any
+	// mode. Declaring it is the point — a gunboat table wants its rules
+	// written down, and seat anonymity (D-020) is load-bearing there rather
+	// than incidental.
+	PressMode string `json:"pressMode"`
 }
+
+// The press modes a game may declare (D-023).
+//
+//   - ftf: negotiation is verbal at the table. The default.
+//   - gunboat: no negotiation at all.
+//   - fullpress: in-app messaging. Post-v1; the setting exists so the model
+//     is established in data now.
+//   - rulebook: press during movement phases, none during retreat and build.
+//     webDiplomacy's fourth mode, and it says this is how face-to-face
+//     Diplomacy is played (research/platforms.md, steal 7).
+var pressModes = map[string]bool{
+	"ftf":       true,
+	"gunboat":   true,
+	"fullpress": true,
+	"rulebook":  true,
+}
+
+const defaultPressMode = "ftf"
+
+// defaultRetreatBuildPercent is Backstabbr's: half the movement clock.
+const defaultRetreatBuildPercent = 50
 
 // seat is one power in one game together with its claim state.
 // It deliberately carries no player name (D-020).
@@ -191,7 +240,10 @@ func (self *flow) canForce() bool {
 	if done >= active-1 {
 		return true
 	}
-	return self.deadlineAt != nil && time.Now().After(*self.deadlineAt)
+	// The grace period, where the settings allow one: orders are still taken
+	// after the deadline, so the GM may not force the phase until it ends.
+	until := self.graceEndsAt()
+	return until != nil && time.Now().After(*until)
 }
 
 // unassignedPowers lists the powers the invite may still hand out.
@@ -205,14 +257,107 @@ func (self *flow) unassignedPowers() []godip.Nation {
 	return out
 }
 
-// resetDeadline restarts the clock for a new phase.
-func (self *flow) resetDeadline() {
-	if self.settings.DeadlineMinutes <= 0 {
+// DEADLINE ARITHMETIC (D-008, D-010, D-022; research/platforms.md, steal 8)
+//
+// A deadline is one number in the settings and three rules on top of it, all
+// of them stolen from platforms that have run real games for years:
+//
+//   - a retreat or build phase runs at retreatBuildPercent of the movement
+//     clock, because it is not a negotiation phase;
+//   - the first movement phase gets firstTurnExtraMinutes on top, because
+//     Spring 1901 is the one turn where everyone must talk to everyone;
+//   - resolving early never shortens the next phase for anybody, which is
+//     the anti-rush rule below.
+
+// phaseMinutes is how long the phase now on the board gets.
+func (self *flow) phaseMinutes(phase godip.Phase) int {
+	base := self.settings.DeadlineMinutes
+	if base <= 0 {
+		return 0
+	}
+	minutes := base
+	switch phase.Type() {
+	case godip.Retreat, godip.Adjustment:
+		percent := self.settings.RetreatBuildPercent
+		if percent <= 0 {
+			percent = defaultRetreatBuildPercent
+		}
+		// Rounded up, so a short clock cannot round a phase away entirely.
+		minutes = (base*percent + 99) / 100
+		if minutes < 1 {
+			minutes = 1
+		}
+	}
+	// The first movement phase of the game, and only that one.
+	if self.phaseIndex == 0 && phase.Type() == godip.Movement {
+		minutes += self.settings.FirstTurnExtraMinutes
+	}
+	return minutes
+}
+
+/*
+resetDeadline restarts the clock for the phase now on the board.
+
+`carry` is the time that was still on the clock when the previous phase
+resolved, and it is the anti-rush rule (Backstabbr's, copied exactly): with
+period T and remaining R, if R < T the next deadline is R + T; otherwise it is
+R. Both are at least T, so a table that finalizes early never costs the next
+table its turn. A phase that ran its clock out carries nothing.
+*/
+func (self *flow) resetDeadline(phase godip.Phase, carry time.Duration) {
+	minutes := self.phaseMinutes(phase)
+	if minutes <= 0 {
 		self.deadlineAt = nil
 		return
 	}
-	at := time.Now().Add(time.Duration(self.settings.DeadlineMinutes) * time.Minute)
+	period := time.Duration(minutes) * time.Minute
+	length := period
+	if carry > 0 {
+		if carry < period {
+			length = carry + period
+		} else {
+			length = carry
+		}
+	}
+	at := time.Now().Add(length)
 	self.deadlineAt = &at
+}
+
+// carryNote says, in the event log, that a phase resolved early and what the
+// table got back for it.
+func carryNote(carry time.Duration) string {
+	if carry <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(" plus %v carried from an early finish (anti-rush)",
+		carry.Round(time.Second))
+}
+
+// remaining is what is left on the clock, or zero when it has run out or
+// there is no clock at all.
+func (self *flow) remaining() time.Duration {
+	if self.deadlineAt == nil {
+		return 0
+	}
+	left := time.Until(*self.deadlineAt)
+	if left < 0 {
+		return 0
+	}
+	return left
+}
+
+// graceEndsAt is the moment the GM may force the phase: the deadline plus
+// whatever grace the settings allow. The deadline the clock shows does not
+// move, because a grace period that is announced is not a grace period.
+func (self *flow) graceEndsAt() *time.Time {
+	if self.deadlineAt == nil {
+		return nil
+	}
+	if self.settings.GraceMinutes <= 0 {
+		return self.deadlineAt
+	}
+	at := self.deadlineAt.Add(time.Duration(self.settings.GraceMinutes) * time.Minute)
+	return &at
 }
 
 // serverNow is the clock the client should measure deadlines against.
@@ -261,10 +406,14 @@ func deviceCookieName(id string) string {
 // settingsEnvelope accepts both {"deadlineMinutes":..,"gmPlays":..} and
 // the wrapped {"settings":{...}} shape.
 type settingsEnvelope struct {
-	Settings        *settings `json:"settings"`
-	DeadlineMinutes *int      `json:"deadlineMinutes"`
-	GMPlays         *bool     `json:"gmPlays"`
-	Variant         *string   `json:"variant"`
+	Settings              *settings `json:"settings"`
+	DeadlineMinutes       *int      `json:"deadlineMinutes"`
+	GMPlays               *bool     `json:"gmPlays"`
+	Variant               *string   `json:"variant"`
+	RetreatBuildPercent   *int      `json:"retreatBuildPercent"`
+	GraceMinutes          *int      `json:"graceMinutes"`
+	FirstTurnExtraMinutes *int      `json:"firstTurnExtraMinutes"`
+	PressMode             *string   `json:"pressMode"`
 }
 
 // merge applies the envelope on top of the given settings.
@@ -281,13 +430,47 @@ func (self settingsEnvelope) merge(base settings) settings {
 	if self.Variant != nil {
 		base.Variant = *self.Variant
 	}
-	if base.DeadlineMinutes < 0 {
-		base.DeadlineMinutes = 0
+	if self.RetreatBuildPercent != nil {
+		base.RetreatBuildPercent = *self.RetreatBuildPercent
 	}
-	if base.Variant == "" {
-		base.Variant = defaultVariant
+	if self.GraceMinutes != nil {
+		base.GraceMinutes = *self.GraceMinutes
 	}
-	return base
+	if self.FirstTurnExtraMinutes != nil {
+		base.FirstTurnExtraMinutes = *self.FirstTurnExtraMinutes
+	}
+	if self.PressMode != nil {
+		base.PressMode = *self.PressMode
+	}
+	return base.normalised()
+}
+
+// normalised fills in the defaults and refuses the impossible. A negative
+// clock is zero — no deadline — and a retreat clock of nought per cent would
+// be a phase that is over before it starts.
+func (self settings) normalised() settings {
+	if self.DeadlineMinutes < 0 {
+		self.DeadlineMinutes = 0
+	}
+	if self.GraceMinutes < 0 {
+		self.GraceMinutes = 0
+	}
+	if self.FirstTurnExtraMinutes < 0 {
+		self.FirstTurnExtraMinutes = 0
+	}
+	if self.RetreatBuildPercent <= 0 {
+		self.RetreatBuildPercent = defaultRetreatBuildPercent
+	}
+	if self.RetreatBuildPercent > 100 {
+		self.RetreatBuildPercent = 100
+	}
+	if self.Variant == "" {
+		self.Variant = defaultVariant
+	}
+	if self.PressMode == "" {
+		self.PressMode = defaultPressMode
+	}
+	return self
 }
 
 func decodeSettings(r *http.Request, base settings) (settings, error) {
@@ -298,7 +481,12 @@ func decodeSettings(r *http.Request, base settings) (settings, error) {
 	if err := json.NewDecoder(r.Body).Decode(&env); err != nil {
 		return base, err
 	}
-	return env.merge(base), nil
+	neu := env.merge(base)
+	if !pressModes[neu.PressMode] {
+		return base, fmt.Errorf("unknown press mode %q: it is one of ftf, gunboat, fullpress, rulebook",
+			neu.PressMode)
+	}
+	return neu, nil
 }
 
 // ---------------------------------------------------------------- creation
@@ -316,7 +504,13 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
-	s, err := decodeSettings(r, settings{DeadlineMinutes: 0, GMPlays: false, Variant: defaultVariant})
+	s, err := decodeSettings(r, settings{
+		DeadlineMinutes:     0,
+		GMPlays:             false,
+		Variant:             defaultVariant,
+		RetreatBuildPercent: defaultRetreatBuildPercent,
+		PressMode:           defaultPressMode,
+	})
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
@@ -337,8 +531,10 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.mu.Lock()
-	f.logEvent(id, "game created on %v, deadlineMinutes=%v gmPlays=%v",
-		v.Name, s.DeadlineMinutes, s.GMPlays)
+	f.logEvent(id, "game created on %v, deadlineMinutes=%v gmPlays=%v "+
+		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v pressMode=%v",
+		v.Name, s.DeadlineMinutes, s.GMPlays, s.RetreatBuildPercent, s.GraceMinutes,
+		s.FirstTurnExtraMinutes, s.PressMode)
 	if !supportedVariants[s.Variant] {
 		f.logEvent(id, "%v is experimental — unit placement on the map is not verified", v.Name)
 	}
@@ -459,6 +655,8 @@ type gmStateJSON struct {
 	GMPower         *string             `json:"gmPower"`
 	InviteURL       string              `json:"inviteUrl"`
 	DeadlineAt      interface{}         `json:"deadlineAt"`
+	GraceUntil      interface{}         `json:"graceUntil"`
+	PhaseMinutes    int                 `json:"phaseMinutes"`
 	CanForce        bool                `json:"canForce"`
 	GMSeatURL       *string             `json:"gmSeatUrl"`
 	Events          []string            `json:"events"`
@@ -488,6 +686,8 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		TotalSeats:    f.joinerSeats(),
 		InviteURL:     inviteURL(r, id, f.inviteToken),
 		DeadlineAt:    rfc3339(f.deadlineAt),
+		GraceUntil:    rfc3339(f.graceEndsAt()),
+		PhaseMinutes:  f.phaseMinutes(self.state.Phase()),
 		CanForce:      f.canForce(),
 		Events:        f.events,
 		Variant:       self.variantRef(),
@@ -542,6 +742,12 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusConflict, "gmPlays cannot change after the game has started")
 		return
 	}
+	// The press mode is part of the rules the table agreed to play under
+	// (D-023), so it is fixed at start the way gmPlays is.
+	if f.started && neu.PressMode != old.PressMode {
+		writeErr(w, http.StatusConflict, "the press mode cannot change after the game has started")
+		return
+	}
 	if neu.Variant != old.Variant {
 		writeErr(w, http.StatusConflict, "the variant is fixed when the game is created")
 		return
@@ -552,10 +758,17 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	}
 	f.settings = neu
 	f.settingsVersion++
-	f.logEvent(id, "settings changed to deadlineMinutes=%v gmPlays=%v (version %v)",
-		neu.DeadlineMinutes, neu.GMPlays, f.settingsVersion)
-	if f.started && neu.DeadlineMinutes != old.DeadlineMinutes {
-		f.resetDeadline()
+	f.logEvent(id, "settings changed to deadlineMinutes=%v gmPlays=%v "+
+		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v pressMode=%v (version %v)",
+		neu.DeadlineMinutes, neu.GMPlays, neu.RetreatBuildPercent, neu.GraceMinutes,
+		neu.FirstTurnExtraMinutes, neu.PressMode, f.settingsVersion)
+	// A change to the clock takes effect on the phase now running, so the
+	// table sees the rule it was just told about rather than the next one.
+	if f.started && (neu.DeadlineMinutes != old.DeadlineMinutes ||
+		neu.RetreatBuildPercent != old.RetreatBuildPercent ||
+		neu.FirstTurnExtraMinutes != old.FirstTurnExtraMinutes) {
+		f.resetDeadline(g.state.Phase(), 0)
+		f.logEvent(id, "deadline reset to %v under the new clock", rfc3339(f.deadlineAt))
 	}
 	g.persist(id)
 	writeJSON(w, http.StatusOK, g.gmState(id, r))
@@ -602,8 +815,9 @@ func handleGMStart(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	}
 
 	f.started = true
-	f.resetDeadline()
-	f.logEvent(id, "game started")
+	f.resetDeadline(g.state.Phase(), 0)
+	f.logEvent(id, "game started, %v has %v minute(s) until %v",
+		g.state.Phase().Type(), f.phaseMinutes(g.state.Phase()), rfc3339(f.deadlineAt))
 	g.persist(id)
 	writeJSON(w, http.StatusOK, g.gmState(id, r))
 }
@@ -676,6 +890,8 @@ type publicStateJSON struct {
 	Settings        settings            `json:"settings"`
 	SettingsVersion int                 `json:"settingsVersion"`
 	DeadlineAt      interface{}         `json:"deadlineAt"`
+	GraceUntil      interface{}         `json:"graceUntil"`
+	PhaseMinutes    int                 `json:"phaseMinutes"`
 	Variant         variantRefJSON      `json:"variant"`
 	ProvinceNames   map[string]string   `json:"provinceNames"`
 	Placements      placementTable      `json:"placements"`
@@ -702,6 +918,8 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 		Settings:        f.settings,
 		SettingsVersion: f.settingsVersion,
 		DeadlineAt:      rfc3339(f.deadlineAt),
+		GraceUntil:      rfc3339(f.graceEndsAt()),
+		PhaseMinutes:    f.phaseMinutes(g.state.Phase()),
 		Variant:         g.variantRef(),
 		ProvinceNames:   g.provinceNames(),
 		Placements:      g.placements(),
@@ -724,6 +942,8 @@ type seatStateJSON struct {
 	SettingsVersion  int               `json:"settingsVersion"`
 	Started          bool              `json:"started"`
 	DeadlineAt       interface{}       `json:"deadlineAt"`
+	GraceUntil       interface{}       `json:"graceUntil"`
+	PhaseMinutes     int               `json:"phaseMinutes"`
 	Finalized        map[string]bool   `json:"finalized"`
 	YouFinalized     bool              `json:"youFinalized"`
 	FinalizedCount   int               `json:"finalizedCount"`
@@ -763,6 +983,8 @@ func (self *game) seatState(id string, power godip.Nation) seatStateJSON {
 		SettingsVersion:  f.settingsVersion,
 		Started:          f.started,
 		DeadlineAt:       rfc3339(f.deadlineAt),
+		GraceUntil:       rfc3339(f.graceEndsAt()),
+		PhaseMinutes:     f.phaseMinutes(self.state.Phase()),
 		Finalized:        f.finalizedMap(),
 		YouFinalized:     f.seats[power].finalized,
 		FinalizedCount:   f.finalizedCount(),
@@ -905,6 +1127,16 @@ func (self *game) seatFinalize(id string, power godip.Nation, want bool, w http.
 func (self *game) adjudicate(id string, dropUnfinalized bool) error {
 	f := self.flow
 
+	// What is still on the clock as this phase resolves. When every power
+	// finalized early it is carried onto the next phase, so resolving early
+	// never shortens the next turn for anybody (the anti-rush rule). A phase
+	// the GM forced carries nothing: its clock had run out, or the GM chose
+	// to spend it.
+	carry := time.Duration(0)
+	if !dropUnfinalized {
+		carry = f.remaining()
+	}
+
 	nmr := []string{}
 	if dropUnfinalized {
 		for _, p := range f.powers {
@@ -932,21 +1164,27 @@ func (self *game) adjudicate(id string, dropUnfinalized bool) error {
 	self.persist(id)
 	persistNMR(id, f.phaseIndex, nmr)
 
+	// The position this phase was played from, for the public per-phase URL
+	// (D-013). It is read before the board moves.
+	position := self.positionNow()
 	review := self.beginReview(nmr)
 	if err := self.state.Next(); err != nil {
 		return err
 	}
 	self.endReview(review)
 	self.previousPhase = review
+	self.recordWatch(f.phaseIndex, position, review)
 	self.parts = map[godip.Province][]string{}
 	self.owner = map[godip.Province]godip.Nation{}
 	for _, s := range f.seats {
 		s.finalized = false
 	}
 	f.phaseIndex++
-	f.resetDeadline()
-	f.logEvent(id, "phase is now %v %v %v",
-		self.state.Phase().Season(), self.state.Phase().Year(), self.state.Phase().Type())
+	f.resetDeadline(self.state.Phase(), carry)
+	f.logEvent(id, "phase is now %v %v %v, %v minute(s) of clock%v, deadline %v",
+		self.state.Phase().Season(), self.state.Phase().Year(), self.state.Phase().Type(),
+		f.phaseMinutes(self.state.Phase()),
+		carryNote(carry), rfc3339(f.deadlineAt))
 	self.persist(id)
 	return nil
 }
@@ -988,6 +1226,9 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 	switch segments[1] {
 	case "public":
 		handlePublic(g, id, w, r)
+	case "watch":
+		// Public and unauthenticated by design (D-013).
+		handleWatch(g, id, segments[2:], w, r)
 	case "map.svg":
 		handleMap(g, id, w, r)
 	case "join":

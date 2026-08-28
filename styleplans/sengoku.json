@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "key": "sengoku",
+  "name": "Sengoku",
+  "kind": "godip",
+  "map": {
+    "bytes": 4409154,
+    "sha256": "ff3552e8f276c41313041a53d6d7e73a627a6e28874ba87f34e5913d3fdb24a0",
+    "viewBoxWidth": 1191.8811
+  },
+  "godip": {
+    "styleable": true,
+    "reason": "",
+    "sea": "#c8bc81",
+    "land": "#fdf8ee",
+    "seaConfidence": 1,
+    "landConfidence": 1,
+    "extras": [],
+    "impassablePattern": null,
+    "grainPattern": null,
+    "grainOverlayId": null,
+    "borders": {
+      "found": true,
+      "candidates": 156,
+      "provinceCount": 80,
+      "decoration": false
+    },
+    "names": {
+      "found": true,
+      "kinds": []
+    }
+  }
+}
