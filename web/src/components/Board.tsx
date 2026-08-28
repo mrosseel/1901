@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { mount } from "../board/board";
+import type { PhasePlan } from "../board/phases";
 import type { BoardApi, BoardHandle, BoardState, BuilderView, Unit } from "../board/types";
 import "../board/board.css";
 
@@ -11,6 +12,7 @@ the SVG; everything goes through the board handle.
 export function Board({
   api,
   state,
+  plan,
   canOrder,
   refusal,
   onState,
@@ -20,6 +22,7 @@ export function Board({
 }: {
   api: BoardApi;
   state: BoardState | null;
+  plan: PhasePlan;
   canOrder?: (province: string, unit: Unit | undefined) => boolean;
   refusal?: (province: string, unit: Unit | undefined) => string;
   onState: (state: BoardState) => void;
@@ -70,8 +73,8 @@ export function Board({
   }, [api]);
 
   useEffect(() => {
-    if (state) handle.current?.update(state);
-  }, [state]);
+    if (state) handle.current?.update(state, plan);
+  }, [state, plan]);
 
   return (
     <>
@@ -88,10 +91,11 @@ export function Board({
           <div className="buttons">
             {builder.options.map((option) => (
               <button
-                key={option.key}
+                key={option.id}
                 type="button"
+                className={option.danger ? "danger" : undefined}
                 title={option.filter}
-                onClick={() => handle.current?.choose(option.key)}
+                onClick={() => handle.current?.choose(option.id)}
               >
                 {option.label}
               </button>

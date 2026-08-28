@@ -18,11 +18,14 @@ import {
   provinceName,
   unitLabel,
 } from "./provinces";
+import { describeInPhase, emptyPlan } from "./phases";
+import type { PhasePlan } from "./phases";
 import type {
   BoardApi,
   BoardCallbacks,
   BoardHandle,
   BoardState,
+  BuilderView,
   OptionNode,
   OptionTree,
   Unit,
@@ -58,6 +61,17 @@ interface Builder {
   support: { src: string; dests: OptionTree } | null;
 }
 
+/* One button in the bottom bar: it either steps one level into the tree, or
+   stands for a whole path, such as Build → Army. */
+interface Choice {
+  id: string;
+  label: string;
+  path: string[];
+  descend: boolean;
+  filter?: string;
+  danger?: boolean;
+}
+
 export function mount(
   host: HTMLElement,
   api: BoardApi,
@@ -69,7 +83,9 @@ export function mount(
 
   let svgRoot: SVGSVGElement | null = null;
   let state: BoardState | null = null;
+  let plan: PhasePlan = emptyPlan("");
   let builder: Builder | null = null;
+  let choices: Choice[] = [];
   let selectedOrder: string | null = null;
   let orderEpoch = 0;
   let menu: HTMLDivElement | null = null;
@@ -487,10 +503,51 @@ export function mount(
     return view.w / rect.width;
   }
 
+  // A unit marker: a circle for an army, a triangle for a fleet.
+  function unitShape(point: Point, r: number, isFleet: boolean): SVGElement {
+    if (!isFleet) {
+      const circle = document.createElementNS(SVG_NS, "circle");
+      circle.setAttribute("cx", String(point.x));
+      circle.setAttribute("cy", String(point.y));
+      circle.setAttribute("r", String(r));
+      return circle;
+    }
+    const polygon = document.createElementNS(SVG_NS, "polygon");
+    polygon.setAttribute(
+      "points",
+      [
+        point.x + "," + (point.y - r * 1.1),
+        point.x + r + "," + (point.y + r * 0.75),
+        point.x - r + "," + (point.y + r * 0.75),
+      ].join(" "),
+    );
+    return polygon;
+  }
+
+  function unitLetter(point: Point, r: number, isFleet: boolean): SVGElement {
+    const label = document.createElementNS(SVG_NS, "text");
+    label.setAttribute("x", String(point.x));
+    label.setAttribute("y", String(point.y + (isFleet ? r * 0.2 : 0)));
+    label.setAttribute("font-size", String(r * 1.1));
+    label.setAttribute("class", "unit-label");
+    label.textContent = isFleet ? "F" : "A";
+    return label;
+  }
+
+  /*
+  A dislodged unit shares its province with the unit that threw it out, so it
+  is drawn up and to the right of the anchor. Without the offset the two
+  markers would sit on top of each other and the board would lie.
+  */
+  function dislodgedPoint(point: Point, r: number): Point {
+    return { x: point.x + r * 1.15, y: point.y - r * 1.15 };
+  }
+
   function renderUnits(): void {
     const layer = overlayLayer();
     layer.replaceChildren();
     const units = state?.units || {};
+    const dislodged = state?.dislodged || {};
     const orders = state?.orders || {};
     const r = clamp(12 * unitsPerPixel(), 8, 60);
 
@@ -499,41 +556,43 @@ export function mount(
       const point = centerOf(province);
       if (!point) return;
 
-      const color = POWER_COLORS[unit.nation] || "#bbbbbb";
       const isFleet = String(unit.type).toLowerCase() === "fleet";
-      let shape: SVGElement;
-      if (isFleet) {
-        const polygon = document.createElementNS(SVG_NS, "polygon");
-        polygon.setAttribute(
-          "points",
-          [
-            point.x + "," + (point.y - r * 1.1),
-            point.x + r + "," + (point.y + r * 0.75),
-            point.x - r + "," + (point.y + r * 0.75),
-          ].join(" "),
-        );
-        shape = polygon;
-      } else {
-        const circle = document.createElementNS(SVG_NS, "circle");
-        circle.setAttribute("cx", String(point.x));
-        circle.setAttribute("cy", String(point.y));
-        circle.setAttribute("r", String(r));
-        shape = circle;
-      }
-      const ordered = Boolean(orders[province]);
-      shape.setAttribute("fill", color);
+      const shape = unitShape(point, r, isFleet);
+      const ordered = Boolean(orders[province]) && !dislodged[province];
+      shape.setAttribute("fill", POWER_COLORS[unit.nation] || "#bbbbbb");
       shape.setAttribute("stroke", ordered ? "#ffffff" : "#14161a");
       shape.setAttribute("stroke-width", String(Math.max(1, r * (ordered ? 0.28 : 0.16))));
       shape.setAttribute("class", ordered ? "unit ordered" : "unit");
       layer.appendChild(shape);
+      layer.appendChild(unitLetter(point, r, isFleet));
+    });
 
-      const label = document.createElementNS(SVG_NS, "text");
-      label.setAttribute("x", String(point.x));
-      label.setAttribute("y", String(point.y + (isFleet ? r * 0.2 : 0)));
-      label.setAttribute("font-size", String(r * 1.1));
-      label.setAttribute("class", "unit-label");
-      label.textContent = isFleet ? "F" : "A";
-      layer.appendChild(label);
+    // The dislodged markers go on top, each with a red ring, so a province
+    // holding two units reads as two units.
+    Object.keys(dislodged).forEach((province) => {
+      const unit = dislodged[province];
+      const anchor = centerOf(province);
+      if (!anchor) return;
+      const point = dislodgedPoint(anchor, r);
+      const isFleet = String(unit.type).toLowerCase() === "fleet";
+
+      const ring = document.createElementNS(SVG_NS, "circle");
+      ring.setAttribute("cx", String(point.x));
+      ring.setAttribute("cy", String(point.y));
+      ring.setAttribute("r", String(r * 1.45));
+      ring.setAttribute("fill", "none");
+      ring.setAttribute("stroke", "#ff5c5c");
+      ring.setAttribute("stroke-width", String(Math.max(1.5, r * 0.22)));
+      ring.setAttribute("class", "dislodged-ring");
+      layer.appendChild(ring);
+
+      const shape = unitShape(point, r * 0.82, isFleet);
+      shape.setAttribute("fill", POWER_COLORS[unit.nation] || "#bbbbbb");
+      shape.setAttribute("stroke", "#14161a");
+      shape.setAttribute("stroke-width", String(Math.max(1, r * 0.14)));
+      shape.setAttribute("class", "unit dislodged");
+      layer.appendChild(shape);
+      layer.appendChild(unitLetter(point, r * 0.82, isFleet));
     });
   }
 
@@ -609,12 +668,21 @@ export function mount(
     const r = clamp(12 * unitsPerPixel(), 8, 60);
     const base = Math.max(1.5, r * 0.3);
 
+    const dislodged = state?.dislodged || {};
+
     Object.keys(parts).forEach((province) => {
-      const from = centerOf(province);
+      const anchor = centerOf(province);
       const order = parts[province] || [];
-      if (!from || !order.length) return;
-      const unit = units[province];
-      const color = POWER_COLORS[unit ? unit.nation : ""] || "#bbbbbb";
+      if (!anchor || !order.length) return;
+      /*
+      A retreat is drawn from the dislodged marker, not from the anchor, which
+      by now belongs to the unit that threw it out. A build has no unit at all,
+      so the colour falls back to the power whose board this is.
+      */
+      const leaving = dislodged[province];
+      const from = leaving ? dislodgedPoint(anchor, r) : anchor;
+      const unit = leaving || units[province];
+      const color = POWER_COLORS[unit ? unit.nation : plan.power] || "#bbbbbb";
       // The picked order is drawn heavier; weights stay in map units so they
       // keep following the zoom.
       const width = base * (selectedOrder === province ? 1.9 : 1);
@@ -673,10 +741,56 @@ export function mount(
         return paint(node, halo, false);
       };
 
+      // A retreat: a dashed run to the destination with a solid head, so it
+      // never reads as an ordinary move.
+      const dashedRun = (a: Point, b: Point) => (halo: boolean) => {
+        const node = document.createElementNS(SVG_NS, "line");
+        node.setAttribute("x1", String(a.x));
+        node.setAttribute("y1", String(a.y));
+        node.setAttribute("x2", String(b.x));
+        node.setAttribute("y2", String(b.y));
+        node.setAttribute("stroke-dasharray", r * 0.5 + " " + r * 0.38);
+        return paint(node, halo, false);
+      };
+      const head = (a: Point, b: Point) => (halo: boolean) => {
+        const node = document.createElementNS(SVG_NS, "polygon");
+        const n = normalOf(a, b);
+        const neck = towards(b, a, r * 0.95);
+        const at = (point: Point, offset: number) =>
+          point.x + n.x * offset + "," + (point.y + n.y * offset);
+        node.setAttribute("points", [at(neck, r * 0.5), b.x + "," + b.y, at(neck, -r * 0.5)].join(" "));
+        return paint(node, halo, true);
+      };
+      // A disband: a cross over the unit that goes away.
+      const cross = (at: Point, reach: number) => (halo: boolean) => {
+        const node = document.createElementNS(SVG_NS, "path");
+        node.setAttribute(
+          "d",
+          "M " + (at.x - reach) + " " + (at.y - reach) + " L " + (at.x + reach) + " " + (at.y + reach) +
+            " M " + (at.x + reach) + " " + (at.y - reach) + " L " + (at.x - reach) + " " + (at.y + reach),
+        );
+        return paint(node, halo, false);
+      };
+      // A build: the outline of the unit that will stand there.
+      const outline = (at: Point, isFleet: boolean) => (halo: boolean) => {
+        const node = unitShape(at, r * 0.95, isFleet);
+        return paint(node, halo, false);
+      };
+
       const type = order[0];
       const anchorOf = (name: string) => centerOf(name) || centerOf(baseProvince(name));
 
-      if (type === "Move" && order[1]) {
+      if (plan.kind === "retreat" && type === "Move" && order[1]) {
+        const to = anchorOf(order[1]);
+        if (!to) return;
+        const end = towards(to, from, r * 1.4);
+        shapes.push(dashedRun(towards(from, end, r * 1.0), towards(end, from, r * 0.9)));
+        shapes.push(head(from, end));
+      } else if (type === "Disband") {
+        shapes.push(cross(from, r * 1.15));
+      } else if (type === "Build") {
+        shapes.push(outline(anchor, String(order[1]).toLowerCase() === "fleet"));
+      } else if (type === "Move" && order[1]) {
         const to = anchorOf(order[1]);
         if (!to) return;
         shapes.push(arrow(towards(from, to, r * 1.15), towards(to, from, r * 1.6)));
@@ -791,22 +905,29 @@ export function mount(
   */
   async function startOrder(province: string): Promise<void> {
     const epoch = ++orderEpoch;
-    const options = await api.options(province);
+    // A retreat or adjustment phase has already read the whole plan, so the
+    // tree is in hand and the unit opens with no request at all.
+    const cached = plan.actionable[province];
+    const options = cached || (await api.options(province));
     if (epoch !== orderEpoch || destroyed) return; // A later gesture took over.
     const root = skipAutoNodes(options || {}, province, true);
     if (isLeaf(root)) {
       builder = null;
-      setStatus(unitLabel(state, province) + " has no legal orders.");
+      setStatus(unitLabel(state, province, plan.kind === "retreat") + " has no legal orders.");
       renderAll();
       return;
     }
+    // The map shortcuts are the movement grammar: everywhere this unit can
+    // reach, and the units it could support. A retreat has destinations but no
+    // supports; an adjustment has neither.
+    const shortcuts = plan.kind === "movement" || plan.kind === "retreat";
     builder = {
       province: province,
       node: root,
       parts: [],
       labels: [],
-      moveNode: branchOf(root, "Move", province),
-      supportNode: branchOf(root, "Support", province),
+      moveNode: shortcuts ? branchOf(root, "Move", province) : null,
+      supportNode: plan.kind === "movement" ? branchOf(root, "Support", province) : null,
       support: null,
     };
     hideMenu();
@@ -829,6 +950,24 @@ export function mount(
     builder.node = entry.Next || {};
     autoAdvance();
 
+    if (isLeaf(builder.node)) {
+      await postOrder();
+      return;
+    }
+    renderAll();
+  }
+
+  // Walks several steps at once, for a button that stands for a whole path.
+  async function applyPath(keys: string[]): Promise<void> {
+    if (!builder) return;
+    dropShortcuts();
+    for (const key of keys) {
+      const entry: OptionNode = builder.node[key] || {};
+      builder.parts.push(key);
+      builder.labels.push(key);
+      builder.node = entry.Next || {};
+      autoAdvance();
+    }
     if (isLeaf(builder.node)) {
       await postOrder();
       return;
@@ -894,8 +1033,13 @@ export function mount(
     setStatus("Attack " + unitLabel(state, supportKey!) + ", or support it?");
   }
 
-  // Double tapping a unit is a Hold, no menu.
+  /*
+  Double tapping a unit is a Hold, no menu — in a movement phase only. The
+  shortcut for the other phases would be a disband, which is far too easy to
+  do by accident, so those need the button.
+  */
   async function holdOrder(province: string): Promise<void> {
+    if (plan.kind !== "movement") return;
     if (!allowed(province)) return;
     const epoch = ++orderEpoch;
     const options = await api.options(province);
@@ -920,7 +1064,7 @@ export function mount(
   async function postOrder(): Promise<void> {
     const province = builder!.province;
     const parts = builder!.parts.slice();
-    const sentence = describeOrder(province, parts);
+    const sentence = describeInPhase(province, parts, plan.kind) || describeOrder(province, parts);
     builder = null;
     try {
       const next = await api.order(province, parts);
@@ -949,7 +1093,11 @@ export function mount(
     renderAll();
   }
 
-  // Drop the order, then reopen the unit ready for a new one.
+  /*
+  Drop the order, then reopen the unit ready for a new one. The reopening asks
+  the server again rather than trusting the plan, because dropping the order
+  is exactly what gives the province its options back.
+  */
   async function changeOrder(province: string): Promise<void> {
     await cancelOrder(province);
     await startOrder(province);
@@ -958,8 +1106,28 @@ export function mount(
   /*
   Seat mode never offers another power's units. The server refuses them too,
   but a tap that only produces a 403 teaches the player nothing.
+
+  Outside a movement phase the plan already lists every province this power may
+  order, so that list is the answer: a unit with nothing to do this phase is
+  turned away as plainly as another power's unit.
   */
   function allowed(province: string): boolean {
+    if (plan.kind !== "movement") {
+      if (plan.actionable[province]) return true;
+      /*
+      A province this seat already has an order in stays open, whatever the
+      plan says. Once the last build is spent the server stops offering it, and
+      without this the player could remove the order but never replace it.
+      */
+      if ((state?.orderParts || {})[province]) return true;
+      hideMenu();
+      if (builder) {
+        builder = null;
+        renderAll();
+      }
+      setStatus(refuseOutOfPhase(province));
+      return false;
+    }
     if (!callbacks.canOrder) return true;
     const units = state?.units || {};
     const unit: Unit | undefined = units[province] || units[baseProvince(province)];
@@ -974,6 +1142,20 @@ export function mount(
     }
     setStatus(refusal);
     return false;
+  }
+
+  function refuseOutOfPhase(province: string): string {
+    const here = provinceName(province);
+    const unit = (state?.units || {})[province];
+    if (plan.kind === "retreat") {
+      if (unit && unit.nation !== plan.power) return here + " is " + unit.nation + "'s.";
+      return "Only a dislodged unit can be ordered in a retreat phase.";
+    }
+    if (unit && unit.nation !== plan.power) return here + " is " + unit.nation + "'s.";
+    if (plan.duty && plan.duty.type === "Build") {
+      return "You can only build in an empty home centre you hold.";
+    }
+    return "Nothing to order in " + here + " this phase.";
   }
 
   function onProvinceClick(province: string, clientX: number, clientY: number): void {
@@ -1005,6 +1187,20 @@ export function mount(
     // Nothing legal here: dismiss whatever is open and start over if a unit
     // was tapped.
     hideMenu();
+    /*
+    Outside a movement phase the plan decides, not the units map: a build is
+    ordered on an empty province, and a retreat on a province whose unit now
+    belongs to somebody else.
+    */
+    if (plan.kind !== "movement") {
+      if (builder) {
+        builder = null;
+        renderAll();
+      }
+      if (!allowed(province)) return;
+      startOrder(province).catch(reportError);
+      return;
+    }
     if (!state || !state.units || !state.units[province]) {
       if (builder) {
         builder = null;
@@ -1107,8 +1303,20 @@ export function mount(
     const layer = svgRoot?.querySelector("#provinces");
     if (!layer) return;
     Array.prototype.forEach.call(layer.children, (shape: Element) => {
-      shape.classList.remove("legal", "occupied", "selected", "support-src");
+      shape.classList.remove("legal", "occupied", "selected", "support-src", "todo");
     });
+    /*
+    A retreat or an adjustment asks for a small, known set of provinces, so
+    they are marked before anything is tapped — otherwise a player would have
+    to hunt for the one unit that must move.
+    */
+    if (!builder && plan.kind !== "movement") {
+      Object.keys(plan.actionable).forEach((province) => {
+        const shape = provinceShape(province) || provinceShape(baseProvince(province));
+        if (shape) shape.classList.add("todo");
+      });
+      return;
+    }
     if (!builder) return;
     const selected = provinceShape(builder.province) || provinceShape(baseProvince(builder.province));
     if (selected) selected.classList.add("selected");
@@ -1130,8 +1338,20 @@ export function mount(
   // The hint line, which is also the builder's own caption.
   function builderHint(): string {
     const mode = shortcutMode();
-    const me = unitLabel(state, builder!.province);
+    const me = unitLabel(state, builder!.province, plan.kind === "retreat");
     const here = provinceName(builder!.province);
+
+    if (plan.kind === "retreat") {
+      const room = Object.keys(builder!.moveNode || {}).length;
+      if (!room) return me + " is dislodged and has nowhere to go: it must disband.";
+      return me + " is dislodged: tap a green province to retreat there, or Disband.";
+    }
+    if (plan.kind === "adjustment") {
+      if (builder!.node.Build) return here + " is empty: build an army or a fleet.";
+      if (builder!.node.Disband) return "Tap Disband to remove " + me + ".";
+      return me + ": pick an order below.";
+    }
+
     if (mode === "support") {
       const src = builder!.support!.src;
       return (
@@ -1152,30 +1372,94 @@ export function mount(
     return me + ": pick an order type below.";
   }
 
+  /*
+  The buttons for the step the builder is on.
+
+  Most of them step one level into the tree, the way the movement grammar has
+  always worked. Two shapes are collapsed instead, because their extra step
+  carries no choice: a build names its unit type right away ("Build Army"), and
+  a retreat lists its destinations beside Disband, so a dislodged unit is one
+  tap from either fate.
+  */
+  function builderChoices(): Choice[] {
+    const node = builder!.node;
+    const province = builder!.province;
+    const atRoot = builder!.parts.length === 0;
+    const out: Choice[] = [];
+
+    Object.keys(node)
+      .sort()
+      .forEach((key) => {
+        const entry: OptionNode = node[key] || {};
+        const next = entry.Next || {};
+        const unitTypes = Object.keys(next).filter((name) => next[name]?.Type === "UnitType");
+
+        if (unitTypes.length) {
+          unitTypes.sort().forEach((type) => {
+            out.push({
+              id: key + ":" + type,
+              label: key + " " + type,
+              path: [key, type],
+              descend: false,
+              filter: entry.Filter,
+            });
+          });
+          return;
+        }
+
+        // A retreat's destinations belong on the bar, not one level down.
+        if (atRoot && plan.kind === "retreat" && key === "Move" && builder!.moveNode) {
+          Object.keys(builder!.moveNode)
+            .sort()
+            .forEach((dst) => {
+              out.push({
+                id: "Move:" + dst,
+                label: provinceName(dst),
+                path: ["Move", dst],
+                descend: false,
+              });
+            });
+          return;
+        }
+
+        const rest = skipAutoNodes(next, province, false);
+        out.push({
+          id: key,
+          label: entry.Type === "Province" ? provinceName(key) : key,
+          path: [key],
+          descend: !isLeaf(rest),
+          filter: entry.Filter,
+          danger: key === "Disband",
+        });
+      });
+
+    return out;
+  }
+
   function renderBuilder(): void {
     if (!builder) {
+      choices = [];
       callbacks.builder(null);
       return;
     }
-    const unit = state?.units?.[builder.province];
+    const dislodged = plan.kind === "retreat";
+    const unit = (dislodged ? state?.dislodged : state?.units)?.[builder.province];
     const hint = builderHint();
-    callbacks.builder({
+    choices = builderChoices();
+    const view: BuilderView = {
       province: builder.province,
       title:
         (unit ? unit.type + " " : "") + provinceName(builder.province) +
-        (unit ? " (" + unit.nation + ")" : ""),
+        (unit ? " (" + unit.nation + (dislodged ? ", dislodged" : "") + ")" : ""),
       hint: hint,
-      options: Object.keys(builder.node)
-        .sort()
-        .map((key) => {
-          const entry: OptionNode = builder!.node[key] || {};
-          return {
-            key: key,
-            label: entry.Type === "Province" ? provinceName(key) : key,
-            filter: entry.Filter,
-          };
-        }),
-    });
+      options: choices.map((choice) => ({
+        id: choice.id,
+        label: choice.label,
+        filter: choice.filter,
+        danger: choice.danger,
+      })),
+    };
+    callbacks.builder(view);
     setStatus(hint);
   }
 
@@ -1228,13 +1512,23 @@ export function mount(
   })();
 
   return {
-    update(next: BoardState) {
+    update(next: BoardState, nextPlan: PhasePlan) {
+      // A new phase throws away a half-built order: its tree belongs to a
+      // board that no longer exists.
+      if (nextPlan.kind !== plan.kind) {
+        builder = null;
+        hideMenu();
+      }
       state = next;
+      plan = nextPlan;
       if (selectedOrder && !(next.orders || {})[selectedOrder]) setSelected(null);
       renderAll();
     },
-    choose(key: string) {
-      chooseOption(key).catch(reportError);
+    choose(id: string) {
+      const choice = choices.find((option) => option.id === id);
+      if (!choice) return;
+      if (choice.descend) chooseOption(choice.path[0]).catch(reportError);
+      else applyPath(choice.path).catch(reportError);
     },
     escape: escape,
     cancelOrder: cancelOrder,
@@ -1257,6 +1551,7 @@ export function mount(
       view: () => view,
       zoom: zoomLevel,
       state: () => state,
+      plan: () => plan,
     },
   };
 }

@@ -44,6 +44,10 @@ button:disabled { opacity: 0.5; cursor: default; }
 button.primary { background: #2c4a7c; border-color: #3f6cae; }
 button.primary.done { background: #2f6b45; border-color: #3f9c66; }
 
+/* A button that takes a unit off the board. */
+button.danger { border-color: #7a3030; color: #ffb0b0; }
+button.danger:hover:not(:disabled) { border-color: var(--bad); }
+
 button.link {
   background: none;
   border: none;
@@ -200,6 +204,7 @@ input[type="number"] {
 }
 
 .map-pane {
+  position: relative;
   overflow: hidden;
   padding: 8px;
   display: flex;
@@ -223,6 +228,20 @@ input[type="number"] {
 
 .seat-head h1 { display: flex; align-items: center; gap: 8px; font-size: 18px; }
 .seat-head p { margin: 2px 0 0; }
+
+/* What this phase asks of this power. It sits under the phase name because it
+   is the first thing a player needs in a retreat or an adjustment. */
+.duty {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  padding: 6px 10px;
+}
+
+.duty.idle { border-left-color: var(--line); color: var(--muted); }
 
 .finalize { display: flex; flex-direction: column; gap: 6px; }
 .finalize .muted { margin: 0; }
@@ -264,12 +283,20 @@ input[type="number"] {
 .row-actions .row-cancel { font-size: 15px; color: var(--muted); }
 .row-actions .row-cancel:hover:not(:disabled) { color: var(--bad); border-color: var(--bad); }
 
-/* The order builder, which the map island fills in. */
+/* The order builder, which the map island fills in. It floats over the foot of
+   the map rather than sitting beside it: the map is the thing being worked on,
+   and the bar only appears while an order is half built. */
 .builder {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 5;
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 .builder-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }

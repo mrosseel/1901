@@ -1,5 +1,7 @@
-/* The shapes the board island reads. They match the M0 state JSON, which the
-   seat endpoint also answers with, filtered to one power. */
+/* The shapes the board island reads. They match the seat state JSON, which is
+   the board filtered to one power. */
+
+import type { PhasePlan } from "./phases";
 
 export interface Unit {
   type: string;
@@ -17,6 +19,11 @@ export interface PhaseInfo {
 export interface BoardState {
   phase?: PhaseInfo;
   units?: Record<string, Unit>;
+  /* Units thrown out of their province by the last adjudication, keyed by the
+     province they were thrown out of. They stand beside the winner until the
+     retreat phase resolves, so the map must draw both. Public knowledge. */
+  dislodged?: Record<string, Unit>;
+  supplyCenters?: Record<string, string>;
   orders?: Record<string, string>;
   orderParts?: Record<string, string[]>;
   resolutions?: Record<string, string>;
@@ -40,7 +47,9 @@ export interface BuilderView {
   province: string;
   title: string;
   hint: string;
-  options: Array<{ key: string; label: string; filter?: string }>;
+  /* Each button carries an id the island resolves itself: some descend one
+     step into the tree, others stand for a whole path ("Build Army"). */
+  options: Array<{ id: string; label: string; filter?: string; danger?: boolean }>;
 }
 
 export interface BoardApi {
@@ -68,10 +77,11 @@ export interface BoardCallbacks {
 }
 
 export interface BoardHandle {
-  /** Replaces the board state and redraws. Safe before the map has loaded. */
-  update(state: BoardState): void;
-  /** Picks one option in the builder, by key. */
-  choose(key: string): void;
+  /** Replaces the board state and the phase plan, and redraws. Safe before
+      the map has loaded. */
+  update(state: BoardState, plan: PhasePlan): void;
+  /** Presses one of the builder's buttons, by id. */
+  choose(id: string): void;
   /** Backs out one step: the chip, then a half-built support, then the order. */
   escape(): void;
   /** Drops the order for a province. */
@@ -90,5 +100,6 @@ export interface BoardHandle {
     view(): { x: number; y: number; w: number; h: number } | null;
     zoom(): number;
     state(): BoardState | null;
+    plan(): PhasePlan;
   };
 }

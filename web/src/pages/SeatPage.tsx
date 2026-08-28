@@ -2,7 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, SeatClient, fetchPublic, type SeatState } from "../api";
 import { Board } from "../components/Board";
 import { POWER_COLORS, phaseLabel, provinceName } from "../board/provinces";
-import type { BoardApi, BoardHandle, BoardState, Unit } from "../board/types";
+import {
+  candidates,
+  dutyLine,
+  dutyProgress,
+  emptyPlan,
+  phaseKind,
+  planDuty,
+  type PhasePlan,
+} from "../board/phases";
+import type { BoardApi, BoardHandle, BoardState, OptionTree, Unit } from "../board/types";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
 
 /*
@@ -20,6 +29,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const [selected, setSelected] = useState<string | null>(null);
   const [rulesChanged, setRulesChanged] = useState(false);
   const [gone, setGone] = useState(false);
+  const [plan, setPlan] = useState<PhasePlan>(emptyPlan(""));
   const handle = useRef<BoardHandle | null>(null);
   const knownVersion = useRef<number | null>(null);
   const fingerprint = useRef<string>("");
@@ -71,6 +81,51 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     !gone,
   );
   useTicker(Boolean(state?.deadlineAt));
+
+  /*
+  Retreats and adjustments are decided per province, not per unit, and the
+  server holds the rules. So when such a phase opens the page asks it about the
+  few provinces that could possibly carry an order — the dislodged units, or
+  the units and empty home centres — and keeps the answers. That set is what is
+  highlighted, what may be tapped, and where the build or disband count comes
+  from. It is re-read after each order, because an order spends the budget.
+  */
+  const kind = phaseKind(state?.phase);
+  const started = Boolean(state?.started);
+  const boardMark = JSON.stringify([
+    state?.phase,
+    state?.units,
+    state?.dislodged,
+    state?.orderParts,
+    state?.supplyCenters,
+  ]);
+
+  useEffect(() => {
+    if (!power) return;
+    if (!started || kind === "movement") {
+      setPlan(emptyPlan(power, kind));
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const actionable: Record<string, OptionTree> = {};
+      for (const province of candidates(state, power, kind)) {
+        try {
+          const tree = await client.options(province);
+          if (tree && Object.keys(tree).length) actionable[province] = tree;
+        } catch {
+          // A province the server refuses simply carries no order this phase.
+        }
+      }
+      if (cancelled) return;
+      setPlan({ kind: kind, power: power, actionable: actionable, duty: planDuty(actionable) });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // state is read inside, but the board fingerprint is what decides a re-read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, power, kind, started, boardMark]);
 
   // The board island only ever talks to this seat's endpoints.
   const api = useMemo<BoardApi>(
@@ -136,6 +191,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
 
   const orders = state?.orders || {};
   const orderRows = Object.keys(orders).sort();
+  const duty = dutyLine(plan, state);
+  // Idle means this power was asked for nothing at all — not that it has
+  // already given the orders it owed.
+  const idle =
+    started &&
+    kind !== "movement" &&
+    Object.keys(plan.actionable).length === 0 &&
+    orderRows.length === 0;
+  const done = plan.duty ? dutyProgress(state, plan.duty) : 0;
   // Resolutions are public once a phase has been adjudicated, so every power's
   // outcome is listed, not only this one's.
   const resolutions = state?.phaseResolutions || state?.resolutions || {};
@@ -147,6 +211,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         <Board
           api={api}
           state={state}
+          plan={plan}
           canOrder={canOrder}
           refusal={refusal}
           onState={onBoardState}
@@ -171,6 +236,14 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             {state?.started ? phaseLabel(state.phase) : "The game has not started"}
             {state?.deadlineAt ? " · " + countdown(state.deadlineAt) : ""}
           </p>
+          {/* What this phase asks of this power: the units that must retreat,
+              or the builds and disbands owed. */}
+          {duty ? (
+            <p className={idle ? "duty idle" : "duty"}>
+              {duty}
+              {plan.duty && !idle ? " (" + done + " of " + plan.duty.count + " in)" : ""}
+            </p>
+          ) : null}
         </header>
 
         {rulesChanged ? (
@@ -194,7 +267,11 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
               className={state.youFinalized ? "primary done" : "primary"}
               onClick={toggleFinalize}
             >
-              {state.youFinalized ? "Finalized — tap to undo" : "Finalize orders"}
+              {state.youFinalized
+                ? "Finalized — tap to undo"
+                : idle
+                  ? "Nothing to do — finalize"
+                  : "Finalize orders"}
             </button>
             <p className="muted">
               {state.finalizedCount} of {state.totalSeats} finalized
@@ -211,7 +288,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         <section>
           <h2>Your orders</h2>
           {orderRows.length === 0 ? (
-            <p className="muted">No orders yet. Tap one of your units on the map.</p>
+            <p className="muted">
+              {idle
+                ? "Nothing to order this phase."
+                : kind === "retreat"
+                  ? "No orders yet. Tap the dislodged unit, ringed in red."
+                  : kind === "adjustment"
+                    ? "No orders yet. Tap a highlighted province."
+                    : "No orders yet. Tap one of your units on the map."}
+            </p>
           ) : (
             <ul className="list">
               {orderRows.map((province) => (

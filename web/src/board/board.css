@@ -80,8 +80,36 @@
   fill: rgba(254, 208, 110, 0.40) !important;
 }
 
+/* Blue: a province that carries an order this phase — the unit that must
+   retreat, the centre that may build, the unit that may disband. Shown before
+   anything is tapped, so nobody has to hunt for it. */
+.board svg #provinces > .todo {
+  fill: rgba(110, 168, 254, 0.42) !important;
+  animation: todo-pulse 2s ease-in-out infinite;
+}
+
+.board svg #provinces > .todo:hover {
+  fill: rgba(110, 168, 254, 0.62) !important;
+}
+
+@keyframes todo-pulse {
+  0%, 100% { fill-opacity: 1; }
+  50% { fill-opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board svg #provinces > .todo { animation: none; }
+}
+
 /* Stroke and size are set as attributes, so they can follow the zoom level. */
 #unit-overlay .unit {
+  pointer-events: none;
+}
+
+/* A dislodged unit stands beside the one that threw it out, inside a red
+   ring, so one province can show two units without lying. */
+#unit-overlay .dislodged,
+#unit-overlay .dislodged-ring {
   pointer-events: none;
 }
 

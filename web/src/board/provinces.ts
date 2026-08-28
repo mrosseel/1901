@@ -67,9 +67,13 @@ export function powerOf(state: BoardState | null, province: string): string {
   return unit ? unit.nation : "";
 }
 
-/** "Army Vienna" — the unit standing in a province, named for a sentence. */
-export function unitLabel(state: BoardState | null, province: string): string {
-  const units = state?.units || {};
+/*
+"Army Vienna" — the unit standing in a province, named for a sentence. In a
+retreat phase the unit that matters is the dislodged one, which is not the unit
+the province holds, so the caller says which it means.
+*/
+export function unitLabel(state: BoardState | null, province: string, dislodged = false): string {
+  const units = (dislodged ? state?.dislodged : state?.units) || {};
   const unit = units[province] || units[baseProvince(province)];
   return (unit ? unit.type + " " : "") + provinceName(province);
 }

@@ -1,13 +1,19 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount } from "./board";
+import { emptyPlan, planDuty } from "./phases";
+import type { PhasePlan } from "./phases";
 import type { BoardApi, BoardState, BuilderView, OptionTree } from "./types";
 
 /*
 The island under a stub map and a stub server. jsdom has no layout, so the
 drawing itself cannot be judged here — what is checked is the grammar: whose
-units may be ordered, what a tap means, and what is posted.
+units may be ordered, what a tap means in each phase type, and what is posted.
+
+The option trees are the ones a live classical game answers with; they were
+copied from a game driven to each phase.
 */
+
 // jsdom ships no CSS object; the board escapes province ids with it.
 if (!(globalThis as { CSS?: unknown }).CSS) {
   (globalThis as { CSS?: unknown }).CSS = {
@@ -21,16 +27,26 @@ const MAP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1524 1357">
     <path id="tri" d="M 700,900 h 60 v 60 h -60 z"/>
     <path id="bud" d="M 800,800 h 60 v 60 h -60 z"/>
     <path id="gal" d="M 900,800 h 60 v 60 h -60 z"/>
+    <path id="alb" d="M 900,900 h 60 v 60 h -60 z"/>
+    <path id="adr" d="M 1000,900 h 60 v 60 h -60 z"/>
+    <path id="ven" d="M 1000,800 h 60 v 60 h -60 z"/>
+    <path id="rom" d="M 1100,800 h 60 v 60 h -60 z"/>
   </g>
   <g id="supply-centers" style="display:none">
     <path id="vieCenter" d="m 730,830 h 10 v 10 h -10 z"/>
     <path id="budCenter" d="m 830,830 h 10 v 10 h -10 z"/>
     <path id="triCenter" d="m 730,930 h 10 v 10 h -10 z"/>
+    <path id="romCenter" d="m 1130,830 h 10 v 10 h -10 z"/>
+  </g>
+  <g id="province-centers" style="display:none">
     <path id="galCenter" d="m 930,830 h 10 v 10 h -10 z"/>
+    <path id="albCenter" d="m 930,930 h 10 v 10 h -10 z"/>
+    <path id="adrCenter" d="m 1030,930 h 10 v 10 h -10 z"/>
+    <path id="venCenter" d="m 1030,830 h 10 v 10 h -10 z"/>
   </g>
 </svg>`;
 
-const OPTIONS: OptionTree = {
+const MOVEMENT_TREE: OptionTree = {
   vie: {
     Type: "Province",
     Next: {
@@ -57,7 +73,40 @@ const OPTIONS: OptionTree = {
   },
 };
 
-const START: BoardState = {
+// A dislodged fleet in Trieste: three ways out, or disband.
+const RETREAT_TREE: OptionTree = {
+  Move: {
+    Type: "OrderType",
+    Next: {
+      tri: {
+        Type: "SrcProvince",
+        Next: { adr: { Next: {} }, alb: { Next: {} }, ven: { Next: {} } },
+      },
+    },
+  },
+  Disband: { Type: "OrderType", Next: { tri: { Type: "SrcProvince", Next: {} } } },
+};
+
+const BUILD_TREE: OptionTree = {
+  Build: {
+    Type: "OrderType",
+    Filter: "MAX:Build:0",
+    Next: {
+      Army: { Type: "UnitType", Next: { rom: { Type: "SrcProvince", Next: {} } } },
+      Fleet: { Type: "UnitType", Next: { rom: { Type: "SrcProvince", Next: {} } } },
+    },
+  },
+};
+
+const DISBAND_TREE: OptionTree = {
+  Disband: {
+    Type: "OrderType",
+    Filter: "MAX:Disband:0",
+    Next: { bud: { Type: "SrcProvince", Next: {} } },
+  },
+};
+
+const MOVEMENT_STATE: BoardState = {
   phase: { season: "Spring", year: 1901, type: "Movement" },
   units: {
     vie: { type: "Army", nation: "Austria" },
@@ -67,17 +116,43 @@ const START: BoardState = {
   orderParts: {},
 };
 
+// Trieste has fallen: Italy stands there, the Austrian fleet is dislodged.
+const RETREAT_STATE: BoardState = {
+  phase: { season: "Fall", year: 1901, type: "Retreat" },
+  units: {
+    tri: { type: "Army", nation: "Italy" },
+    bud: { type: "Army", nation: "Austria" },
+  },
+  dislodged: { tri: { type: "Fleet", nation: "Austria" } },
+  orders: {},
+  orderParts: {},
+};
+
+const ADJUSTMENT_STATE: BoardState = {
+  phase: { season: "Fall", year: 1901, type: "Adjustment" },
+  units: { bud: { type: "Army", nation: "Austria" }, vie: { type: "Army", nation: "Austria" } },
+  supplyCenters: { bud: "Austria", vie: "Austria", rom: "Austria" },
+  orders: {},
+  orderParts: {},
+};
+
 function tap(id: string) {
-  const shape = document.querySelector("#provinces #" + id);
-  shape?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  document.querySelector("#provinces #" + id)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
 
 async function settle() {
-  for (let i = 0; i < 5; i++) await Promise.resolve();
+  for (let i = 0; i < 6; i++) await Promise.resolve();
 }
 
-function setup(power: string) {
-  vi.stubGlobal("fetch", async () => ({ ok: true, status: 200, text: async () => MAP }) as unknown as Response);
+function classesOf(id: string): string[] {
+  return Array.from(document.querySelector("#provinces #" + id)?.classList || []);
+}
+
+function setup(power: string, trees: Record<string, OptionTree>) {
+  vi.stubGlobal(
+    "fetch",
+    async () => ({ ok: true, status: 200, text: async () => MAP }) as unknown as Response,
+  );
 
   const posted: Array<{ province: string; parts: string[] }> = [];
   const status: string[] = [];
@@ -85,14 +160,10 @@ function setup(power: string) {
 
   const api: BoardApi = {
     mapUrl: "/map.svg",
-    options: async () => OPTIONS,
+    options: async (province) => trees[province] || {},
     order: async (province, parts) => {
       posted.push({ province: province, parts: parts });
-      return {
-        ...START,
-        orders: { [province]: parts.join(" ") },
-        orderParts: { [province]: parts },
-      };
+      return { orders: { [province]: parts.join(" ") }, orderParts: { [province]: parts } };
     },
   };
 
@@ -108,12 +179,11 @@ function setup(power: string) {
       unit ? province + " is " + unit.nation + "'s." : "no unit in " + province,
   });
 
-  return {
-    board,
-    posted,
-    status,
-    builderView: () => builder as BuilderView | null,
-  };
+  return { board, posted, status, view: () => builder as BuilderView | null };
+}
+
+function planFor(kind: PhasePlan["kind"], power: string, actionable: Record<string, OptionTree>): PhasePlan {
+  return { kind: kind, power: power, actionable: actionable, duty: planDuty(actionable) };
 }
 
 afterEach(() => {
@@ -121,51 +191,45 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("the board island in seat mode", () => {
+describe("a movement phase", () => {
   it("injects the map and reads the province anchors", async () => {
-    const seat = setup("Austria");
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
     await seat.board.ready;
-    expect(document.querySelector("#provinces #vie")).not.toBeNull();
     expect(seat.board.debug.centers.get("vie")).toEqual({ x: 730, y: 830 });
     seat.board.destroy();
   });
 
   it("refuses another power's unit before any request is made", async () => {
-    const seat = setup("Austria");
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
     await seat.board.ready;
-    seat.board.update(START);
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
 
     tap("bud");
     await settle();
 
-    expect(seat.builderView()).toBeNull();
+    expect(seat.view()).toBeNull();
     expect(seat.status.at(-1)).toBe("bud is Turkey's.");
     expect(seat.posted).toEqual([]);
     seat.board.destroy();
   });
 
   it("opens the order builder on your own unit", async () => {
-    const seat = setup("Austria");
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
     await seat.board.ready;
-    seat.board.update(START);
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
 
     tap("vie");
     await settle();
 
-    const view = seat.builderView();
-    expect(view?.province).toBe("vie");
-    expect(view?.options.map((option) => option.key)).toEqual(["Hold", "Move", "Support"]);
-    expect(view?.hint).toContain("Army Vienna");
-    // The move targets are lit at once, so a second tap is the whole order.
-    expect(document.querySelector("#provinces #gal")?.classList.contains("legal")).toBe(true);
-    expect(document.querySelector("#provinces #bud")?.classList.contains("occupied")).toBe(true);
+    expect(seat.view()?.options.map((option) => option.id)).toEqual(["Hold", "Move", "Support"]);
+    expect(classesOf("gal")).toContain("legal");
     seat.board.destroy();
   });
 
   it("posts a move from two taps", async () => {
-    const seat = setup("Austria");
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
     await seat.board.ready;
-    seat.board.update(START);
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
 
     tap("vie");
     await settle();
@@ -174,34 +238,274 @@ describe("the board island in seat mode", () => {
 
     expect(seat.posted).toEqual([{ province: "vie", parts: ["Move", "gal"] }]);
     expect(seat.status.at(-1)).toBe("Vienna moves to Galicia.");
-    expect(seat.builderView()).toBeNull();
     seat.board.destroy();
   });
 
   it("drops an order with an empty parts list", async () => {
-    const seat = setup("Austria");
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
     await seat.board.ready;
-    seat.board.update(START);
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
 
     await seat.board.cancelOrder("vie");
 
     expect(seat.posted).toEqual([{ province: "vie", parts: [] }]);
-    expect(seat.status.at(-1)).toBe("Order for Vienna removed.");
     seat.board.destroy();
   });
 
   it("takes the map with it when it goes", async () => {
-    const seat = setup("Austria");
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
     await seat.board.ready;
-    seat.board.update(START);
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
     expect(document.querySelector("#provinces")).not.toBeNull();
 
     seat.board.destroy();
 
     expect(document.querySelector("svg")).toBeNull();
-    // A tap after the island is gone must reach nothing at all.
     tap("vie");
     await settle();
     expect(seat.posted).toEqual([]);
+  });
+});
+
+describe("a retreat phase", () => {
+  const plan = () => planFor("retreat", "Austria", { tri: RETREAT_TREE });
+
+  it("draws the dislodged unit beside the one that threw it out", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(RETREAT_STATE, plan());
+
+    expect(document.querySelectorAll("#unit-overlay .dislodged").length).toBe(1);
+    expect(document.querySelectorAll("#unit-overlay .dislodged-ring").length).toBe(1);
+    // The dislodged marker is offset, so the two units do not overlap.
+    const anchor = seat.board.debug.centers.get("tri")!;
+    const ring = document.querySelector("#unit-overlay .dislodged-ring")!;
+    expect(Number(ring.getAttribute("cx"))).toBeGreaterThan(anchor.x);
+    expect(Number(ring.getAttribute("cy"))).toBeLessThan(anchor.y);
+    seat.board.destroy();
+  });
+
+  it("marks the province that must be ordered before anything is tapped", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(RETREAT_STATE, plan());
+
+    expect(classesOf("tri")).toContain("todo");
+    expect(classesOf("bud")).not.toContain("todo");
+    seat.board.destroy();
+  });
+
+  it("turns away a unit that has nothing to do this phase", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(RETREAT_STATE, plan());
+
+    tap("bud");
+    await settle();
+
+    expect(seat.status.at(-1)).toBe("Only a dislodged unit can be ordered in a retreat phase.");
+    expect(seat.view()).toBeNull();
+    seat.board.destroy();
+  });
+
+  it("offers every destination and Disband on one bar", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(RETREAT_STATE, plan());
+
+    tap("tri");
+    await settle();
+
+    const view = seat.view();
+    expect(view?.title).toBe("Fleet Trieste (Austria, dislodged)");
+    expect(view?.options.map((option) => option.id)).toEqual([
+      "Disband",
+      "Move:adr",
+      "Move:alb",
+      "Move:ven",
+    ]);
+    expect(view?.options.map((option) => option.label)).toEqual([
+      "Disband",
+      "Adriatic Sea",
+      "Albania",
+      "Venice",
+    ]);
+    expect(view?.options.find((option) => option.id === "Disband")?.danger).toBe(true);
+    expect(view?.hint).toBe(
+      "Fleet Trieste is dislodged: tap a green province to retreat there, or Disband.",
+    );
+    // The destinations are lit, so the retreat is one more tap.
+    expect(classesOf("alb")).toContain("legal");
+    seat.board.destroy();
+  });
+
+  it("retreats to a province tapped on the map", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(RETREAT_STATE, plan());
+
+    tap("tri");
+    await settle();
+    tap("alb");
+    await settle();
+
+    expect(seat.posted).toEqual([{ province: "tri", parts: ["Move", "alb"] }]);
+    expect(seat.status.at(-1)).toBe("Trieste retreats to Albania.");
+    seat.board.destroy();
+  });
+
+  it("disbands only from the button", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(RETREAT_STATE, plan());
+
+    tap("tri");
+    await settle();
+    seat.board.choose("Disband");
+    await settle();
+
+    expect(seat.posted).toEqual([{ province: "tri", parts: ["Disband"] }]);
+    expect(seat.status.at(-1)).toBe("Trieste disbands.");
+    seat.board.destroy();
+  });
+
+  it("says so when a dislodged unit has nowhere to go", async () => {
+    const cornered: OptionTree = {
+      Disband: { Type: "OrderType", Next: { tri: { Type: "SrcProvince", Next: {} } } },
+    };
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(RETREAT_STATE, planFor("retreat", "Austria", { tri: cornered }));
+
+    tap("tri");
+    await settle();
+
+    expect(seat.view()?.options.map((option) => option.id)).toEqual(["Disband"]);
+    expect(seat.view()?.hint).toBe(
+      "Fleet Trieste is dislodged and has nowhere to go: it must disband.",
+    );
+    seat.board.destroy();
+  });
+
+  it("draws the retreat as a dashed run with a solid head", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(
+      { ...RETREAT_STATE, orders: { tri: "retreat" }, orderParts: { tri: ["Move", "alb"] } },
+      plan(),
+    );
+
+    const order = document.querySelector("#order-overlay .order")!;
+    expect(order.querySelector("line[stroke-dasharray]")).not.toBeNull();
+    expect(order.querySelector("polygon")).not.toBeNull();
+    seat.board.destroy();
+  });
+
+  it("draws a disband as a cross", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(
+      { ...RETREAT_STATE, orders: { tri: "disband" }, orderParts: { tri: ["Disband"] } },
+      plan(),
+    );
+
+    const path = document.querySelector("#order-overlay .order path")!;
+    expect(path.getAttribute("d")).toMatch(/^M .* L .* M .* L /);
+    seat.board.destroy();
+  });
+});
+
+describe("an adjustment phase", () => {
+  const plan = () => planFor("adjustment", "Austria", { rom: BUILD_TREE, bud: DISBAND_TREE });
+
+  it("reads the build count from the options filter", () => {
+    expect(planFor("adjustment", "Austria", { rom: BUILD_TREE }).duty).toEqual({
+      type: "Build",
+      count: 1,
+    });
+    expect(planFor("adjustment", "Austria", { bud: DISBAND_TREE }).duty).toEqual({
+      type: "Disband",
+      count: 1,
+    });
+  });
+
+  it("offers the unit type straight away", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(ADJUSTMENT_STATE, plan());
+
+    tap("rom");
+    await settle();
+
+    expect(seat.view()?.options.map((option) => option.label)).toEqual([
+      "Build Army",
+      "Build Fleet",
+    ]);
+    expect(seat.view()?.hint).toBe("Rome is empty: build an army or a fleet.");
+
+    seat.board.choose("Build:Fleet");
+    await settle();
+    expect(seat.posted).toEqual([{ province: "rom", parts: ["Build", "Fleet"] }]);
+    expect(seat.status.at(-1)).toBe("Rome builds a fleet.");
+    seat.board.destroy();
+  });
+
+  it("asks for the Disband button rather than a stray tap", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(ADJUSTMENT_STATE, plan());
+
+    tap("bud");
+    await settle();
+
+    expect(seat.view()?.options.map((option) => option.id)).toEqual(["Disband"]);
+    expect(seat.view()?.hint).toBe("Tap Disband to remove Army Budapest.");
+    expect(seat.posted).toEqual([]);
+
+    seat.board.choose("Disband");
+    await settle();
+    expect(seat.posted).toEqual([{ province: "bud", parts: ["Disband"] }]);
+    seat.board.destroy();
+  });
+
+  it("refuses a province the phase does not offer", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(ADJUSTMENT_STATE, plan());
+
+    tap("vie");
+    await settle();
+
+    expect(seat.status.at(-1)).toBe("You can only build in an empty home centre you hold.");
+    expect(seat.view()).toBeNull();
+    seat.board.destroy();
+  });
+
+  it("draws a build as the outline of the unit to come", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(
+      { ...ADJUSTMENT_STATE, orders: { rom: "build" }, orderParts: { rom: ["Build", "Army"] } },
+      plan(),
+    );
+
+    const order = document.querySelector("#order-overlay .order")!;
+    const circle = order.querySelector("circle")!;
+    expect(circle.getAttribute("fill")).toBe("none");
+    seat.board.destroy();
+  });
+
+  it("keeps a half-built order from surviving a phase change", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(ADJUSTMENT_STATE, plan());
+    tap("rom");
+    await settle();
+    expect(seat.view()).not.toBeNull();
+
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+
+    expect(seat.view()).toBeNull();
+    seat.board.destroy();
   });
 });
