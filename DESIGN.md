@@ -2,7 +2,7 @@
 
 **Status:** M0 spike implemented and browser-verified; phone UX fixes in progress.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r11 — 2026-08-28
+**Document revision:** r12 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -398,7 +398,13 @@ public turns something up. The Realpolitik-style disclaimers from §8 still
 apply regardless of name.
 
 ### D-017 — Frontend: React + Vite, with the map as an imperative DOM island
-**Status:** accepted, r5 (closes Q-002). Applies from M2; M0/M1 stay vanilla.
+**Status:** accepted, r5 (closes Q-002). Amended r12: applies from M1, not
+M2 — the M1 flow pages are exactly the component-heavy chrome React was
+chosen for, and building them twice (vanilla, then ported) buys nothing.
+TypeScript. The M0 sandbox at /g/{id}/ stays vanilla until the React seat
+board fully replaces it. Only the board core moves from static/app.js into
+the island module — everything it learned (gestures, graphics, integration
+fixes) carries over.
 React with Vite for dev server/HMR and production build; build output is
 embedded in the Go binary per D-006. Owner preference: familiarity,
 component ecosystem, and the amount of chrome UI ahead (order panels, seat
@@ -732,3 +738,4 @@ Recorded so nobody re-derives them.
 | r9 | 2026-08-28 | D-019 additions: highlight color grammar (green/amber/pulsing blue), staged hints, order Change/Cancel; server-side order cancellation. Debt noted: province names table in the client, move server-side at M2. |
 | r10 | 2026-08-28 | Terminology session; CONTEXT.md created (Power/Seat/Player, Finalize/Commit/Reveal, Spectator view + Annotation, NMR, Adjudicate/Resolution). D-013's "beamer" renamed spectator view; spectator is strictly read-only for orders, annotations allowed later. |
 | r11 | 2026-08-28 | D-020 single shared invite with random anonymous seat assignment (amends D-005); D-021 GM power = the leftover, revealed at Start; D-022 settings fixed pre-invite, later changes versioned and broadcast. M1 flow implementation begun (in-memory first; SQLite to follow within M1). |
+| r12 | 2026-08-28 | D-017 amended: React + Vite + TypeScript from M1 (owner call — build the flow pages correctly once). web/ scaffolded; board core ported to the imperative island; M0 sandbox stays vanilla meanwhile. |
