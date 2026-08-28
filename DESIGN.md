@@ -721,6 +721,10 @@ Recorded so nobody re-derives them.
 ## 10. Reference links
 
 - godip — https://github.com/zond/godip
+- godip-influence — https://github.com/Wulfheart/godip-influence — computes
+  per-province influence (webDiplomacy-style territory control) on top of
+  godip. EUPL-1.2 (GPLv3-compatible). Tiny and dormant; candidate for the
+  board/spectator province-shading feature — vendor or reimplement.
 - jDip (live repo) — https://gitlab.com/jdip/jdip
 - jDip site / DATC compliance notes — https://jdip.gitlab.io/
 - TedDriggs/diplomacy (Rust, MIT fallback) — https://github.com/TedDriggs/diplomacy
