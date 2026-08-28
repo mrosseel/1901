@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r13 — 2026-08-28
+**Document revision:** r14 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -532,7 +532,14 @@ phase oddities, and a DATC-style test file per variant. Restyling the flat
 jDip art to godip's visual standard (§2.4) is a separate, optional effort.
 
 Scope guard: build the translator the first time a concrete variant is
-actually wanted, not speculatively. Rejected alternative: porting variants
+actually wanted, not speculatively. *Activated r14:* pilot variants are
+**1900** (few special rules, popular) and **Sail Ho** (owner favorite).
+Sources copied into `tools/jdip-import/source/`. Phase 1: translator +
+map conversion (ids, labels, Center anchors generated from
+PROVINCE_DATA) + registration as experimental variants. Phase 2:
+LLM-assisted restyle to godip's visual style — deterministic script for
+palette/pattern injection, vision model (via OpenRouter) for shape
+classification and before/after QA; needs an OpenRouter key. Rejected alternative: porting variants
 by hand from rulebooks — retypes an adjacency graph that already exists in
 machine-readable form, and typos in adjacency data are exactly the bugs
 that surface mid-game at a table.
@@ -740,3 +747,4 @@ Recorded so nobody re-derives them.
 | r11 | 2026-08-28 | D-020 single shared invite with random anonymous seat assignment (amends D-005); D-021 GM power = the leftover, revealed at Start; D-022 settings fixed pre-invite, later changes versioned and broadcast. M1 flow implementation begun (in-memory first; SQLite to follow within M1). |
 | r12 | 2026-08-28 | D-017 amended: React + Vite + TypeScript from M1 (owner call — build the flow pages correctly once). web/ scaffolded; board core ported to the imperative island; M0 sandbox stays vanilla meanwhile. |
 | r13 | 2026-08-28 | M1 flow implemented end-to-end (D-020/021/022) as React SPA + Go, verified live. M0 sandbox and static/ deleted; / redirects to /new. Still in-memory — SQLite persistence remains before M1 acceptance. |
+| r14 | 2026-08-28 | D-016 activated: pilot port of 1900 and Sail Ho from jDip (translator + map conversion phase 1; LLM-assisted restyle phase 2, needs OpenRouter key). Sources vendored to tools/jdip-import/source. |
