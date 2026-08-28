@@ -2,7 +2,7 @@
 
 **Status:** M0 spike implemented and browser-verified; phone UX fixes in progress.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r8 — 2026-08-28
+**Document revision:** r9 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -466,6 +466,16 @@ conflicts with pan) and arrow-dragging (paper metaphor, but drag already
 means pan at phone precision). Long-press may return later as a shortcut
 for the chip, not as the primary path.
 
+Additions from testing (r9): highlight colors carry the grammar — green =
+move target, amber = occupied (tap asks attack/support), pulsing blue =
+the unit being supported (tap it again = back its hold). Every stage
+shows a hint naming unit and province. Order list rows have Change and
+Cancel; the server cancels an order on POST with empty parts.
+
+Known debt: the frontend holds a PROVINCE_NAMES table (variant data in
+the client). At M2 the server should serve names per variant from godip's
+ProvinceLongNames instead.
+
 ### D-016 — New variants come via a jDip adjacency-XML translator, not by hand
 **Status:** accepted, r4. Post-v1; nothing in M0–M5 depends on it.
 When a variant that godip lacks is wanted (1900, Modern, Renaissance, …),
@@ -692,3 +702,4 @@ Recorded so nobody re-derives them.
 | r6 | 2026-08-28 | D-018: long-term target is one binary with two modes — LAN (primary, unchanged) and hosted multi-game with accounts for game management only; seat play stays login-free in both. Non-goals updated to point at it. |
 | r7 | 2026-08-28 | D-019: touch order grammar — two-tap move, double-tap hold, attack/support chip on occupied targets, bottom-bar fallback. From phone testing of the M0 spike. |
 | r8 | 2026-08-28 | D-013 addition: beamer view gets URL-chosen layout variants (board only, board + move list, …). M1 direction started in code: /g/{id} lazily-created games in the spike. |
+| r9 | 2026-08-28 | D-019 additions: highlight color grammar (green/amber/pulsing blue), staged hints, order Change/Cancel; server-side order cancellation. Debt noted: province names table in the client, move server-side at M2. |
