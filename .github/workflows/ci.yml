@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test ./...
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npx vitest run
+
+  datc:
+    name: DATC compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      # godip's own test suite carries the DATC corpus plus a decade of
+      # regression files from real games; running it here is our compliance
+      # statement until the dedicated report page lands.
+      - run: go test github.com/zond/godip/... 2>&1 | tee datc-results.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: datc-results
+          path: datc-results.txt
