@@ -14,7 +14,25 @@ import (
 	"github.com/zond/godip"
 	"github.com/zond/godip/variants"
 	"github.com/zond/godip/variants/common"
+
+	"spring1901/spike/variants1901/jdip1900"
+	"spring1901/spike/variants1901/sailho"
 )
+
+// localVariants are the ones translated from jDip by tools/jdip-import.
+// They sit beside godip's own and are served exactly the same way.
+var localVariants = []common.Variant{
+	jdip1900.Nineteen00Variant,
+	sailho.SailHoVariant,
+}
+
+// allVariants is every variant this server can play.
+func allVariants() []common.Variant {
+	out := make([]common.Variant, 0, len(variants.OrderedVariants)+len(localVariants))
+	out = append(out, variants.OrderedVariants...)
+	out = append(out, localVariants...)
+	return out
+}
 
 // defaultVariant is what a game gets when none is named.
 const defaultVariant = "classical"
@@ -42,7 +60,7 @@ var (
 // lookupVariant resolves a key to its godip variant.
 func lookupVariant(key string) (common.Variant, bool) {
 	byKeyOnce.Do(func() {
-		for _, v := range variants.OrderedVariants {
+		for _, v := range allVariants() {
 			byKey[variantKey(v.Name)] = v
 		}
 	})
@@ -76,7 +94,7 @@ var (
 // first request for the gallery, not on every server start.
 func variantCatalogue() []variantJSON {
 	catalogueOnce.Do(func() {
-		for _, v := range variants.OrderedVariants {
+		for _, v := range allVariants() {
 			// A variant without map art cannot be shown or played here.
 			if v.SVGMap == nil {
 				continue
