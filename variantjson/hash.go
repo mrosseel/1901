@@ -21,18 +21,18 @@ import (
 // gameFacts is the descriptor reduced to the parts that decide play, in a
 // canonical order so the same map always hashes the same.
 type gameFacts struct {
-	Nations   []string          `json:"nations"`
-	Provinces [][]string        `json:"provinces"`
-	Regions   [][]string        `json:"regions"`
-	Borders   [][]string        `json:"borders"`
+	Nations   []string   `json:"nations"`
+	Provinces [][]string `json:"provinces"`
+	Regions   [][]string `json:"regions"`
+	Borders   [][]string `json:"borders"`
 	// OneWay is absent for a map whose every border is mutual, so a descriptor
 	// written before the field existed hashes as it always did.
-	OneWay [][]string `json:"oneway,omitempty"`
-	Units     map[string]string `json:"units"`
-	Centers   map[string]string `json:"centers"`
-	Solo      int               `json:"solo"`
-	Profile   string            `json:"profile"`
-	Orders    []string          `json:"orders"`
+	OneWay  [][]string        `json:"oneway,omitempty"`
+	Units   map[string]string `json:"units"`
+	Centers map[string]string `json:"centers"`
+	Solo    int               `json:"solo"`
+	Profile string            `json:"profile"`
+	Orders  []string          `json:"orders"`
 	// StartPhase is empty for a variant that opens in Spring 1901, whether it
 	// says so or leaves the fields out. Saying the default and omitting it
 	// describe the same board, so they hash the same.

@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "key": "pure",
+  "name": "Pure",
+  "createdBy": "Danny Loeb",
+  "version": "vb10",
+  "description": "A minimal version of Diplomacy where each country is a single province.",
+  "rules": {"profile":"pure","orders":null,"text":"First to 4 Supply Centers (SC) is the winner.\nEach nation has only one SC, and each SC is adjacent to all others."},
+  "soloSupplyCenters": 4,
+  "nations": ["Austria","England","France","Germany","Italy","Turkey","Russia"],
+  "provinces": [
+    ["ber","Berlin","Germany"],
+    ["con","Constantinople","Turkey"],
+    ["lon","London","England"],
+    ["mos","Moscow","Russia"],
+    ["par","Paris","France"],
+    ["rom","Rome","Italy"],
+    ["vie","Vienna","Austria"]
+  ],
+  "regions": [
+    ["ber",null,"land"],
+    ["con",null,"land"],
+    ["lon",null,"land"],
+    ["mos",null,"land"],
+    ["par",null,"land"],
+    ["rom",null,"land"],
+    ["vie",null,"land"]
+  ],
+  "borders": [
+    ["ber","con","land"],
+    ["ber","lon","land"],
+    ["ber","mos","land"],
+    ["ber","par","land"],
+    ["ber","rom","land"],
+    ["ber","vie","land"],
+    ["con","lon","land"],
+    ["con","mos","land"],
+    ["con","par","land"],
+    ["con","rom","land"],
+    ["con","vie","land"],
+    ["lon","mos","land"],
+    ["lon","par","land"],
+    ["lon","rom","land"],
+    ["lon","vie","land"],
+    ["mos","par","land"],
+    ["mos","rom","land"],
+    ["mos","vie","land"],
+    ["par","rom","land"],
+    ["par","vie","land"],
+    ["rom","vie","land"]
+  ],
+  "onewayBorders": [
+  ],
+  "start": {
+    "year": 1901,
+    "season": "Spring",
+    "phase": "Movement",
+    "units": {
+      "ber": ["army","Germany"],
+      "con": ["army","Turkey"],
+      "lon": ["army","England"],
+      "mos": ["army","Russia"],
+      "par": ["army","France"],
+      "rom": ["army","Italy"],
+      "vie": ["army","Austria"]
+    },
+    "supplyCenters": {
+      "ber": "Germany",
+      "con": "Turkey",
+      "lon": "England",
+      "mos": "Russia",
+      "par": "France",
+      "rom": "Italy",
+      "vie": "Austria"
+    }
+  }
+}

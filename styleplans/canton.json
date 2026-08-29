@@ -4,8 +4,8 @@
   "name": "Canton",
   "kind": "godip",
   "map": {
-    "bytes": 1547826,
-    "sha256": "93e074133063737547b26c01d87bd1a6933ae553cecfeb48f403be3816daf6ea",
+    "bytes": 1213960,
+    "sha256": "5a8ca8bdb5bae3976b42db4c34946ad649527027ef6eeced45adfa33ae6ac18e",
     "viewBoxWidth": 2081
   },
   "godip": {

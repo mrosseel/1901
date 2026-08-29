@@ -4,8 +4,8 @@
   "name": "Sengoku",
   "kind": "godip",
   "map": {
-    "bytes": 4409154,
-    "sha256": "ff3552e8f276c41313041a53d6d7e73a627a6e28874ba87f34e5913d3fdb24a0",
+    "bytes": 4316484,
+    "sha256": "6909c4bdf5635edbd01c07b6aaaf9537cfb49ef84f3da3cd95a564804e2e42b5",
     "viewBoxWidth": 1191.8811
   },
   "godip": {

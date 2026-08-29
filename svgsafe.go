@@ -2,10 +2,9 @@
 //
 // A variant's board is SVG, and SVG is a scripting host: a `<script>` element,
 // an `onload=` attribute, or an `xlink:href` to a remote document all execute
-// in the page's origin. The compiled variants embed art that arrived through
-// a code review, so they were never a concern. A generated variant's art
-// arrives as a file in a directory, and this is where that file stops being
-// trusted.
+// in the page's origin. Every board this server draws is now a file in a
+// directory rather than a byte slice that passed through a code review, and
+// this is where that file stops being trusted.
 //
 // The approach is an allowlist, not a blocklist. Anything this file does not
 // name is dropped, so a construct nobody thought of is dropped too. The cost
@@ -30,9 +29,8 @@ import (
 // safe rather than the element name.
 //
 // Absent on purpose: script and handler (execute), foreignObject (embeds
-// HTML), image (fetches), animate, animateTransform, set and animateMotion
-// (can rewrite any attribute after the sanitiser has seen it), and a
-// (navigates).
+// HTML), animate, animateTransform, set and animateMotion (can rewrite any
+// attribute after the sanitiser has seen it), and a (navigates).
 var safeSVGElements = map[string]bool{
 	"svg": true, "g": true, "defs": true, "title": true, "desc": true,
 	"path": true, "polygon": true, "polyline": true, "line": true,
@@ -79,8 +77,9 @@ var safeSVGAttributes = map[string]bool{
 	"offset": true, "stop-color": true, "stop-opacity": true,
 	"gradientUnits": true, "gradientTransform": true, "spreadMethod": true,
 	"clip-path": true, "clip-rule": true, "mask": true,
-	"patternUnits": true, "preserveAspectRatio": true,
-	"xmlns": true, "version": true,
+	"patternUnits": true, "patternTransform": true,
+	"preserveAspectRatio": true,
+	"xmlns":               true, "version": true,
 	"style": true, "type": true,
 	// Rendering hints: inert, and real map art carries them.
 	"color-rendering": true, "shape-rendering": true, "text-rendering": true,

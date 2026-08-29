@@ -1,8 +1,12 @@
 // The variant registry: every variant this server can play, by URL-safe key,
 // with the metadata the create-game gallery needs.
 //
-// Two sources feed it. godip ships its own variants as a Go library. Everything
-// else is a descriptor under variants/generated, read at startup (generated.go).
+// One source feeds it. Every variant is a descriptor under variants/generated,
+// read at startup (generated.go) — godip's own maps included, converted once by
+// tools/variant-export and held against their Go packages by
+// variants_equivalence_test.go. godip remains the adjudicator and the source of
+// the rule profiles a descriptor names; it is no longer a second way for a
+// board to reach a game.
 //
 // Only classical is supported (D-014). The rest are playable but their
 // map placement anchors are unverified, so they are marked experimental.
@@ -19,29 +23,13 @@ import (
 	"sync"
 
 	"github.com/zond/godip"
-	"github.com/zond/godip/variants"
 	"github.com/zond/godip/variants/common"
 )
 
-// compiledVariants is godip's own variants, which arrive as a library.
-//
-// 1901's own translated variants used to sit beside them as Go packages. They
-// are descriptors now, under variants/generated, so this list is godip's and
-// nothing else.
-func compiledVariants() []common.Variant {
-	out := make([]common.Variant, 0, len(variants.OrderedVariants))
-	out = append(out, variants.OrderedVariants...)
-	return out
-}
-
-// allVariants is every variant this server can play: the compiled ones and any
-// loaded from disk at startup (generated.go).
+// allVariants is every variant this server can play, all of them loaded from
+// disk at startup (generated.go).
 func allVariants() []common.Variant {
-	generated := generatedVariantList()
-	out := make([]common.Variant, 0, len(compiledVariants())+len(generated))
-	out = append(out, compiledVariants()...)
-	out = append(out, generated...)
-	return out
+	return generatedVariantList()
 }
 
 // defaultVariant is what a game gets when none is named.

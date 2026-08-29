@@ -174,11 +174,6 @@ func TestLookupFindsAGeneratedVariant(t *testing.T) {
 	if variantKey(v.Name) != "demo7" {
 		t.Errorf("lookupVariant returned %q", v.Name)
 	}
-
-	// The compiled variants must still resolve alongside it.
-	if _, found := lookupVariant("classical"); !found {
-		t.Error("loading generated variants must not hide the compiled ones")
-	}
 }
 
 func TestGeneratedVariantBringsItsPlacements(t *testing.T) {
@@ -373,12 +368,18 @@ func TestGameRefusesToLoadOnAChangedDescriptor(t *testing.T) {
 	}
 }
 
-func TestCompiledVariantsNeedNoHash(t *testing.T) {
-	if got := variantHash("classical"); got != "" {
-		t.Errorf("a compiled variant has no descriptor to hash, got %q", got)
+// A key nothing loaded has no hash, and a game recording none against it
+// predates the column and still loads.
+func TestAnAbsentVariantHasNoHash(t *testing.T) {
+	withGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatal(err)
 	}
-	if err := checkVariantHash("g1", "classical", ""); err != nil {
-		t.Errorf("a compiled variant must load: %v", err)
+	if got := variantHash("nosuchvariant"); got != "" {
+		t.Errorf("a variant nothing loaded has no descriptor to hash, got %q", got)
+	}
+	if err := checkVariantHash("g1", "nosuchvariant", ""); err != nil {
+		t.Errorf("a game recording no hash must load: %v", err)
 	}
 }
 
@@ -582,37 +583,42 @@ func TestSavedGameRefusesAChangedMap(t *testing.T) {
 	}
 }
 
-// ---- the compiled variants must be unaffected -----------------------------
+// ---- the variants the server actually ships -------------------------------
 //
-// Nothing converted them. They are still Go packages in a compile-time slice.
-// But the index, the game INSERT and the game load path are shared, so these
-// check that adding the generated path left them alone.
+// Everything below runs against variants/generated, the directory a real
+// server reads, rather than the sample map the tests above use.
 
-func TestCompiledVariantsStillResolve(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
+func TestEveryShippedVariantResolves(t *testing.T) {
+	withGeneratedDir(t, filepath.Join("variants", "generated"))
 	if err := loadGeneratedVariants(); err != nil {
 		t.Fatal(err)
 	}
+	if len(generatedVariants) < 26 {
+		t.Errorf("only %d variants loaded from the checkout", len(generatedVariants))
+	}
 
-	for _, v := range compiledVariants() {
-		key := variantKey(v.Name)
+	for key, gen := range generatedVariants {
 		found, ok := lookupVariant(key)
 		if !ok {
-			t.Errorf("compiled variant %q no longer resolves", key)
+			t.Errorf("variant %q does not resolve", key)
 			continue
 		}
-		if found.Name != v.Name {
+		if found.Name != gen.Variant.Name {
 			t.Errorf("key %q resolved to %q", key, found.Name)
 		}
 	}
 }
 
-func TestCompiledVariantsStillStartAndPlay(t *testing.T) {
-	for _, key := range []string{"classical", "sailho", "1900"} {
+func TestShippedVariantsStartAndPlay(t *testing.T) {
+	withGeneratedDir(t, filepath.Join("variants", "generated"))
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"classical", "sailho", "1900", "pure", "chaos", "hundred"} {
 		t.Run(key, func(t *testing.T) {
 			v, ok := lookupVariant(key)
 			if !ok {
-				t.Skipf("%v is not in this build", key)
+				t.Fatalf("%v is not in this build", key)
 			}
 			state, err := v.Start()
 			if err != nil {
@@ -630,7 +636,7 @@ func TestCompiledVariantsStillStartAndPlay(t *testing.T) {
 // TestASavedClassicalGameStillRoundTrips is the one that matters for existing
 // games. The hash column and the INSERT both changed underneath them.
 func TestASavedClassicalGameStillRoundTrips(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
+	withGeneratedDir(t, filepath.Join("variants", "generated"))
 	if err := loadGeneratedVariants(); err != nil {
 		t.Fatal(err)
 	}
@@ -688,15 +694,18 @@ func TestASavedClassicalGameStillRoundTrips(t *testing.T) {
 	).Scan(&hash); err != nil {
 		t.Fatalf("reading variant_hash: %v", err)
 	}
-	if hash != "" {
-		t.Errorf("a compiled variant must record no hash, got %q", hash)
+	if want := variantHash("classical"); hash != want {
+		t.Errorf("recorded hash %q, expected %q", hash, want)
+	}
+	if hash == "" {
+		t.Error("classical is a descriptor now, so a game on it records a hash")
 	}
 }
 
 // TestAGameFromBeforeTheColumnLoads simulates a database written by the old
 // binary: the row exists, the column does not.
 func TestAGameFromBeforeTheColumnLoads(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
+	withGeneratedDir(t, filepath.Join("variants", "generated"))
 	if err := loadGeneratedVariants(); err != nil {
 		t.Fatal(err)
 	}

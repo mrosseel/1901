@@ -51,13 +51,17 @@ func TestNameOverridesLayerOverGodip(t *testing.T) {
 // The three variant-level files the map editor loads (D-030). It edits a
 // variant rather than a game, so each of these has to answer without one.
 func TestVariantFilesServeWithoutAGame(t *testing.T) {
-	// The tables are read once at startup in main(); a test process has to
-	// ask for them itself.
+	// The tables are read once at startup in main(); a test process has to ask
+	// for them itself. A variant's own table travels with it, in its directory,
+	// so loading the variants is what fills this map.
 	held := placements
 	t.Cleanup(func() { placements = held })
 	placements = map[string]placementTable{}
 	if err := loadPlacements(); err != nil {
 		t.Fatalf("loadPlacements: %v", err)
+	}
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatalf("loadGeneratedVariants: %v", err)
 	}
 
 	cases := []struct {
