@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r20 — 2026-08-29 — 2026-08-29
+**Document revision:** r21 — 2026-08-29
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -275,7 +275,7 @@ The server loads `placements/*.json` at startup and exposes the table as
 anchors and falls back per province, not per table, so a table missing one key
 leaves that province on its anchor and serves the rest.
 
-Amended r19 — the table gained a third position per province, `brief`, for the
+Amended r21 — the table gained a third position per province, `brief`, for the
 three-letter code the board draws when brief labels are on. Brief mode hides
 the full names, so a code is a different placement problem from a marker: the
 label boxes that dominate every marker score are not on the board when a code
@@ -283,26 +283,43 @@ is drawn. A code is judged on four things instead, in this order.
 
 1. Its middle is inside the province it names. A code in the wrong country
    tells a reader something false, which is worse than no code at all.
-2. It is clear of every unit marker on the board and of its own dislodged
-   ring. Not only its own marker: a province is small and a marker is not, so
-   the piece a code lands on is as often the neighbour's.
-3. It is clear of the supply centre glyph.
-4. It fits wholly inside its own province. This is ranked below legibility for
-   the same reason marker containment is ranked below name overlap. A province
+2. It is clear of its own marker and of its own dislodged ring.
+3. It is clear of the neighbouring provinces' markers. A province is small and
+   a marker is not, so the piece a code lands on is as often the neighbour's.
+   Separate from its own marker because a neighbour's is only sometimes drawn,
+   but next to it, because a marker is opaque either way.
+4. It fits wholly inside its own province. Ranked below legibility for the
+   same reason marker containment is ranked below name overlap. A province
    narrower than the code naming it still has to be named.
+5. It is off the supply centre glyph. Last, and measured into that position:
+   ranking the glyph above the neighbours made the search trade "off the dot"
+   for "onto a piece" on every crowded map, which is the wrong way round.
 
 Among positions that pass, the one below or beside the province's own marker
 wins, so a reader pairs the code with the piece. The first rung of that ladder
-is exactly where `renderBriefLabels()` already draws a code, and the board
-still uses that offset for any province the table has no `brief` for, so the
-field is an improvement on the heuristic rather than a replacement for it. A
-jDip-converted map gets none: it ships its own `BriefLabelLayer`, the board
-shows that layer instead of drawing anything, and those positions are the map
-author's work.
+is exactly where `renderBriefLabels()` already draws a code.
+
+A position is stored only when it is no worse than the heuristic it would
+replace, judged on those five faults in both board states. That test matters
+more than it sounds. The heuristic draws the code at the anchor when the
+province is empty and below the marker when a unit stands there, and being
+able to switch is a real advantage: the anchor is the one spot in a province
+that no other province's marker can occupy. On a map whose provinces are
+smaller than the codes naming them, no single stored point beats that. Storing
+one everywhere on twentytwenty put 95 codes on a marker where the heuristic
+put 80; declining the ones that lose brought it back to 82 while keeping the
+supply-dot gain, 29 down to 23. So 106 of its 215 provinces store nothing and
+the board falls back, per province, exactly as it falls back to map anchors.
+
+A jDip-converted map gets no codes at all: it ships its own `BriefLabelLayer`,
+the board shows that layer instead of drawing anything, and those positions
+are the map author's work.
 
 The tool's `--brief-only` mode adds the field to an approved table and touches
 nothing else in it, because an approved table can hold corrections a person
-made by hand and the codes are a later question than the markers were.
+made by hand and the codes are a later question than the markers were. It
+writes the codes as a replacement rather than a merge, so a province the tool
+declines loses any code an earlier run left there.
 
 ### D-016 — Converted jDip maps are restyled into godip's classical style
 **Status:** accepted, r3
@@ -1155,8 +1172,9 @@ Recorded so nobody re-derives them.
 | r13 | 2026-08-28 | M1 flow implemented end-to-end (D-020/021/022) as React SPA + Go, verified live. M0 sandbox and static/ deleted; / redirects to /new. Still in-memory — SQLite persistence remains before M1 acceptance. |
 | r14 | 2026-08-28 | D-016 activated: pilot port of 1900 and Sail Ho from jDip (translator + map conversion phase 1; LLM-assisted restyle phase 2, needs OpenRouter key). Sources vendored to tools/jdip-import/source. |
 | r15 | 2026-08-28 | D-014 presentation: checkmark for supported, no experimental badge. Restyle shipped as scripted theming (no LLM needed); style system with four named themes underway. Placement pipeline (audit/optimize/editor/serving) complete for classical + sailho. |
-| r16 | 2026-08-28 | D-023: pressMode setting (ftf default / gunboat / fullpress-later); §1 press non-goal narrowed accordingly. |
-| r18 | 2026-08-28 | D-026: styled maps composed at serve time from a style plan (styleplans/*.json) plus embedded style tokens (mapstyles/), with an in-memory cache; styledmaps/ (156 MB) and the checked-in map-<style>.svg files deleted after a byte-for-byte comparison against them; sailho's label repair baked into its own map.svg. D-027: deadline humanity — retreatBuildPercent (50), graceMinutes, firstTurnExtraMinutes, and Backstabbr's anti-rush rule. D-028: public per-phase watch URLs, /watch/{id}/{phaseIndex}, snapshots derived from replay and stable across a hard kill. D-023 gains the rulebook press mode and is implemented as data. |
-| r19 | 2026-08-29 | Placement tables generated for every variant, not only classical and Sail Ho: 24 more written by `tools/placement --all --skip`, shipped as generated. D-003 amended: the table gained a `brief` position per province for the three-letter code, judged against the unit markers, the dislodged ring, the supply glyph and the province border, with the full names off because brief mode hides them. The board reads it and keeps its offset heuristic as the fallback. `--brief-only` adds the field to an approved table without re-deriving it, which is how classical kept its hand corrections. The jDip maps keep their own BriefLabelLayer; their codes were measured and not moved. |
+| r16 | 2026-08-28 | D-023: pressMode setting (ftf default / gunboat / fullpress-later); §1 press non-goal narrowed accordingly. Map styles as named JSON data (parchment extracted from classical, plus midnight, print and flat), applied to any converted map, served at `?style=`, chosen per device. Gallery map previews open in a pan-and-zoom lightbox; the pan/zoom arithmetic is shared with the board. Experimental badge removed per D-014 presentation (r15). |
 | r17 | 2026-08-28 | Platform survey (research/platforms.md). §1 gap restated: parallel per-device entry, delete-the-sandboxer pitch; mylootcave (hot-seat) and avieth/diplomacy-server noted; commit-reveal confirmed novel. Q-007 opened (illegal/bluff orders). Playtest gains a 3-minute finalize criterion. D-023 may later gain a 'rulebook' press mode. Stale facts flagged: godip variant count, diplomacy/diplomacy status. |
-| r16 | 2026-08-28 | D-023: map styles as named JSON data (parchment extracted from classical, plus midnight, print and flat), applied to any converted map, served at `?style=`, chosen per device. Gallery map previews open in a pan-and-zoom lightbox; the pan/zoom arithmetic is shared with the board. Experimental badge removed per D-014 presentation (r15). |
+| r18 | 2026-08-28 | D-026: styled maps composed at serve time from a style plan (styleplans/*.json) plus embedded style tokens (mapstyles/), with an in-memory cache; styledmaps/ (156 MB) and the checked-in map-<style>.svg files deleted after a byte-for-byte comparison against them; sailho's label repair baked into its own map.svg. D-027: deadline humanity — retreatBuildPercent (50), graceMinutes, firstTurnExtraMinutes, and Backstabbr's anti-rush rule. D-028: public per-phase watch URLs, /watch/{id}/{phaseIndex}, snapshots derived from replay and stable across a hard kill. D-023 gains the rulebook press mode and is implemented as data. |
+| r19 | 2026-08-29 | D-029: illegal orders are allowed and on by default (closes Q-007). An order that parses but fails validation is stored as written, excluded from the engine, resolves as IllegalOrder, and the unit holds. Own seat only; amber in the list. |
+| r20 | 2026-08-29 | D-030: in-app map editor at /mapeditor, with the convergence goal — every hand drag is a scoring bug to encode; zero audit violations auto-promotes the variant to supported. |
+| r21 | 2026-08-29 | Placement tables generated for every variant, not only classical and Sail Ho: 24 more written by `tools/placement --all --skip`, shipped as generated. D-003 amended: the table gained a `brief` position per province for the three-letter code, judged against the province own marker, the neighbours markers, the dislodged ring, the supply glyph and the province border, with the full names off because brief mode hides them. A code is stored only where it measures no worse than the board offset heuristic in both board states, so a map whose provinces are smaller than their codes keeps the heuristic. The board reads the field and falls back per province. `--brief-only` adds codes to an approved table without re-deriving it, which is how classical kept its hand corrections. The jDip maps keep their own BriefLabelLayer; their codes were measured and not moved. |
