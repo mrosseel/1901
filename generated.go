@@ -168,6 +168,10 @@ func loadGeneratedVariant(dir, key string) (generatedVariant, error) {
 	if err := requireBoardLayers(sanitized.Clean); err != nil {
 		return generatedVariant{}, fmt.Errorf("%v: %w", svgPath, err)
 	}
+	if missingCenterAnchors(sanitized.Clean) {
+		log.Printf("generated variant %v: art has no province-centers layer, so "+
+			"markers fall back to the placement table alone", key)
+	}
 
 	art := sanitized.Clean
 	variant.SVGMap = func() ([]byte, error) { return art, nil }

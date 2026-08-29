@@ -92,13 +92,8 @@ func Validate(d Descriptor) error {
 		if row[2] == nil {
 			continue
 		}
-		owner, ok := row[2].(string)
-		if !ok {
+		if _, ok := row[2].(string); !ok {
 			report("province %q supply centre must be a string or null", key)
-			continue
-		}
-		if !isNeutral(owner) && !nations[owner] {
-			report("province %q is a home centre for unknown nation %q", key, owner)
 		}
 	}
 
@@ -120,7 +115,8 @@ func Validate(d Descriptor) error {
 			continue
 		}
 		if _, known := flagsByName[flag]; !known {
-			report("region %q has unknown flag %q (want land, sea or coast)", name, flag)
+			report("region %q has unknown terrain %q (known: %s)", name, flag,
+				strings.Join(sortedKeys(flagsByName), ", "))
 		}
 		if regions[name] {
 			report("region %q declared twice", name)
@@ -174,6 +170,47 @@ func Validate(d Descriptor) error {
 		degree[b]++
 	}
 
+	// One-way edges. Direction is the point of them, so the pair is not
+	// normalised: a->b and b->a are two different rows and both may be present
+	// with different terrain.
+	directed := map[string]bool{}
+	for i, row := range d.OneWayBorders {
+		if len(row) != 3 {
+			report("onewayBorders[%d] needs 3 fields, got %d", i, len(row))
+			continue
+		}
+		from, to, terrain := row[0], row[1], row[2]
+		if from == to {
+			report("one-way border %d joins %q to itself", i, from)
+			continue
+		}
+		if !regions[from] {
+			report("one-way border %q->%q names unknown region %q", from, to, from)
+		}
+		if !regions[to] {
+			report("one-way border %q->%q names unknown region %q", from, to, to)
+		}
+		if _, known := flagsByName[terrain]; !known {
+			report("one-way border %q->%q has unknown terrain %q", from, to, terrain)
+		}
+		pair := from + "|" + to
+		if directed[pair] {
+			report("one-way border %q->%q declared twice", from, to)
+		}
+		directed[pair] = true
+
+		normalised := pair
+		if from > to {
+			normalised = to + "|" + from
+		}
+		if _, mutual := seen[normalised]; mutual {
+			report("%q-%q is declared as a border and again as a one-way border",
+				from, to)
+		}
+		degree[from]++
+		degree[to]++
+	}
+
 	// Starting position.
 	for prov, spec := range d.Start.Units {
 		if !regions[prov] {
@@ -191,7 +228,9 @@ func Validate(d Descriptor) error {
 			report("starting unit on %q is a %v, which this profile does not have",
 				prov, spec[0])
 		}
-		if !nations[spec[1]] {
+		// A unit can start unowned: Europe 1939 puts one in Serbia for whoever
+		// takes it.
+		if !nations[spec[1]] && !isNeutral(spec[1]) {
 			report("starting unit on %q belongs to unknown nation %q", prov, spec[1])
 		}
 		if owner, held := d.Start.SupplyCenters[prov]; held && owner != spec[1] {
@@ -203,7 +242,7 @@ func Validate(d Descriptor) error {
 		if !provinces[prov] {
 			report("starting supply centre on unknown province %q", prov)
 		}
-		if !nations[nation] {
+		if !nations[nation] && !isNeutral(nation) {
 			report("starting supply centre %q belongs to unknown nation %q", prov, nation)
 		}
 	}
@@ -246,11 +285,35 @@ func isNeutral(owner string) bool {
 func Warnings(d Descriptor) []string {
 	var out []string
 
+	// A home centre may name a nation that is not playing. France vs Austria
+	// is the classical map with five of its seven powers removed, and their
+	// centres still say whose home they were.
+	nations := map[string]bool{}
+	for _, n := range d.Nations {
+		nations[n] = true
+	}
+	absent := map[string]bool{}
+	for _, row := range d.Provinces {
+		if len(row) < 3 || row[2] == nil {
+			continue
+		}
+		if owner, ok := row[2].(string); ok && !nations[owner] && !isNeutral(owner) {
+			absent[owner] = true
+		}
+	}
+	if len(absent) > 0 {
+		out = append(out, fmt.Sprintf(
+			"home centres belong to nations that are not playing: %s",
+			strings.Join(sortedKeys(absent), ", ")))
+	}
+
 	degree := map[string]int{}
-	for _, row := range d.Borders {
-		if len(row) == 3 {
-			degree[row[0]]++
-			degree[row[1]]++
+	for _, rows := range [][][]string{d.Borders, d.OneWayBorders} {
+		for _, row := range rows {
+			if len(row) == 3 {
+				degree[row[0]]++
+				degree[row[1]]++
+			}
 		}
 	}
 	for _, row := range d.Regions {

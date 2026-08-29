@@ -61,6 +61,15 @@ type Descriptor struct {
 	Regions [][]any `json:"regions"`
 	// [regionA, regionB, terrain]
 	Borders [][]string `json:"borders"`
+	// [from, to, terrain] for the edges that exist in one direction only.
+	//
+	// A border is normally mutual, and Borders states each one once so its two
+	// halves cannot disagree. godip's maps are not all mutual: a sea often
+	// names a multi-coast province it is not named back by, and Unconstitutional
+	// gives one province a coastal edge inbound and a land edge outbound. Those
+	// edges decide what a fleet may be ordered to do, so they are written down
+	// here rather than quietly made mutual.
+	OneWayBorders [][]string `json:"onewayBorders"`
 
 	Start Start `json:"start"`
 }
@@ -232,10 +241,14 @@ var unitTypesByName = map[string]godip.UnitType{
 	"fleet": godip.Fleet,
 }
 
+// flagsByName is the terrain vocabulary. An archipelago is land a fleet may
+// hold and an army may be convoyed through, which is neither a coast nor a
+// sea and adjudicates as neither.
 var flagsByName = map[string][]godip.Flag{
-	"land":  {godip.Land},
-	"sea":   {godip.Sea},
-	"coast": godip.Coast,
+	"land":        {godip.Land},
+	"sea":         {godip.Sea},
+	"coast":       godip.Coast,
+	"archipelago": godip.Archipelago,
 }
 
 // Load parses a descriptor and returns a variant ready to register.
@@ -283,6 +296,10 @@ func Build(d Descriptor) (common.Variant, error) {
 		flags := flagsByName[terrain]
 		g.Prov(a).Conn(b, flags...)
 		g.Prov(b).Conn(a, flags...)
+	}
+	for _, row := range d.OneWayBorders {
+		from, to, terrain := godip.Province(row[0]), godip.Province(row[1]), row[2]
+		g.Prov(from).Conn(to, flagsByName[terrain]...)
 	}
 
 	built := g

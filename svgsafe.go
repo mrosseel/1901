@@ -42,6 +42,17 @@ var safeSVGElements = map[string]bool{
 	"linearGradient": true, "radialGradient": true, "stop": true,
 	"clipPath": true, "mask": true, "pattern": true,
 	"style": true,
+	// `image` is here only for the raster a map paints its paper texture
+	// with. It is the one element allowed to carry a `data:` URL, and only a
+	// bitmap one: see safeRasterHref.
+	"image": true,
+}
+
+// rasterImageTypes are the media types an <image> may embed. SVG is absent:
+// an embedded SVG document is markup this sanitiser would never see, and it
+// can carry a script.
+var rasterImageTypes = map[string]bool{
+	"png": true, "jpeg": true, "jpg": true, "gif": true, "webp": true,
 }
 
 // safeSVGAttributes is every attribute that may survive. Geometry,
@@ -136,7 +147,7 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 			depth++
 			out.WriteString("<" + name)
 			for _, attr := range t.Attr {
-				if !svgAttrAllowed(attr) {
+				if !svgAttrAllowed(name, attr) {
 					result.noteAttr(attrName(attr))
 					continue
 				}
@@ -200,8 +211,16 @@ func attrName(attr xml.Attr) string {
 	if attr.Name.Space == "" {
 		return attr.Name.Local
 	}
+	// encoding/xml resolves a declared prefix to its URI, which is not a name
+	// any document may carry. xlink is the only prefix that reaches the
+	// output, on the href of an embedded bitmap.
+	if attr.Name.Space == xlinkNamespace {
+		return "xlink:" + attr.Name.Local
+	}
 	return attr.Name.Space + ":" + attr.Name.Local
 }
+
+const xlinkNamespace = "http://www.w3.org/1999/xlink"
 
 // safeCSS reports whether a stylesheet or inline style is free of the things
 // that make CSS fetch or execute.
@@ -231,14 +250,37 @@ func safeCSS(text string) bool {
 	}
 }
 
-// svgAttrAllowed decides one attribute.
-func svgAttrAllowed(attr xml.Attr) bool {
+// safeRasterHref reports whether a value is an embedded bitmap and nothing
+// else. A bitmap is pixels: it fetches nothing and executes nothing.
+func safeRasterHref(value string) bool {
+	rest, found := strings.CutPrefix(strings.ToLower(strings.TrimSpace(value)),
+		"data:image/")
+	if !found {
+		return false
+	}
+	mediaType, rest, found := strings.Cut(rest, ";")
+	if !found || !rasterImageTypes[mediaType] {
+		return false
+	}
+	return strings.HasPrefix(rest, "base64,")
+}
+
+// svgAttrAllowed decides one attribute of one element.
+func svgAttrAllowed(element string, attr xml.Attr) bool {
 	name := attr.Name.Local
 	lower := strings.ToLower(name)
 
 	// Handlers are the whole point of this function.
 	if strings.HasPrefix(lower, "on") {
 		return false
+	}
+	// The one reference a board may carry: the bitmap an <image> paints. Real
+	// map art draws its paper on one, and dropping it leaves a board that
+	// renders but no longer looks like the map people played on.
+	if element == "image" && lower == "href" &&
+		(attr.Name.Space == "" || attr.Name.Space == "xlink" ||
+			attr.Name.Space == xlinkNamespace) {
+		return safeRasterHref(attr.Value)
 	}
 	// A namespace declaration is inert: it binds a prefix, and no attribute
 	// carrying a prefix is allowed through. Anything else namespaced is xlink,
@@ -295,15 +337,20 @@ func (self *svgSanitizeResult) Summary() string {
 	return strings.Join(parts, "; ")
 }
 
-// requireBoardLayers checks the two layers board.ts depends on. It throws
-// without `#provinces`, and it reads move anchors from `#province-centers`,
-// so art missing them is a blank board rather than a broken one.
+// requireBoardLayers checks the layer board.ts throws without. Art with no
+// `#provinces` is not a board: nothing on it can be clicked or coloured.
 func requireBoardLayers(svg []byte) error {
-	text := string(svg)
-	for _, layer := range []string{`id="provinces"`, `id="province-centers"`} {
-		if !strings.Contains(text, layer) {
-			return fmt.Errorf("map art has no %v layer", strings.Trim(layer, `id="`))
-		}
+	if !bytes.Contains(svg, []byte(`id="provinces"`)) {
+		return fmt.Errorf("map art has no provinces layer")
 	}
 	return nil
+}
+
+// missingCenterAnchors reports art with no `#province-centers` layer.
+//
+// It is not fatal. The layer is where the board reads a marker position when
+// the variant has no approved placement table, and godip's Pure map ships
+// without one, so refusing it would drop a playable variant over a fallback.
+func missingCenterAnchors(svg []byte) bool {
+	return !bytes.Contains(svg, []byte(`id="province-centers"`))
 }

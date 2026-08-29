@@ -52,7 +52,31 @@ func TestStripsForeignObject(t *testing.T) {
 
 func TestStripsRemoteReferences(t *testing.T) {
 	clean := sanitize(t, `<svg><image href="http://evil/x.png"/><use xlink:href="http://evil/y#a"/><g id="provinces"/></svg>`)
-	mustNotContain(t, clean, "evil", "http://", "image")
+	mustNotContain(t, clean, "evil", "http://")
+}
+
+// An <image> is allowed to carry one thing and one thing only: a bitmap.
+// godip's maps paint their paper on one, so dropping it would change every
+// board the server draws.
+func TestKeepsEmbeddedBitmaps(t *testing.T) {
+	const pixel = "data:image/png;base64,iVBORw0KGgo="
+	clean := sanitize(t,
+		`<svg xmlns:xlink="http://www.w3.org/1999/xlink"><image xlink:href="`+
+			pixel+`" width="4"/><g id="provinces"/></svg>`)
+	if !strings.Contains(clean, pixel) {
+		t.Errorf("the paper texture was dropped:\n%s", clean)
+	}
+	if !strings.Contains(clean, "xlink:href") {
+		t.Errorf("the reference lost its prefix, so no browser will resolve it:\n%s", clean)
+	}
+}
+
+// An embedded SVG document is markup the sanitiser never sees, and it can
+// carry a script.
+func TestStripsEmbeddedSVGImages(t *testing.T) {
+	clean := sanitize(t,
+		`<svg><image href="data:image/svg+xml;base64,PHN2Zz48c2NyaXB0Lz48L3N2Zz4="/><g id="provinces"/></svg>`)
+	mustNotContain(t, clean, "svg+xml", "PHN2Zz")
 }
 
 func TestStripsJavascriptURLs(t *testing.T) {
@@ -165,8 +189,15 @@ func TestRequireBoardLayersRejectsArtWithout(t *testing.T) {
 	if err := requireBoardLayers([]byte(`<svg><g id="something"/></svg>`)); err == nil {
 		t.Error("art with no provinces layer must be rejected")
 	}
-	if err := requireBoardLayers([]byte(`<svg><g id="provinces"/></svg>`)); err == nil {
-		t.Error("art with no province-centers layer must be rejected")
+	if err := requireBoardLayers([]byte(`<svg><g id="provinces"/></svg>`)); err != nil {
+		t.Errorf("art with a provinces layer must be accepted: %v", err)
+	}
+	// Anchors are a fallback, not a requirement: Pure's map has none.
+	if !missingCenterAnchors([]byte(`<svg><g id="provinces"/></svg>`)) {
+		t.Error("missing anchors must be reported")
+	}
+	if missingCenterAnchors([]byte(`<svg><g id="province-centers"/></svg>`)) {
+		t.Error("present anchors must not be reported missing")
 	}
 }
 

@@ -25,6 +25,9 @@ type gameFacts struct {
 	Provinces [][]string        `json:"provinces"`
 	Regions   [][]string        `json:"regions"`
 	Borders   [][]string        `json:"borders"`
+	// OneWay is absent for a map whose every border is mutual, so a descriptor
+	// written before the field existed hashes as it always did.
+	OneWay [][]string `json:"oneway,omitempty"`
 	Units     map[string]string `json:"units"`
 	Centers   map[string]string `json:"centers"`
 	Solo      int               `json:"solo"`
@@ -107,6 +110,13 @@ func GameHash(d Descriptor) string {
 			facts.Borders = append(facts.Borders, []string{a, b, row[2]})
 		}
 	}
+	for _, row := range d.OneWayBorders {
+		if len(row) == 3 {
+			// Direction is what these rows carry, so the ends keep their order.
+			facts.OneWay = append(facts.OneWay, []string{row[0], row[1], row[2]})
+		}
+	}
+	sortRows(facts.OneWay)
 	sortRows(facts.Provinces)
 	sortRows(facts.Regions)
 	sortRows(facts.Borders)
