@@ -797,15 +797,11 @@ only closes a view, without reading either one.
     gap: 14px;
   }
 
-  /* The header carries the countdown, so it stays in view; the hint line
-     follows it, where the bottom bar cannot cover it either. */
+  /* One pane: the header scrolls with the orders under it, rather than
+     pinning itself while the list moves independently. */
   .seat-head {
     order: -2;
-    position: sticky;
-    top: -12px;
-    background: var(--panel);
     padding: 4px 0 8px;
-    z-index: 2;
   }
 
   .builder {
