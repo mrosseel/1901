@@ -1,0 +1,31 @@
+{
+    "tri": {
+        "Disband": {
+            "Next": {
+                "tri": {
+                    "Next": {},
+                    "Type": "SrcProvince"
+                }
+            },
+            "Type": "OrderType"
+        },
+        "Move": {
+            "Next": {
+                "tri": {
+                    "Next": {
+                        "adr": {
+                            "Next": {},
+                            "Type": "Province"
+                        },
+                        "alb": {
+                            "Next": {},
+                            "Type": "Province"
+                        }
+                    },
+                    "Type": "SrcProvince"
+                }
+            },
+            "Type": "OrderType"
+        }
+    }
+}

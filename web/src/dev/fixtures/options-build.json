@@ -1,0 +1,54 @@
+{
+    "bre": {
+        "Build": {
+            "Filter": "MAX:Build:1",
+            "Next": {
+                "Army": {
+                    "Next": {
+                        "bre": {
+                            "Next": {},
+                            "Type": "SrcProvince"
+                        }
+                    },
+                    "Type": "UnitType"
+                },
+                "Fleet": {
+                    "Next": {
+                        "bre": {
+                            "Next": {},
+                            "Type": "SrcProvince"
+                        }
+                    },
+                    "Type": "UnitType"
+                }
+            },
+            "Type": "OrderType"
+        }
+    },
+    "mar": {
+        "Build": {
+            "Filter": "MAX:Build:1",
+            "Next": {
+                "Army": {
+                    "Next": {
+                        "mar": {
+                            "Next": {},
+                            "Type": "SrcProvince"
+                        }
+                    },
+                    "Type": "UnitType"
+                },
+                "Fleet": {
+                    "Next": {
+                        "mar": {
+                            "Next": {},
+                            "Type": "SrcProvince"
+                        }
+                    },
+                    "Type": "UnitType"
+                }
+            },
+            "Type": "OrderType"
+        }
+    }
+}

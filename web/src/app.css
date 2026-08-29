@@ -15,6 +15,27 @@
   /* The thickness of the draggable border between the map and the panel.
      A mouse needs a target it can hit; a thumb needs more of one. */
   --split-grip: 12px;
+  color-scheme: dark;
+}
+
+/*
+The light palette, for a screen a room is lit for: a laptop by a window, a
+projector in daylight. Nothing selects it yet — the app ships dark, and the
+attribute is set by hand on the root — so these tokens are what a light build
+would be measured against before anything commits to one.
+*/
+:root[data-theme="light"] {
+  --bg: #f4f2ed;
+  --panel: #ffffff;
+  --panel-2: #e9e6df;
+  --line: #cdc7bb;
+  --text: #1b1d21;
+  --muted: #5f6672;
+  --accent: #2c5fb8;
+  --good: #1f7a44;
+  --warn: #a35b00;
+  --bad: #a52b2b;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }

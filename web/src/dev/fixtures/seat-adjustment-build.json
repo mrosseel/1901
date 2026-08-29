@@ -1,0 +1,1194 @@
+{
+    "canForce": false,
+    "deadlineAt": "2026-08-29T08:26:52Z",
+    "dislodged": {},
+    "finalized": {
+        "Austria": false,
+        "England": false,
+        "France": false,
+        "Germany": false,
+        "Italy": false,
+        "Russia": false,
+        "Turkey": false
+    },
+    "finalizedCount": 0,
+    "gameId": "jtq9tg9s52",
+    "graceUntil": "2026-08-29T08:26:52Z",
+    "nations": [
+        "Austria",
+        "England",
+        "France",
+        "Germany",
+        "Italy",
+        "Russia",
+        "Turkey"
+    ],
+    "now": "2026-08-29T08:11:52Z",
+    "orderParts": {},
+    "orders": {},
+    "phase": {
+        "season": "Fall",
+        "type": "Adjustment",
+        "year": 1901
+    },
+    "phaseMinutes": 15,
+    "phaseResolutions": {
+        "tri": "OK"
+    },
+    "placements": {
+        "adr": {
+            "dislodged": [
+                818.97,
+                1093.29
+            ],
+            "scale": 1,
+            "unit": [
+                840.15,
+                1114.48
+            ]
+        },
+        "aeg": {
+            "dislodged": [
+                1012.52,
+                1193.99
+            ],
+            "scale": 1,
+            "unit": [
+                991.34,
+                1172.81
+            ]
+        },
+        "alb": {
+            "dislodged": [
+                881.81,
+                1138.12
+            ],
+            "scale": 0.95,
+            "unit": [
+                882.48,
+                1141.98
+            ]
+        },
+        "ank": {
+            "dislodged": [
+                1208.34,
+                1120.96
+            ],
+            "scale": 1,
+            "unit": [
+                1238.3,
+                1120.96
+            ]
+        },
+        "apu": {
+            "dislodged": [
+                754.33,
+                1117.7
+            ],
+            "overhang": {
+                "land": 0.3333333333333333,
+                "open": 0,
+                "sea": 0.4166666666666667
+            },
+            "scale": 0.75,
+            "unit": [
+                829.15,
+                1159.48
+            ]
+        },
+        "arm": {
+            "dislodged": [
+                1456.86,
+                1055.92
+            ],
+            "scale": 1,
+            "unit": [
+                1435.68,
+                1077.1
+            ]
+        },
+        "bal": {
+            "dislodged": [
+                839.48,
+                533.23
+            ],
+            "scale": 0.85,
+            "unit": [
+                817.43,
+                520.5
+            ]
+        },
+        "bar": {
+            "dislodged": [
+                1146.18,
+                38.65
+            ],
+            "scale": 1,
+            "unit": [
+                1125,
+                59.83
+            ]
+        },
+        "bel": {
+            "dislodged": [
+                526.08,
+                774.52
+            ],
+            "scale": 1,
+            "unit": [
+                526.71,
+                771.78
+            ]
+        },
+        "ber": {
+            "dislodged": [
+                689.17,
+                717.75
+            ],
+            "scale": 1,
+            "unit": [
+                715.11,
+                702.77
+            ]
+        },
+        "bla": {
+            "dislodged": [
+                1153.52,
+                981.66
+            ],
+            "scale": 1,
+            "unit": [
+                1161.27,
+                1010.6
+            ]
+        },
+        "boh": {
+            "dislodged": [
+                705.53,
+                825.62
+            ],
+            "scale": 1,
+            "unit": [
+                738.36,
+                858.46
+            ]
+        },
+        "bot": {
+            "dislodged": [
+                835.14,
+                388.56
+            ],
+            "scale": 1,
+            "unit": [
+                827.39,
+                417.5
+            ]
+        },
+        "bre": {
+            "dislodged": [
+                368.2,
+                831.72
+            ],
+            "scale": 0.9,
+            "unit": [
+                357.38,
+                872.08
+            ]
+        },
+        "bud": {
+            "dislodged": [
+                888.2,
+                869.9
+            ],
+            "scale": 1,
+            "unit": [
+                880.45,
+                898.84
+            ]
+        },
+        "bul": {
+            "dislodged": [
+                1003.3,
+                1092.56
+            ],
+            "scale": 1,
+            "unit": [
+                974.37,
+                1084.81
+            ]
+        },
+        "bul/ec": {
+            "dislodged": [
+                1065.98,
+                1065.32
+            ],
+            "scale": 0.85,
+            "unit": [
+                1046.24,
+                1031.14
+            ]
+        },
+        "bul/sc": {
+            "dislodged": [
+                971.42,
+                1078.54
+            ],
+            "scale": 1,
+            "unit": [
+                959.4,
+                1033.68
+            ]
+        },
+        "bur": {
+            "dislodged": [
+                481.66,
+                938.09
+            ],
+            "scale": 1,
+            "unit": [
+                452.72,
+                945.85
+            ]
+        },
+        "cly": {
+            "dislodged": [
+                364.92,
+                514.85
+            ],
+            "overhang": {
+                "land": 0,
+                "open": 0,
+                "sea": 0.20833333333333334
+            },
+            "scale": 0.75,
+            "unit": [
+                383.68,
+                471.49
+            ]
+        },
+        "con": {
+            "dislodged": [
+                1164.58,
+                1143.65
+            ],
+            "scale": 1,
+            "unit": [
+                1164.58,
+                1113.69
+            ]
+        },
+        "den": {
+            "dislodged": [
+                635.27,
+                593.29
+            ],
+            "scale": 0.8,
+            "unit": [
+                635.27,
+                593.87
+            ]
+        },
+        "eas": {
+            "dislodged": [
+                1218.51,
+                1269.16
+            ],
+            "scale": 1,
+            "unit": [
+                1197.33,
+                1290.34
+            ]
+        },
+        "edi": {
+            "dislodged": [
+                405.38,
+                514.78
+            ],
+            "scale": 0.95,
+            "unit": [
+                400.26,
+                514.68
+            ]
+        },
+        "eng": {
+            "dislodged": [
+                345.39,
+                758.14
+            ],
+            "scale": 1,
+            "unit": [
+                390.24,
+                770.16
+            ]
+        },
+        "fin": {
+            "dislodged": [
+                969.48,
+                395.4
+            ],
+            "scale": 1,
+            "unit": [
+                940.54,
+                387.65
+            ]
+        },
+        "gal": {
+            "dislodged": [
+                986.48,
+                822.45
+            ],
+            "scale": 0.95,
+            "unit": [
+                986.48,
+                858.02
+            ]
+        },
+        "gas": {
+            "dislodged": [
+                339.11,
+                988.52
+            ],
+            "scale": 0.95,
+            "unit": [
+                366.6,
+                995.89
+            ]
+        },
+        "gol": {
+            "dislodged": [
+                521.3,
+                1138.76
+            ],
+            "scale": 1,
+            "unit": [
+                495.36,
+                1123.78
+            ]
+        },
+        "gre": {
+            "dislodged": [
+                933.76,
+                1201.75
+            ],
+            "scale": 1,
+            "unit": [
+                952.48,
+                1234.18
+            ]
+        },
+        "hel": {
+            "dislodged": [
+                586.38,
+                652.49
+            ],
+            "scale": 1,
+            "unit": [
+                557.44,
+                660.24
+            ]
+        },
+        "hol": {
+            "dislodged": [
+                551.46,
+                721.98
+            ],
+            "scale": 0.85,
+            "unit": [
+                538.6,
+                729.5
+            ]
+        },
+        "ion": {
+            "dislodged": [
+                868.57,
+                1250.93
+            ],
+            "scale": 1,
+            "unit": [
+                847.39,
+                1272.11
+            ]
+        },
+        "iri": {
+            "dislodged": [
+                313.64,
+                650.32
+            ],
+            "scale": 0.95,
+            "unit": [
+                327.87,
+                625.67
+            ]
+        },
+        "kie": {
+            "dislodged": [
+                649.39,
+                712.11
+            ],
+            "scale": 1,
+            "unit": [
+                626.17,
+                752.32
+            ]
+        },
+        "lon": {
+            "dislodged": [
+                396.37,
+                725.24
+            ],
+            "scale": 1,
+            "unit": [
+                396.63,
+                724.08
+            ]
+        },
+        "lvn": {
+            "dislodged": [
+                964.72,
+                488
+            ],
+            "scale": 1,
+            "unit": [
+                956.97,
+                516.94
+            ]
+        },
+        "lvp": {
+            "dislodged": [
+                380.23,
+                651.25
+            ],
+            "scale": 0.8,
+            "unit": [
+                392.15,
+                631.6
+            ]
+        },
+        "mar": {
+            "dislodged": [
+                430.8,
+                998.46
+            ],
+            "scale": 1,
+            "unit": [
+                415.82,
+                1024.4
+            ]
+        },
+        "mid": {
+            "dislodged": [
+                135.68,
+                792.05
+            ],
+            "scale": 1,
+            "unit": [
+                114.5,
+                813.23
+            ]
+        },
+        "mos": {
+            "dislodged": [
+                1406.14,
+                390.34
+            ],
+            "scale": 1,
+            "unit": [
+                1384.96,
+                411.52
+            ]
+        },
+        "mun": {
+            "dislodged": [
+                661.85,
+                824.11
+            ],
+            "scale": 1,
+            "unit": [
+                640.67,
+                802.93
+            ]
+        },
+        "naf": {
+            "dislodged": [
+                376.65,
+                1284.86
+            ],
+            "scale": 1,
+            "unit": [
+                355.47,
+                1306.04
+            ]
+        },
+        "nap": {
+            "dislodged": [
+                728.57,
+                1257.81
+            ],
+            "scale": 0.85,
+            "unit": [
+                727.81,
+                1258.22
+            ]
+        },
+        "nat": {
+            "dislodged": [
+                203.51,
+                342.93
+            ],
+            "scale": 1,
+            "unit": [
+                182.33,
+                364.11
+            ]
+        },
+        "nrg": {
+            "dislodged": [
+                547.52,
+                145.93
+            ],
+            "scale": 1,
+            "unit": [
+                526.34,
+                167.11
+            ]
+        },
+        "nth": {
+            "dislodged": [
+                524.01,
+                499.12
+            ],
+            "scale": 1,
+            "unit": [
+                502.83,
+                520.3
+            ]
+        },
+        "nwy": {
+            "dislodged": [
+                646.82,
+                470.15
+            ],
+            "scale": 1,
+            "unit": [
+                679.65,
+                437.31
+            ]
+        },
+        "par": {
+            "dislodged": [
+                438.06,
+                899.94
+            ],
+            "scale": 1,
+            "unit": [
+                408.1,
+                899.94
+            ]
+        },
+        "pic": {
+            "dislodged": [
+                443.88,
+                798.66
+            ],
+            "scale": 1,
+            "unit": [
+                480.05,
+                808.36
+            ]
+        },
+        "pie": {
+            "dislodged": [
+                582.94,
+                962.3
+            ],
+            "scale": 1,
+            "unit": [
+                557,
+                977.28
+            ]
+        },
+        "por": {
+            "dislodged": [
+                101.4,
+                1102.85
+            ],
+            "scale": 1,
+            "unit": [
+                101.4,
+                1132.81
+            ]
+        },
+        "pru": {
+            "dislodged": [
+                855.95,
+                682.72
+            ],
+            "scale": 1,
+            "unit": [
+                881.89,
+                667.74
+            ]
+        },
+        "rom": {
+            "dislodged": [
+                698.2,
+                1098.74
+            ],
+            "scale": 1,
+            "unit": [
+                695.26,
+                1100.79
+            ]
+        },
+        "ruh": {
+            "dislodged": [
+                591.39,
+                809.98
+            ],
+            "scale": 0.95,
+            "unit": [
+                577.16,
+                834.63
+            ]
+        },
+        "rum": {
+            "dislodged": [
+                991.74,
+                1003.31
+            ],
+            "scale": 1,
+            "unit": [
+                961.78,
+                1003.31
+            ]
+        },
+        "ser": {
+            "dislodged": [
+                883.21,
+                1015.68
+            ],
+            "scale": 1,
+            "unit": [
+                912.15,
+                1023.43
+            ]
+        },
+        "sev": {
+            "dislodged": [
+                1434.03,
+                732.09
+            ],
+            "scale": 1,
+            "unit": [
+                1412.85,
+                753.27
+            ]
+        },
+        "sil": {
+            "dislodged": [
+                782.37,
+                786.07
+            ],
+            "scale": 0.75,
+            "unit": [
+                804.07,
+                791.89
+            ]
+        },
+        "ska": {
+            "dislodged": [
+                634.67,
+                535.76
+            ],
+            "scale": 1,
+            "unit": [
+                605.73,
+                543.51
+            ]
+        },
+        "smy": {
+            "dislodged": [
+                1313.68,
+                1179.4
+            ],
+            "scale": 1,
+            "unit": [
+                1292.5,
+                1200.58
+            ]
+        },
+        "spa": {
+            "dislodged": [
+                283.93,
+                1126.28
+            ],
+            "scale": 1,
+            "unit": [
+                247.75,
+                1135.98
+            ]
+        },
+        "spa/nc": {
+            "dislodged": [
+                269,
+                1007.21
+            ],
+            "scale": 1,
+            "unit": [
+                232.83,
+                1016.9
+            ]
+        },
+        "spa/sc": {
+            "dislodged": [
+                244.67,
+                1153.92
+            ],
+            "scale": 1,
+            "unit": [
+                223.49,
+                1175.1
+            ]
+        },
+        "stp": {
+            "dislodged": [
+                1390.76,
+                57.55
+            ],
+            "scale": 1,
+            "unit": [
+                1369.57,
+                78.74
+            ]
+        },
+        "stp/nc": {
+            "dislodged": [
+                1344.93,
+                58.08
+            ],
+            "scale": 1,
+            "unit": [
+                1323.75,
+                79.26
+            ]
+        },
+        "stp/sc": {
+            "dislodged": [
+                1146.97,
+                430.91
+            ],
+            "scale": 1,
+            "unit": [
+                1121.03,
+                415.93
+            ]
+        },
+        "swe": {
+            "dislodged": [
+                845.25,
+                201.54
+            ],
+            "scale": 1,
+            "unit": [
+                824.07,
+                222.72
+            ]
+        },
+        "syr": {
+            "dislodged": [
+                1459.09,
+                1223.8
+            ],
+            "scale": 1,
+            "unit": [
+                1437.91,
+                1244.98
+            ]
+        },
+        "tri": {
+            "dislodged": [
+                835.29,
+                1055.28
+            ],
+            "scale": 1,
+            "unit": [
+                835.29,
+                1025.32
+            ]
+        },
+        "tun": {
+            "dislodged": [
+                564.17,
+                1317.93
+            ],
+            "scale": 1,
+            "unit": [
+                571.92,
+                1288.99
+            ]
+        },
+        "tus": {
+            "dislodged": [
+                653.75,
+                1052.3
+            ],
+            "scale": 1,
+            "unit": [
+                653.2,
+                1052.74
+            ]
+        },
+        "tyr": {
+            "dislodged": [
+                674.88,
+                914.51
+            ],
+            "scale": 1,
+            "unit": [
+                719.73,
+                902.49
+            ]
+        },
+        "tys": {
+            "dislodged": [
+                629.02,
+                1219.58
+            ],
+            "scale": 1,
+            "unit": [
+                657.96,
+                1211.83
+            ]
+        },
+        "ukr": {
+            "dislodged": [
+                1071.33,
+                778.27
+            ],
+            "scale": 1,
+            "unit": [
+                1079.08,
+                807.21
+            ]
+        },
+        "ven": {
+            "dislodged": [
+                658.6,
+                992.91
+            ],
+            "scale": 1,
+            "unit": [
+                654.86,
+                991.54
+            ]
+        },
+        "vie": {
+            "dislodged": [
+                826.64,
+                867.12
+            ],
+            "scale": 1,
+            "unit": [
+                790.47,
+                876.82
+            ]
+        },
+        "wal": {
+            "dislodged": [
+                349.62,
+                681.9
+            ],
+            "scale": 0.9,
+            "unit": [
+                349.26,
+                684.73
+            ]
+        },
+        "war": {
+            "dislodged": [
+                988.61,
+                690.09
+            ],
+            "scale": 1,
+            "unit": [
+                967.43,
+                711.27
+            ]
+        },
+        "wes": {
+            "dislodged": [
+                225.95,
+                1244.43
+            ],
+            "scale": 1,
+            "unit": [
+                255.9,
+                1244.43
+            ]
+        },
+        "yor": {
+            "dislodged": [
+                408.82,
+                680.74
+            ],
+            "scale": 0.95,
+            "unit": [
+                408.82,
+                680.74
+            ]
+        }
+    },
+    "previousPhase": {
+        "dislodged": {},
+        "nmr": [
+            "Turkey"
+        ],
+        "orderParts": {
+            "tri": [
+                "Move",
+                "alb"
+            ]
+        },
+        "orders": {
+            "tri": "Fleet Trieste Move Albania"
+        },
+        "phase": {
+            "season": "Fall",
+            "type": "Retreat",
+            "year": 1901
+        },
+        "powers": {
+            "tri": "Austria"
+        },
+        "resolutions": {
+            "tri": "OK"
+        }
+    },
+    "provinceNames": {
+        "adr": "Adriatic Sea",
+        "aeg": "Aegean Sea",
+        "alb": "Albania",
+        "ank": "Ankara",
+        "apu": "Apulia",
+        "arm": "Armenia",
+        "bal": "Baltic Sea",
+        "bar": "Barents Sea",
+        "bel": "Belgium",
+        "ber": "Berlin",
+        "bla": "Black Sea",
+        "boh": "Bohemia",
+        "bot": "Gulf of Bothnia",
+        "bre": "Brest",
+        "bud": "Budapest",
+        "bul": "Bulgaria",
+        "bul/ec": "Bulgaria (EC)",
+        "bul/sc": "Bulgaria (SC)",
+        "bur": "Burgundy",
+        "cly": "Clyde",
+        "con": "Constantinople",
+        "den": "Denmark",
+        "eas": "East Med",
+        "edi": "Edinburgh",
+        "eng": "English Channel",
+        "fin": "Finland",
+        "gal": "Galicia",
+        "gas": "Gascony",
+        "gol": "Gulf of Lyon",
+        "gre": "Greece",
+        "hel": "Heligoland Bight",
+        "hol": "Holland",
+        "ion": "Ionian Sea",
+        "iri": "Irish Sea",
+        "kie": "Kiel",
+        "lon": "London",
+        "lvn": "Livonia",
+        "lvp": "Liverpool",
+        "mar": "Marseilles",
+        "mid": "Mid-Atlantic",
+        "mos": "Moscow",
+        "mun": "Munich",
+        "naf": "North Africa",
+        "nap": "Naples",
+        "nat": "North Atlantic",
+        "nrg": "Norwegian Sea",
+        "nth": "North Sea",
+        "nwy": "Norway",
+        "par": "Paris",
+        "pic": "Picardy",
+        "pie": "Piedmont",
+        "por": "Portugal",
+        "pru": "Prussia",
+        "rom": "Rome",
+        "ruh": "Ruhr",
+        "rum": "Rumania",
+        "ser": "Serbia",
+        "sev": "Sevastopol",
+        "sil": "Silesia",
+        "ska": "Skagerakk (SKA)",
+        "smy": "Smyrna",
+        "spa": "Spain",
+        "spa/nc": "Spain (NC)",
+        "spa/sc": "Spain (SC)",
+        "stp": "St. Petersburg",
+        "stp/nc": "St. Petersburg (NC)",
+        "stp/sc": "St. Petersburg (SC)",
+        "swe": "Sweden",
+        "syr": "Syria",
+        "tri": "Trieste",
+        "tun": "Tunis",
+        "tus": "Tuscany",
+        "tyr": "Tyrolia",
+        "tys": "Tyrrhenian Sea",
+        "ukr": "Ukraine",
+        "ven": "Venice",
+        "vie": "Vienna",
+        "wal": "Wales",
+        "war": "Warsaw",
+        "wes": "West Mediterranean",
+        "yor": "Yorkshire"
+    },
+    "resolutions": {
+        "tri": "OK"
+    },
+    "settings": {
+        "deadlineMinutes": 30,
+        "firstTurnExtraMinutes": 0,
+        "gmPlays": false,
+        "graceMinutes": 0,
+        "pressMode": "ftf",
+        "retreatBuildPercent": 50,
+        "variant": "classical"
+    },
+    "settingsVersion": 0,
+    "started": true,
+    "supplyCenters": {
+        "ank": "Turkey",
+        "ber": "Germany",
+        "bre": "France",
+        "bud": "Austria",
+        "con": "Turkey",
+        "den": "Germany",
+        "edi": "England",
+        "kie": "Germany",
+        "lon": "England",
+        "lvp": "England",
+        "mar": "France",
+        "mos": "Russia",
+        "mun": "Germany",
+        "nap": "Italy",
+        "nwy": "England",
+        "par": "France",
+        "por": "France",
+        "rom": "Italy",
+        "rum": "Russia",
+        "sev": "Russia",
+        "smy": "Turkey",
+        "spa": "France",
+        "stp": "Russia",
+        "swe": "Russia",
+        "tri": "Italy",
+        "ven": "Italy",
+        "vie": "Austria",
+        "war": "Russia"
+    },
+    "totalSeats": 7,
+    "units": {
+        "alb": {
+            "nation": "Austria",
+            "type": "Fleet"
+        },
+        "ank": {
+            "nation": "Turkey",
+            "type": "Fleet"
+        },
+        "bla": {
+            "nation": "Russia",
+            "type": "Fleet"
+        },
+        "bud": {
+            "nation": "Austria",
+            "type": "Army"
+        },
+        "con": {
+            "nation": "Turkey",
+            "type": "Army"
+        },
+        "den": {
+            "nation": "Germany",
+            "type": "Fleet"
+        },
+        "ion": {
+            "nation": "Italy",
+            "type": "Fleet"
+        },
+        "kie": {
+            "nation": "Germany",
+            "type": "Army"
+        },
+        "mun": {
+            "nation": "Germany",
+            "type": "Army"
+        },
+        "nth": {
+            "nation": "England",
+            "type": "Fleet"
+        },
+        "nwy": {
+            "nation": "England",
+            "type": "Fleet"
+        },
+        "par": {
+            "nation": "France",
+            "type": "Army"
+        },
+        "por": {
+            "nation": "France",
+            "type": "Fleet"
+        },
+        "rum": {
+            "nation": "Russia",
+            "type": "Army"
+        },
+        "smy": {
+            "nation": "Turkey",
+            "type": "Army"
+        },
+        "spa": {
+            "nation": "France",
+            "type": "Army"
+        },
+        "swe": {
+            "nation": "Russia",
+            "type": "Fleet"
+        },
+        "tri": {
+            "nation": "Italy",
+            "type": "Army"
+        },
+        "ven": {
+            "nation": "Italy",
+            "type": "Army"
+        },
+        "vie": {
+            "nation": "Austria",
+            "type": "Army"
+        },
+        "war": {
+            "nation": "Russia",
+            "type": "Army"
+        },
+        "yor": {
+            "nation": "England",
+            "type": "Army"
+        }
+    },
+    "variant": {
+        "key": "classical",
+        "name": "Classical",
+        "supported": true
+    },
+    "you": {
+        "power": "France"
+    },
+    "youFinalized": false
+}

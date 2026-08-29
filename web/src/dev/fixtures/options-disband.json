@@ -1,0 +1,38 @@
+{
+    "alb": {
+        "Disband": {
+            "Filter": "MAX:Disband:0",
+            "Next": {
+                "alb": {
+                    "Next": {},
+                    "Type": "SrcProvince"
+                }
+            },
+            "Type": "OrderType"
+        }
+    },
+    "bud": {
+        "Disband": {
+            "Filter": "MAX:Disband:0",
+            "Next": {
+                "bud": {
+                    "Next": {},
+                    "Type": "SrcProvince"
+                }
+            },
+            "Type": "OrderType"
+        }
+    },
+    "vie": {
+        "Disband": {
+            "Filter": "MAX:Disband:0",
+            "Next": {
+                "vie": {
+                    "Next": {},
+                    "Type": "SrcProvince"
+                }
+            },
+            "Type": "OrderType"
+        }
+    }
+}
