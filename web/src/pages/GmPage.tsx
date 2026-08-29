@@ -155,7 +155,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           </button>
           {guide ? (
             <button type="button" className="link" onClick={() => setRefereeing(true)}>
-              Referee guide
+              Move the pieces
             </button>
           ) : null}
         </p>

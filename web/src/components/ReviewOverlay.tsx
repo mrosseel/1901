@@ -66,11 +66,12 @@ export function ReviewOverlay({
         <button type="button" className="primary" onClick={onClose}>
           Close review
         </button>
-        {/* The same phase, told as physical acts, for whoever is moving the
-            pieces on the real board. */}
+        {/* The same phase, told as physical acts, for whoever keeps the real
+            board. A quiet link: most tables project the board and never touch
+            pieces, so this must not compete with Close review. */}
         {onReferee ? (
-          <button type="button" onClick={onReferee}>
-            Referee guide
+          <button type="button" className="link" onClick={onReferee}>
+            Move the pieces
           </button>
         ) : null}
       </div>

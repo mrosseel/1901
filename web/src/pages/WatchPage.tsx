@@ -320,7 +320,7 @@ export function WatchPage({
             </section>
             {guide ? (
               <button type="button" onClick={() => setRefereeing(true)}>
-                Referee guide
+                Move the pieces
               </button>
             ) : null}
           </>

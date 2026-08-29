@@ -361,7 +361,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
               </button>
               {guide ? (
                 <button type="button" className="link" onClick={() => setRefereeing(true)}>
-                  Referee guide
+                  Move the pieces
                 </button>
               ) : null}
             </span>

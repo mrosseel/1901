@@ -21,10 +21,10 @@ export function RefereeGuide({
   onClose: () => void;
 }) {
   return (
-    <section className="referee" aria-label="Referee guide">
+    <section className="referee" aria-label="Move the pieces">
       <header className="referee-head">
         <div>
-          <h2>Referee guide</h2>
+          <h2>Move the pieces</h2>
           <p className="muted">
             {guide.title} ·{" "}
             {guide.total === 0
