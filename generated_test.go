@@ -740,3 +740,60 @@ func TestAGameFromBeforeTheColumnLoads(t *testing.T) {
 		t.Error("the old game did not come back")
 	}
 }
+
+// TestLoadStateRestoresAGameOnAGeneratedVariant guards the startup order.
+//
+// A saved game resolves its variant through the registry, so the generated
+// variants have to be loaded before the games are. They were not: loadAll ran
+// first, and every game played on a map from a directory failed to load with
+// "unknown variant". Nothing caught it, because the tests loaded the variants
+// themselves before anything else ran.
+func TestLoadStateRestoresAGameOnAGeneratedVariant(t *testing.T) {
+	withGeneratedDir(t, filepath.Join("testdata", "generated"))
+
+	handle, err := openDB(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("openDB: %v", err)
+	}
+	savedDB, savedGames := db, games.games
+	db = handle
+	games.games = map[string]*game{}
+	t.Cleanup(func() {
+		db = savedDB
+		games.games = savedGames
+		handle.Close()
+	})
+
+	// Save a game the way a running server would.
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatal(err)
+	}
+	v, ok := lookupVariant("demo7")
+	if !ok {
+		t.Fatal("demo7 must resolve")
+	}
+	g, err := newGame("demo7", v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := newFlow(settings{Variant: "demo7"}.normalised(), v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.flow = f
+	if err := g.persistErr("gen-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Now boot from cold, exactly as main does.
+	generatedVariants = map[string]generatedVariant{}
+	games.games = map[string]*game{}
+	rebuildVariantIndex()
+
+	if err := loadState(); err != nil {
+		t.Fatalf("cold start must restore a game on a generated variant: %v", err)
+	}
+	if _, ok := games.games["gen-1"]; !ok {
+		t.Error("the game did not come back after a cold start")
+	}
+}

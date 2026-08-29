@@ -642,6 +642,44 @@ func limitBody(next http.Handler) http.Handler {
 	})
 }
 
+// loadState reads everything the server needs before it serves a request.
+//
+// The order is load-bearing, which is why this is a function rather than a run
+// of statements in main: a test can call it and check the result.
+//
+//  1. Placement tables for the compiled variants.
+//  2. Generated variants, which register themselves and their own placement
+//     tables.
+//  3. Games. A saved game names its variant by key and resolves it through the
+//     registry, so every variant has to exist by now. Loading games earlier
+//     failed every game played on a map that lives in a directory.
+//  4. Name overrides, styles and style plans, which decorate what is already
+//     registered.
+//
+// Every step is fatal on failure. Serving half a placement table, or a variant
+// whose descriptor only half parsed, is worse than not starting.
+func loadState() error {
+	if err := loadPlacements(); err != nil {
+		return fmt.Errorf("load placements: %w", err)
+	}
+	if err := loadGeneratedVariants(); err != nil {
+		return fmt.Errorf("load generated variants: %w", err)
+	}
+	if err := loadAll(); err != nil {
+		return fmt.Errorf("load games: %w", err)
+	}
+	if err := loadNameOverrides(); err != nil {
+		return fmt.Errorf("load name overrides: %w", err)
+	}
+	if err := loadStyles(); err != nil {
+		return fmt.Errorf("load map styles: %w", err)
+	}
+	if err := loadPlans(); err != nil {
+		return fmt.Errorf("load style plans: %w", err)
+	}
+	return nil
+}
+
 func main() {
 	pinBaseURL()
 	games.limit = gameLimit()
@@ -651,34 +689,8 @@ func main() {
 	}
 	defer handle.Close()
 	db = handle
-	if err := loadAll(); err != nil {
-		log.Fatalf("load games: %v", err)
-	}
-	// The approved placement tables are read once, before anything is served:
-	// they never change while the process runs, and a board drawn from half a
-	// table would be worse than one drawn from none.
-	if err := loadPlacements(); err != nil {
-		log.Fatalf("load placements: %v", err)
-	}
-	// Generated variants come off disk rather than out of the binary. They
-	// register their own placement tables, so they load after the compiled
-	// tables and before anything resolves a variant key.
-	if err := loadGeneratedVariants(); err != nil {
-		log.Fatalf("load generated variants: %v", err)
-	}
-	// The display-name overrides that ride on top of godip's own names, for
-	// the same reason and on the same terms.
-	if err := loadNameOverrides(); err != nil {
-		log.Fatalf("load name overrides: %v", err)
-	}
-	// The map styles and the plans that apply them, likewise. A broken style
-	// or a plan from a schema this server does not read is a startup error:
-	// serving three styles of four, silently, would be worse.
-	if err := loadStyles(); err != nil {
-		log.Fatalf("load map styles: %v", err)
-	}
-	if err := loadPlans(); err != nil {
-		log.Fatalf("load style plans: %v", err)
+	if err := loadState(); err != nil {
+		log.Fatal(err)
 	}
 
 	spaDir := absPath(spaDirPath())
