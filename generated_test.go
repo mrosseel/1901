@@ -532,3 +532,162 @@ func TestSavedGameRefusesAChangedMap(t *testing.T) {
 		t.Error("no game may be restored once the map has changed")
 	}
 }
+
+// ---- the compiled variants must be unaffected -----------------------------
+//
+// Nothing converted them. They are still Go packages in a compile-time slice.
+// But the index, the game INSERT and the game load path are shared, so these
+// check that adding the generated path left them alone.
+
+func TestCompiledVariantsStillResolve(t *testing.T) {
+	withGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, v := range compiledVariants() {
+		key := variantKey(v.Name)
+		found, ok := lookupVariant(key)
+		if !ok {
+			t.Errorf("compiled variant %q no longer resolves", key)
+			continue
+		}
+		if found.Name != v.Name {
+			t.Errorf("key %q resolved to %q", key, found.Name)
+		}
+	}
+}
+
+func TestCompiledVariantsStillStartAndPlay(t *testing.T) {
+	for _, key := range []string{"classical", "sailho", "1900"} {
+		t.Run(key, func(t *testing.T) {
+			v, ok := lookupVariant(key)
+			if !ok {
+				t.Skipf("%v is not in this build", key)
+			}
+			state, err := v.Start()
+			if err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			for i := 0; i < 3; i++ {
+				if err := state.Next(); err != nil {
+					t.Fatalf("phase %d: %v", i+1, err)
+				}
+			}
+		})
+	}
+}
+
+// TestASavedClassicalGameStillRoundTrips is the one that matters for existing
+// games. The hash column and the INSERT both changed underneath them.
+func TestASavedClassicalGameStillRoundTrips(t *testing.T) {
+	withGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatal(err)
+	}
+
+	handle, err := openDB(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("openDB: %v", err)
+	}
+	savedDB, savedGames := db, games.games
+	db = handle
+	games.games = map[string]*game{}
+	t.Cleanup(func() {
+		db = savedDB
+		games.games = savedGames
+		handle.Close()
+	})
+
+	v, ok := lookupVariant("classical")
+	if !ok {
+		t.Fatal("classical must resolve")
+	}
+	g, err := newGame("classical", v)
+	if err != nil {
+		t.Fatalf("newGame: %v", err)
+	}
+	// A setting that the broken INSERT used to discard.
+	s := settings{Variant: "classical", IllegalMoves: false}.normalised()
+	f, err := newFlow(s, v)
+	if err != nil {
+		t.Fatalf("newFlow: %v", err)
+	}
+	g.flow = f
+	if err := g.persistErr("classic-1"); err != nil {
+		t.Fatalf("persistErr: %v", err)
+	}
+
+	games.games = map[string]*game{}
+	if err := loadAll(); err != nil {
+		t.Fatalf("an existing classical game must still load: %v", err)
+	}
+	restored, ok := games.games["classic-1"]
+	if !ok {
+		t.Fatal("the classical game did not come back")
+	}
+	if restored.variantKey != "classical" {
+		t.Errorf("restored on variant %q", restored.variantKey)
+	}
+	if restored.flow.settings.IllegalMoves != false {
+		t.Error("illegal_moves did not survive the round trip; the INSERT is dropping it")
+	}
+
+	var hash string
+	if err := db.QueryRow(
+		`SELECT variant_hash FROM game WHERE id = ?`, "classic-1",
+	).Scan(&hash); err != nil {
+		t.Fatalf("reading variant_hash: %v", err)
+	}
+	if hash != "" {
+		t.Errorf("a compiled variant must record no hash, got %q", hash)
+	}
+}
+
+// TestAGameFromBeforeTheColumnLoads simulates a database written by the old
+// binary: the row exists, the column does not.
+func TestAGameFromBeforeTheColumnLoads(t *testing.T) {
+	withGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatal(err)
+	}
+
+	handle, err := openDB(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("openDB: %v", err)
+	}
+	savedDB, savedGames := db, games.games
+	db = handle
+	games.games = map[string]*game{}
+	t.Cleanup(func() {
+		db = savedDB
+		games.games = savedGames
+		handle.Close()
+	})
+
+	v, _ := lookupVariant("classical")
+	g, err := newGame("classical", v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := newFlow(settings{Variant: "classical"}.normalised(), v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.flow = f
+	if err := g.persistErr("old-1"); err != nil {
+		t.Fatal(err)
+	}
+	// Blank it, the way a row written before the column would read.
+	if _, err := db.Exec(`UPDATE game SET variant_hash = '' WHERE id = ?`, "old-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	games.games = map[string]*game{}
+	if err := loadAll(); err != nil {
+		t.Fatalf("a game predating the column must still load: %v", err)
+	}
+	if _, ok := games.games["old-1"]; !ok {
+		t.Error("the old game did not come back")
+	}
+}
