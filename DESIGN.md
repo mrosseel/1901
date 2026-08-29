@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r18 — 2026-08-28
+**Document revision:** r19 — 2026-08-29 — 2026-08-28
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -777,6 +777,22 @@ event-logged, persisted in `game.press_mode` and returned in the GM, seat and
 public views. No behaviour is attached to it, and the app carries no messages
 in any mode.
 
+### D-029 — Illegal orders are allowed, and on by default
+**Status:** accepted, r19 (closes Q-007)
+Players may enter orders the engine knows are illegal — bluffing by
+"misordering" is part of Diplomacy (Backstabbr allows it deliberately;
+WDC reads sloppy paper orders leniently; the one field complaint about
+the hot-seat competitor was the lack of it). A game setting
+`illegalMoves`, DEFAULT ON for every press mode, controls it.
+
+Semantics: an illegal order is stored and shown as the player's written
+order; at adjudication it is excluded from the engine's order set, the
+unit holds, and the review shows the order struck through as "illegal —
+unit held" (the WDC misorder outcome). Entry UX: legal targets stay
+highlighted, but with the setting on, taps outside the highlights are
+accepted rather than refused; the tap grammar remains the guide, not a
+cage. Turning the setting off restores strict legal-only entry.
+
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
 The GM shares ONE invite link/QR. Claiming it assigns a random
@@ -904,7 +920,7 @@ that surface mid-game at a table.
   feature.
 - **Q-006 — Which variants ship in v1?** *resolved → D-014.* Classical
   supported; all other generated variants behind an experimental flag.
-- **Q-007 — Illegal and bluff orders (r17).** The tap grammar builds from
+- **Q-007 — Illegal and bluff orders (r17).** *resolved → D-029.* The tap grammar builds from
   godip's Options() and cannot express an illegal order. Backstabbr
   allows illegal orders deliberately (bluffing is part of the game), WDC
   house rules mandate lenient interpretation, and the main field
