@@ -3,8 +3,11 @@ package variantjson
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
+
+	"github.com/zond/godip/variants/classical"
 )
 
 // ValidationError collects every problem found, rather than stopping at the
@@ -35,9 +38,27 @@ func Validate(d Descriptor) error {
 	if d.Schema != SchemaVersion {
 		report("schema is %d, this loader understands %d", d.Schema, SchemaVersion)
 	}
-	if _, ok := profiles[d.Rules.Profile]; !ok {
+	prof, knownProfile := profiles[d.Rules.Profile]
+	if !knownProfile {
 		report("unknown rules profile %q (known: %s)",
 			d.Rules.Profile, strings.Join(sortedKeys(profiles), ", "))
+	}
+
+	// The opening phase has to be one the profile's cycle can reach. A season
+	// the phase generator never produces would leave the game in a phase it
+	// could never return to.
+	if knownProfile {
+		_, season, phaseType := d.Start.startPhase()
+		seasons := orDefault(prof.seasons, classical.Seasons)
+		if !slices.Contains(seasons, season) {
+			report("start season %q is not one of this profile's seasons (%v)",
+				season, seasons)
+		}
+		phaseTypes := orDefault(prof.phaseTypes, classical.PhaseTypes)
+		if !slices.Contains(phaseTypes, phaseType) {
+			report("start phase %q is not one of this profile's phase types (%v)",
+				phaseType, phaseTypes)
+		}
 	}
 
 	nations := map[string]bool{}
@@ -163,8 +184,12 @@ func Validate(d Descriptor) error {
 			report("starting unit on %q needs [type, nation]", prov)
 			continue
 		}
-		if spec[0] != "army" && spec[0] != "fleet" {
+		if unitType, known := unitTypesByName[spec[0]]; !known {
 			report("starting unit on %q has unknown type %q", prov, spec[0])
+		} else if knownProfile &&
+			!slices.Contains(orDefault(prof.unitTypes, classical.UnitTypes), unitType) {
+			report("starting unit on %q is a %v, which this profile does not have",
+				prov, spec[0])
 		}
 		if !nations[spec[1]] {
 			report("starting unit on %q belongs to unknown nation %q", prov, spec[1])

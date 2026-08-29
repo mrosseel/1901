@@ -25,9 +25,14 @@ import (
 	"github.com/zond/godip"
 	"github.com/zond/godip/graph"
 	"github.com/zond/godip/orders"
+	"github.com/zond/godip/phase"
 	"github.com/zond/godip/state"
+	"github.com/zond/godip/variants/chaos"
 	"github.com/zond/godip/variants/classical"
 	"github.com/zond/godip/variants/common"
+	"github.com/zond/godip/variants/hundred"
+	"github.com/zond/godip/variants/twentytwenty"
+	"github.com/zond/godip/variants/westernworld901"
 )
 
 // SchemaVersion is the descriptor version this loader understands.
@@ -64,30 +69,167 @@ type Descriptor struct {
 type Rules struct {
 	Profile string   `json:"profile"`
 	Orders  []string `json:"orders"`
+	// Text is the variant's own rules prose, as its author wrote it. Empty
+	// means the win condition is the only rule worth stating.
+	Text string `json:"text"`
 }
 
-// Start is the opening position.
+// Start is the opening position, and the phase it stands in.
+//
+// A variant does not have to begin in Spring 1901: Cold War opens in 1960,
+// North Sea Wars in year 0, and Chaos opens in an adjustment phase with no
+// units at all. Zero values mean 1901, Spring, Movement.
 type Start struct {
+	Year   int    `json:"year"`
+	Season string `json:"season"`
+	Phase  string `json:"phase"`
 	// province -> [unitType, nation]
 	Units map[string][]string `json:"units"`
 	// province -> nation
 	SupplyCenters map[string]string `json:"supplyCenters"`
 }
 
+// The opening phase a descriptor gets when it says nothing.
+const (
+	defaultStartYear   = 1901
+	defaultStartSeason = godip.Spring
+	defaultStartPhase  = godip.Movement
+)
+
+// startPhase resolves the opening phase, filling in the default for each field
+// the descriptor leaves out.
+func (s Start) startPhase() (int, godip.Season, godip.PhaseType) {
+	year, season, phaseType := s.Year, godip.Season(s.Season), godip.PhaseType(s.Phase)
+	if year == 0 && s.Season == "" && s.Phase == "" {
+		year = defaultStartYear
+	}
+	if season == "" {
+		season = defaultStartSeason
+	}
+	if phaseType == "" {
+		phaseType = defaultStartPhase
+	}
+	return year, season, phaseType
+}
+
 // profile is the compiled half of a variant: the behaviour a descriptor can
 // name but not express. A descriptor selects one by name.
+//
+// Everything here is a function or a rule set. A number, a name or a position
+// belongs in the descriptor instead; if it appears in this struct, it is
+// because no arrangement of data could produce it.
 type profile struct {
 	newPhase   func(int, godip.Season, godip.PhaseType) godip.Phase
 	parser     orders.Parser
 	backupRule godip.BackupRule
+	// stateFlags and neutralOrders are the last two arguments godip's state
+	// constructor takes. They decide where units may be built and who moves
+	// the unowned ones, so a variant that sets them plays differently.
+	stateFlags    map[godip.Flag]bool
+	neutralOrders func(state.State) map[godip.Province]godip.Adjudicator
+	// The three vocabularies a phase cycles through. Empty means classical's.
+	phaseTypes []godip.PhaseType
+	seasons    []godip.Season
+	unitTypes  []godip.UnitType
+	// soloWinner and soloSCCount override the count-to-N win condition for the
+	// one variant whose victory depends on the year.
+	soloWinner  func(*state.State) godip.Nation
+	soloSCCount func(*state.State) int
 }
 
+// buildAnywherePhase is the phase cycle godip gives every variant that lets a
+// power build on any centre it owns.
+var buildAnywherePhase = phase.Generator(hundred.BuildAnywhereParser, classical.AdjustSCs)
+
+// pureParser is Pure's order set. godip keeps its copy unexported, and it is
+// the classical set minus convoys, which a map of seven landlocked provinces
+// has no water for.
+var pureParser = orders.NewParser([]godip.Order{
+	orders.BuildOrder,
+	orders.DisbandOrder,
+	orders.HoldOrder,
+	orders.MoveOrder,
+	orders.SupportOrder,
+})
+
+// profiles is every rule set a descriptor may name.
+//
+// The names describe behaviour rather than variants, because several variants
+// share one: Sengoku and Western World 901 differ in their maps and in nothing
+// else that the adjudicator can see.
 var profiles = map[string]profile{
 	"classical": {
 		newPhase:   classical.NewPhase,
 		parser:     classical.Parser,
 		backupRule: classical.BackupRule,
 	},
+	// Classical's phase cycle, but a power may build on any centre it owns.
+	// godip's Gateway West sets the parser without the phase generator that
+	// goes with it, so its build options are classical's and its typed orders
+	// are not.
+	"classical-buildanywhere": {
+		newPhase:   classical.NewPhase,
+		parser:     hundred.BuildAnywhereParser,
+		backupRule: classical.BackupRule,
+	},
+	"buildanywhere": {
+		newPhase:   buildAnywherePhase,
+		parser:     hundred.BuildAnywhereParser,
+		backupRule: classical.BackupRule,
+	},
+	// The same, plus the two things a map full of unowned centres needs: the
+	// flag that lets a build land anywhere, and orders for the neutrals.
+	"buildanywhere-neutrals": {
+		newPhase:      buildAnywherePhase,
+		parser:        hundred.BuildAnywhereParser,
+		backupRule:    classical.BackupRule,
+		stateFlags:    map[godip.Flag]bool{godip.Anywhere: true},
+		neutralOrders: westernworld901.NeutralOrders,
+	},
+	// Chaos opens in an adjustment phase where every centre without an order
+	// builds an army, so that a board of 34 powers starts even when most of
+	// them are absent.
+	"chaos": {
+		newPhase:   chaos.Phase,
+		parser:     hundred.BuildAnywhereParser,
+		backupRule: classical.BackupRule,
+		stateFlags: map[godip.Flag]bool{godip.Anywhere: true},
+	},
+	// One season per turn, five years to the turn.
+	"hundred": {
+		newPhase:   hundred.Phase,
+		parser:     hundred.BuildAnywhereParser,
+		backupRule: classical.BackupRule,
+		stateFlags: map[godip.Flag]bool{godip.Anywhere: true},
+		seasons:    []godip.Season{hundred.YearSeason},
+	},
+	// Victory is a lead over the second power, and the lead needed shrinks by
+	// one every year, so no fixed number of centres can express it.
+	"twentytwenty": {
+		newPhase:    twentytwenty.Phase,
+		parser:      twentytwenty.BuildAnyHomeCenterParser,
+		backupRule:  classical.BackupRule,
+		stateFlags:  map[godip.Flag]bool{godip.AnyHomeCenter: true},
+		soloWinner:  twentytwenty.TwentyTwentyWinner,
+		soloSCCount: twentytwenty.TwentyTwentyVariant.SoloSCCount,
+	},
+	// Seven provinces, one each, armies only.
+	"pure": {
+		newPhase:   phase.Generator(pureParser, classical.AdjustSCs),
+		parser:     pureParser,
+		backupRule: classical.BackupRule,
+		unitTypes:  []godip.UnitType{godip.Army},
+	},
+}
+
+// Profiles names every rule set this build carries, in sorted order.
+func Profiles() []string {
+	return sortedKeys(profiles)
+}
+
+var unitTypesByName = map[string]godip.UnitType{
+	"army":  godip.Army,
+	"fleet": godip.Fleet,
 }
 
 var flagsByName = map[string][]godip.Flag{
@@ -155,23 +297,24 @@ func Build(d Descriptor) (common.Variant, error) {
 	for _, row := range d.Provinces {
 		key, _ := row[0].(string)
 		name, _ := row[1].(string)
-		longNames[godip.Province(key)] = name
+		// An empty name is not a name. Left in, it would label the board with
+		// a blank where the abbreviation should be.
+		if name != "" {
+			longNames[godip.Province(key)] = name
+		}
 	}
 
 	blank := func(phase godip.Phase) *state.State {
-		return state.New(built, phase, prof.backupRule, nil, nil)
+		return state.New(built, phase, prof.backupRule, prof.stateFlags, prof.neutralOrders)
 	}
 
+	startYear, startSeason, startPhaseType := d.Start.startPhase()
 	start := func() (*state.State, error) {
-		result := blank(prof.newPhase(1901, godip.Spring, godip.Movement))
+		result := blank(prof.newPhase(startYear, startSeason, startPhaseType))
 		units := map[godip.Province]godip.Unit{}
 		for prov, spec := range d.Start.Units {
-			unitType := godip.Army
-			if spec[0] == "fleet" {
-				unitType = godip.Fleet
-			}
 			units[godip.Province(prov)] = godip.Unit{
-				Type:   unitType,
+				Type:   unitTypesByName[spec[0]],
 				Nation: godip.Nation(spec[1]),
 			}
 		}
@@ -186,6 +329,19 @@ func Build(d Descriptor) (common.Variant, error) {
 		return result, nil
 	}
 
+	soloWinner := prof.soloWinner
+	if soloWinner == nil {
+		soloWinner = common.SCCountWinner(d.SoloSupplyCenters)
+	}
+	soloSCCount := prof.soloSCCount
+	if soloSCCount == nil {
+		soloSCCount = func(*state.State) int { return d.SoloSupplyCenters }
+	}
+	rules := d.Rules.Text
+	if rules == "" {
+		rules = fmt.Sprintf("First to %d supply centers wins.", d.SoloSupplyCenters)
+	}
+
 	return common.Variant{
 		Name:              d.Name,
 		Graph:             func() godip.Graph { return built },
@@ -194,17 +350,25 @@ func Build(d Descriptor) (common.Variant, error) {
 		Phase:             prof.newPhase,
 		Parser:            prof.parser,
 		Nations:           nations,
-		PhaseTypes:        classical.PhaseTypes,
-		Seasons:           classical.Seasons,
-		UnitTypes:         classical.UnitTypes,
-		SoloWinner:        common.SCCountWinner(d.SoloSupplyCenters),
-		SoloSCCount:       func(*state.State) int { return d.SoloSupplyCenters },
+		PhaseTypes:        orDefault(prof.phaseTypes, classical.PhaseTypes),
+		Seasons:           orDefault(prof.seasons, classical.Seasons),
+		UnitTypes:         orDefault(prof.unitTypes, classical.UnitTypes),
+		SoloWinner:        soloWinner,
+		SoloSCCount:       soloSCCount,
 		ProvinceLongNames: longNames,
 		CreatedBy:         d.CreatedBy,
 		Version:           d.Version,
 		Description:       d.Description,
-		Rules:             fmt.Sprintf("First to %d supply centers wins.", d.SoloSupplyCenters),
+		Rules:             rules,
 	}, nil
+}
+
+// orDefault picks the profile's vocabulary, or classical's where it has none.
+func orDefault[T any](chosen, fallback []T) []T {
+	if len(chosen) > 0 {
+		return chosen
+	}
+	return fallback
 }
 
 // regionName renders a region row as a godip province name.

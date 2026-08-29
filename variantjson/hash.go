@@ -30,6 +30,10 @@ type gameFacts struct {
 	Solo      int               `json:"solo"`
 	Profile   string            `json:"profile"`
 	Orders    []string          `json:"orders"`
+	// StartPhase is empty for a variant that opens in Spring 1901, whether it
+	// says so or leaves the fields out. Saying the default and omitting it
+	// describe the same board, so they hash the same.
+	StartPhase string `json:"startPhase,omitempty"`
 }
 
 // cell renders one descriptor field as a string, so a row compares and sorts
@@ -73,6 +77,11 @@ func GameHash(d Descriptor) string {
 	}
 	sort.Strings(facts.Nations)
 	sort.Strings(facts.Orders)
+
+	year, season, phaseType := d.Start.startPhase()
+	if year != defaultStartYear || season != defaultStartSeason || phaseType != defaultStartPhase {
+		facts.StartPhase = fmt.Sprintf("%d %v %v", year, season, phaseType)
+	}
 
 	// A province's long name is a label, so only its key and its supply centre
 	// count. A region and a border are load-bearing in full.
