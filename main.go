@@ -46,6 +46,11 @@ type game struct {
 	// owner records which power entered the order, so seat views can be
 	// filtered without inspecting the board.
 	owner map[godip.Province]godip.Nation
+	// illegal marks the provinces whose stored order the engine refuses
+	// (D-029). The order is kept as the player wrote it and is shown back
+	// to them, but it is never in the engine's order set, so the unit holds
+	// and the review shows the order struck.
+	illegal map[godip.Province]bool
 	// flow carries the GM, seat, and phase state.
 	flow *flow
 	// watch is one entry per resolved phase: the public per-phase history
@@ -70,6 +75,7 @@ func newGame(key string, v common.Variant) (*game, error) {
 		state:      s,
 		parts:      map[godip.Province][]string{},
 		owner:      map[godip.Province]godip.Nation{},
+		illegal:    map[godip.Province]bool{},
 		variant:    v,
 		variantKey: key,
 	}, nil
@@ -88,28 +94,74 @@ func (self *game) clearOrder(prov godip.Province) {
 		if p.Super() == prov.Super() {
 			delete(self.parts, p)
 			delete(self.owner, p)
+			delete(self.illegal, p)
 		}
 	}
 }
 
-// setOrder validates and stores one order, replacing any earlier order for
-// the same province. The caller must hold g.mu.
-func (self *game) setOrder(prov godip.Province, rawParts []string) error {
-	// The Options tree repeats the source province after the order type.
-	// The parser does not want it, so drop it if the client kept it.
-	parts := rawParts
-	if len(parts) >= 2 && parts[1] == string(prov) {
-		parts = append([]string{parts[0]}, parts[2:]...)
+// orderParts drops the repeated source province the Options tree puts after
+// the order type. The parser does not want it, and clients keep it.
+func orderParts(prov godip.Province, rawParts []string) []string {
+	if len(rawParts) >= 2 && rawParts[1] == string(prov) {
+		return append([]string{rawParts[0]}, rawParts[2:]...)
 	}
+	return rawParts
+}
+
+// allowsIllegal reports whether this game takes orders the engine refuses
+// (D-029). It is on by default; a game whose flow is not built yet is
+// strict, which is what every internal caller wants.
+func (self *game) allowsIllegal() bool {
+	return self.flow != nil && self.flow.settings.IllegalMoves
+}
+
+/*
+setOrder stores one order, replacing any earlier order for the same province.
+The caller must hold g.mu.
+
+There are three outcomes, and the middle one is D-029.
+
+An order that does not PARSE is refused. Nothing coherent can be stored from
+it: the parser is what turns a list of words into an order at all, so a
+failure there means the client sent something that names no order type, no
+province, or the wrong number of parts. There is no player intent to keep.
+
+An order that parses but does not VALIDATE is a misorder — Vienna ordered to
+Paris, a support for a move nobody is making. Bluffing by misordering is part
+of Diplomacy, so with illegalMoves on it is stored as the player wrote it and
+marked illegal: it never enters the engine's order set, so at adjudication
+the unit holds and the review shows the order struck (D-029). With the
+setting off it is refused, which is the strict behaviour this server had.
+
+An order that validates goes into the engine, as always.
+*/
+func (self *game) setOrder(prov godip.Province, rawParts []string) error {
+	return self.storeOrder(prov, rawParts, self.allowsIllegal())
+}
+
+// setOrderStrict stores an order only if the engine accepts it, whatever the
+// game's setting says. Replay uses it: a stored row that is not marked
+// illegal and no longer validates is a row that has drifted from the board,
+// and turning it into a misorder would invent a move nobody made.
+func (self *game) setOrderStrict(prov godip.Province, rawParts []string) error {
+	return self.storeOrder(prov, rawParts, false)
+}
+
+func (self *game) storeOrder(prov godip.Province, rawParts []string, allowIllegal bool) error {
+	parts := orderParts(prov, rawParts)
 	bits := append([]string{string(prov)}, parts...)
 	order, err := self.variant.Parser.Parse(bits)
 	if err != nil {
 		return fmt.Errorf("cannot parse %v: %v", bits, err)
 	}
-	if _, err := order.Validate(self.state); err != nil {
-		return fmt.Errorf("illegal order %v: %v", bits, err)
-	}
 	power, _ := nationFor(self.state, prov)
+	if _, err := order.Validate(self.state); err != nil {
+		if !allowIllegal {
+			return fmt.Errorf("illegal order %v: %v", bits, err)
+		}
+		self.storeIllegal(prov, parts, power)
+		return nil
+	}
 
 	self.clearOrder(prov)
 	next := map[godip.Province]godip.Adjudicator{}
@@ -121,6 +173,25 @@ func (self *game) setOrder(prov godip.Province, rawParts []string) error {
 	self.parts[prov] = parts
 	self.owner[prov] = power
 	return nil
+}
+
+// storeIllegal keeps a misorder as written, outside the engine (D-029).
+// The caller must hold g.mu.
+func (self *game) storeIllegal(prov godip.Province, parts []string, power godip.Nation) {
+	self.clearOrder(prov)
+	self.parts[prov] = parts
+	self.owner[prov] = power
+	self.illegal[prov] = true
+}
+
+// illegalProvinces lists the provinces holding an illegal order, sorted.
+func (self *game) illegalProvinces() []string {
+	out := []string{}
+	for prov := range self.illegal {
+		out = append(out, string(prov))
+	}
+	sort.Strings(out)
+	return out
 }
 
 // registry holds every live game, keyed by id.
@@ -234,6 +305,10 @@ type stateJSON struct {
 	Resolutions   map[string]string   `json:"resolutions"`
 	SupplyCenters map[string]string   `json:"supplyCenters"`
 	Nations       []string            `json:"nations"`
+	// Illegal names the provinces whose order the engine refuses (D-029).
+	// The order is in Orders like any other, as the player wrote it; this
+	// is what tells a board to strike it through.
+	Illegal []string `json:"illegal"`
 }
 
 // snapshot renders the current board as JSON. The caller must hold self.mu.
@@ -282,6 +357,7 @@ func (self *game) snapshot(id string) stateJSON {
 	for prov, nation := range s.SupplyCenters() {
 		out.SupplyCenters[string(prov)] = string(nation)
 	}
+	out.Illegal = self.illegalProvinces()
 	for _, nation := range self.variant.Nations {
 		out.Nations = append(out.Nations, string(nation))
 	}
@@ -300,7 +376,16 @@ type phaseReviewJSON struct {
 	Resolutions map[string]string   `json:"resolutions"`
 	Dislodged   map[string]unitJSON `json:"dislodged"`
 	NMR         []string            `json:"nmr"`
+	// Illegal names the provinces whose order never reached the engine
+	// (D-029). Their resolution is "IllegalOrder", which is not something
+	// godip can say: an engine failure names the rule that beat the order,
+	// and this one says the order was never in the fight.
+	Illegal []string `json:"illegal"`
 }
+
+// illegalResolution is the resolution an illegal order is given. It is not a
+// godip error string, and it cannot collide with one.
+const illegalResolution = "IllegalOrder"
 
 // beginReview records the phase and its applied orders. It must run after
 // any NMR drops and before state.Next(), because the order text is read
@@ -318,6 +403,7 @@ func (self *game) beginReview(nmr []string) *phaseReviewJSON {
 		Resolutions: map[string]string{},
 		Dislodged:   map[string]unitJSON{},
 		NMR:         []string{},
+		Illegal:     self.illegalProvinces(),
 	}
 	for prov, bits := range self.parts {
 		review.Orders[string(prov)] = self.describe(prov, bits)
@@ -338,6 +424,13 @@ func (self *game) endReview(review *phaseReviewJSON) {
 		} else {
 			review.Resolutions[string(prov)] = err.Error()
 		}
+	}
+	// An illegal order has no resolution of the engine's, because it was
+	// never in the engine (D-029). It gets one of ours, so a reader can tell
+	// "this order was struck and the unit held" from "this order was tried
+	// and lost".
+	for _, prov := range review.Illegal {
+		review.Resolutions[prov] = illegalResolution
 	}
 	review.Dislodged = self.dislodgedMap()
 }

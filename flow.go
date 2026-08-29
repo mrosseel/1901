@@ -75,6 +75,13 @@ type settings struct {
 	// and every platform that has run real games gives it longer.
 	FirstTurnExtraMinutes int `json:"firstTurnExtraMinutes"`
 
+	// IllegalMoves lets a player enter an order the engine refuses (D-029).
+	// Bluffing by misordering is part of Diplomacy, so this is ON by
+	// default, in every press mode. The order is stored and shown as
+	// written; at adjudication it is left out of the engine's order set,
+	// the unit holds, and the review shows it struck.
+	IllegalMoves bool `json:"illegalMoves"`
+
 	// PressMode is how negotiation happens (D-023). Data only for now: no
 	// behaviour is attached to it, and the app carries no messages in any
 	// mode. Declaring it is the point — a gunboat table wants its rules
@@ -103,6 +110,21 @@ const defaultPressMode = "ftf"
 
 // defaultRetreatBuildPercent is Backstabbr's: half the movement clock.
 const defaultRetreatBuildPercent = 50
+
+// defaultSettings is what a game gets when the GM says nothing at all.
+//
+// It exists because two of the defaults are not the zero value: the retreat
+// clock is half the movement clock, and illegal orders are allowed (D-029).
+// Building the defaults in one place is what keeps a caller from inventing a
+// game that is strict because nobody said otherwise.
+func defaultSettings() settings {
+	return settings{
+		Variant:             defaultVariant,
+		RetreatBuildPercent: defaultRetreatBuildPercent,
+		PressMode:           defaultPressMode,
+		IllegalMoves:        true,
+	}
+}
 
 // seat is one power in one game together with its claim state.
 // It deliberately carries no player name (D-020).
@@ -442,22 +464,22 @@ func refereeCookieValue(r *http.Request, id string) string {
 
 // settingsEnvelope accepts both {"deadlineMinutes":..,"gmPlays":..} and
 // the wrapped {"settings":{...}} shape.
-type settingsEnvelope struct {
-	Settings              *settings `json:"settings"`
-	DeadlineMinutes       *int      `json:"deadlineMinutes"`
-	GMPlays               *bool     `json:"gmPlays"`
-	Variant               *string   `json:"variant"`
-	RetreatBuildPercent   *int      `json:"retreatBuildPercent"`
-	GraceMinutes          *int      `json:"graceMinutes"`
-	FirstTurnExtraMinutes *int      `json:"firstTurnExtraMinutes"`
-	PressMode             *string   `json:"pressMode"`
+// settingsPatch is a settings object where every field is optional. A GM who
+// sends one setting changes one setting, and a setting nobody mentions keeps
+// the value it had. That matters most for a boolean whose default is true:
+// illegalMoves (D-029) must not turn itself off because a client left it out.
+type settingsPatch struct {
+	DeadlineMinutes       *int    `json:"deadlineMinutes"`
+	GMPlays               *bool   `json:"gmPlays"`
+	Variant               *string `json:"variant"`
+	RetreatBuildPercent   *int    `json:"retreatBuildPercent"`
+	GraceMinutes          *int    `json:"graceMinutes"`
+	FirstTurnExtraMinutes *int    `json:"firstTurnExtraMinutes"`
+	PressMode             *string `json:"pressMode"`
+	IllegalMoves          *bool   `json:"illegalMoves"`
 }
 
-// merge applies the envelope on top of the given settings.
-func (self settingsEnvelope) merge(base settings) settings {
-	if self.Settings != nil {
-		base = *self.Settings
-	}
+func (self settingsPatch) apply(base settings) settings {
 	if self.DeadlineMinutes != nil {
 		base.DeadlineMinutes = *self.DeadlineMinutes
 	}
@@ -479,7 +501,25 @@ func (self settingsEnvelope) merge(base settings) settings {
 	if self.PressMode != nil {
 		base.PressMode = *self.PressMode
 	}
-	return base.normalised()
+	if self.IllegalMoves != nil {
+		base.IllegalMoves = *self.IllegalMoves
+	}
+	return base
+}
+
+// settingsEnvelope accepts a bare {"deadlineMinutes":…} body and the wrapped
+// {"settings":{…}} shape, and both are patches.
+type settingsEnvelope struct {
+	Settings *settingsPatch `json:"settings"`
+	settingsPatch
+}
+
+// merge applies the envelope on top of the given settings.
+func (self settingsEnvelope) merge(base settings) settings {
+	if self.Settings != nil {
+		base = self.Settings.apply(base)
+	}
+	return self.settingsPatch.apply(base).normalised()
 }
 
 // normalised fills in the defaults and refuses the impossible. A negative
@@ -547,13 +587,7 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
-	s, err := decodeSettings(r, settings{
-		DeadlineMinutes:     0,
-		GMPlays:             false,
-		Variant:             defaultVariant,
-		RetreatBuildPercent: defaultRetreatBuildPercent,
-		PressMode:           defaultPressMode,
-	})
+	s, err := decodeSettings(r, defaultSettings())
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
@@ -580,9 +614,10 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 	g.mu.Lock()
 	f.logEvent(id, "game created on %v, deadlineMinutes=%v gmPlays=%v "+
-		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v pressMode=%v",
+		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v pressMode=%v "+
+		"illegalMoves=%v",
 		v.Name, s.DeadlineMinutes, s.GMPlays, s.RetreatBuildPercent, s.GraceMinutes,
-		s.FirstTurnExtraMinutes, s.PressMode)
+		s.FirstTurnExtraMinutes, s.PressMode, s.IllegalMoves)
 	if !supportedVariants[s.Variant] {
 		f.logEvent(id, "%v is experimental — unit placement on the map is not verified", v.Name)
 	}
@@ -644,7 +679,7 @@ func handleListGames(w http.ResponseWriter, r *http.Request) {
 		g.mu.Lock()
 		f := g.flow
 		out = append(out, gameSummaryJSON{
-			GameID: id,
+			GameID:  id,
 			Variant: g.variantRef(),
 			Started: f.started,
 			Phase: phaseJSON{
@@ -874,9 +909,10 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	f.settings = neu
 	f.settingsVersion++
 	f.logEvent(id, "settings changed to deadlineMinutes=%v gmPlays=%v "+
-		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v pressMode=%v (version %v)",
+		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v pressMode=%v "+
+		"illegalMoves=%v (version %v)",
 		neu.DeadlineMinutes, neu.GMPlays, neu.RetreatBuildPercent, neu.GraceMinutes,
-		neu.FirstTurnExtraMinutes, neu.PressMode, f.settingsVersion)
+		neu.FirstTurnExtraMinutes, neu.PressMode, neu.IllegalMoves, f.settingsVersion)
 	// A change to the clock takes effect on the phase now running, so the
 	// table sees the rule it was just told about rather than the next one.
 	if f.started && (neu.DeadlineMinutes != old.DeadlineMinutes ||
@@ -1087,15 +1123,24 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 
 	own := map[string]string{}
 	ownParts := map[string][]string{}
+	ownIllegal := []string{}
 	for prov, bits := range self.parts {
 		if self.owner[prov] != power {
 			continue
 		}
 		own[string(prov)] = self.describe(prov, bits)
 		ownParts[string(prov)] = bits
+		if self.illegal[prov] {
+			ownIllegal = append(ownIllegal, string(prov))
+		}
 	}
+	sort.Strings(ownIllegal)
 	base.Orders = own
 	base.OrderParts = ownParts
+	// Which of the seat's OWN orders are illegal. The whole-board list would
+	// say which provinces another power has misordered, which is a draft
+	// order by another name (§ no-leak discipline).
+	base.Illegal = ownIllegal
 
 	referee := ""
 	// The GM view URL goes to the GM's seat and to no other seat. It is

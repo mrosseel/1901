@@ -108,7 +108,10 @@ type watchJSON struct {
 	OrderParts  map[string][]string `json:"orderParts"`
 	Powers      map[string]string   `json:"powers"`
 	Resolutions map[string]string   `json:"resolutions"`
-	NMR         []string            `json:"nmr"`
+	// Illegal names the provinces whose order never reached the engine
+	// (D-029). Their resolution is "IllegalOrder" and their unit held.
+	Illegal []string `json:"illegal"`
+	NMR     []string `json:"nmr"`
 
 	// Set on the phase being played. No order of any kind appears here.
 	Started    bool            `json:"started"`
@@ -171,6 +174,7 @@ func (self *game) watchState(id string, phaseIndex int) (watchJSON, bool) {
 		out.OrderParts = review.OrderParts
 		out.Powers = review.Powers
 		out.Resolutions = review.Resolutions
+		out.Illegal = review.Illegal
 		out.NMR = review.NMR
 		// The dislodgements this phase produced, which is what a reader of a
 		// resolved phase wants: who was pushed out by what just happened.

@@ -154,6 +154,20 @@ identity-mode setting, event-log UI. Keep the M0 sandbox working.
 - `pressMode: "ftf" | "gunboat" | "fullpress" | "rulebook"` (default `ftf`,
   D-023). Data only, with no behaviour attached. An unknown value is a 400.
   Immutable after start, like `gmPlays`.
+- `illegalMoves: bool` (default **true**, D-029). With it on, an order that
+  parses but fails engine validation is stored as the player wrote it and
+  marked illegal. It never enters the engine, so the unit holds, and the
+  review gives it the resolution `IllegalOrder`. With it off, such an order
+  is a 400, which is the strict behaviour this server had.
+
+A settings body is a patch: a field nobody sends keeps the value it had.
+That is load-bearing for `illegalMoves`, whose default is true.
+
+Order state gains `illegal: [province]` in seat state, filtered to the
+seat's own power, and in the phase review and watch JSON, where it lists
+every struck order. An order that does not parse is still a 400 in both
+modes: godip's parser checks the order type and the number of parts, so a
+failure there means there is no order to store.
 
 Every change bumps `settingsVersion` and is event-logged. A change to the
 clock resets the deadline of the phase now running.

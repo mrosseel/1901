@@ -53,7 +53,10 @@ CREATE TABLE IF NOT EXISTS game (
     retreat_build_percent    INTEGER NOT NULL DEFAULT 50,
     grace_minutes            INTEGER NOT NULL DEFAULT 0,
     first_turn_extra_minutes INTEGER NOT NULL DEFAULT 0,
-    press_mode               TEXT    NOT NULL DEFAULT 'ftf'
+    press_mode               TEXT    NOT NULL DEFAULT 'ftf',
+    -- D-029, and the default is ON: a game written before the setting
+    -- existed is one where nobody was ever refused a misorder.
+    illegal_moves            INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS seat (
@@ -75,6 +78,11 @@ CREATE TABLE IF NOT EXISTS game_order (
     province    TEXT    NOT NULL,
     power       TEXT    NOT NULL,
     parts       TEXT    NOT NULL,
+    -- An order the engine refuses, kept as the player wrote it (D-029).
+    -- Replay needs the flag: without it a row that will not validate is
+    -- indistinguishable from a corrupt one, and the two want opposite
+    -- treatment — reproduce the first, drop the second and say so.
+    illegal     INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (game_id, phase_index, province)
 );
 
@@ -130,9 +138,22 @@ var gameColumns = []struct{ name, definition string }{
 	{"gm_device", `TEXT NOT NULL DEFAULT ''`},
 }
 
+// orderColumns are the columns a game_order row has grown, in the same shape
+// as gameColumns.
+var orderColumns = []struct{ name, definition string }{
+	{"illegal", `INTEGER NOT NULL DEFAULT 0`},
+}
+
 // migrate adds the columns an older database lacks.
 func migrate(handle *sql.DB) error {
-	rows, err := handle.Query(`PRAGMA table_info(game)`)
+	if err := addColumns(handle, "game", gameColumns); err != nil {
+		return err
+	}
+	return addColumns(handle, "game_order", orderColumns)
+}
+
+func addColumns(handle *sql.DB, table string, columns []struct{ name, definition string }) error {
+	rows, err := handle.Query(`PRAGMA table_info(` + table + `)`)
 	if err != nil {
 		return err
 	}
@@ -152,13 +173,13 @@ func migrate(handle *sql.DB) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	for _, column := range gameColumns {
+	for _, column := range columns {
 		if present[column.name] {
 			continue
 		}
-		log.Printf("migrating: adding game.%v", column.name)
+		log.Printf("migrating: adding %v.%v", table, column.name)
 		if _, err := handle.Exec(
-			`ALTER TABLE game ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
+			`ALTER TABLE ` + table + ` ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
 			return err
 		}
 	}
@@ -210,12 +231,13 @@ func (self *game) persistErr(id string) error {
             retreat_build_percent    = excluded.retreat_build_percent,
             grace_minutes            = excluded.grace_minutes,
             first_turn_extra_minutes = excluded.first_turn_extra_minutes,
-            press_mode               = excluded.press_mode`,
+            press_mode               = excluded.press_mode,
+            illegal_moves            = excluded.illegal_moves`,
 		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
 		f.settings.RetreatBuildPercent, f.settings.GraceMinutes,
-		f.settings.FirstTurnExtraMinutes, f.settings.PressMode)
+		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
@@ -248,9 +270,10 @@ func (self *game) persistErr(id string) error {
 			return fmt.Errorf("encode order %v: %v", prov, err)
 		}
 		_, err = tx.Exec(`
-            INSERT INTO game_order (game_id, phase_index, province, power, parts)
-            VALUES (?, ?, ?, ?, ?)`,
-			id, f.phaseIndex, string(prov), string(self.owner[prov]), string(encoded))
+            INSERT INTO game_order (game_id, phase_index, province, power, parts, illegal)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+			id, f.phaseIndex, string(prov), string(self.owner[prov]), string(encoded),
+			self.illegal[prov])
 		if err != nil {
 			return fmt.Errorf("order %v: %v", prov, err)
 		}
@@ -315,7 +338,7 @@ func loadAll() error {
                settings_version, started, deadline_at, gm_power, phase_index,
                created_at, COALESCE(variant, ?),
                retreat_build_percent, grace_minutes, first_turn_extra_minutes,
-               COALESCE(press_mode, ?)
+               COALESCE(press_mode, ?), illegal_moves
         FROM game`, defaultVariant, defaultPressMode)
 	if err != nil {
 		return err
@@ -340,7 +363,7 @@ func loadAll() error {
 			&f.settings.GMPlays, &f.settingsVersion, &f.started, &deadline, &gmPower,
 			&phaseIndex, &createdAt, &key, &f.settings.RetreatBuildPercent,
 			&f.settings.GraceMinutes, &f.settings.FirstTurnExtraMinutes,
-			&f.settings.PressMode); err != nil {
+			&f.settings.PressMode, &f.settings.IllegalMoves); err != nil {
 			rows.Close()
 			return err
 		}
@@ -388,6 +411,9 @@ type storedOrder struct {
 	province godip.Province
 	power    godip.Nation
 	parts    []string
+	// illegal marks a row the engine refused when it was entered (D-029).
+	// It will not validate on the way back in either, and that is expected.
+	illegal bool
 }
 
 // restore rebuilds one game: seats, events, and the board.
@@ -465,7 +491,8 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 // loadOrders returns every stored order, grouped by phase index.
 func loadOrders(id string) (map[int][]storedOrder, error) {
 	rows, err := db.Query(
-		`SELECT phase_index, province, power, parts FROM game_order WHERE game_id = ? ORDER BY phase_index`, id)
+		`SELECT phase_index, province, power, parts, illegal
+         FROM game_order WHERE game_id = ? ORDER BY phase_index`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -474,7 +501,8 @@ func loadOrders(id string) (map[int][]storedOrder, error) {
 	for rows.Next() {
 		var phaseIndex int
 		var province, power, encoded string
-		if err := rows.Scan(&phaseIndex, &province, &power, &encoded); err != nil {
+		var illegal bool
+		if err := rows.Scan(&phaseIndex, &province, &power, &encoded, &illegal); err != nil {
 			return nil, err
 		}
 		parts := []string{}
@@ -485,6 +513,7 @@ func loadOrders(id string) (map[int][]storedOrder, error) {
 			province: godip.Province(province),
 			power:    godip.Nation(power),
 			parts:    parts,
+			illegal:  illegal,
 		})
 	}
 	return out, rows.Err()
@@ -525,12 +554,34 @@ func (self *game) replay(history map[int][]storedOrder, nmr map[int][]string, cu
 	return self.applyStored(history[currentPhase])
 }
 
-// applyStored re-enters one phase's orders. An order that no longer
-// validates is skipped with a warning rather than failing the load; the
-// game is more useful with one missing order than not at all.
+/*
+applyStored re-enters one phase's orders.
+
+Two kinds of row will not validate, and they want opposite treatment. A row
+marked illegal was refused by the engine when the player entered it and was
+kept anyway (D-029): it is put back exactly as it was, still outside the
+engine, so the phase replays into the same board and the same review. Any
+other row that fails is skipped with a warning rather than failing the whole
+load — a game is more useful with one missing order than not at all — and the
+warning is worth reading, because it means the row no longer matches the
+board that the rest of the history builds.
+*/
 func (self *game) applyStored(orders []storedOrder) error {
 	for _, o := range orders {
-		if err := self.setOrder(o.province, o.parts); err != nil {
+		if o.illegal {
+			parts := orderParts(o.province, o.parts)
+			// It still has to be an order. A row that no longer parses is
+			// corrupt, not illegal, and there is nothing to reproduce.
+			bits := append([]string{string(o.province)}, parts...)
+			if _, err := self.variant.Parser.Parse(bits); err != nil {
+				log.Printf("replay: dropping unparseable illegal order %v %v: %v",
+					o.province, o.parts, err)
+				continue
+			}
+			self.storeIllegal(o.province, parts, o.power)
+			continue
+		}
+		if err := self.setOrderStrict(o.province, o.parts); err != nil {
 			log.Printf("replay: skipping %v %v: %v", o.province, o.parts, err)
 			continue
 		}
