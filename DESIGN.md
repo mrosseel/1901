@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r19 — 2026-08-29 — 2026-08-28
+**Document revision:** r20 — 2026-08-29 — 2026-08-29
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -274,6 +274,35 @@ The server loads `placements/*.json` at startup and exposes the table as
 `placements` in seat, GM and public state. The board prefers it over the map's
 anchors and falls back per province, not per table, so a table missing one key
 leaves that province on its anchor and serves the rest.
+
+Amended r19 — the table gained a third position per province, `brief`, for the
+three-letter code the board draws when brief labels are on. Brief mode hides
+the full names, so a code is a different placement problem from a marker: the
+label boxes that dominate every marker score are not on the board when a code
+is drawn. A code is judged on four things instead, in this order.
+
+1. Its middle is inside the province it names. A code in the wrong country
+   tells a reader something false, which is worse than no code at all.
+2. It is clear of every unit marker on the board and of its own dislodged
+   ring. Not only its own marker: a province is small and a marker is not, so
+   the piece a code lands on is as often the neighbour's.
+3. It is clear of the supply centre glyph.
+4. It fits wholly inside its own province. This is ranked below legibility for
+   the same reason marker containment is ranked below name overlap. A province
+   narrower than the code naming it still has to be named.
+
+Among positions that pass, the one below or beside the province's own marker
+wins, so a reader pairs the code with the piece. The first rung of that ladder
+is exactly where `renderBriefLabels()` already draws a code, and the board
+still uses that offset for any province the table has no `brief` for, so the
+field is an improvement on the heuristic rather than a replacement for it. A
+jDip-converted map gets none: it ships its own `BriefLabelLayer`, the board
+shows that layer instead of drawing anything, and those positions are the map
+author's work.
+
+The tool's `--brief-only` mode adds the field to an approved table and touches
+nothing else in it, because an approved table can hold corrections a person
+made by hand and the codes are a later question than the markers were.
 
 ### D-016 — Converted jDip maps are restyled into godip's classical style
 **Status:** accepted, r3
@@ -793,6 +822,18 @@ highlighted, but with the setting on, taps outside the highlights are
 accepted rather than refused; the tap grammar remains the guide, not a
 cage. Turning the setting off restores strict legal-only entry.
 
+### D-030 — In-app map editor at /mapeditor
+**Status:** accepted, r20. Post-current-batch.
+The placement editor graduates from generated standalone HTML files into
+an app route: pick a variant, drag unit / dislodged / brief-code markers
+with live violation feedback (the audit geometry), edit province display
+names, and export the result — a placements/{key}.json plus a
+per-variant name-override file layered over godip's ProvinceLongNames.
+On a dev server the editor may save directly; production builds carry
+the route read-only or not at all (decide at build time). This screen is
+also the verification act behind D-014: a variant whose table was
+reviewed here is promotable to supported.
+
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
 The GM shares ONE invite link/QR. Claiming it assigns a random
@@ -1108,5 +1149,6 @@ Recorded so nobody re-derives them.
 | r15 | 2026-08-28 | D-014 presentation: checkmark for supported, no experimental badge. Restyle shipped as scripted theming (no LLM needed); style system with four named themes underway. Placement pipeline (audit/optimize/editor/serving) complete for classical + sailho. |
 | r16 | 2026-08-28 | D-023: pressMode setting (ftf default / gunboat / fullpress-later); §1 press non-goal narrowed accordingly. |
 | r18 | 2026-08-28 | D-026: styled maps composed at serve time from a style plan (styleplans/*.json) plus embedded style tokens (mapstyles/), with an in-memory cache; styledmaps/ (156 MB) and the checked-in map-<style>.svg files deleted after a byte-for-byte comparison against them; sailho's label repair baked into its own map.svg. D-027: deadline humanity — retreatBuildPercent (50), graceMinutes, firstTurnExtraMinutes, and Backstabbr's anti-rush rule. D-028: public per-phase watch URLs, /watch/{id}/{phaseIndex}, snapshots derived from replay and stable across a hard kill. D-023 gains the rulebook press mode and is implemented as data. |
+| r19 | 2026-08-29 | Placement tables generated for every variant, not only classical and Sail Ho: 24 more written by `tools/placement --all --skip`, shipped as generated. D-003 amended: the table gained a `brief` position per province for the three-letter code, judged against the unit markers, the dislodged ring, the supply glyph and the province border, with the full names off because brief mode hides them. The board reads it and keeps its offset heuristic as the fallback. `--brief-only` adds the field to an approved table without re-deriving it, which is how classical kept its hand corrections. The jDip maps keep their own BriefLabelLayer; their codes were measured and not moved. |
 | r17 | 2026-08-28 | Platform survey (research/platforms.md). §1 gap restated: parallel per-device entry, delete-the-sandboxer pitch; mylootcave (hot-seat) and avieth/diplomacy-server noted; commit-reveal confirmed novel. Q-007 opened (illegal/bluff orders). Playtest gains a 3-minute finalize criterion. D-023 may later gain a 'rulebook' press mode. Stale facts flagged: godip variant count, diplomacy/diplomacy status. |
 | r16 | 2026-08-28 | D-023: map styles as named JSON data (parchment extracted from classical, plus midnight, print and flat), applied to any converted map, served at `?style=`, chosen per device. Gallery map previews open in a pan-and-zoom lightbox; the pan/zoom arithmetic is shared with the board. Experimental badge removed per D-014 presentation (r15). |
