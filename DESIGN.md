@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r21 — 2026-08-29
+**Document revision:** r22 — 2026-08-29
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -840,7 +840,7 @@ accepted rather than refused; the tap grammar remains the guide, not a
 cage. Turning the setting off restores strict legal-only entry.
 
 ### D-030 — In-app map editor at /mapeditor
-**Status:** accepted, r20. Post-current-batch.
+**Status:** implemented, r22 (accepted r20).
 The placement editor graduates from generated standalone HTML files into
 an app route: pick a variant, drag unit / dislodged / brief-code markers
 with live violation feedback (the audit geometry), edit province display
@@ -858,6 +858,44 @@ one, encode it (the Gascony → lexicographic and clearance-threshold
 history is the pattern). When the audit reports zero violations, the
 variant auto-promotes; the editor's end state is an audit viewer whose
 drag count is zero.
+
+**Implementation (r22).** The route is `/mapeditor` in every build: a
+variant picker, the board island mounted with an invented unit in every
+province, and a handle layer in map units so pan and zoom carry the grab
+targets along. The three fields are draggable per province and the
+violation list resorts under the finger.
+
+Scoring is shared code, not a second copy. The browser-free half of
+tools/placement moved into tools/placement/rules.ts, and the web app
+imports it and geometry.ts directly. The DOM half could not follow:
+browser.ts asks its questions inside page.evaluate, which cannot see an
+imported module, so web/src/mapeditor/measure.ts re-measures the map on
+an off-screen copy. It differs from the tool in one deliberate way: it
+takes terrain from /variants/{key}/provinces.json rather than guessing
+it from fill colours, and the guess is wrong on twentytwenty, where it
+calls several land provinces sea and the coast rule never fires. Two
+coast faults on classical are visible in the editor and not in the
+audit for the same reason. The tool should read the endpoint (open).
+
+Three variant-level endpoints carry it, all reachable without a game:
+/variants/{key}/placement.json, /names.json and the existing
+/provinces.json. Display names are godip's ProvinceLongNames with a
+per-variant names/{key}.json layered over them, read at startup like
+the placement tables.
+
+Export is a download or a clipboard copy of the amended table, written
+exactly as tools/placement writes it, so a session that moved nothing
+produces no diff. The drag log and the name overrides go with it. On a
+server built with `-tags mapeditordev` the editor may also save straight
+to disk, into placements/{key}.hand.json, names/{key}.json and
+mapeditor/{key}.drags.json. The amended table lands in the .hand file
+the server never loads, so a save cannot put a half-finished table on a
+board. An ordinary build has no such route, and the save button is
+behind import.meta.env.DEV as well.
+
+Where it stands: pure reports zero violations today. Classical reports
+149, of which 79 are the name and glyph overlaps the audit already
+counts. twentytwenty reports 1360.
 
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
@@ -1178,3 +1216,4 @@ Recorded so nobody re-derives them.
 | r19 | 2026-08-29 | D-029: illegal orders are allowed and on by default (closes Q-007). An order that parses but fails validation is stored as written, excluded from the engine, resolves as IllegalOrder, and the unit holds. Own seat only; amber in the list. |
 | r20 | 2026-08-29 | D-030: in-app map editor at /mapeditor, with the convergence goal — every hand drag is a scoring bug to encode; zero audit violations auto-promotes the variant to supported. |
 | r21 | 2026-08-29 | Placement tables generated for every variant, not only classical and Sail Ho: 24 more written by `tools/placement --all --skip`, shipped as generated. D-003 amended: the table gained a `brief` position per province for the three-letter code, judged against the province own marker, the neighbours markers, the dislodged ring, the supply glyph and the province border, with the full names off because brief mode hides them. A code is stored only where it measures no worse than the board offset heuristic in both board states, so a map whose provinces are smaller than their codes keeps the heuristic. The board reads the field and falls back per province. `--brief-only` adds codes to an approved table without re-deriving it, which is how classical kept its hand corrections. The jDip maps keep their own BriefLabelLayer; their codes were measured and not moved. |
+| r22 | 2026-08-29 | D-030 implemented: /mapeditor in-app — variant picker, draggable unit/dislodged/brief markers, live violation audit sharing tools/placement rules (rules.ts split out), drag telemetry, province display-name overrides (names/{key}.json over ProvinceLongNames), stable-diff export, disk save only under -tags mapeditordev into .hand files the server never loads. Editor reads terrain from godip, exposing colour-guess faults in the offline audit (open item). |
