@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r23 — 2026-08-29
+**Document revision:** r24 — 2026-08-29
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -870,12 +870,23 @@ tools/placement moved into tools/placement/rules.ts, and the web app
 imports it and geometry.ts directly. The DOM half could not follow:
 browser.ts asks its questions inside page.evaluate, which cannot see an
 imported module, so web/src/mapeditor/measure.ts re-measures the map on
-an off-screen copy. It differs from the tool in one deliberate way: it
-takes terrain from /variants/{key}/provinces.json rather than guessing
-it from fill colours, and the guess is wrong on twentytwenty, where it
-calls several land provinces sea and the coast rule never fires. Two
-coast faults on classical are visible in the editor and not in the
-audit for the same reason. The tool should read the endpoint (open).
+an off-screen copy. Both halves now take terrain from
+/variants/{key}/provinces.json. The editor did from the start. The tool
+guessed it from fill colours until r24, and the guess was worthless:
+measureMap hides every layer before the probe runs, so the probe read
+the map's background and called almost every land province sea. All 26
+variants were affected, 164 provinces on twentytwenty alone. With no
+land anywhere the coast rule could not fire, and the audit passed
+markers the editor was already flagging: ank, bod and bul on
+twentytwenty, bul/ec and bul/sc on classical. classifyTerrain is gone.
+cli.ts fetches the endpoint and threads one TerrainKind through place()
+and every audit, so the tool and the editor cannot disagree about a
+coast. godip's "coast" is land a fleet may also sit on, and every map
+paints it as land, so that is what the tool calls it. Re-derivation
+under real terrain took containment faults across the 24 generated
+tables from 93 to 10, and dislodged markers outside their province from
+71 to 1. Classical was not re-derived; its bul/ec and bul/sc entries
+were corrected on their own.
 
 Three variant-level endpoints carry it, all reachable without a game:
 /variants/{key}/placement.json, /names.json and the existing
@@ -894,8 +905,8 @@ board. An ordinary build has no such route, and the save button is
 behind import.meta.env.DEV as well.
 
 Where it stands: pure reports zero violations today. Classical reports
-149, of which 79 are the name and glyph overlaps the audit already
-counts. twentytwenty reports 1360.
+145, of which 79 are the name and glyph overlaps the audit already
+counts. twentytwenty reports 1336.
 
 ### D-031 — Pan/zoom stays hand-rolled; Leaflet rejected, its math taken
 **Status:** accepted, r23 (closes the Leaflet spike).
@@ -1240,3 +1251,4 @@ Recorded so nobody re-derives them.
 | r21 | 2026-08-29 | Placement tables generated for every variant, not only classical and Sail Ho: 24 more written by `tools/placement --all --skip`, shipped as generated. D-003 amended: the table gained a `brief` position per province for the three-letter code, judged against the province own marker, the neighbours markers, the dislodged ring, the supply glyph and the province border, with the full names off because brief mode hides them. A code is stored only where it measures no worse than the board offset heuristic in both board states, so a map whose provinces are smaller than their codes keeps the heuristic. The board reads the field and falls back per province. `--brief-only` adds codes to an approved table without re-deriving it, which is how classical kept its hand corrections. The jDip maps keep their own BriefLabelLayer; their codes were measured and not moved. |
 | r22 | 2026-08-29 | D-030 implemented: /mapeditor in-app — variant picker, draggable unit/dislodged/brief markers, live violation audit sharing tools/placement rules (rules.ts split out), drag telemetry, province display-name overrides (names/{key}.json over ProvinceLongNames), stable-diff export, disk save only under -tags mapeditordev into .hand files the server never loads. Editor reads terrain from godip, exposing colour-guess faults in the offline audit (open item). |
 | r23 | 2026-08-29 | D-031: Leaflet rejected after a working spike — 46 KB gz for ~460 replaceable lines, plus a zoomed-SVG layout-box risk on phones. Four gesture fixes adopted instead: wheel deltaMode normalisation (Firefox wheel zoom was dead), pan inertia, eased double-tap zoom, wheel debounce. |
+| r24 | 2026-08-29 | Placement optimizer terrain bug: the fill-colour probe measured a hidden map and called almost all land sea on every variant, so coast rules never fired. Terrain now comes from /variants/{key}/provinces.json in tool and editor alike; 22 tables re-derived (containment faults 93 to 10, dislodged-outside 71 to 1), classical patched on bul/ec and bul/sc only. |
