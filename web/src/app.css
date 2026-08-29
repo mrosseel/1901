@@ -303,7 +303,12 @@ details.card > summary::marker { color: var(--muted); }
 }
 
 /* Hover has to stay clearly below the picked state, or the two get confused. */
-.variant:hover:not(.picked) { border-color: var(--muted); }
+/* Hovering says "this is what a tap selects": a muted wash of the accent,
+   unmistakably weaker than the picked card's saturated surface. */
+.variant:hover:not(.picked) {
+  border-color: var(--muted);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel-2));
+}
 
 /* The keyboard still reaches the card through the radio inside it, so the card
    wears the radio's focus ring. */

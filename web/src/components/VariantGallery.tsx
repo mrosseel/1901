@@ -105,7 +105,12 @@ function MapPreview({
           onError={() => setFailed(true)}
         />
       ) : null}
-      <span className="map-zoom-chip" aria-hidden="true">⤢</span>
+      <span className="map-zoom-chip" aria-hidden="true">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="6.5" cy="6.5" r="4.5" />
+          <line x1="10" y1="10" x2="14.2" y2="14.2" strokeLinecap="round" />
+        </svg>
+      </span>
     </button>
   );
 }
