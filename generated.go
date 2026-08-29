@@ -141,6 +141,11 @@ func loadGeneratedVariant(dir, key string) (generatedVariant, error) {
 	if err != nil {
 		return generatedVariant{}, fmt.Errorf("%v: %w", descriptorPath, err)
 	}
+	// Legal but usually a mistake. Real variants do all of these on purpose,
+	// so they are said out loud rather than refused.
+	for _, warning := range variantjson.Warnings(descriptor) {
+		log.Printf("generated variant %v: %v", key, warning)
+	}
 	// The gallery and every game look a variant up by the key derived from its
 	// name, so the name has to produce this directory's key.
 	if variantKey(variant.Name) != key {
