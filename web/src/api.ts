@@ -112,9 +112,7 @@ export interface WatchState extends VariantAware {
 
 export interface CreatedGame {
   gameId: string;
-  gmToken: string;
   inviteUrl: string;
-  gmUrl?: string;
 }
 
 export interface GmSeat {
@@ -167,6 +165,29 @@ export interface SeatState extends BoardState, VariantAware {
   totalSeats: number;
   phaseResolutions: Record<string, string>;
   canForce: boolean;
+  /**
+   * Set only on the game master's own seat: the address of the controls,
+   * so the GM can switch between the board and the referee view.
+   */
+  refereeUrl?: string;
+}
+
+/**
+ * One row of the main-page list. Everything here is what a bare game id may
+ * already show on its public pages; no token of any kind rides with it.
+ * `referee` is true only for the browser that created the game.
+ */
+export interface GameSummary {
+  gameId: string;
+  variant?: VariantRef;
+  started: boolean;
+  phase: BoardState["phase"];
+  joinedCount: number;
+  totalSeats: number;
+  turns: number;
+  deadlineAt: string | null;
+  createdAt: string;
+  referee: boolean;
 }
 
 // --- HTTP -----------------------------------------------------------------
@@ -216,6 +237,7 @@ export async function postJSON<T>(url: string, body?: unknown): Promise<T> {
 // --- routes ---------------------------------------------------------------
 
 export type Route =
+  | { kind: "index" }
   | { kind: "new" }
   | { kind: "join"; gameId: string; inviteToken: string }
   | { kind: "gm"; gameId: string; gmToken: string }
@@ -227,6 +249,7 @@ export type Route =
 
 export function parseRoute(pathname: string): Route {
   const parts = pathname.split("/").filter(Boolean);
+  if (parts.length === 0) return { kind: "index" };
   if (parts.length === 1 && parts[0] === "new") return { kind: "new" };
   if (parts.length === 3 && parts[0] === "join") {
     return { kind: "join", gameId: parts[1], inviteToken: parts[2] };
@@ -298,6 +321,18 @@ export async function fetchVariants(): Promise<Variant[]> {
 
 export function createGame(settings: Settings): Promise<CreatedGame> {
   return postJSON<CreatedGame>(absolute("/games"), { settings: settings });
+}
+
+// --- the main-page list ---------------------------------------------------
+
+/**
+ * Every game the server holds, newest first. The answer carries no token of
+ * any kind: an id opens the public pages only. The one exception is the
+ * `referee` mark, which the server sets only for the browser that created
+ * the game.
+ */
+export function fetchGames(): Promise<GameSummary[]> {
+  return getJSON<GameSummary[]>(absolute("/games"));
 }
 
 // --- join -----------------------------------------------------------------

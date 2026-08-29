@@ -8,3 +8,4 @@ web/*.tsbuildinfo
 *.db-wal
 *.db-shm
 tools/restyle/out/styled/
+result

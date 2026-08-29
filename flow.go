@@ -8,10 +8,12 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -117,6 +119,10 @@ type seat struct {
 type flow struct {
 	gmToken     string
 	inviteToken string
+	// gmDevice is the referee cookie secret: the browser that created the
+	// game holds it, and it is what /game/{id}/referee/ answers to. It
+	// keeps the GM link off the creation screen and out of every share.
+	gmDevice string
 
 	settings        settings
 	settingsVersion int
@@ -152,9 +158,14 @@ func newFlow(s settings, v common.Variant) (*flow, error) {
 	if err != nil {
 		return nil, err
 	}
+	gmDevice, err := newToken()
+	if err != nil {
+		return nil, err
+	}
 	f := &flow{
 		gmToken:     gmToken,
 		inviteToken: inviteToken,
+		gmDevice:    gmDevice,
 		settings:    s,
 		createdAt:   time.Now().UTC(),
 		powers:      sortedNations(v),
@@ -373,14 +384,24 @@ func rfc3339(t *time.Time) interface{} {
 	return t.UTC().Format(time.RFC3339)
 }
 
-// baseURL rebuilds the absolute origin of the request.
+// baseURLFixed is the pinned origin from BASE_URL, read once at startup.
+var baseURLFixed string
+
+// baseURL is the origin the invite, seat, and GM links point at.
+//
+// BASE_URL pins it at startup. Without it the origin comes from the
+// request: r.Host. That value is attacker-chosen everywhere except a
+// direct browser connection — a man in the middle on the table's network
+// can make the GM's next state poll hand back an invite URL that points
+// at their own machine. Forwarded headers are not read at all; behind a
+// reverse proxy, BASE_URL is the setting.
 func baseURL(r *http.Request) string {
+	if baseURLFixed != "" {
+		return baseURLFixed
+	}
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
-	}
-	if forwarded := r.Header.Get("X-Forwarded-Proto"); forwarded != "" {
-		scheme = forwarded
 	}
 	return scheme + "://" + r.Host
 }
@@ -401,6 +422,22 @@ func gmURL(r *http.Request, id, token string) string {
 // hold seats in several games.
 func deviceCookieName(id string) string {
 	return "d1901_" + id
+}
+
+// refereeCookieName marks the browser that created the game. It answers
+// /game/{id}/referee/, which is how the GM reaches the GM view without the
+// link ever being displayed anywhere.
+func refereeCookieName(id string) string {
+	return "r1901_" + id
+}
+
+// refereeCookieValue reads the referee cookie, empty when absent.
+func refereeCookieValue(r *http.Request, id string) string {
+	c, err := r.Cookie(refereeCookieName(id))
+	if err != nil {
+		return ""
+	}
+	return c.Value
 }
 
 // settingsEnvelope accepts both {"deadlineMinutes":..,"gmPlays":..} and
@@ -493,13 +530,19 @@ func decodeSettings(r *http.Request, base settings) (settings, error) {
 
 type createResponse struct {
 	GameID    string         `json:"gameId"`
-	GMToken   string         `json:"gmToken"`
 	InviteURL string         `json:"inviteUrl"`
-	GMURL     string         `json:"gmUrl"`
 	Variant   variantRefJSON `json:"variant"`
 }
 
+// The create response carries no GM secret on purpose. The creating browser
+// gets the referee view through the cookie set below, and the GM token
+// itself reaches only two places: the GM pages behind /game/{id}/gm/, and
+// the seat state of the GM's own power once the game has started.
 func handleCreateGame(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		handleListGames(w, r)
+		return
+	}
 	if r.Method != http.MethodPost {
 		writeErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
@@ -527,6 +570,11 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 	g, id, err := games.create(s.Variant, v, f)
 	if err != nil {
+		if errors.Is(err, errGameLimit) {
+			writeErr(w, http.StatusServiceUnavailable,
+				"the server holds its maximum of %v game(s) — raise MAX_GAMES to make room", games.limit)
+			return
+		}
 		writeErr(w, http.StatusInternalServerError, "create game: %v", err)
 		return
 	}
@@ -541,13 +589,80 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	g.persist(id)
 	g.mu.Unlock()
 
+	http.SetCookie(w, &http.Cookie{
+		Name:     refereeCookieName(id),
+		Value:    f.gmDevice,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   60 * 60 * 24 * 30,
+	})
 	writeJSON(w, http.StatusOK, createResponse{
 		GameID:    id,
-		GMToken:   f.gmToken,
 		InviteURL: inviteURL(r, id, f.inviteToken),
-		GMURL:     gmURL(r, id, f.gmToken),
 		Variant:   g.variantRef(),
 	})
+}
+
+// gameSummaryJSON is one row of the main-page list. It holds what the
+// public watch view holds and nothing more: the id opens the public pages
+// only, and every secret stays behind its token.
+type gameSummaryJSON struct {
+	GameID      string         `json:"gameId"`
+	Variant     variantRefJSON `json:"variant"`
+	Started     bool           `json:"started"`
+	Phase       phaseJSON      `json:"phase"`
+	JoinedCount int            `json:"joinedCount"`
+	TotalSeats  int            `json:"totalSeats"`
+	Turns       int            `json:"turns"`
+	DeadlineAt  interface{}    `json:"deadlineAt"`
+	CreatedAt   string         `json:"createdAt"`
+	// Referee is true only for the browser that created the game: its
+	// cookie matched. It is what puts the referee link on the main page
+	// for the GM and nobody else.
+	Referee bool `json:"referee"`
+}
+
+// handleListGames answers GET /games with every game on the server, newest
+// first. Publishing the ids is a deliberate trade: an id opens the public
+// watch view, and nothing else — the seat, invite, and GM tokens stay
+// unread.
+func handleListGames(w http.ResponseWriter, r *http.Request) {
+	games.mu.Lock()
+	ids := make([]string, 0, len(games.games))
+	for id := range games.games {
+		ids = append(ids, id)
+	}
+	games.mu.Unlock()
+
+	out := make([]gameSummaryJSON, 0, len(ids))
+	for _, id := range ids {
+		g, found := games.lookup(id)
+		if !found {
+			continue
+		}
+		g.mu.Lock()
+		f := g.flow
+		out = append(out, gameSummaryJSON{
+			GameID: id,
+			Variant: g.variantRef(),
+			Started: f.started,
+			Phase: phaseJSON{
+				Season: string(g.state.Phase().Season()),
+				Year:   g.state.Phase().Year(),
+				Type:   string(g.state.Phase().Type()),
+			},
+			JoinedCount: f.joinedCount(),
+			TotalSeats:  f.joinerSeats(),
+			Turns:       f.phaseIndex,
+			DeadlineAt:  rfc3339(f.deadlineAt),
+			CreatedAt:   f.createdAt.UTC().Format(time.RFC3339),
+			Referee:     f.gmDevice != "" && subtleEqual(refereeCookieValue(r, id), f.gmDevice),
+		})
+		g.mu.Unlock()
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
+	writeJSON(w, http.StatusOK, out)
 }
 
 // -------------------------------------------------------------------- join
@@ -859,8 +974,10 @@ func handleGMExtend(g *game, id string, w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
-	if body.Minutes == 0 {
-		writeErr(w, http.StatusBadRequest, "minutes is required")
+	if body.Minutes < 1 {
+		// A negative value would move the deadline into the past and open
+		// force adjudication early (SECURITY.md, open findings).
+		writeErr(w, http.StatusBadRequest, "minutes must be a positive number")
 		return
 	}
 	g.mu.Lock()
@@ -955,12 +1072,16 @@ type seatStateJSON struct {
 	Placements       placementTable    `json:"placements"`
 	PreviousPhase    *phaseReviewJSON  `json:"previousPhase"`
 	Now              string            `json:"now"`
+	// RefereeURL is set only for the GM's own seat: the seat that holds
+	// the GM rights may link back to the GM view. It is how the GM
+	// switches between the board and the controls.
+	RefereeURL string `json:"refereeUrl,omitempty"`
 }
 
 // seatState renders the board for one seat. The caller must hold g.mu.
 // Orders are filtered to the seat's own power; nothing here can expose
 // another power's current-phase orders (§ no-leak discipline).
-func (self *game) seatState(id string, power godip.Nation) seatStateJSON {
+func (self *game) seatState(id string, power godip.Nation, r *http.Request) seatStateJSON {
 	f := self.flow
 	base := self.snapshot(id)
 
@@ -975,6 +1096,13 @@ func (self *game) seatState(id string, power godip.Nation) seatStateJSON {
 	}
 	base.Orders = own
 	base.OrderParts = ownParts
+
+	referee := ""
+	// The GM view URL goes to the GM's seat and to no other seat. It is
+	// the same rule the GM state follows: the token reaches the GM only.
+	if f.gmPower != "" && f.gmPower == power {
+		referee = gmURL(r, id, f.gmToken)
+	}
 
 	return seatStateJSON{
 		stateJSON:        base,
@@ -996,6 +1124,7 @@ func (self *game) seatState(id string, power godip.Nation) seatStateJSON {
 		Placements:       self.placements(),
 		PreviousPhase:    self.previousPhase,
 		Now:              serverNow(),
+		RefereeURL:       referee,
 	}
 }
 
@@ -1004,7 +1133,7 @@ type seatHandler func(g *game, id string, power godip.Nation, w http.ResponseWri
 func handleSeatState(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	writeJSON(w, http.StatusOK, g.seatState(id, power))
+	writeJSON(w, http.StatusOK, g.seatState(id, power, r))
 }
 
 // ownsProvince reports whether the seat's power may order the given province.
@@ -1070,7 +1199,7 @@ func handleSeatOrder(g *game, id string, power godip.Nation, w http.ResponseWrit
 	if len(req.Parts) == 0 {
 		g.clearOrder(prov)
 		g.persist(id)
-		writeJSON(w, http.StatusOK, g.seatState(id, power))
+		writeJSON(w, http.StatusOK, g.seatState(id, power, r))
 		return
 	}
 	if err := g.setOrder(prov, req.Parts); err != nil {
@@ -1078,7 +1207,7 @@ func handleSeatOrder(g *game, id string, power godip.Nation, w http.ResponseWrit
 		return
 	}
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.seatState(id, power))
+	writeJSON(w, http.StatusOK, g.seatState(id, power, r))
 }
 
 func handleSeatFinalize(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
@@ -1118,7 +1247,7 @@ func (self *game) seatFinalize(id string, power godip.Nation, want bool, w http.
 	} else {
 		self.persist(id)
 	}
-	writeJSON(w, http.StatusOK, self.seatState(id, power))
+	writeJSON(w, http.StatusOK, self.seatState(id, power, r))
 }
 
 // adjudicate resolves the phase. With dropUnfinalized set, powers that
@@ -1231,6 +1360,10 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 		handleWatch(g, id, segments[2:], w, r)
 	case "map.svg":
 		handleMap(g, id, w, r)
+	case "referee":
+		// Token-free on purpose: the referee cookie set at creation is
+		// the credential. For anyone else the address is a 404.
+		handleRefereeEntry(g, id, w, r)
 	case "join":
 		if len(segments) != 3 {
 			http.NotFound(w, r)
@@ -1304,6 +1437,23 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 		return
 	}
 	http.NotFound(w, r)
+}
+
+// handleRefereeEntry sends the browser that created the game to the GM
+// view. The URL carries no secret, so it may sit on the main page for
+// every game; it opens the controls only for the browser holding the
+// referee cookie.
+func handleRefereeEntry(g *game, id string, w http.ResponseWriter, r *http.Request) {
+	g.mu.Lock()
+	device := refereeCookieValue(r, id)
+	ok := g.flow.gmDevice != "" && subtleEqual(device, g.flow.gmDevice)
+	target := gmURL(r, id, g.flow.gmToken)
+	g.mu.Unlock()
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusFound)
 }
 
 // subtleEqual compares two tokens in constant time.

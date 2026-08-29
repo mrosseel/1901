@@ -16,8 +16,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/zond/godip"
 	"github.com/zond/godip/state"
@@ -125,9 +127,49 @@ func (self *game) setOrder(prov godip.Province, rawParts []string) error {
 type registry struct {
 	mu    sync.Mutex
 	games map[string]*game
+	// limit caps how many games the registry may hold. Games never expire,
+	// so this is what stops an anonymous loop of creates from eating the
+	// box. Set once at startup, from MAX_GAMES.
+	limit int
 }
 
 var games = &registry{games: map[string]*game{}}
+
+// errGameLimit says create() refused a new game because the registry is at
+// its cap.
+var errGameLimit = errors.New("game limit reached")
+
+// defaultMaxGames is the cap on live games when MAX_GAMES is unset. A table
+// runs a handful of games; the cap exists for the hostile case, not the
+// busy one.
+const defaultMaxGames = 100
+
+// gameLimit reads MAX_GAMES. A value that is not a positive number is a
+// startup error, not a silent default.
+func gameLimit() int {
+	v := os.Getenv("MAX_GAMES")
+	if v == "" {
+		return defaultMaxGames
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 {
+		log.Fatalf("MAX_GAMES %q: it must be a positive number", v)
+	}
+	return n
+}
+
+// pinBaseURL reads BASE_URL once and pins the origin the generated links
+// point at. See baseURL for why.
+func pinBaseURL() {
+	base := strings.TrimSuffix(os.Getenv("BASE_URL"), "/")
+	if base == "" {
+		return
+	}
+	if !strings.HasPrefix(base, "http://") && !strings.HasPrefix(base, "https://") {
+		log.Fatalf("BASE_URL %q: it must start with http:// or https://", base)
+	}
+	baseURLFixed = base
+}
 
 var idPattern = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
 
@@ -154,6 +196,9 @@ func (self *registry) create(key string, v common.Variant, f *flow) (*game, stri
 
 	self.mu.Lock()
 	defer self.mu.Unlock()
+	if self.limit > 0 && len(self.games) >= self.limit {
+		return nil, "", errGameLimit
+	}
 	for attempt := 0; attempt < 10; attempt++ {
 		id, err := newGameID()
 		if err != nil {
@@ -450,11 +495,11 @@ func (self *server) serveSPAAsset(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path)
 }
 
-// serveRoot sends the bare root to the game-creation page and resolves the
-// files vite emits at the build root (favicon, manifest, and friends).
+// serveRoot serves the game list at the bare root and resolves the files
+// vite emits at the build root (favicon, manifest, and friends).
 func (self *server) serveRoot(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
-		http.Redirect(w, r, "/new", http.StatusFound)
+		self.serveSPA(w, r)
 		return
 	}
 	self.serveSPAAsset(w, r)
@@ -469,7 +514,34 @@ func absPath(path string) string {
 	return path
 }
 
+// spaDirPath is where the built frontend lives. SPADIR overrides the
+// default, so a packaged binary can point at the directory its installer
+// chose.
+func spaDirPath() string {
+	if p := os.Getenv("SPADIR"); p != "" {
+		return p
+	}
+	return filepath.Join("web", "dist")
+}
+
+// maxBodyBytes caps every request body. The largest body the app expects
+// is a settings patch or a few orders — bytes, not megabytes — and the
+// cap is what stops one request from costing the server its memory.
+const maxBodyBytes = 64 << 10
+
+// limitBody wraps a handler so every request body is size-capped. The
+// JSON decoders then fail with "request body too large" instead of
+// reading forever.
+func limitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
+	pinBaseURL()
+	games.limit = gameLimit()
 	handle, err := openDB(dbPath())
 	if err != nil {
 		log.Fatalf("open %v: %v", dbPath(), err)
@@ -495,7 +567,7 @@ func main() {
 		log.Fatalf("load style plans: %v", err)
 	}
 
-	spaDir := absPath(filepath.Join("web", "dist"))
+	spaDir := absPath(spaDirPath())
 	srv := &server{spaDir: spaDir}
 
 	mux := http.NewServeMux()
@@ -511,6 +583,22 @@ func main() {
 	mux.HandleFunc("/watch/", srv.serveWatchPage)
 
 	addr := listenAddr()
-	log.Printf("listening on http://localhost%v (app from %v, database %v)", addr, spaDir, dbPath())
-	log.Fatal(http.ListenAndServe(addr, mux))
+	origin := baseURLFixed
+	if origin == "" {
+		origin = "each request — set BASE_URL to pin it"
+	}
+	log.Printf("listening on http://localhost%v (app from %v, database %v, links %v, cap %v game(s))",
+		addr, spaDir, dbPath(), origin, games.limit)
+	// Timeouts, so a slow or stalled client holds one connection, not the
+	// server. Requests here are small JSON and a few megabytes of SVG at
+	// most, so these bounds are generous.
+	httpSrv := &http.Server{
+		Addr:              addr,
+		Handler:           limitBody(mux),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+	}
+	log.Fatal(httpSrv.ListenAndServe())
 }

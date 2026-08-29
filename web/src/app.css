@@ -12,6 +12,9 @@
   --good: #6ede8a;
   --warn: #ffba5c;
   --bad: #ff8b8b;
+  /* The thickness of the draggable border between the map and the panel.
+     A mouse needs a target it can hit; a thumb needs more of one. */
+  --split-grip: 12px;
 }
 
 * { box-sizing: border-box; }
@@ -48,7 +51,7 @@ button.primary.done { background: #2f6b45; border-color: #3f9c66; }
 button.danger { border-color: #7a3030; color: #ffb0b0; }
 button.danger:hover:not(:disabled) { border-color: var(--bad); }
 
-button.link {
+button.link, a.link {
   background: none;
   border: none;
   color: var(--muted);
@@ -101,6 +104,20 @@ input[type="number"] {
 }
 
 .card p { margin: 0; }
+
+/* A card that folds away: the game master page's invite, needed only when
+   someone has left their seat page. The summary reads like a card heading. */
+details.card { gap: 12px; }
+details.card > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  margin: 0 0 -2px;
+}
+details.card > summary::marker { color: var(--muted); }
 
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field > span { color: var(--muted); font-size: 13px; }
@@ -386,8 +403,56 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
 
 .seat-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) var(--split-grip) 340px;
   height: 100vh;
+}
+
+/* --- the movable border -------------------------------------------------
+   The map and the order panel take turns being the one that needs the room,
+   so the border between them is a control rather than a decision made once.
+   It is a grid track of its own, which is why nothing overlaps it and why
+   moving it costs one style write.
+
+   SplitLayout writes the grid template inline while a finger is down, so
+   nothing here may carry a transition: the border has to be under the thumb,
+   not chasing it. */
+.split-grip {
+  position: relative;
+  background: var(--panel-2);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  /* The browser's own scroll and pinch must not take the drag. */
+  touch-action: none;
+  z-index: 7;
+}
+
+.split-grip:hover,
+.split-grip:focus-visible {
+  background: var(--line);
+}
+
+.split-grip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The bar that says "pull me". Two ends of the same rule: a tall thin pill
+   beside a column, a wide flat one under a map. */
+.split-grip-bar {
+  display: block;
+  background: var(--muted);
+  border-radius: 999px;
+  width: 3px;
+  height: 34px;
+}
+
+.split-grip:hover .split-grip-bar,
+.split-grip:focus-visible .split-grip-bar {
+  background: var(--accent);
 }
 
 .map-pane {
@@ -405,7 +470,6 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
 
 .side {
   background: var(--panel);
-  border-left: 1px solid var(--line);
   overflow: auto;
   padding: 16px;
   display: flex;
@@ -467,6 +531,17 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
 
 .row-actions { display: flex; gap: 4px; flex: 0 0 auto; align-items: center; }
 .row-actions button { padding: 4px 8px; font-size: 12px; line-height: 1.2; border-radius: 5px; }
+.row-actions a { padding: 4px 8px; font-size: 12px; line-height: 1.2; }
+
+/* The main-page game list: one row per game, a muted fact line under the id. */
+.list li .row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
 .row-actions .row-cancel { font-size: 15px; color: var(--muted); }
 .row-actions .row-cancel:hover:not(:disabled) { color: var(--bad); border-color: var(--bad); }
 
@@ -512,18 +587,29 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
    off screen while an order is being built. Keep these breakpoints in step
    with NARROW_PX and SHORT_PX in board.ts. */
 @media (max-width: 780px), (max-height: 500px) {
+  :root { --split-grip: 22px; }
+
   .seat-layout {
     grid-template-columns: 100%;
-    grid-template-rows: 58vh minmax(0, 1fr);
+    grid-template-rows: 58vh var(--split-grip) minmax(0, 1fr);
     height: 100dvh;
   }
 
   .map-pane { padding: 0; }
 
-  .side {
+  /* The same bar, turned: it now separates a top from a bottom. */
+  .split-grip {
     border-left: none;
+    border-right: none;
     border-top: 1px solid var(--line);
-    padding: 12px 12px 128px;
+    border-bottom: 1px solid var(--line);
+    cursor: row-resize;
+  }
+
+  .split-grip-bar { width: 46px; height: 4px; }
+
+  .side {
+    padding: 12px 12px calc(128px + env(safe-area-inset-bottom));
     gap: 14px;
   }
 
@@ -593,8 +679,8 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
 
 /* Landscape on a phone: vertical space is the scarce one. */
 @media (max-height: 500px) {
-  .seat-layout { grid-template-rows: 75vh minmax(0, 1fr); }
-  .side { padding: 8px 12px 112px; gap: 10px; }
+  .seat-layout { grid-template-rows: 75vh var(--split-grip) minmax(0, 1fr); }
+  .side { padding: 8px 12px calc(112px + env(safe-area-inset-bottom)); gap: 10px; }
   .builder { padding: 6px 12px calc(6px + env(safe-area-inset-bottom)); }
   .builder .crumbs { margin: 0 0 6px; }
 }

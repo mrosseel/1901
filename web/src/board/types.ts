@@ -151,6 +151,9 @@ export interface BoardHandle {
   /** Singles out one order on the map, or clears the choice. */
   selectOrder(province: string | null): void;
   resetView(): void;
+  /** Redraws the view for a pane that changed size, holding its middle still.
+      The board does this for itself as its host resizes. */
+  refit(): void;
   /** Resolves once the map is on screen; rejects if it cannot be loaded. */
   ready: Promise<void>;
   destroy(): void;

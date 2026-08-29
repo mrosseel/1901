@@ -1,4 +1,5 @@
 import { parseRoute } from "./api";
+import { GamesPage } from "./pages/GamesPage";
 import { GmPage } from "./pages/GmPage";
 import { JoinPage } from "./pages/JoinPage";
 import { NewGame } from "./pages/NewGame";
@@ -7,13 +8,15 @@ import { WatchPage } from "./pages/WatchPage";
 
 /*
 Routing is the page's own address. Every page carries its tokens in the path,
-the server only ever serves this shell at the four addresses below, and nothing
+the server only ever serves this shell at the addresses below, and nothing
 in the app navigates between them, so a route table is all that is needed.
 */
 export function App() {
   const route = parseRoute(window.location.pathname);
 
   switch (route.kind) {
+    case "index":
+      return <GamesPage />;
     case "new":
       return <NewGame />;
     case "join":

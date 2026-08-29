@@ -3,6 +3,7 @@ import {
   ApiError,
   claimSeat,
   createGame,
+  fetchGames,
   fetchVariants,
   parseRoute,
   postJSON,
@@ -30,6 +31,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("routes", () => {
   it("reads the four page addresses", () => {
+    expect(parseRoute("/")).toEqual({ kind: "index" });
     expect(parseRoute("/new")).toEqual({ kind: "new" });
     expect(parseRoute("/join/7/abc")).toEqual({
       kind: "join",
@@ -56,7 +58,6 @@ describe("routes", () => {
   });
 
   it("treats anything else as unknown", () => {
-    expect(parseRoute("/").kind).toBe("unknown");
     expect(parseRoute("/game/7/seat/tok/state").kind).toBe("unknown");
     expect(parseRoute("/g/test-ui/").kind).toBe("unknown");
     // A phase that is not a number is not a phase.
@@ -119,6 +120,21 @@ describe("requests", () => {
     const answer = await claimSeat("7", "invite");
     expect(calls[0].url).toBe("http://localhost:3000/game/7/join/invite");
     expect(answer.seatUrl).toBe("/game/7/seat/s/");
+  });
+
+  it("reads the game list from the token-free endpoint", async () => {
+    const calls = stubFetch({
+      ok: true,
+      status: 200,
+      body: JSON.stringify([
+        { gameId: "7", started: true, referee: false },
+        { gameId: "9", started: false, referee: true },
+      ]),
+    });
+    const list = await fetchGames();
+    expect(calls[0].url).toBe("http://localhost:3000/games");
+    expect(list.map((game) => game.gameId)).toEqual(["7", "9"]);
+    expect(list[1].referee).toBe(true);
   });
 
   it("shows the server's own sentence when a power cannot be had", async () => {

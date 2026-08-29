@@ -312,12 +312,6 @@ export function mount(
     svgRoot.setAttribute("viewBox", [view.x, view.y, view.w, view.h].join(" "));
   }
 
-  /** Sets the view from a wanted width and top-left corner, and draws it. */
-  function setView(x: number, y: number, wantedWidth: number): void {
-    view = placeView(baseBox, clampedSize(baseBox, mapRect(), wantedWidth), x, y);
-    applyView();
-  }
-
   /*
   How big a unit marker is, in map units.
 
@@ -355,6 +349,25 @@ export function mount(
 
   function zoomLevel(): number {
     return view ? fitAllWidth(baseBox, mapRect()) / view.w : 1;
+  }
+
+  /*
+  The same view, in a pane that changed shape.
+
+  The height of a view follows the container's aspect, so a pane that grows
+  taller has to be given a new box. Keeping the top-left corner would slide the
+  map up the screen; the middle is what the player was looking at, so the
+  middle is what is held still. Nothing is reloaded and no element is replaced:
+  it is one viewBox attribute and the overlays that are measured against it.
+  */
+  function refit(): void {
+    if (!view) return;
+    const middleX = view.x + view.w / 2;
+    const middleY = view.y + view.h / 2;
+    const size = clampedSize(baseBox, mapRect(), view.w);
+    view = placeView(baseBox, size, middleX - size.w / 2, middleY - size.h / 2);
+    applyView();
+    renderOverlays();
   }
 
   // Client coordinates → map coordinates.
@@ -547,11 +560,19 @@ export function mount(
 
     listen(host, "dblclick", ((event: Event) => event.preventDefault()) as EventListener);
 
-    listen(window, "resize", () => {
-      if (!view) return;
-      setView(view.x, view.y, view.w);
-      renderOverlays();
-    });
+    listen(window, "resize", refit);
+
+    /*
+    The pane can also change shape while the window does not: the border
+    between the map and the order panel is draggable (SplitLayout). Watching
+    the host covers both, and covers them before the frame is painted, so the
+    map never lags a drag by a frame.
+    */
+    if (typeof ResizeObserver === "function") {
+      const watcher = new ResizeObserver(() => refit());
+      watcher.observe(host);
+      unbind.push(() => watcher.disconnect());
+    }
   }
 
   function bindMapClicks(): void {
@@ -1840,6 +1861,7 @@ export function mount(
       renderOrders();
     },
     resetView: resetView,
+    refit: refit,
     ready: ready,
     destroy() {
       destroyed = true;

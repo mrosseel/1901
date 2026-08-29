@@ -201,11 +201,20 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         ) : null}
       </section>
 
-      <LinkShare
-        title="Invite link"
-        url={new URL(game.inviteUrl, location.href).toString()}
-        note="Anyone who scans this gets the next free power."
-      />
+      {/*
+      The invite, folded away once the game runs. It is needed exactly when
+      someone has left their seat page: opened again on their own phone, the
+      join hands them their own power back. Before the start it stands open,
+      because filling the seats is then the whole job.
+      */}
+      <details className="card" open={!game.started}>
+        <summary>Invite link and QR code</summary>
+        <LinkShare
+          title="Invite link"
+          url={new URL(game.inviteUrl, location.href).toString()}
+          note="A player who opens this on their own phone lands back on their power. On a new device it takes the next free one."
+        />
+      </details>
 
       <SettingsCard
         settings={game.settings}

@@ -12,9 +12,10 @@ import {
 } from "../variants";
 
 /*
-The first screen: the GM picks the map, sets the two rules that exist today,
-and gets back the two links that run the game. The GM link is a secret and is
-the only way back into the controls, so the warning sits right next to it.
+The first screen: the GM picks the map, sets the rules, and gets back the
+one link the table needs. The GM secret never appears here: creating marks
+this browser as the game master's, and the referee view opens from the
+cookie, so there is nothing on this screen for a player to read.
 
 The gallery is the page's weight, so it is fetched as metadata only and the
 maps are left to the cards (see VariantGallery). A server that does not answer
@@ -72,9 +73,8 @@ export function NewGame() {
   };
 
   if (game) {
-    const gmUrl =
-      game.gmUrl || new URL("/game/" + game.gameId + "/gm/" + game.gmToken + "/", location.origin).toString();
     const inviteUrl = new URL(game.inviteUrl, location.href).toString();
+    const refereeUrl = new URL("/game/" + game.gameId + "/referee/", location.origin).toString();
     return (
       <main className="page">
         <h1>The game is ready</h1>
@@ -84,27 +84,20 @@ export function NewGame() {
         </p>
 
         <LinkShare
-          title="Your game master link"
-          url={gmUrl}
-          qr={false}
-          note={
-            <>
-              <strong>Bookmark this link now.</strong> It is the only way back to the
-              controls, it is not shown again, and anyone who has it runs the game.
-            </>
-          }
-        />
-
-        <LinkShare
           title="Invite link"
           url={inviteUrl}
           note="Pass the phone around, or let the players scan this. Each one gets a power."
         />
 
         <p>
-          <a className="cta" href={gmUrl}>
-            Open the game master page
+          <a className="cta" href={refereeUrl}>
+            Open the game master view
           </a>
+        </p>
+        <p className="muted">
+          This browser is the game master's now. The controls open here, and from
+          your board there is a switch back. Bookmark the game list, it links the
+          referee view for you.
         </p>
       </main>
     );

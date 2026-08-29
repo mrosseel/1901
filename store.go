@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS game (
     id               TEXT PRIMARY KEY,
     gm_token         TEXT    NOT NULL,
     invite_token     TEXT    NOT NULL,
+    gm_device        TEXT    NOT NULL DEFAULT '',
     deadline_minutes INTEGER NOT NULL,
     gm_plays         INTEGER NOT NULL,
     settings_version INTEGER NOT NULL,
@@ -126,6 +127,7 @@ var gameColumns = []struct{ name, definition string }{
 	{"grace_minutes", `INTEGER NOT NULL DEFAULT 0`},
 	{"first_turn_extra_minutes", `INTEGER NOT NULL DEFAULT 0`},
 	{"press_mode", `TEXT NOT NULL DEFAULT '` + defaultPressMode + `'`},
+	{"gm_device", `TEXT NOT NULL DEFAULT ''`},
 }
 
 // migrate adds the columns an older database lacks.
@@ -190,13 +192,14 @@ func (self *game) persistErr(id string) error {
 		deadline = f.deadlineAt.UTC().Format(time.RFC3339Nano)
 	}
 	_, err = tx.Exec(`
-        INSERT INTO game (id, gm_token, invite_token, deadline_minutes, gm_plays,
+        INSERT INTO game (id, gm_token, invite_token, gm_device, deadline_minutes, gm_plays,
                           settings_version, started, deadline_at, gm_power,
                           phase_index, created_at, variant,
                           retreat_build_percent, grace_minutes,
                           first_turn_extra_minutes, press_mode)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+            gm_device        = excluded.gm_device,
             deadline_minutes = excluded.deadline_minutes,
             gm_plays         = excluded.gm_plays,
             settings_version = excluded.settings_version,
@@ -208,7 +211,7 @@ func (self *game) persistErr(id string) error {
             grace_minutes            = excluded.grace_minutes,
             first_turn_extra_minutes = excluded.first_turn_extra_minutes,
             press_mode               = excluded.press_mode`,
-		id, f.gmToken, f.inviteToken, f.settings.DeadlineMinutes, f.settings.GMPlays,
+		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
 		f.settings.RetreatBuildPercent, f.settings.GraceMinutes,
@@ -308,7 +311,7 @@ func loadAll() error {
 		return nil
 	}
 	rows, err := db.Query(`
-        SELECT id, gm_token, invite_token, deadline_minutes, gm_plays,
+        SELECT id, gm_token, invite_token, gm_device, deadline_minutes, gm_plays,
                settings_version, started, deadline_at, gm_power, phase_index,
                created_at, COALESCE(variant, ?),
                retreat_build_percent, grace_minutes, first_turn_extra_minutes,
@@ -333,7 +336,7 @@ func loadAll() error {
 		var id, gmPower, createdAt, key string
 		var deadline sql.NullString
 		var phaseIndex int
-		if err := rows.Scan(&id, &f.gmToken, &f.inviteToken, &f.settings.DeadlineMinutes,
+		if err := rows.Scan(&id, &f.gmToken, &f.inviteToken, &f.gmDevice, &f.settings.DeadlineMinutes,
 			&f.settings.GMPlays, &f.settingsVersion, &f.started, &deadline, &gmPower,
 			&phaseIndex, &createdAt, &key, &f.settings.RetreatBuildPercent,
 			&f.settings.GraceMinutes, &f.settings.FirstTurnExtraMinutes,

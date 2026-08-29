@@ -11,6 +11,7 @@ import {
 import { Board } from "../components/Board";
 import { Clock } from "../components/Clock";
 import { RefereeGuide } from "../components/RefereeGuide";
+import { SplitLayout } from "../components/SplitLayout";
 import { StylePicker, useMapStyle } from "../components/StylePicker";
 import { SupportedMark } from "../components/SupportedMark";
 import { emptyPlan, phaseKind } from "../board/phases";
@@ -218,7 +219,7 @@ export function WatchPage({
   const variant = watch?.variant || summary?.variant;
 
   return (
-    <div className="seat-layout watch">
+    <SplitLayout className="seat-layout watch">
       <main className="map-pane">
         {boardState ? (
           <Board
@@ -326,6 +327,6 @@ export function WatchPage({
             style the room can actually read. */}
         <StylePicker value={style} onChange={setStyle} />
       </aside>
-    </div>
+    </SplitLayout>
   );
 }

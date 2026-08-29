@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, SeatClient, fetchPublic, type SeatState } from "../api";
 import { Board } from "../components/Board";
+import { SplitLayout } from "../components/SplitLayout";
 import {
   phaseLabel,
   powerColor,
@@ -303,7 +304,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const resolutionRows = Object.keys(resolutions).sort();
 
   return (
-    <div className="seat-layout">
+    <SplitLayout className="seat-layout">
       <main className="map-pane">
         <Board
           api={api}
@@ -359,6 +360,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
                   Referee guide
                 </button>
               ) : null}
+            </span>
+          ) : null}
+          {/* Only the game master's own seat carries this: the switch from
+              the board to the controls, and back from there. */}
+          {state?.refereeUrl ? (
+            <span className="head-links">
+              <a className="link" href={state.refereeUrl}>
+                Game master view
+              </a>
             </span>
           ) : null}
           {/* What this phase asks of this power: the units that must retreat,
@@ -491,6 +501,6 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         <StylePicker value={style} onChange={setStyle} />
         <OrderArrowsToggle value={hideOrders} onChange={setHideOrders} />
       </aside>
-    </div>
+    </SplitLayout>
   );
 }

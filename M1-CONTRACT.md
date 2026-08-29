@@ -15,16 +15,28 @@ All tokens are random, URL-safe, ≥16 bytes entropy. Three kinds:
 `gmToken` (GM control), `inviteToken` (the one shared join link),
 `seatToken` (one per seat, created at claim). Device secret: random value
 set as a cookie at claim; a device presenting it gets its existing seat
-back (D-020).
+back (D-020). Referee secret: a fourth random value, set as a cookie at
+game creation; the browser holding it may open `/game/{id}/referee/`, and
+it is how the GM reaches the controls without the GM link ever being
+displayed or shared.
 
 ## Endpoints
 
 Existing M0 endpoints stay untouched (legacy sandbox mode at /g/{id}/).
 New game flow lives under /game/ (server) and new pages:
 
-- `POST /games` body `{settings}` → `{gameId, gmToken, inviteUrl}`.
+- `POST /games` body `{settings}` → `{gameId, inviteUrl}`. The response
+  carries no GM secret; it sets the referee cookie (see Tokens).
   Settings: `{deadlineMinutes: int (0 = no deadline), gmPlays: bool}`.
+- `GET /games` → every game on the server, newest first:
+  `[{gameId, variant, started, phase, joinedCount, totalSeats, turns,
+  deadlineAt, createdAt, referee}]`. Public facts only — a bare id opens
+  the public pages, never a seat or the controls. `referee` is true only
+  for the request's browser when its referee cookie matches that game.
 - `GET /new` → game-creation page (frontend).
+- `GET /game/{id}/referee/` → 302 to the GM view for the browser whose
+  referee cookie matches; 404 for everyone else. The address itself
+  carries no secret, so the main page may offer it per game.
 - GM (all under /game/{id}/gm/{gmToken}):
   - `GET  .../state` → `{settings, settingsVersion, started, phase,
      seats: [{power, joined, finalized}], joinedCount, totalSeats,
@@ -48,12 +60,14 @@ New game flow lives under /game/ (server) and new pages:
      friendly error. When gmPlays, one power is held back for the GM.
 - Seat (all under /game/{id}/seat/{seatToken}):
   - `GET  .../` → the player board page (frontend).
-  - `GET  .../state` → M0-shaped state BUT: `orders`/`orderParts` contain
-     ONLY this seat's power's orders; adds `you: {power}`, `settings`,
-     `settingsVersion`, `started`, `deadlineAt`,
-     `finalized: {power: bool}` (public), `phaseResolutions` (public,
-     previous phase, all powers — resolutions are public after
-     adjudication).
+   - `GET  .../state` → M0-shaped state BUT: `orders`/`orderParts` contain
+      ONLY this seat's power's orders; adds `you: {power}`, `settings`,
+      `settingsVersion`, `started`, `deadlineAt`,
+      `finalized: {power: bool}` (public), `phaseResolutions` (public,
+      previous phase, all powers — resolutions are public after
+      adjudication). The GM's own power additionally gets
+      `refereeUrl`, the GM view address: the switch from the board to
+      the controls and back.
   - `GET  .../options?province=` → 403 unless the province's unit belongs
      to this seat's power. No nation query parameter accepted.
   - `POST .../order` → same body as M0; 403 for another power's unit.
@@ -74,9 +88,14 @@ public only after adjudication.
 
 ## Frontend pages (static/, reuse the M0 board code)
 
+- `/` : the main page — every game on the server, "in progress" and
+  "setting up", each linking its spectator view, and the referee view only
+  for the browser that created the game.
 - `/new`: create-game form (deadline minutes, gmPlays checkbox) →
-  POST /games → show GM link (bookmark warning), invite link, and a QR
-  (draw locally — tiny embedded QR lib or canvas implementation, no CDN).
+  POST /games → show the invite link and its QR (draw locally — tiny
+  embedded QR lib or canvas implementation, no CDN), and an "open the game
+  master view" entry that works through the referee cookie. No GM link is
+  displayed anywhere.
 - Join page: shows settings (the rules) before claiming; Claim button →
   redirect to seatUrl. Already-claimed device: straight to seat.
 - GM page: settings editor, invite link + QR, seat grid (power names with
