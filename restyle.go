@@ -230,13 +230,18 @@ func withStyle(tag string, props []prop) string {
 	return tagCloseRe.ReplaceAllString(tag, ` style="`+next+`"$1>`)
 }
 
-// layerSpan finds one layer's text, from its opening tag to its matching
-// close. godip's maps are Inkscape files whose drawing layers carry their
-// name as a label and their id as whatever the editor last generated, so
-// either spelling is accepted.
-func layerSpan(svg, name string) (start, end int, found bool) {
-	open := regexp.MustCompile(
+// layerOpenRe matches one layer's opening tag. godip's maps are Inkscape
+// files whose drawing layers carry their name as a label and their id as
+// whatever the editor last generated, so either spelling is accepted.
+func layerOpenRe(name string) *regexp.Regexp {
+	return regexp.MustCompile(
 		`<g\b[^>]*\b(?:id|inkscape:label)="` + regexp.QuoteMeta(name) + `"[^>]*?(/)?>`)
+}
+
+// layerSpan finds one layer's text, from its opening tag to its matching
+// close.
+func layerSpan(svg, name string) (start, end int, found bool) {
+	open := layerOpenRe(name)
 	m := open.FindStringSubmatchIndex(svg)
 	if m == nil {
 		return 0, 0, false
@@ -260,6 +265,53 @@ func layerSpan(svg, name string) (start, end int, found bool) {
 		}
 	}
 	return m[0], len(svg), true
+}
+
+var (
+	transformAttrRe = regexp.MustCompile(`\btransform="([^"]*)"`)
+	scaleFuncRe     = regexp.MustCompile(`\bscale\(\s*(-?[0-9.]+)`)
+	matrixFuncRe    = regexp.MustCompile(`\bmatrix\(\s*(-?[0-9.]+)`)
+)
+
+// transformScale reads how much a transform list magnifies what it draws.
+//
+// Only the horizontal factor is read, because a map drawn at different
+// horizontal and vertical scales would have no single unit for a length to
+// be quoted in. A translation magnifies nothing and is ignored.
+func transformScale(transform string) float64 {
+	scale := 1.0
+	for _, re := range []*regexp.Regexp{scaleFuncRe, matrixFuncRe} {
+		for _, m := range re.FindAllStringSubmatch(transform, -1) {
+			one, err := strconv.ParseFloat(m[1], 64)
+			if err != nil || one == 0 {
+				continue
+			}
+			scale *= math.Abs(one)
+		}
+	}
+	return scale
+}
+
+// labelLayerScale is the scale a jDip map draws its NAMES at, which is not
+// the scale it draws its art at (D-026).
+//
+// jDip writes its art under a transform and its two name layers as siblings
+// of it, so a length in a label rule and a length in a terrain rule are
+// quoted in different units. The art is what decides this, so a plan that
+// states no label scale gets it from here rather than from the art scale. A
+// name layer that carries no transform of its own is drawn at 1.
+func labelLayerScale(svg string) float64 {
+	for _, name := range []string{"FullLabelLayer", "BriefLabelLayer"} {
+		tag := layerOpenRe(name).FindString(svg)
+		if tag == "" {
+			continue
+		}
+		if m := transformAttrRe.FindStringSubmatch(tag); m != nil {
+			return transformScale(m[1])
+		}
+		return 1
+	}
+	return 1
 }
 
 // --- fill substitution ------------------------------------------------------
@@ -572,9 +624,16 @@ const labelScope = "#FullLabelLayer text, #BriefLabelLayer text"
 // jDip's rules are kept for everything the board draws itself — order
 // strokes, unit colours, the invisible click rectangles — because those are
 // behaviour, not style. What is replaced is every rule that paints the map.
-func buildStylesheet(plan *jdipPlan, style *loadedStyle, width float64) string {
+//
+// A length is carried onto the scale of the LAYER it lands in, not the map's:
+// the art layer and the name layers are drawn at different scales, so the two
+// carries below are not interchangeable.
+func buildStylesheet(plan *jdipPlan, style *loadedStyle, width, labelScale float64) string {
 	carry := func(value float64) string {
 		return num(carryLength(value, style.ReferenceWidth, width, plan.ArtScale))
+	}
+	carryLabel := func(value float64) string {
+		return num(carryLength(value, style.ReferenceWidth, width, labelScale))
 	}
 	lines := []string{}
 	lines = append(lines,
@@ -667,18 +726,18 @@ func buildStylesheet(plan *jdipPlan, style *loadedStyle, width float64) string {
 			return "; stroke:none"
 		}
 		return "; paint-order:stroke; stroke:" + one.Halo.Color +
-			"; stroke-width:" + carry(one.Halo.Width) +
+			"; stroke-width:" + carryLabel(one.Halo.Width) +
 			"; stroke-linejoin:round; stroke-linecap:round"
 	}
 	lines = append(lines,
 		".map-landname { font-family:"+land.Family+"; font-weight:"+land.Weight+
-			"; font-style:"+land.Style+"; letter-spacing:"+carry(land.LetterSpacing)+
+			"; font-style:"+land.Style+"; letter-spacing:"+carryLabel(land.LetterSpacing)+
 			"; fill:"+land.Fill+halo(land)+"; }",
 		".map-seaname { font-family:"+sea.Family+"; font-weight:"+sea.Weight+
 			"; font-style:"+sea.Style+"; letter-spacing:"+
-			carry(style.Typography.SeaAbbrevLetterSpacing)+
+			carryLabel(style.Typography.SeaAbbrevLetterSpacing)+
 			"; fill:"+sea.Fill+halo(sea)+"; }",
-		".map-seaname.map-longname { letter-spacing:"+carry(sea.LetterSpacing)+"; }",
+		".map-seaname.map-longname { letter-spacing:"+carryLabel(sea.LetterSpacing)+"; }",
 		"")
 
 	// Supply-centre glyphs, for a map that draws its own. jDip's converted
@@ -748,7 +807,11 @@ func applyJDipStyle(original string, plan *jdipPlan, style *loadedStyle) (string
 	if block == nil {
 		return "", fmt.Errorf("this map has no <style> block to replace")
 	}
-	sheet := buildStylesheet(plan, style, width)
+	labelScale := plan.LabelScale
+	if labelScale <= 0 {
+		labelScale = labelLayerScale(original)
+	}
+	sheet := buildStylesheet(plan, style, width, labelScale)
 	replaced := svg[block[0]:block[2]] + "\n<![CDATA[\n" + sheet + "\n]]>\n" + svg[block[3]:block[1]]
 	// The map's own CDATA wrapper, where it had one, would otherwise be
 	// nested inside the new one.

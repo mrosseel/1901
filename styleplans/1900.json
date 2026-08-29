@@ -12,6 +12,7 @@
     "styleable": true,
     "reason": "",
     "artScale": 0.1,
+    "labelScale": 1,
     "powerClasses": [
       "austria",
       "britain",

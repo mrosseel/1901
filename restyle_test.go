@@ -244,6 +244,68 @@ func TestCarryLengthQuotesALengthAgainstTheMapItLandsOn(t *testing.T) {
 	}
 }
 
+func TestLabelLayerScaleReadsTheNameLayerRatherThanTheArtLayer(t *testing.T) {
+	cases := []struct {
+		name string
+		svg  string
+		want float64
+	}{
+		{
+			name: "names outside a scaled art layer",
+			svg: `<svg><g id="MapLayer" transform="translate(0,713) scale(0.1,-0.1)"></g>` +
+				`<g id="FullLabelLayer"><text>Kiel</text></g></svg>`,
+			want: 1,
+		},
+		{
+			name: "names under a scale of their own",
+			svg:  `<svg><g id="FullLabelLayer" transform="scale(0.5)"></g></svg>`,
+			want: 0.5,
+		},
+		{
+			name: "names under a matrix",
+			svg:  `<svg><g id="FullLabelLayer" transform="matrix(2,0,0,2,0,0)"></g></svg>`,
+			want: 2,
+		},
+		{
+			name: "no name layer at all",
+			svg:  `<svg><g id="MapLayer" transform="scale(0.1,-0.1)"></g></svg>`,
+			want: 1,
+		},
+	}
+	for _, one := range cases {
+		if got := labelLayerScale(one.svg); got != one.want {
+			t.Errorf("%v: got %v, want %v", one.name, got, one.want)
+		}
+	}
+}
+
+// A plan may state the label scale, but the art is what decides it. This
+// checks the two agree for every jDip map, so a stated value cannot drift
+// away from the art it was measured on.
+func TestEveryJDipPlanStatesTheLabelScaleItsArtDraws(t *testing.T) {
+	if err := loadPlans(); err != nil {
+		t.Fatal(err)
+	}
+	for key, plan := range plans {
+		if plan.Kind != "jdip" || plan.JDip == nil || plan.JDip.LabelScale == 0 {
+			continue
+		}
+		v, found := lookupVariant(key)
+		if !found {
+			t.Fatalf("%v is not registered", key)
+		}
+		original, err := v.SVGMap()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := labelLayerScale(string(original))
+		if plan.JDip.LabelScale != want {
+			t.Errorf("%v: plan says labelScale %v, art draws %v",
+				key, plan.JDip.LabelScale, want)
+		}
+	}
+}
+
 func TestSetStylePropsReplacesRatherThanRepeats(t *testing.T) {
 	got := setStyleProps("fill:#000;stroke:#fff", []prop{{"stroke", "#123456"}})
 	if got != "fill:#000;stroke:#123456" {

@@ -94,6 +94,12 @@ type jdipPlan struct {
 	Styleable bool    `json:"styleable"`
 	Reason    string  `json:"reason"`
 	ArtScale  float64 `json:"artScale"`
+	// LabelScale is the scale the two name layers are drawn at, which is not
+	// the scale the art layer is drawn at: jDip writes its names outside the
+	// transform it writes its art under. A length belongs to the layer it
+	// lands in, so a label rule and a terrain rule are carried onto different
+	// scales. Absent or zero, the scale is read from the art itself.
+	LabelScale float64 `json:"labelScale"`
 	// PowerClasses are painted as plain land: the board draws ownership from
 	// the game state, so a power colour baked into the map can only ever
 	// contradict it.
