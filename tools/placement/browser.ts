@@ -14,7 +14,7 @@ Nothing here decides anything. It measures, and it draws what it is told to.
 import { chromium, type Browser, type Page } from "playwright-core";
 import { existsSync } from "node:fs";
 import type { Point, Rect } from "./geometry.ts";
-import type { MapGeometry } from "./rules.ts";
+import type { MapGeometry, TerrainKind } from "./rules.ts";
 
 export type { MapGeometry, ProvinceGeometry } from "./rules.ts";
 
@@ -778,7 +778,7 @@ export interface CoastResult {
 export async function probeCoasts(
   page: Page,
   requests: CoastRequest[],
-  terrain: Record<string, "sea" | "land" | "unknown">,
+  terrain: TerrainKind,
 ): Promise<Record<string, CoastResult[]>> {
   return page.evaluate(
     (input: { batch: CoastRequest[]; terrain: Record<string, string> }) => {
@@ -872,86 +872,6 @@ export async function probeCoasts(
 }
 
 /*
-Which provinces are sea and which are land, read off the map itself.
-
-The server has no endpoint for it and the SVG has no attribute for it, but the
-map already says so in the only language a map has: sea is painted one colour
-and land another. So the topmost painted element under each province's pole is
-asked for its fill, the fills are counted, and the two that almost every
-province shares are the two terrains. Sea is whichever of them is also under
-the map's far corner, which on every map in this set is open water.
-
-This is a heuristic and it is reported, not trusted silently — it only ever
-decides which way a marker is allowed to overhang, and the report lists the
-call for every province so a wrong one is visible.
-*/
-export interface Terrain {
-  seaFill: string | null;
-  landFill: string | null;
-  kind: Record<string, "sea" | "land" | "unknown">;
-}
-
-export async function classifyTerrain(page: Page, poles: Pole[]): Promise<Terrain> {
-  return page.evaluate((points: Pole[]) => {
-    const svg = document.querySelector("svg") as SVGSVGElement;
-    const ctm = svg.getScreenCTM();
-    const probe = svg.createSVGPoint();
-
-    // The fill of the topmost thing actually painted at a map point.
-    const fillAt = (x: number, y: number): string | null => {
-      if (!ctm) return null;
-      probe.x = x;
-      probe.y = y;
-      const screen = probe.matrixTransform(ctm);
-      const stack = document.elementsFromPoint(screen.x, screen.y);
-      for (const node of stack) {
-        if (!(node instanceof SVGGraphicsElement)) continue;
-        const fill = getComputedStyle(node).fill;
-        if (!fill || fill === "none" || fill === "rgba(0, 0, 0, 0)") continue;
-        return fill;
-      }
-      return null;
-    };
-
-    const fills = new Map<string, number>();
-    const byKey: Record<string, string | null> = {};
-    for (const pole of points) {
-      const fill = fillAt(pole.point.x, pole.point.y);
-      byKey[pole.key] = fill;
-      if (fill) fills.set(fill, (fills.get(fill) || 0) + 1);
-    }
-
-    const ranked = Array.from(fills.entries()).sort((a, b) => b[1] - a[1]);
-    const box = svg.viewBox.baseVal;
-    // A hand's width in from the corner: far enough to miss a border stroke,
-    // near enough that no map puts a province there.
-    const cornerFill = fillAt(box.x + box.width * 0.02, box.y + box.height * 0.02);
-
-    let seaFill: string | null = null;
-    let landFill: string | null = null;
-    if (ranked.length) {
-      const top = ranked.slice(0, 2).map((entry) => entry[0]);
-      if (cornerFill && top.includes(cornerFill)) {
-        seaFill = cornerFill;
-        landFill = top.find((fill) => fill !== cornerFill) || null;
-      } else {
-        // No corner match: fall back to the two most common fills and leave
-        // the call to the report rather than guessing which is which.
-        landFill = top[0] || null;
-        seaFill = top[1] || null;
-      }
-    }
-
-    const kind: Record<string, "sea" | "land" | "unknown"> = {};
-    for (const pole of points) {
-      const fill = byKey[pole.key];
-      kind[pole.key] = fill === seaFill ? "sea" : fill === landFill ? "land" : "unknown";
-    }
-    return { seaFill: seaFill, landFill: landFill, kind: kind };
-  }, poles);
-}
-
-/*
 What a marker at a point would actually do: how far its centre is from the
 province border, and — for the part of it that hangs out — whose ground it
 hangs over.
@@ -985,7 +905,7 @@ export interface OverhangResult {
 export async function probeOverhang(
   page: Page,
   requests: OverhangRequest[],
-  terrain: Record<string, "sea" | "land" | "unknown">,
+  terrain: TerrainKind,
 ): Promise<Record<string, OverhangResult[]>> {
   return page.evaluate(
     (input: { batch: OverhangRequest[]; terrain: Record<string, string> }) => {

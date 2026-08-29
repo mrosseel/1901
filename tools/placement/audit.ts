@@ -61,14 +61,12 @@ import {
   type Rect,
 } from "./geometry.ts";
 import {
-  classifyTerrain,
   computePoles,
   measureBriefBoxes,
   probeCoasts,
   probeOverhang,
   testInside,
   type InsideRequest,
-  type Terrain,
 } from "./browser.ts";
 import type { Page } from "playwright-core";
 import {
@@ -99,6 +97,7 @@ export {
   type OverhangNote,
   type Placement,
   type PlacementTable,
+  type TerrainKind,
   type Violation,
 } from "./rules.ts";
 
@@ -380,7 +379,7 @@ export interface PlaceResult {
   table: PlacementTable;
   decisions: Decision[];
   poles: Map<string, Point>;
-  terrain: Terrain;
+  terrain: TerrainKind;
   /** Every position that left its seed, for the report. */
   deviations: Deviation[];
   /** How many seeded positions were kept untouched. */
@@ -414,6 +413,7 @@ export async function place(
   map: MapGeometry,
   shipped: PlacementTable,
   r: number,
+  terrain: TerrainKind,
   options: PlaceOptions = {},
 ): Promise<PlaceResult> {
   const margin = options.margin === undefined ? BORDER_MARGIN : options.margin;
@@ -422,7 +422,6 @@ export async function place(
   const drawable = map.provinces.filter((province) => province.shapes > 0);
   const poleList = await computePoles(page, drawable.map((province) => province.key));
   const poles = new Map<string, Point>(poleList.map((pole) => [pole.key, pole.point]));
-  const terrain = await classifyTerrain(page, poleList);
 
   const table: PlacementTable = {};
   const decisions: Decision[] = [];
@@ -516,7 +515,7 @@ export async function place(
           radius: r * scale * (1 + margin),
           samples: EDGE_SAMPLES,
         })),
-        terrain.kind,
+        terrain,
         () => r * scale,
       ),
     );
@@ -580,7 +579,7 @@ export async function place(
         radius: r * MIN_SCALE,
         samples: EDGE_SAMPLES,
       })),
-      terrain.kind,
+      terrain,
     );
     for (const province of cramped) {
       const pole = poles.get(province.key) || { x: province.box.x, y: province.box.y };
@@ -647,7 +646,7 @@ export async function place(
           radius: r * best.get(province.key)!.scale * (1 + margin),
           samples: EDGE_SAMPLES,
         })),
-        terrain.kind,
+        terrain,
         (key) => r * (best.get(key)?.scale || 1),
       );
       let improved = false;
@@ -701,7 +700,7 @@ export async function place(
           radius: r * scale * (1 + margin),
           samples: EDGE_SAMPLES,
         })),
-        terrain.kind,
+        terrain,
         () => r * scale,
       );
       for (const province of offenders) {
@@ -760,7 +759,7 @@ export async function place(
         radius: r * (seed[province.key].scale || 1) * (1 + margin),
         samples: EDGE_SAMPLES,
       })),
-      terrain.kind,
+      terrain,
       (key) => r * (seed[key].scale || 1),
     );
     const onCoast = await standsOnOwnCoast(
@@ -841,7 +840,7 @@ export async function place(
             radius: r * scale * (1 + margin),
             samples: EDGE_SAMPLES,
           })),
-          terrain.kind,
+          terrain,
           () => r * scale,
         ),
       );
@@ -1004,7 +1003,7 @@ export async function place(
         samples: EDGE_SAMPLES,
       };
     }),
-    terrain.kind,
+    terrain,
     (key) => r * (best.get(key)?.scale || 1) * DISLODGED_BODY,
   );
 
@@ -1023,7 +1022,7 @@ export async function place(
         samples: EDGE_SAMPLES,
       };
     }),
-    terrain.kind,
+    terrain,
     (key) => r * (best.get(key)?.scale || 1) * DISLODGED_BODY,
   );
 

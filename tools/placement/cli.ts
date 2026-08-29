@@ -26,7 +26,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { computePoles, openBrowser, measureMap, type MapGeometry, type Terrain } from "./browser.ts";
+import { computePoles, openBrowser, measureMap, type MapGeometry } from "./browser.ts";
 import {
   COAST_REACH,
   audit,
@@ -40,6 +40,7 @@ import {
   type Decision,
   type Deviation,
   type PlacementTable,
+  type TerrainKind,
 } from "./audit.ts";
 import {
   COAST_SEPARATION,
@@ -182,6 +183,30 @@ async function fetchText(url: string): Promise<string> {
   return response.text();
 }
 
+/*
+Which provinces are sea and which are land, from the adjudicator that decides
+it — the same endpoint the map editor reads, so the two cannot disagree about
+a coast.
+
+Reading it off the map's fill instead was a guess, and on real maps it was
+wrong: twentytwenty paints Ankara, Bodrum and Bulgaria in a tone the corner
+probe called sea, so the coast rule never fired for them and their markers
+came out off the coast strip.
+
+godip's "coast" is land a fleet may also sit on, and every map paints it as
+land, so that is what it is called here. The scoring only ever asks whether a
+neighbour is sea; the label is what the report prints.
+*/
+async function fetchTerrain(server: string, key: string): Promise<TerrainKind> {
+  const body = await fetchText(server + "/variants/" + key + "/provinces.json");
+  const provinces = JSON.parse(body) as Array<{ key: string; type: string }>;
+  const terrain: TerrainKind = {};
+  for (const one of provinces) {
+    terrain[one.key] = one.type === "sea" ? "sea" : one.type === "other" ? "unknown" : "land";
+  }
+  return terrain;
+}
+
 async function listVariants(server: string): Promise<string[]> {
   const body = await fetchText(server + "/variants");
   const parsed = JSON.parse(body) as Array<{ key: string }>;
@@ -208,7 +233,7 @@ interface ReportInput {
   before: Audit;
   after: Audit;
   decisions: Decision[];
-  terrain: Terrain;
+  terrain: TerrainKind;
   stress: { radius: number; before: Audit; after: Audit };
   /** The clearance study the RULE B threshold was taken from, and the source. */
   study: ClearanceStudy | null;
@@ -489,11 +514,9 @@ function report(input: ReportInput): string {
   }
   lines.push("");
 
-  lines.push("TERRAIN (read off the map's own fill, used only to choose overhang direction)");
-  lines.push("  sea fill  " + (terrain.seaFill || "not found"));
-  lines.push("  land fill " + (terrain.landFill || "not found"));
+  lines.push("TERRAIN (from the adjudicator, /variants/" + key + "/provinces.json)");
   const counts = { sea: 0, land: 0, unknown: 0 };
-  for (const value of Object.values(terrain.kind)) counts[value]++;
+  for (const value of Object.values(terrain)) counts[value]++;
   lines.push("  " + counts.sea + " sea, " + counts.land + " land, " + counts.unknown + " unclassified");
   lines.push("");
 
@@ -563,6 +586,7 @@ async function run(): Promise<void> {
     for (const key of keys) {
       process.stdout.write("· " + key + " … ");
       const svgText = await fetchText(options.server + "/variants/" + key + "/map.svg");
+      const terrain = await fetchTerrain(options.server, key);
       const map = await measureMap(page, svgText);
       const r = standardRadius(map.viewBox);
       const rStress = stressRadius(map.viewBox);
@@ -634,12 +658,10 @@ async function run(): Promise<void> {
       const minClearance =
         options.minClearance !== null ? options.minClearance : study ? study.medianRadii : MIN_CLEARANCE_RADII;
 
-      /*
-      The placer runs first because it works out which provinces are sea and
-      which are land, and every audit needs that: the coast rule asks what a
-      marker is hanging over, and water is free where another country is not.
-      */
-      const result = await place(page, map, shipped, r, {
+      /* The placer and every audit below take the same terrain: the coast
+         rule asks what a marker is hanging over, and water is free where
+         another country is not. */
+      const result = await place(page, map, shipped, r, terrain, {
         seed: seed || undefined,
         minClearanceRadii: minClearance,
       });
@@ -652,19 +674,18 @@ async function run(): Promise<void> {
         result.table[key].brief = [round(point.x), round(point.y)];
       }
 
-      const kind = result.terrain.kind;
-      const before = await audit(page, map, shipped, r, kind);
+      const before = await audit(page, map, shipped, r, terrain);
       /* The hand table judged by the same tests, so the report can say what
          this run cost or bought against the placement it started from. */
-      const seedAudit = seed ? await audit(page, map, seed, r, kind) : null;
-      const after = await audit(page, map, result.table, r, kind);
+      const seedAudit = seed ? await audit(page, map, seed, r, terrain) : null;
+      const after = await audit(page, map, result.table, r, terrain);
       const outcome = measureClearance(map, result.table, r);
 
       // The same two tables judged again with the bigger marker a phone draws.
       const stress = {
         radius: rStress,
-        before: await audit(page, map, shippedPlacement(map, rStress), rStress, kind),
-        after: await audit(page, map, result.table, rStress, kind),
+        before: await audit(page, map, shippedPlacement(map, rStress), rStress, terrain),
+        after: await audit(page, map, result.table, rStress, terrain),
       };
 
       const payload = {
@@ -693,7 +714,7 @@ async function run(): Promise<void> {
           before: before,
           after: after,
           decisions: result.decisions,
-          terrain: result.terrain,
+          terrain: terrain,
           stress: stress,
           study: study,
           studySource: seedPath || "none",
@@ -767,7 +788,7 @@ async function run(): Promise<void> {
             shipped: shipped,
             optimized: result.table,
             hand: seed,
-            sea: Object.keys(result.terrain.kind).filter((key) => result.terrain.kind[key] === "sea"),
+            sea: Object.keys(terrain).filter((key) => terrain[key] === "sea"),
             coastReach: COAST_REACH,
             deviations: result.deviations.map((d) => ({
               key: d.key,
