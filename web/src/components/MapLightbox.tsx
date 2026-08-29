@@ -1,5 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MAX_ZOOM, centredView, pannedView, zoomedView, type Box } from "../board/viewbox";
+import {
+  INERTIA_DECAY_MS,
+  MAX_ZOOM,
+  ZOOM_EASE_MS,
+  centredView,
+  createWheelAccumulator,
+  easeOutCubic,
+  inertiaOffset,
+  inertiaVelocity,
+  interpolateView,
+  pannedView,
+  prefersReducedMotion,
+  runFrames,
+  trackSample,
+  zoomedView,
+  type Box,
+  type Cancel,
+  type Point,
+  type Sample,
+  type WheelAccumulator,
+} from "../board/viewbox";
 
 /*
 The gallery's map, big.
@@ -113,6 +133,109 @@ export function MapLightbox({
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef(0);
   const travel = useRef({ x: 0, y: 0, distance: 0 });
+  const samples = useRef<Sample[]>([]);
+  const animation = useRef<Cancel | null>(null);
+
+  const stopAnimation = useCallback(() => {
+    if (animation.current) animation.current();
+    animation.current = null;
+  }, []);
+
+  const zoomBy = useCallback(
+    (clientX: number, clientY: number, factor: number) => {
+      const box = view.current;
+      if (!box || !base) return;
+      view.current = zoomedView(base, rect(), box, clientX, clientY, factor);
+      apply();
+    },
+    [base, apply, rect],
+  );
+
+  /*
+  The wheel accumulator outlives every render — it holds the deltas gathered so
+  far — so it is built once and reads the current zoom through a ref.
+  */
+  const zoomNow = useRef(zoomBy);
+  useEffect(() => {
+    zoomNow.current = zoomBy;
+  }, [zoomBy]);
+  const wheelZoom = useRef<WheelAccumulator | null>(null);
+  if (!wheelZoom.current) {
+    wheelZoom.current = createWheelAccumulator((step) =>
+      zoomNow.current(step.clientX, step.clientY, step.factor),
+    );
+  }
+
+  useEffect(() => {
+    const accumulator = wheelZoom.current;
+    return () => {
+      accumulator?.cancel();
+      stopAnimation();
+    };
+  }, [stopAnimation]);
+
+  const easeZoomBy = useCallback(
+    (clientX: number, clientY: number, factor: number) => {
+      stopAnimation();
+      if (prefersReducedMotion()) {
+        zoomBy(clientX, clientY, factor);
+        return;
+      }
+      let applied = 1;
+      animation.current = runFrames((elapsed) => {
+        const progress = Math.min(1, elapsed / ZOOM_EASE_MS);
+        const total = Math.pow(factor, easeOutCubic(progress));
+        zoomBy(clientX, clientY, total / applied);
+        applied = total;
+        if (progress < 1) return true;
+        animation.current = null;
+        return false;
+      });
+    },
+    [stopAnimation, zoomBy],
+  );
+
+  /** Rides the view over to `target` on the same ramp the zoom uses. */
+  const easeTo = useCallback(
+    (target: Box) => {
+      stopAnimation();
+      const from = view.current;
+      if (!from || prefersReducedMotion()) {
+        view.current = target;
+        apply();
+        return;
+      }
+      animation.current = runFrames((elapsed) => {
+        const progress = Math.min(1, elapsed / ZOOM_EASE_MS);
+        view.current = interpolateView(from, target, easeOutCubic(progress));
+        apply();
+        if (progress < 1) return true;
+        animation.current = null;
+        return false;
+      });
+    },
+    [apply, stopAnimation],
+  );
+
+  const coast = useCallback(
+    (velocity: Point) => {
+      stopAnimation();
+      if (prefersReducedMotion()) return;
+      let carried: Point = { x: 0, y: 0 };
+      animation.current = runFrames((elapsed) => {
+        const box = view.current;
+        if (!box || !base) return false;
+        const offset = inertiaOffset(velocity, elapsed);
+        view.current = pannedView(base, rect(), box, offset.x - carried.x, offset.y - carried.y);
+        carried = offset;
+        apply();
+        if (elapsed < INERTIA_DECAY_MS) return true;
+        animation.current = null;
+        return false;
+      });
+    },
+    [apply, base, rect, stopAnimation],
+  );
 
   const zoomed = (): boolean => {
     const box = view.current;
@@ -122,8 +245,12 @@ export function MapLightbox({
   };
 
   const onPointerDown = (event: React.PointerEvent) => {
+    stopAnimation();
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (pointers.current.size === 1) travel.current = { x: 0, y: 0, distance: 0 };
+    if (pointers.current.size === 1) {
+      travel.current = { x: 0, y: 0, distance: 0 };
+      samples.current = [{ x: event.clientX, y: event.clientY, t: Date.now() }];
+    }
     if (pointers.current.size === 2) {
       const [a, b] = Array.from(pointers.current.values());
       pinch.current = Math.hypot(a.x - b.x, a.y - b.y);
@@ -145,6 +272,7 @@ export function MapLightbox({
         y: travel.current.y + dy,
         distance: travel.current.distance + Math.hypot(dx, dy),
       };
+      samples.current = trackSample(samples.current, { x: next.x, y: next.y, t: Date.now() });
       if (!zoomed()) {
         // The card follows the finger, so the dismissal is visibly a drag.
         if (travel.current.y > 0 && Math.abs(travel.current.y) > Math.abs(travel.current.x)) {
@@ -193,21 +321,20 @@ export function MapLightbox({
     if (travel.current.distance <= TAP_SLOP_PX) {
       const target = event.target as HTMLElement;
       if (target.dataset && target.dataset.backdrop === "yes") onClose();
+      return;
+    }
+    // A throw that ends a pan coasts on; a drag on the unzoomed map was a
+    // dismissal gesture and must not move the map at all.
+    if (zoomed()) {
+      const velocity = inertiaVelocity(samples.current, Date.now());
+      if (velocity) coast(velocity);
     }
   };
 
   const onWheel = (event: React.WheelEvent) => {
-    const box = view.current;
-    if (!box || !base) return;
-    view.current = zoomedView(
-      base,
-      rect(),
-      box,
-      event.clientX,
-      event.clientY,
-      Math.exp(-event.deltaY * 0.0015),
-    );
-    apply();
+    if (!view.current || !base) return;
+    stopAnimation();
+    wheelZoom.current?.push(event.nativeEvent, window.innerHeight);
   };
 
   const onDoubleClick = (event: React.MouseEvent) => {
@@ -217,11 +344,10 @@ export function MapLightbox({
     const here = rect();
     const widest = Math.max(base.w, base.h * (here.width / here.height));
     if (box.w <= widest / MAX_ZOOM + 0.5) {
-      view.current = centredView(base, here, widest);
+      easeTo(centredView(base, here, widest));
     } else {
-      view.current = zoomedView(base, here, box, event.clientX, event.clientY, 2);
+      easeZoomBy(event.clientX, event.clientY, 2);
     }
-    apply();
   };
 
   return (

@@ -46,16 +46,27 @@ import type {
   Unit,
 } from "./types";
 import {
+  INERTIA_DECAY_MS,
+  ZOOM_EASE_MS,
   baseBoxOf,
   centredView,
   clamp,
   clampedSize,
+  createWheelAccumulator,
+  easeOutCubic,
   fitAllWidth,
+  inertiaOffset,
+  inertiaVelocity,
   pannedView,
   placeView,
+  prefersReducedMotion,
+  runFrames,
+  trackSample,
   zoomedView,
   type Box,
+  type Cancel,
   type Point,
+  type Sample,
 } from "./viewbox";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -417,6 +428,66 @@ export function mount(
     renderOverlays();
   }
 
+  /*
+  At most one view animation runs at a time, and any new gesture ends it: a
+  coast that survived the next finger down would fight the pan.
+  */
+  let animation: Cancel | null = null;
+
+  function stopAnimation(): void {
+    if (animation) animation();
+    animation = null;
+  }
+
+  /*
+  The same zoom, ramped over ZOOM_EASE_MS instead of jumped.
+
+  Each frame asks for the factor still owed — the total raised to the eased
+  progress, divided by what has been applied — so the ramp goes through the
+  same zoomAt as everything else and the point under the finger stays put all
+  the way down.
+  */
+  function easeZoomAt(clientX: number, clientY: number, factor: number): void {
+    if (!view) return;
+    stopAnimation();
+    if (prefersReducedMotion()) {
+      zoomAt(clientX, clientY, factor);
+      return;
+    }
+    let applied = 1;
+    animation = runFrames((elapsed) => {
+      const progress = Math.min(1, elapsed / ZOOM_EASE_MS);
+      const total = Math.pow(factor, easeOutCubic(progress));
+      zoomAt(clientX, clientY, total / applied);
+      applied = total;
+      if (progress < 1) return true;
+      animation = null;
+      return false;
+    });
+  }
+
+  /*
+  Carries a throw on after the finger leaves, decaying to a stop. Every frame
+  goes through pannedView, so a coast is clamped by the same bounds as a live
+  pan and cannot slide the map off its edge.
+  */
+  function coast(velocity: Point): void {
+    stopAnimation();
+    if (prefersReducedMotion()) return;
+    let carried: Point = { x: 0, y: 0 };
+    animation = runFrames((elapsed) => {
+      if (!view) return false;
+      const offset = inertiaOffset(velocity, elapsed);
+      view = pannedView(baseBox, mapRect(), view, offset.x - carried.x, offset.y - carried.y);
+      carried = offset;
+      applyView();
+      renderOverlays();
+      if (elapsed < INERTIA_DECAY_MS) return true;
+      animation = null;
+      return false;
+    });
+  }
+
   // Matches the mobile media query: a narrow screen or a short one.
   function isNarrow(): boolean {
     return window.innerWidth <= NARROW_PX || window.innerHeight <= SHORT_PX;
@@ -442,6 +513,7 @@ export function mount(
     let suppressUntil = 0;
     let lastTap = 0;
     let lastTapPoint: Point = { x: 0, y: 0 };
+    let samples: Sample[] = [];
 
     const midpointOfPointers = (): Point => {
       const points = Array.from(pointers.values());
@@ -463,6 +535,7 @@ export function mount(
     listen(host, "pointerdown", ((event: PointerEvent) => {
       // The chip is pinned to a point on the map, so any new touch dismisses it.
       hideMenu();
+      stopAnimation();
       /*
       A primary pointer means no other finger is down, so anything still tracked
       is a pointerup the page never saw. Without this sweep the next tap counts
@@ -473,6 +546,7 @@ export function mount(
       if (pointers.size === 1) {
         moved = 0;
         dragging = true;
+        samples = [{ x: event.clientX, y: event.clientY, t: Date.now() }];
         // A pan emits no click, so the block must be cleared per gesture,
         // otherwise the tap after a pan gets swallowed.
         suppressUntil = 0;
@@ -496,6 +570,7 @@ export function mount(
 
       if (pointers.size === 1 && dragging) {
         moved += Math.hypot(next.x - previous.x, next.y - previous.y);
+        samples = trackSample(samples, { x: next.x, y: next.y, t: Date.now() });
         if (moved > TAP_SLOP_PX) {
           blockNextClick();
           view = pannedView(baseBox, mapRect(), view, next.x - previous.x, next.y - previous.y);
@@ -524,7 +599,11 @@ export function mount(
       if (pointers.size === 0) dragging = false;
 
       if (event.type !== "pointerup" || !wasSingle) return;
-      if (moved > TAP_SLOP_PX) return;
+      if (moved > TAP_SLOP_PX) {
+        const velocity = inertiaVelocity(samples, Date.now());
+        if (velocity) coast(velocity);
+        return;
+      }
 
       /*
       A second quick tap near the first one zooms in a step — except on one of
@@ -545,7 +624,7 @@ export function mount(
           renderAll();
           holdOrder(unit).catch(reportError);
         } else {
-          zoomAt(event.clientX, event.clientY, 1.8);
+          easeZoomAt(event.clientX, event.clientY, 1.8);
         }
         lastTap = 0;
         return;
@@ -583,6 +662,12 @@ export function mount(
       { capture: true },
     );
 
+    const wheelZoom = createWheelAccumulator((step) =>
+      zoomAt(step.clientX, step.clientY, step.factor),
+    );
+    unbind.push(() => wheelZoom.cancel());
+    unbind.push(stopAnimation);
+
     listen(
       host,
       "wheel",
@@ -590,7 +675,8 @@ export function mount(
         if (!view) return;
         event.preventDefault();
         hideMenu();
-        zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * 0.0015));
+        stopAnimation();
+        wheelZoom.push(event, window.innerHeight);
       }) as EventListener,
       { passive: false },
     );
