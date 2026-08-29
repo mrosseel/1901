@@ -151,6 +151,20 @@ function buildCatalogue(): Entry[] {
       "options-retreat",
       true,
     ),
+    seatEntry(
+      "illegal-draft",
+      "Illegal order drafted",
+      "Austria wrote Army Budapest to the Adriatic Sea: amber, dashed, private (D-029).",
+      "seat-illegal",
+    ),
+    seatEntry(
+      "review-illegal",
+      "Review with an illegal order",
+      "The misorder resolved as IllegalOrder: struck, the unit held.",
+      "seat-review-illegal",
+      undefined,
+      true,
+    ),
   ];
 
   if (guide) {

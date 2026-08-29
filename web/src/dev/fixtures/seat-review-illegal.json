@@ -1,0 +1,225 @@
+{
+  "canForce": false,
+  "deadlineAt": null,
+  "dislodged": {},
+  "finalized": {
+    "Austria": false,
+    "France": false
+  },
+  "finalizedCount": 0,
+  "gameId": "cv3s49k7jv",
+  "graceUntil": null,
+  "illegal": [],
+  "nations": [
+    "Austria",
+    "France"
+  ],
+  "now": "2026-08-29T09:26:08Z",
+  "orderParts": {},
+  "orders": {},
+  "phase": {
+    "season": "Spring",
+    "type": "Retreat",
+    "year": 1901
+  },
+  "phaseMinutes": 0,
+  "phaseResolutions": {
+    "bre": "OK",
+    "bud": "OK",
+    "mar": "OK",
+    "par": "OK",
+    "tri": "OK",
+    "vie": "OK"
+  },
+  "placements": null,
+  "previousPhase": {
+    "dislodged": {},
+    "illegal": [
+      "bud"
+    ],
+    "nmr": [],
+    "orderParts": {
+      "bre": [
+        "Hold"
+      ],
+      "bud": [
+        "Move",
+        "adr"
+      ],
+      "vie": [
+        "Move",
+        "gal"
+      ]
+    },
+    "orders": {
+      "bre": "Fleet Brest Hold",
+      "bud": "Army Budapest Move Adriatic Sea",
+      "vie": "Army Vienna Move Galicia"
+    },
+    "phase": {
+      "season": "Spring",
+      "type": "Movement",
+      "year": 1901
+    },
+    "powers": {
+      "bre": "France",
+      "bud": "Austria",
+      "vie": "Austria"
+    },
+    "resolutions": {
+      "bre": "OK",
+      "bud": "IllegalOrder",
+      "mar": "OK",
+      "par": "OK",
+      "tri": "OK",
+      "vie": "OK"
+    }
+  },
+  "provinceNames": {
+    "adr": "Adriatic Sea",
+    "aeg": "Aegean Sea",
+    "alb": "Albania",
+    "ank": "Ankara",
+    "apu": "Apulia",
+    "arm": "Armenia",
+    "bal": "Baltic Sea",
+    "bar": "Barents Sea",
+    "bel": "Belgium",
+    "ber": "Berlin",
+    "bla": "Black Sea",
+    "boh": "Bohemia",
+    "bot": "Gulf of Bothnia",
+    "bre": "Brest",
+    "bud": "Budapest",
+    "bul": "Bulgaria",
+    "bul/ec": "Bulgaria (EC)",
+    "bul/sc": "Bulgaria (SC)",
+    "bur": "Burgundy",
+    "cly": "Clyde",
+    "con": "Constantinople",
+    "den": "Denmark",
+    "eas": "East Med",
+    "edi": "Edinburgh",
+    "eng": "English Channel",
+    "fin": "Finland",
+    "gal": "Galicia",
+    "gas": "Gascony",
+    "gol": "Gulf of Lyon",
+    "gre": "Greece",
+    "hel": "Heligoland Bight",
+    "hol": "Holland",
+    "ion": "Ionian Sea",
+    "iri": "Irish Sea",
+    "kie": "Kiel",
+    "lon": "London",
+    "lvn": "Livonia",
+    "lvp": "Liverpool",
+    "mar": "Marseilles",
+    "mid": "Mid-Atlantic",
+    "mos": "Moscow",
+    "mun": "Munich",
+    "naf": "North Africa",
+    "nap": "Naples",
+    "nat": "North Atlantic",
+    "nrg": "Norwegian Sea",
+    "nth": "North Sea",
+    "nwy": "Norway",
+    "par": "Paris",
+    "pic": "Picardy",
+    "pie": "Piedmont",
+    "por": "Portugal",
+    "pru": "Prussia",
+    "rom": "Rome",
+    "ruh": "Ruhr",
+    "rum": "Rumania",
+    "ser": "Serbia",
+    "sev": "Sevastopol",
+    "sil": "Silesia",
+    "ska": "Skagerakk (SKA)",
+    "smy": "Smyrna",
+    "spa": "Spain",
+    "spa/nc": "Spain (NC)",
+    "spa/sc": "Spain (SC)",
+    "stp": "St. Petersburg",
+    "stp/nc": "St. Petersburg (NC)",
+    "stp/sc": "St. Petersburg (SC)",
+    "swe": "Sweden",
+    "syr": "Syria",
+    "tri": "Trieste",
+    "tun": "Tunis",
+    "tus": "Tuscany",
+    "tyr": "Tyrolia",
+    "tys": "Tyrrhenian Sea",
+    "ukr": "Ukraine",
+    "ven": "Venice",
+    "vie": "Vienna",
+    "wal": "Wales",
+    "war": "Warsaw",
+    "wes": "West Mediterranean",
+    "yor": "Yorkshire"
+  },
+  "resolutions": {
+    "bre": "OK",
+    "bud": "OK",
+    "mar": "OK",
+    "par": "OK",
+    "tri": "OK",
+    "vie": "OK"
+  },
+  "settings": {
+    "deadlineMinutes": 0,
+    "firstTurnExtraMinutes": 0,
+    "gmPlays": false,
+    "graceMinutes": 0,
+    "illegalMoves": true,
+    "pressMode": "ftf",
+    "retreatBuildPercent": 50,
+    "variant": "francevsaustria"
+  },
+  "settingsVersion": 0,
+  "started": true,
+  "supplyCenters": {
+    "bre": "France",
+    "bud": "Austria",
+    "mar": "France",
+    "par": "France",
+    "tri": "Austria",
+    "vie": "Austria"
+  },
+  "totalSeats": 2,
+  "units": {
+    "bre": {
+      "nation": "France",
+      "type": "Fleet"
+    },
+    "bud": {
+      "nation": "Austria",
+      "type": "Army"
+    },
+    "gal": {
+      "nation": "Austria",
+      "type": "Army"
+    },
+    "mar": {
+      "nation": "France",
+      "type": "Army"
+    },
+    "par": {
+      "nation": "France",
+      "type": "Army"
+    },
+    "tri": {
+      "nation": "Austria",
+      "type": "Fleet"
+    }
+  },
+  "variant": {
+    "key": "francevsaustria",
+    "name": "France vs Austria",
+    "supported": false
+  },
+  "you": {
+    "power": "Austria"
+  },
+  "youFinalized": false
+}

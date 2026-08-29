@@ -97,3 +97,8 @@ The stub answers writes with the state as captured: an order, a finalize or a
 forced adjudication comes back unchanged. The gallery is for looking at states,
 not for playing one. Maps are the exception — they are fetched from the real
 server, so the map style control shows real art.
+
+- `seat-illegal.json` — France vs Austria game: Austria drafted `bud Move adr`
+  (an army into a sea) with illegalMoves on; the mark rides in `illegal`.
+- `seat-review-illegal.json` — the same game after adjudication: `bud`
+  resolved `IllegalOrder`, `vie Move gal` resolved `OK`.
