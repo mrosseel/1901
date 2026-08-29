@@ -19,7 +19,10 @@ const API = env?.API_TARGET || "http://localhost:8190";
 
 const endpoints =
   "^/(games$" +
-  "|variants$|variants/[^/]+/map\\.svg" + // the variant catalogue and its maps
+  // The variant catalogue, its maps, and the three variant-level files the
+  // map editor loads: terrain, the approved placement table, the display names.
+  "|variants$|variants/[^/]+/(map\\.svg|provinces\\.json|placement\\.json|names\\.json)" +
+  "|mapeditor/save" + // the editor's dev-only save endpoint (D-030)
   "|styles$" + // the map styles this server can draw in
   "|g/" +
   "|map\\.svg|state|options|order|adjudicate" + // the M0 sandbox's own routes
@@ -40,6 +43,13 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    /*
+    The map editor imports tools/placement's pure halves — the geometry and
+    the vocabulary the offline audit is written in — so that the editor and
+    the audit cannot drift apart (D-030). Those files sit above web/, and the
+    dev server refuses to serve above its own root unless told otherwise.
+    */
+    fs: { allow: [".."] },
     proxy: {
       [endpoints]: { target: API, changeOrigin: false },
     },

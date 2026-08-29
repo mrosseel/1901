@@ -1,0 +1,78 @@
+/* The map editor's own screen (D-030): the board on the left, everything
+   that judges it on the right. */
+
+.mapeditor {
+  display: flex;
+  height: 100vh;
+  min-height: 0;
+}
+
+.mapeditor .map-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px;
+}
+
+.mapeditor .board-host {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.mapeditor .side {
+  flex: 0 0 360px;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mapeditor h1 { font-size: 18px; margin: 0; }
+.mapeditor h2 { font-size: 14px; margin: 0 0 6px; }
+
+.mapeditor .count { font-variant-numeric: tabular-nums; font-weight: 600; }
+.mapeditor .count.good { color: var(--good); }
+.mapeditor .count.bad { color: var(--bad); }
+
+.mapeditor .violations ul { list-style: none; margin: 0; padding: 0; }
+
+.mapeditor .violations li {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  gap: 0 6px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.mapeditor .violations li:nth-child(odd) { background: var(--panel-2); }
+.mapeditor .violations li.chosen { outline: 1px solid var(--accent); }
+.mapeditor .violations li i { color: var(--muted); font-style: normal; }
+.mapeditor .violations li em { color: var(--warn); font-style: normal; }
+.mapeditor .violations li small { grid-column: 1 / -1; color: var(--muted); }
+
+.mapeditor .card.chosen { gap: 6px; }
+
+/*
+A grab target, not a marker. The board draws the marker; this is the ring a
+finger aims at, and it is deliberately hollow so the marker under it stays
+readable while it is being moved.
+*/
+.editor-handle {
+  fill: transparent;
+  cursor: grab;
+  pointer-events: all;
+}
+
+.editor-handle:hover { fill: rgba(255, 255, 255, 0.25); }
+
+/* A province with something wrong with it, on the map rather than in the
+   list: the list can only show so many rows, and the map shows them all. */
+.editor-handle.at-fault {
+  fill: rgba(255, 139, 139, 0.35);
+  stroke: var(--bad);
+}

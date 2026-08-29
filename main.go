@@ -622,12 +622,22 @@ func spaDirPath() string {
 // cap is what stops one request from costing the server its memory.
 const maxBodyBytes = 64 << 10
 
+// largeBodies names the few paths that are allowed a bigger body than the
+// cap above, with the cap each one gets. It is empty in a normal build; the
+// map editor's dev-only save route is the one thing that fills it, because it
+// posts a whole placement table rather than a handful of orders (D-030).
+var largeBodies = map[string]int64{}
+
 // limitBody wraps a handler so every request body is size-capped. The
 // JSON decoders then fail with "request body too large" instead of
 // reading forever.
 func limitBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+		limit := int64(maxBodyBytes)
+		if own, found := largeBodies[r.URL.Path]; found {
+			limit = own
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -650,6 +660,11 @@ func main() {
 	if err := loadPlacements(); err != nil {
 		log.Fatalf("load placements: %v", err)
 	}
+	// The display-name overrides that ride on top of godip's own names, for
+	// the same reason and on the same terms.
+	if err := loadNameOverrides(); err != nil {
+		log.Fatalf("load name overrides: %v", err)
+	}
 	// The map styles and the plans that apply them, likewise. A broken style
 	// or a plan from a schema this server does not read is a startup error:
 	// serving three styles of four, silently, would be worse.
@@ -667,6 +682,11 @@ func main() {
 	mux.HandleFunc("/", srv.serveRoot)
 	mux.HandleFunc("/assets/", srv.serveSPAAsset)
 	mux.HandleFunc("/new", srv.serveSPA)
+	// The map editor is one more page of the same shell (D-030). It carries
+	// no game and no token, so it needs nothing but the shell; whether it can
+	// save is decided by the build, in mapeditor_dev.go.
+	mux.HandleFunc("/mapeditor", srv.serveSPA)
+	registerEditorSave(mux)
 	mux.HandleFunc("/games", handleCreateGame)
 	mux.HandleFunc("/variants", handleVariants)
 	mux.HandleFunc("/styles", handleStyles)

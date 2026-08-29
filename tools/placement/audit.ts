@@ -68,114 +68,40 @@ import {
   probeOverhang,
   testInside,
   type InsideRequest,
-  type MapGeometry,
   type Terrain,
 } from "./browser.ts";
 import type { Page } from "playwright-core";
+import {
+  BORDER_MARGIN,
+  COAST_REACH,
+  EDGE_SAMPLES,
+  isCoast,
+  summarise,
+  type Audit,
+  type AuditSummary,
+  type MapGeometry,
+  type OverhangNote,
+  type Placement,
+  type PlacementTable,
+  type TerrainKind,
+  type Violation,
+} from "./rules.ts";
 
-export interface Violation {
-  key: string;
-  /** Whether the marker leaves its own province. */
-  outside: boolean;
-  /** No hit shape at all: the map cannot draw this province. */
-  missingShape: boolean;
-  /** No <key>Center path: the map ships no anchor for it. */
-  missingAnchor: boolean;
-  nameFraction: number;
-  scFraction: number;
-  coversName: boolean;
-  coversSupplyCentre: boolean;
-  /** The same three questions asked of the dislodged marker. */
-  dislodgedOutside: boolean;
-  dislodgedCoversName: boolean;
-}
+export {
+  BORDER_MARGIN,
+  COAST_REACH,
+  EDGE_SAMPLES,
+  isCoast,
+  shippedPlacement,
+  summarise,
+  type Audit,
+  type AuditSummary,
+  type OverhangNote,
+  type Placement,
+  type PlacementTable,
+  type Violation,
+} from "./rules.ts";
 
-export interface AuditSummary {
-  provinces: number;
-  placed: number;
-  outside: number;
-  coversName: number;
-  coversSupplyCentre: number;
-  dislodgedOutside: number;
-  dislodgedCoversName: number;
-  missingShape: number;
-  missingAnchor: number;
-  clean: number;
-}
-
-export interface Audit {
-  summary: AuditSummary;
-  violations: Violation[];
-}
-
-export interface Placement {
-  unit: [number, number];
-  /* Set when this marker is allowed out over its border because nothing
-     fits inside; the report says where the overhang falls. */
-  overhang?: OverhangNote;
-  /*
-  How big this province's marker is, as a fraction of the board's normal
-  radius. A province too narrow for a full marker gets a smaller one rather
-  than a misplaced one; the board reads this and draws accordingly.
-  */
-  scale: number;
-  dislodged: [number, number];
-  /*
-  Where the three-letter code goes when brief labels are on. Absent on a coast
-  key, because the board draws one code per base province; absent on a map the
-  tool could not measure a box for. See placeBrief().
-  */
-  brief?: [number, number];
-}
-
-export interface OverhangNote {
-  /** Share of the marker's edge over a neighbouring land province. */
-  land: number;
-  /** Share over sea. */
-  sea: number;
-  /** Share over nothing at all — off the map or an impassable gap. */
-  open: number;
-}
-
-export type PlacementTable = Record<string, Placement>;
-
-/** The anchors a map ships, as a placement table. */
-export function shippedPlacement(map: MapGeometry, r: number): PlacementTable {
-  const table: PlacementTable = {};
-  for (const province of map.provinces) {
-    if (!province.anchor) continue;
-    const away = defaultDislodgedPoint(province.anchor, r);
-    table[province.key] = {
-      unit: [province.anchor.x, province.anchor.y],
-      scale: 1,
-      dislodged: [away.x, away.y],
-    };
-  }
-  return table;
-}
-
-/*
-The margin a marker keeps from its own border. A marker whose edge touches the
-line is already ambiguous, so it is asked to keep a fraction of itself clear.
-*/
-export const BORDER_MARGIN = 0.12;
-
-const EDGE_SAMPLES = 24;
-
-/*
-How far a coast marker's centre may sit from its own strip and still count as
-standing on that coast, in marker radii.
-
-One radius means the marker is at worst touching the strip with its edge —
-straddling the shoreline, which is the whole point of the rule. Beyond that it
-has walked inland and is no longer describing a coast.
-*/
-export const COAST_REACH = 1;
-
-/** A key naming one coast of a province, rather than the province. */
-export function isCoast(key: string): boolean {
-  return key.includes("/");
-}
 
 /*
 Runs the containment test appropriate to each key.
@@ -189,7 +115,7 @@ every caller below is unchanged by which one ran.
 async function testPlaceable(
   page: Page,
   requests: InsideRequest[],
-  terrain: Record<string, "sea" | "land" | "unknown">,
+  terrain: TerrainKind,
   radiusOf: (key: string) => number,
 ): Promise<Record<string, boolean[]>> {
   const plain = requests.filter((request) => !isCoast(request.key));
@@ -226,7 +152,7 @@ export async function audit(
   map: MapGeometry,
   table: PlacementTable,
   r: number,
-  terrain: Record<string, "sea" | "land" | "unknown"> = {},
+  terrain: TerrainKind = {},
   margin = BORDER_MARGIN,
 ): Promise<Audit> {
   const unitRequests = [];
@@ -297,22 +223,6 @@ export async function audit(
   });
 
   return { summary: summarise(violations), violations: violations };
-}
-
-export function summarise(violations: Violation[]): AuditSummary {
-  const count = (test: (v: Violation) => boolean) => violations.filter(test).length;
-  return {
-    provinces: violations.length,
-    placed: count((v) => !v.missingAnchor),
-    outside: count((v) => v.outside),
-    coversName: count((v) => v.coversName),
-    coversSupplyCentre: count((v) => v.coversSupplyCentre),
-    dislodgedOutside: count((v) => v.dislodgedOutside),
-    dislodgedCoversName: count((v) => v.dislodgedCoversName),
-    missingShape: count((v) => v.missingShape),
-    missingAnchor: count((v) => v.missingAnchor),
-    clean: count((v) => !v.outside && !v.coversName && !v.missingShape && !v.dislodgedOutside && !v.dislodgedCoversName),
-  };
 }
 
 // --- measuring the margin a person actually keeps --------------------------

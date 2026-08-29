@@ -246,6 +246,9 @@ export async function postJSON<T>(url: string, body?: unknown): Promise<T> {
 export type Route =
   | { kind: "index" }
   | { kind: "new" }
+  /* The map editor (D-030). It carries no game and no token: it edits a
+     variant's placement table, and a variant is all it needs. */
+  | { kind: "mapeditor" }
   | { kind: "join"; gameId: string; inviteToken: string }
   | { kind: "gm"; gameId: string; gmToken: string }
   | { kind: "seat"; gameId: string; seatToken: string }
@@ -258,6 +261,7 @@ export function parseRoute(pathname: string): Route {
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length === 0) return { kind: "index" };
   if (parts.length === 1 && parts[0] === "new") return { kind: "new" };
+  if (parts.length === 1 && parts[0] === "mapeditor") return { kind: "mapeditor" };
   if (parts.length === 3 && parts[0] === "join") {
     return { kind: "join", gameId: parts[1], inviteToken: parts[2] };
   }

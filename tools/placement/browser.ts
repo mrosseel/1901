@@ -14,6 +14,9 @@ Nothing here decides anything. It measures, and it draws what it is told to.
 import { chromium, type Browser, type Page } from "playwright-core";
 import { existsSync } from "node:fs";
 import type { Point, Rect } from "./geometry.ts";
+import type { MapGeometry } from "./rules.ts";
+
+export type { MapGeometry, ProvinceGeometry } from "./rules.ts";
 
 /*
 The tool brings no browser of its own: playwright-core is the driver only.
@@ -43,37 +46,6 @@ export async function openBrowser(): Promise<Browser> {
     executablePath: findChrome(),
     args: ["--no-sandbox", "--disable-gpu", "--force-device-scale-factor=1"],
   });
-}
-
-export interface ProvinceGeometry {
-  key: string;
-  /** The union bounding box of every shape the key is drawn with. */
-  box: Rect;
-  /** The anchor the map ships, or null when it has no <key>Center path. */
-  anchor: Point | null;
-  /** How many hit shapes the key has; zero means the map cannot draw it. */
-  shapes: number;
-}
-
-export interface MapGeometry {
-  viewBox: Rect;
-  provinces: ProvinceGeometry[];
-  /** Name labels, one box per word-sized group. */
-  labels: Rect[];
-  /** Supply centre glyphs, likewise. */
-  supplyCentres: Rect[];
-  /*
-  Whether the map ships its own brief labels. A jDip-converted map carries
-  BriefLabelLayer and FullLabelLayer, and the board shows one and hides the
-  other rather than drawing anything — so a brief position computed for such a
-  map would be a number nothing reads. Their codes are the map author's own
-  work and are left where they were put.
-  */
-  drawsBriefLabels: boolean;
-  /** Anchors with no hit shape, and shapes with no anchor. */
-  anchorsWithoutShape: string[];
-  shapesWithoutAnchor: string[];
-  notes: string[];
 }
 
 /*

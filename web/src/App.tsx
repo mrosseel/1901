@@ -22,6 +22,22 @@ const DevGallery = import.meta.env.DEV
   : null;
 
 /*
+The map editor (D-030), which ships in every build but is only loaded when
+somebody asks for it.
+
+Unlike the gallery it is a real screen with a real job, so it is not behind
+import.meta.env.DEV: a production build serves it, read-only, because it needs
+nothing but a variant and it is the audit viewer the design asks for. What it
+cannot do there is save — the /mapeditor/save endpoint is behind a build tag
+on the server (mapeditor_off.go) and its button is behind the same constant
+the gallery is. It is lazy because it carries the placement geometry, which no
+other page needs.
+*/
+const MapEditor = lazy(() =>
+  import("./mapeditor/MapEditorPage").then((module) => ({ default: module.MapEditorPage })),
+);
+
+/*
 Routing is the page's own address. Every page carries its tokens in the path,
 the server only ever serves this shell at the addresses below, and nothing
 in the app navigates between them, so a route table is all that is needed.
@@ -36,6 +52,14 @@ export function App() {
   }
 
   const route = parseRoute(window.location.pathname);
+
+  if (route.kind === "mapeditor") {
+    return (
+      <Suspense fallback={null}>
+        <MapEditor />
+      </Suspense>
+    );
+  }
 
   switch (route.kind) {
     case "index":

@@ -328,18 +328,33 @@ func variantProvinces(v common.Variant) ([]provinceJSON, error) {
 	return out, nil
 }
 
-// handleVariantMap serves /variants/{key}/map.svg and
-// /variants/{key}/provinces.json.
+// handleVariantMap serves the four things a variant has that need no game:
+// /variants/{key}/map.svg, /provinces.json, /placement.json and /names.json.
+//
+// The last two are what the map editor loads (D-030). It edits a variant, not
+// a game, so everything it reads has to be reachable without one.
 func handleVariantMap(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/variants/")
 	key, sub, _ := strings.Cut(rest, "/")
-	if sub != "map.svg" && sub != "provinces.json" {
+	switch sub {
+	case "map.svg", "provinces.json", "placement.json", "names.json":
+	default:
 		http.NotFound(w, r)
 		return
 	}
 	v, found := lookupVariant(key)
 	if !found || v.SVGMap == nil {
 		http.NotFound(w, r)
+		return
+	}
+	if sub == "placement.json" {
+		// nil is meaningful and serialises as null: no approved table, so the
+		// editor starts from the map's own anchors.
+		writeJSON(w, http.StatusOK, placementFor(key))
+		return
+	}
+	if sub == "names.json" {
+		writeJSON(w, http.StatusOK, namesFor(key))
 		return
 	}
 	if sub == "provinces.json" {
@@ -380,13 +395,11 @@ func (self *game) variantRef() variantRefJSON {
 }
 
 // provinceNames is the abbreviation-to-long-name table for this variant.
-// The frontend labels the board from it.
+// The frontend labels the board from it. It is godip's own table with the
+// variant's name overrides layered on top (names.go, D-030), so a name
+// corrected in the map editor reaches every board.
 func (self *game) provinceNames() map[string]string {
-	out := map[string]string{}
-	for prov, name := range self.variant.ProvinceLongNames {
-		out[string(prov)] = name
-	}
-	return out
+	return namesFor(self.variantKey)
 }
 
 // sortedNations returns the variant's powers in a stable order.
