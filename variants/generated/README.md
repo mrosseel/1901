@@ -1,23 +1,24 @@
 # Generated variants
 
-Maps loaded from disk at startup rather than compiled into the binary.
+Maps the server reads from disk at startup, instead of compiling into the
+binary.
 
-Every other variant here is a Go package in a compile-time slice, which is the
-right shape for a curated set that arrives through code review. It is the wrong
-shape for a procedurally generated map: a fresh map per game would mean a
-recompile per game.
+Every other variant is a Go package in a compile-time slice. That works for a
+curated set, because each map arrives through code review. It cannot work for a
+procedurally generated map: a fresh map per game needs a recompile per game.
 
 ## Layout
 
-One subdirectory per variant. The directory name is the variant key, and it
-must match the descriptor's `key`.
+One subdirectory per variant. The directory name is the variant key. It must
+match the `key` field in the descriptor.
 
     variants/generated/<key>/variant.json     the province graph and start
     variants/generated/<key>/map.svg          the board art
     variants/generated/<key>/placements.json  marker positions, optional
 
-A missing directory is fine. A malformed one stops the server, because serving
-a half-parsed variant would mean games played on a board nobody described.
+The server starts normally when the directory is absent. It stops when a file
+is malformed. A half-parsed variant would put games on a board nobody
+described.
 
 ## Producing one
 
@@ -25,28 +26,30 @@ dipmap writes all three files:
 
     dipmap export-godip <key> --out variants/generated --players 7
 
-It refuses to export a map that failed balance validation unless forced.
+dipmap refuses to export a map that failed balance validation. Pass `--force`
+to override that.
 
 ## What happens on load
 
-The descriptor is validated: borders naming unknown regions, duplicate borders
-with conflicting terrain, stranded regions, units on centres they do not own,
-unknown nations, an unreachable win condition, unequal starts. Every problem is
-reported at once.
+The loader validates the descriptor and reports every problem at once. It
+rejects borders that name unknown regions, duplicate borders with conflicting
+terrain, regions no unit can reach, units standing on centres they do not own,
+unknown nations, a win condition nobody can reach, and unequal starts.
 
-The art is sanitised against an allowlist (`svgsafe.go`). Compiled art passed
-through code review; this did not, and SVG executes. Scripts, event handlers,
-`foreignObject`, remote references and `data:` URLs are removed, and what went
-is logged.
+The loader then sanitises the art against an allowlist in `svgsafe.go`.
+Compiled art passed through code review. This art did not, and SVG can run
+scripts. The loader removes scripts, event handlers, `foreignObject`, remote
+references and `data:` URLs, then logs what it removed.
 
-The descriptor is hashed, and the hash is recorded on every game created on it.
-A game replays its whole order history against the variant's starting position,
-so a descriptor edited under a running game would replay onto a different
-board. A changed descriptor makes that game refuse to load and says so, rather
-than corrupting it quietly.
+Finally the loader hashes the descriptor. Every game created on that variant
+records the hash. A game replays its order history against the variant's
+starting position, so an edited descriptor would replay the game onto a board
+its players never saw. The server refuses to load such a game and names the
+problem.
 
 ## What this is not
 
-There is no upload route. Files arrive here the way the binary does: someone
-with access to the checkout puts them there. Adding an endpoint that accepts a
-variant from the network is a separate decision with a separate threat model.
+The server has no upload route. Files arrive here the way the binary does:
+someone with access to the checkout puts them there. An endpoint that accepts a
+variant over the network needs its own design, because it would let a stranger
+choose what the sanitiser has to withstand.
