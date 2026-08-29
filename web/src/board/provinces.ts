@@ -81,6 +81,7 @@ const COAST_NAMES: Record<string, string> = {
   nc: "north coast",
   sc: "south coast",
   ec: "east coast",
+  wc: "west coast",
 };
 
 let provinceNames: Record<string, string> = { ...CLASSICAL_PROVINCE_NAMES };
@@ -110,6 +111,19 @@ export function provinceName(province: string): string {
   if (base === province) return name;
   const coast = COAST_NAMES[province.slice(base.length + 1)];
   return coast ? name + " (" + coast + ")" : name;
+}
+
+/*
+"North coast" — one coast on its own, for a chooser that has already named the
+province above it. A suffix this table does not know keeps its code, which says
+less than a name but says nothing false.
+*/
+export function coastLabel(province: string): string {
+  const base = baseProvince(province);
+  if (base === province) return provinceName(province);
+  const code = province.slice(base.length + 1);
+  const name = COAST_NAMES[code];
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : code.toUpperCase();
 }
 
 /** The power holding a province, or "" when it is empty. */

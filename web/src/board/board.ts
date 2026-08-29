@@ -13,6 +13,7 @@ the state that came back from an order post, and which order is singled out.
 
 import {
   baseProvince,
+  coastLabel,
   describeOrder,
   powerColor,
   provinceName,
@@ -1446,28 +1447,43 @@ export function mount(
   at the tap; otherwise the single legal reading is taken straight away.
   */
   function offerChoice(
+    province: string,
     moveKey: string | null,
     supportKey: string | null,
     clientX: number,
     clientY: number,
   ): void {
     hideMenu();
-    if (moveKey !== null && supportKey === null) {
-      chooseInBranch("Move", builder!.moveNode!, moveKey).catch(reportError);
+    const canMove = moveKey !== null || coastKeys(builder!.moveNode, province).length > 0;
+    if (canMove && supportKey === null) {
+      takeMove(province, moveKey, clientX, clientY);
       return;
     }
-    if (supportKey !== null && moveKey === null) {
+    if (supportKey !== null && !canMove) {
       enterSupport(supportKey);
       return;
     }
     showMenu(clientX, clientY, [
-      {
-        label: "Attack",
-        onPick: () => chooseInBranch("Move", builder!.moveNode!, moveKey!).catch(reportError),
-      },
+      { label: "Attack", onPick: () => takeMove(province, moveKey, clientX, clientY) },
       { label: "Support", onPick: () => enterSupport(supportKey!) },
     ]);
     setStatus("Attack " + unitLabel(state, supportKey!) + ", or support it?");
+  }
+
+  /*
+  Moves into the tapped province: the coast chooser first when the province has
+  more than one, the single legal reading straight away otherwise.
+  */
+  function takeMove(
+    province: string,
+    moveKey: string | null,
+    clientX: number,
+    clientY: number,
+  ): void {
+    const node = builder!.moveNode!;
+    const chose = (coast: string) => chooseInBranch("Move", node, coast).catch(reportError);
+    if (offerCoasts(node, province, clientX, clientY, chose)) return;
+    if (moveKey !== null) chose(moveKey);
   }
 
   /*
@@ -1701,10 +1717,14 @@ export function mount(
     const mode = shortcutMode();
 
     if (mode === "support") {
-      const key = matchingKey(builder!.support!.dests, province);
+      const dests = builder!.support!.dests;
+      const src = builder!.support!.src;
+      const chose = (key: string) =>
+        chooseInBranch("Support", dests, key, [src]).catch(reportError);
+      if (offerCoasts(dests, province, clientX, clientY, chose)) return;
+      const key = matchingKey(dests, province);
       if (key !== null) {
-        const src = builder!.support!.src;
-        chooseInBranch("Support", builder!.support!.dests, key, [src]).catch(reportError);
+        chose(key);
         return;
       }
       /* Anywhere else is a support for a move that cannot happen. It is still
@@ -1713,16 +1733,20 @@ export function mount(
     } else if (mode === "pick") {
       const moveKey = matchingKey(builder!.moveNode, province);
       const supportKey = matchingKey(builder!.supportNode, province);
-      if (moveKey !== null || supportKey !== null) {
-        offerChoice(moveKey, supportKey, clientX, clientY);
+      const coasts = coastKeys(builder!.moveNode, province).length > 0;
+      if (moveKey !== null || supportKey !== null || coasts) {
+        offerChoice(province, moveKey, supportKey, clientX, clientY);
         return;
       }
       if (offerIllegal(province, clientX, clientY)) return;
     } else if (builder) {
       // A province that is a legal choice at this step acts like its button.
-      const key = matchingKey(builder.node, province);
+      const node = builder.node;
+      const chose = (key: string) => chooseOption(key).catch(reportError);
+      if (offerCoasts(node, province, clientX, clientY, chose)) return;
+      const key = matchingKey(node, province);
       if (key !== null) {
-        chooseOption(key).catch(reportError);
+        chose(key);
         return;
       }
     }
@@ -1781,8 +1805,9 @@ export function mount(
   shape under a finger and the key in the options tree need not be spelled the
   same: a tap can land on "wca/nc" when the army's move is offered as "wca",
   or on "spa" when the fleet's move is offered as "spa/nc". So the match runs
-  both ways — exact, then the base, then the one coast of that base — and only
-  gives up when a province offers two coasts, where the buttons must decide.
+  both ways — exact, then the base, then the one coast of that base. A province
+  the tree offers two coasts of is a question for the player, not a match: the
+  callers put it to the coast chooser before they ask for a key.
   */
   function matchingKey(node: OptionTree | null, province: string): string | null {
     const keys = Object.keys(node || {});
@@ -1791,6 +1816,50 @@ export function mount(
     if (keys.indexOf(base) !== -1) return base;
     const coasts = keys.filter((key) => baseProvince(key) === base);
     return coasts.length === 1 ? coasts[0] : null;
+  }
+
+  /*
+  The coasts of one province the tree offers more than one of.
+
+  The shape under the finger is not the answer, even when it is a coast. A map
+  draws a coast as a strip over the province, and on the classical map the two
+  strips of Spain cover the whole of it: whichever the finger lands in is an
+  accident of where the strips were drawn, not something the player chose. So
+  the question is asked whenever the tree offers two coasts of the tapped
+  province. A tree that offers the base province itself asks nothing — that is
+  an army, which has no coast to pick.
+  */
+  function coastKeys(node: OptionTree | null, province: string): string[] {
+    const keys = Object.keys(node || {});
+    const base = baseProvince(province);
+    if (keys.indexOf(base) !== -1) return [];
+    const coasts = keys.filter((key) => key !== base && baseProvince(key) === base);
+    return coasts.length > 1 ? coasts.sort() : [];
+  }
+
+  /*
+  Raises the coast chooser at the tap: the province named once, then one row
+  per coast that is legal. Answers false when the tap asked nothing, so the
+  caller falls through to whatever the tap means otherwise.
+  */
+  function offerCoasts(
+    node: OptionTree | null,
+    province: string,
+    clientX: number,
+    clientY: number,
+    pick: (key: string) => void,
+  ): boolean {
+    const coasts = coastKeys(node, province);
+    if (!coasts.length) return false;
+    const here = provinceName(baseProvince(province));
+    showMenu(
+      clientX,
+      clientY,
+      coasts.map((key) => ({ label: coastLabel(key), onPick: () => pick(key) })),
+      here,
+    );
+    setStatus("Which coast of " + here + "?");
+    return true;
   }
 
   // The province hit shape under a screen point, if any.
@@ -1832,10 +1901,18 @@ export function mount(
     clientX: number,
     clientY: number,
     items: Array<{ label: string; onPick: () => void }>,
+    title?: string,
   ): void {
     hideMenu();
     menu = document.createElement("div");
     menu.id = "chip";
+    if (title) {
+      menu.classList.add("chip-stack");
+      const head = document.createElement("div");
+      head.className = "chip-title";
+      head.textContent = title;
+      menu.appendChild(head);
+    }
     items.forEach((item) => {
       const button = document.createElement("button");
       button.type = "button";

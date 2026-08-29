@@ -189,6 +189,30 @@ the markers do.
   cursor: pointer;
 }
 
+/* The coast chooser: the province named once, then a row per coast. Rows go
+   down the chip rather than across it, so a thumb picks by height. */
+#chip.chip-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px;
+  min-width: 160px;
+  max-width: min(240px, calc(100vw - 16px));
+}
+
+#chip .chip-title {
+  padding: 2px 30px 6px 4px;
+  color: var(--text);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+
+#chip.chip-stack button {
+  min-height: 40px;
+  text-align: left;
+  white-space: normal;
+}
+
 #chip .chip-close {
   padding: 8px 10px;
   color: var(--muted);
@@ -196,4 +220,10 @@ the markers do.
   border: none;
   font-size: 16px;
   line-height: 1;
+}
+
+#chip.chip-stack .chip-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
 }

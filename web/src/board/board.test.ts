@@ -387,6 +387,55 @@ describe("a movement phase", () => {
     seat.board.destroy();
   });
 
+  /*
+  A fleet's move into a province with two coasts. The tap cannot say which, so
+  the chip asks, in the names a player reads rather than in option codes.
+  */
+  it("asks which coast, by name, when a province offers two", async () => {
+    const tree: OptionTree = {
+      vie: {
+        Type: "Province",
+        Next: {
+          Move: {
+            Type: "OrderType",
+            Next: {
+              vie: {
+                Type: "SrcProvince",
+                Next: {
+                  "gal/nc": { Type: "Province", Next: {} },
+                  "gal/sc": { Type: "Province", Next: {} },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const seat = setup("Austria", { vie: tree });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    /* The tap lands on a coast strip, which is where a tap on such a province
+       always lands: the strips cover the province they belong to. The strip
+       under the finger must not decide which coast the order names. */
+    tap("gal/nc");
+    await settle();
+
+    const chip = document.getElementById("chip")!;
+    expect(chip.querySelector(".chip-title")?.textContent).toBe("Galicia");
+    const rows = Array.from(chip.querySelectorAll("button:not(.chip-close)"));
+    expect(rows.map((row) => row.textContent)).toEqual(["North coast", "South coast"]);
+
+    (rows[1] as HTMLButtonElement).click();
+    await settle();
+
+    expect(seat.posted).toEqual([{ province: "vie", parts: ["Move", "gal/sc"] }]);
+    expect(document.getElementById("chip")).toBeNull();
+    seat.board.destroy();
+  });
+
   it("lights up every shape a province is drawn with, coasts included", async () => {
     const seat = setup("Austria", { vie: MOVEMENT_TREE });
     await seat.board.ready;
