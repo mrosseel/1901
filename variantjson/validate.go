@@ -76,7 +76,7 @@ func Validate(d Descriptor) error {
 			report("province %q supply centre must be a string or null", key)
 			continue
 		}
-		if owner != "neutral" && !nations[owner] {
+		if !isNeutral(owner) && !nations[owner] {
 			report("province %q is a home centre for unknown nation %q", key, owner)
 		}
 	}
@@ -152,11 +152,6 @@ func Validate(d Descriptor) error {
 		degree[a]++
 		degree[b]++
 	}
-	for name := range regions {
-		if degree[name] == 0 {
-			report("region %q has no borders, so no unit can ever reach it", name)
-		}
-	}
 
 	// Starting position.
 	for prov, spec := range d.Start.Units {
@@ -200,28 +195,6 @@ func Validate(d Descriptor) error {
 	} else if d.SoloSupplyCenters > totalSCs {
 		report("soloSupplyCenters is %d but the map has %d supply centres, so nobody can win",
 			d.SoloSupplyCenters, totalSCs)
-	} else if d.SoloSupplyCenters <= totalSCs/2 {
-		report("soloSupplyCenters is %d of %d, so several nations could win at once",
-			d.SoloSupplyCenters, totalSCs)
-	}
-
-	// Equal starts. A generated map is meant to be balanced; an uneven start
-	// means the generator or the export is wrong.
-	homesPer := map[string]int{}
-	for _, nation := range d.Start.SupplyCenters {
-		homesPer[nation]++
-	}
-	unitsPer := map[string]int{}
-	for _, spec := range d.Start.Units {
-		if len(spec) == 2 {
-			unitsPer[spec[1]]++
-		}
-	}
-	if spread := spreadOf(homesPer, d.Nations); spread > 0 {
-		report("nations start with unequal home centres (spread %d)", spread)
-	}
-	if spread := spreadOf(unitsPer, d.Nations); spread > 0 {
-		report("nations start with unequal unit counts (spread %d)", spread)
 	}
 
 	if len(problems) > 0 {
@@ -231,22 +204,73 @@ func Validate(d Descriptor) error {
 	return nil
 }
 
-// spreadOf returns max minus min across the named nations.
-func spreadOf(counts map[string]int, nations []string) int {
-	if len(nations) == 0 {
-		return 0
-	}
-	min, max := -1, 0
-	for _, n := range nations {
-		c := counts[n]
-		if min < 0 || c < min {
-			min = c
+// isNeutral reports whether a supply-centre owner names no nation. godip
+// spells it "Neutral"; a descriptor written by hand is likely to say
+// "neutral".
+func isNeutral(owner string) bool {
+	return strings.EqualFold(owner, "neutral")
+}
+
+// Warnings lists things that are legal but usually mistakes.
+//
+// These are not format errors. Real variants break every one of them on
+// purpose: classical gives Russia a fourth home centre, 1900 sets a solo
+// threshold two nations could both reach, and 1900 carries an isolated
+// province called Dummy. A generator should avoid them; a loader has no
+// business refusing a map over them.
+func Warnings(d Descriptor) []string {
+	var out []string
+
+	degree := map[string]int{}
+	for _, row := range d.Borders {
+		if len(row) == 3 {
+			degree[row[0]]++
+			degree[row[1]]++
 		}
-		if c > max {
-			max = c
+	}
+	for _, row := range d.Regions {
+		name, err := regionName(row)
+		if err == nil && degree[name] == 0 {
+			out = append(out, fmt.Sprintf(
+				"region %q has no borders, so no unit can reach it", name))
 		}
 	}
-	return max - min
+
+	totalSCs := 0
+	for _, row := range d.Provinces {
+		if len(row) >= 3 && row[2] != nil {
+			totalSCs++
+		}
+	}
+	if d.SoloSupplyCenters > 0 && d.SoloSupplyCenters <= totalSCs/2 {
+		out = append(out, fmt.Sprintf(
+			"soloSupplyCenters is %d of %d, so several nations could win at once",
+			d.SoloSupplyCenters, totalSCs))
+	}
+
+	homes := map[string]int{}
+	for _, nation := range d.Start.SupplyCenters {
+		homes[nation]++
+	}
+	if len(homes) > 1 {
+		min, max := -1, 0
+		for _, n := range d.Nations {
+			c := homes[n]
+			if min < 0 || c < min {
+				min = c
+			}
+			if c > max {
+				max = c
+			}
+		}
+		if max-min > 0 {
+			out = append(out, fmt.Sprintf(
+				"nations start with unequal home centres (spread %d)", max-min))
+		}
+	}
+
+	sort.Strings(out)
+	return out
 }
 
 // ErrNoProfile is returned when a descriptor names a rules profile that this

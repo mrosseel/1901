@@ -128,7 +128,7 @@ func Build(d Descriptor) (common.Variant, error) {
 			continue
 		}
 		owner, _ := row[2].(string)
-		if owner == "neutral" {
+		if isNeutral(owner) {
 			g.Prov(godip.Province(key)).SC(godip.Neutral)
 		} else {
 			g.Prov(godip.Province(key)).SC(godip.Nation(owner))

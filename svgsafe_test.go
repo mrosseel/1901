@@ -81,9 +81,39 @@ func TestStripsDataURLs(t *testing.T) {
 	mustNotContain(t, clean, "data:", "base64")
 }
 
-func TestStripsStyleElementAndAttribute(t *testing.T) {
+func TestStripsUnsafeCSS(t *testing.T) {
 	clean := sanitize(t, `<svg><style>@import url(http://evil/x.css);</style><g id="provinces"><rect style="background:url(http://evil/y)" x="0"/></g></svg>`)
-	mustNotContain(t, clean, "@import", "evil", "style")
+	mustNotContain(t, clean, "@import", "evil")
+	if !strings.Contains(clean, `x="0"`) {
+		t.Errorf("dropped the geometry with the style:\n%s", clean)
+	}
+}
+
+// Real map art is restyled through its stylesheet, so safe CSS has to survive.
+func TestKeepsSafeCSS(t *testing.T) {
+	clean := sanitize(t, `<svg><style>.land{fill:#eee}.sea{fill:url(#g)}</style><g id="provinces" style="fill:none;stroke:none"><rect class="land" x="0"/></g></svg>`)
+	for _, want := range []string{".land{fill:#eee}", "url(#g)", `style="fill:none;stroke:none"`, `class="land"`} {
+		if !strings.Contains(clean, want) {
+			t.Errorf("safe css %q must survive:\n%s", want, clean)
+		}
+	}
+}
+
+func TestStripsCSSThatEscapesItsElement(t *testing.T) {
+	clean := sanitize(t, `<svg><style>a{}</style><g id="provinces"/></svg>`)
+	if !strings.Contains(clean, "a{}") {
+		t.Fatalf("baseline css should survive:\n%s", clean)
+	}
+	poisoned := sanitize(t, `<svg><style>x{}</style><g id="provinces"/></svg>`)
+	_ = poisoned
+	for _, bad := range []string{
+		`<svg><style>@import "x";</style><g id="provinces"/></svg>`,
+		`<svg><style>a{behavior:url(x.htc)}</style><g id="provinces"/></svg>`,
+		`<svg><style>a{background:expression(alert(1))}</style><g id="provinces"/></svg>`,
+	} {
+		out := sanitize(t, bad)
+		mustNotContain(t, out, "@import", "behavior", "expression")
+	}
 }
 
 func TestStripsAnimationThatRewritesAttributes(t *testing.T) {

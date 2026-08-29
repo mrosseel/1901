@@ -1,5 +1,8 @@
-// The variant registry: godip's variants exposed by a URL-safe key, with
-// the metadata the create-game gallery needs.
+// The variant registry: every variant this server can play, by URL-safe key,
+// with the metadata the create-game gallery needs.
+//
+// Two sources feed it. godip ships its own variants as a Go library. Everything
+// else is a descriptor under variants/generated, read at startup (generated.go).
 //
 // Only classical is supported (D-014). The rest are playable but their
 // map placement anchors are unverified, so they are marked experimental.
@@ -18,26 +21,16 @@ import (
 	"github.com/zond/godip"
 	"github.com/zond/godip/variants"
 	"github.com/zond/godip/variants/common"
-
-	"spring1901/spike/variants1901/jdip1900"
-	"spring1901/spike/variants1901/sailho"
-	"spring1901/spike/variants1901/sailhocrowded"
 )
 
-// localVariants are the ones translated from jDip by tools/jdip-import.
-// They sit beside godip's own and are served exactly the same way.
-var localVariants = []common.Variant{
-	jdip1900.Nineteen00Variant,
-	sailho.SailHoVariant,
-	sailhocrowded.SailHoCrowdedVariant,
-}
-
-// compiledVariants is every variant built into the binary: godip's own and the
-// ones translated from jDip. It never changes while the server runs.
+// compiledVariants is godip's own variants, which arrive as a library.
+//
+// 1901's own translated variants used to sit beside them as Go packages. They
+// are descriptors now, under variants/generated, so this list is godip's and
+// nothing else.
 func compiledVariants() []common.Variant {
-	out := make([]common.Variant, 0, len(variants.OrderedVariants)+len(localVariants))
+	out := make([]common.Variant, 0, len(variants.OrderedVariants))
 	out = append(out, variants.OrderedVariants...)
-	out = append(out, localVariants...)
 	return out
 }
 

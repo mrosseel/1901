@@ -24,10 +24,14 @@ import (
 // safeSVGElements is every element a board may contain. Shapes, grouping,
 // text, and the marker plumbing arrows need.
 //
+// `style` is here because real map art uses it: sailho is restyled by
+// replacing its stylesheet, and layers carry `style="fill:none"`. Its text and
+// the style attribute are both scrubbed by safeCSS, which is what makes them
+// safe rather than the element name.
+//
 // Absent on purpose: script and handler (execute), foreignObject (embeds
 // HTML), image (fetches), animate, animateTransform, set and animateMotion
-// (can rewrite any attribute after the sanitiser has seen it), style (its
-// text is CSS the parser here does not read, and CSS fetches), and a
+// (can rewrite any attribute after the sanitiser has seen it), and a
 // (navigates).
 var safeSVGElements = map[string]bool{
 	"svg": true, "g": true, "defs": true, "title": true, "desc": true,
@@ -37,13 +41,14 @@ var safeSVGElements = map[string]bool{
 	"marker": true, "symbol": true, "use": true,
 	"linearGradient": true, "radialGradient": true, "stop": true,
 	"clipPath": true, "mask": true, "pattern": true,
+	"style": true,
 }
 
 // safeSVGAttributes is every attribute that may survive. Geometry,
 // presentation, and identity.
 //
-// Every `on*` handler is absent, and so is `style`: an inline style can carry
-// `url(...)`, which fetches.
+// Every `on*` handler is absent. `style` is present but its value goes through
+// safeCSS first.
 var safeSVGAttributes = map[string]bool{
 	"id": true, "class": true, "transform": true, "viewBox": true,
 	"width": true, "height": true, "x": true, "y": true, "x1": true,
@@ -65,6 +70,10 @@ var safeSVGAttributes = map[string]bool{
 	"clip-path": true, "clip-rule": true, "mask": true,
 	"patternUnits": true, "preserveAspectRatio": true,
 	"xmlns": true, "version": true,
+	"style": true, "type": true,
+	// Rendering hints: inert, and real map art carries them.
+	"color-rendering": true, "shape-rendering": true, "text-rendering": true,
+	"image-rendering": true, "vector-effect": true, "overflow": true,
 }
 
 // svgSanitizeResult reports what a pass removed, so an operator can see that
@@ -94,6 +103,8 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 	var out bytes.Buffer
 	// depth of the subtree currently being discarded, 0 when emitting.
 	skipDepth := 0
+	// inStyle marks CSS text, which is scrubbed rather than escaped.
+	inStyle := false
 
 	for {
 		token, err := decoder.Token()
@@ -116,6 +127,9 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 				skipDepth = 1
 				continue
 			}
+			if name == "style" {
+				inStyle = true
+			}
 			out.WriteString("<" + name)
 			for _, attr := range t.Attr {
 				if !svgAttrAllowed(attr) {
@@ -131,10 +145,23 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 				skipDepth--
 				continue
 			}
+			if t.Name.Local == "style" {
+				inStyle = false
+			}
 			out.WriteString("</" + t.Name.Local + ">")
 
 		case xml.CharData:
 			if skipDepth > 0 {
+				continue
+			}
+			if inStyle {
+				// A stylesheet is CSS, not markup: it is checked whole and
+				// written unescaped, or dropped whole.
+				if safeCSS(string(t)) {
+					out.Write(t)
+				} else {
+					result.noteElement("style (unsafe css)")
+				}
 				continue
 			}
 			xml.EscapeText(&out, t)
@@ -158,6 +185,34 @@ func attrName(attr xml.Attr) string {
 	return attr.Name.Space + ":" + attr.Name.Local
 }
 
+// safeCSS reports whether a stylesheet or inline style is free of the things
+// that make CSS fetch or execute.
+//
+// A same-document reference like `url(#gradient)` stays: it is how a shape
+// points at a gradient in its own defs, and it reaches nothing outside.
+func safeCSS(text string) bool {
+	lower := strings.ToLower(text)
+	for _, banned := range []string{
+		"@import", "javascript:", "expression(", "behavior:", "-moz-binding",
+		"</style", "<!--",
+	} {
+		if strings.Contains(lower, banned) {
+			return false
+		}
+	}
+	for index := 0; ; {
+		at := strings.Index(lower[index:], "url(")
+		if at < 0 {
+			return true
+		}
+		index += at + len("url(")
+		rest := strings.TrimLeft(lower[index:], " \t'\"")
+		if !strings.HasPrefix(rest, "#") {
+			return false
+		}
+	}
+}
+
 // svgAttrAllowed decides one attribute.
 func svgAttrAllowed(attr xml.Attr) bool {
 	name := attr.Name.Local
@@ -167,24 +222,28 @@ func svgAttrAllowed(attr xml.Attr) bool {
 	if strings.HasPrefix(lower, "on") {
 		return false
 	}
-	// A namespaced attribute is either xlink (which is how remote references
-	// are spelled) or a namespace declaration; neither is needed here.
+	// A namespace declaration is inert: it binds a prefix, and no attribute
+	// carrying a prefix is allowed through. Anything else namespaced is xlink,
+	// which is how a remote reference is spelled.
 	if attr.Name.Space != "" && attr.Name.Space != "xmlns" {
 		return false
 	}
-	if !safeSVGAttributes[name] {
+	if attr.Name.Space == "xmlns" {
+		return true
+	}
+	// data-* is inert metadata, and the restyle tooling writes it (data-shrunk
+	// records that a label was scaled). Dropping it would throw away the
+	// tooling's own notes.
+	if !safeSVGAttributes[name] && !strings.HasPrefix(lower, "data-") {
 		return false
 	}
 	// A value can still carry a fetch or a script even under a safe name:
 	// `fill="url(http://...)"`, `clip-path="url(javascript:...)"`.
 	value := strings.ToLower(attr.Value)
-	if strings.Contains(value, "javascript:") || strings.Contains(value, "data:") {
+	if strings.Contains(value, "data:") {
 		return false
 	}
-	if strings.Contains(value, "url(") && !strings.Contains(value, "url(#") {
-		return false
-	}
-	return true
+	return safeCSS(attr.Value)
 }
 
 func (self *svgSanitizeResult) noteElement(name string) {
