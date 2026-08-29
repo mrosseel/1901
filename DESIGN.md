@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r24 — 2026-08-29
+**Document revision:** r25 — 2026-08-29
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -487,6 +487,15 @@ jDip map: the label metrics jDip wrote without a CSS unit, the classes that
 paint power-owned ground, and the class each label is given. Nothing in a plan
 is a style decision. Everything in it is a measurement.
 
+**A length belongs to a layer, not to a map.** Every length a style names
+crosses onto a map as a fraction of its width, then divides by the scale of
+the layer it lands in. A converted jDip map has more than one such scale.
+1900 draws its art at a tenth and its names beside it at full size, so a plan
+records the scale of the art layer and of the label layers separately.
+Carrying a tracking or a halo at the art's scale made it ten times too wide on
+exactly the labels that could least afford it, which is how 1900's six-pixel
+names became smudges while its fourteen-pixel names looked fine.
+
 **Staleness is loud.** A plan names the SHA-256 of the art it was measured on.
 A godip upgrade that redraws a map makes its plan stale, because a fill value
 measured on the old picture may paint something else in the new one. Such a
@@ -840,7 +849,8 @@ accepted rather than refused; the tap grammar remains the guide, not a
 cage. Turning the setting off restores strict legal-only entry.
 
 ### D-030 — In-app map editor at /mapeditor
-**Status:** implemented, r22 (accepted r20).
+**Status:** implemented r22, superseded r25 by D-033. The editor works and
+ships today; its ownership moves to dipmap.
 The placement editor graduates from generated standalone HTML files into
 an app route: pick a variant, drag unit / dislodged / brief-code markers
 with live violation feedback (the audit geometry), edit province display
@@ -929,6 +939,50 @@ What the spike prescribes instead, all in our own gesture code:
    the instant 1.8x jump.
 4. Wheel debounce — accumulate deltas ~40 ms and apply one step;
    trackpads emit dozens of events and each runs a full render today.
+
+### D-032 — A converted map is given the supply centres it does not draw
+**Status:** accepted, r25. Implemented in the converter; port to master pending.
+godip's own maps have drawn a glyph on every supply centre since the first
+one. jDip's converted maps do not: `SupplyCenterLayer` ships empty, 1900's
+source carries no centre coordinate at all (Sail Ho's has 21), and nothing
+downstream draws one. `board.ts` has no supply-centre drawing code and
+`placements.json` has no slot for one, so no style could show them. A player
+could not see which provinces were worth taking.
+
+The converter fills the layer that ships empty, one ring per centre named by
+godip's `AllSCs()`, positioned at jDip's own `SUPPLY_CENTER` coordinate where
+the source states one and at the province's unit anchor where it does not.
+Radius is 10/1524 of map width, matching godip's classical.
+
+The glyph is a ring, not a disc, drawn as an even-odd annulus. jDip's anchor
+is often under the province name and a filled dot would swallow it. The id is
+`sc-<key>`, deliberately not `<key>Center`, because `board.ts` matches
+`[id$="Center"]` for anchors. `?style=original` gains nothing: it stays a
+faithful copy.
+
+### D-033 — Map authoring moves to dipmap; 1901 plays maps
+**Status:** accepted, r25 (owner decision, final). Supersedes the ownership
+half of D-030 and D-003.
+1901 becomes the tool that plays maps. dipmap becomes the tool that makes
+them. Moving out: `tools/placement/`, `tools/restyle/`, `web/src/mapeditor/`,
+`mapeditor_dev.go`, `mapeditor_off.go` and the `/mapeditor` route. Staying:
+every serve-time reader — `placements.go`, `names.go`, `mapstyles.go`,
+`styleplans.go`, `restyle.go` — and `tools/jdip-import/`, because dipmap draws
+from real per-province polygons and cannot ingest a jDip SVG.
+
+The deletions happen on this side, once the ported code is proven. A style
+plan and a placement table are committed data, so both keep working across the
+move; only regenerating them needs the tool.
+
+Two findings from the handover are worth keeping, because they outlast the
+code that produced them. For a map dipmap drew, a style plan is written rather
+than detected — the exporter already chose the literals and can hash the art
+it just emitted, so confidence is 1 by construction and a plan cannot name the
+hash of art it never measured. And a detector that derives verdicts by
+hit-testing fails silently: when 1900's art failed to render, every hit-test
+missed and the detector wrote a well-formed plan calling all 181 names land,
+twenty-one seas among them. A plan writer must count the labels that land on
+nothing and refuse rather than write.
 
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
@@ -1252,3 +1306,4 @@ Recorded so nobody re-derives them.
 | r22 | 2026-08-29 | D-030 implemented: /mapeditor in-app — variant picker, draggable unit/dislodged/brief markers, live violation audit sharing tools/placement rules (rules.ts split out), drag telemetry, province display-name overrides (names/{key}.json over ProvinceLongNames), stable-diff export, disk save only under -tags mapeditordev into .hand files the server never loads. Editor reads terrain from godip, exposing colour-guess faults in the offline audit (open item). |
 | r23 | 2026-08-29 | D-031: Leaflet rejected after a working spike — 46 KB gz for ~460 replaceable lines, plus a zoomed-SVG layout-box risk on phones. Four gesture fixes adopted instead: wheel deltaMode normalisation (Firefox wheel zoom was dead), pan inertia, eased double-tap zoom, wheel debounce. |
 | r24 | 2026-08-29 | Placement optimizer terrain bug: the fill-colour probe measured a hidden map and called almost all land sea on every variant, so coast rules never fired. Terrain now comes from /variants/{key}/provinces.json in tool and editor alike; 22 tables re-derived (containment faults 93 to 10, dislodged-outside 71 to 1), classical patched on bul/ec and bul/sc only. |
+| r25 | 2026-08-29 | D-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay. D-030 superseded in ownership. D-032: converted maps are given supply-centre rings they never carried. D-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges. |
