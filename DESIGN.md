@@ -496,6 +496,19 @@ Carrying a tracking or a halo at the art's scale made it ten times too wide on
 exactly the labels that could least afford it, which is how 1900's six-pixel
 names became smudges while its fourteen-pixel names looked fine.
 
+The art decides the value. Where a plan states no label scale, `restyle.go`
+reads it from the name layers' own transforms, so an old plan renders
+correctly with no edit and a stated value cannot drift from the picture it was
+measured on; a test holds every stated value to what its art draws.
+
+Two faults in the same rules are recorded here rather than fixed, because
+either one alone makes the other invisible. The lengths are emitted without a
+CSS unit, so every `letter-spacing` in a jDip stylesheet is inert in Chrome
+and Firefox. And `#FullLabelLayer text { stroke:none }` outranks
+`.map-landname`, so the halo never applies on a converted map. This is why
+correcting the scale changes no pixel today. Correcting the units first, with
+the scale still wrong, would have made 1900's names genuinely unreadable.
+
 **Staleness is loud.** A plan names the SHA-256 of the art it was measured on.
 A godip upgrade that redraws a map makes its plan stale, because a fill value
 measured on the old picture may paint something else in the new one. Such a
@@ -1306,4 +1319,4 @@ Recorded so nobody re-derives them.
 | r22 | 2026-08-29 | D-030 implemented: /mapeditor in-app — variant picker, draggable unit/dislodged/brief markers, live violation audit sharing tools/placement rules (rules.ts split out), drag telemetry, province display-name overrides (names/{key}.json over ProvinceLongNames), stable-diff export, disk save only under -tags mapeditordev into .hand files the server never loads. Editor reads terrain from godip, exposing colour-guess faults in the offline audit (open item). |
 | r23 | 2026-08-29 | D-031: Leaflet rejected after a working spike — 46 KB gz for ~460 replaceable lines, plus a zoomed-SVG layout-box risk on phones. Four gesture fixes adopted instead: wheel deltaMode normalisation (Firefox wheel zoom was dead), pan inertia, eased double-tap zoom, wheel debounce. |
 | r24 | 2026-08-29 | Placement optimizer terrain bug: the fill-colour probe measured a hidden map and called almost all land sea on every variant, so coast rules never fired. Terrain now comes from /variants/{key}/provinces.json in tool and editor alike; 22 tables re-derived (containment faults 93 to 10, dislodged-outside 71 to 1), classical patched on bul/ec and bul/sc only. |
-| r25 | 2026-08-29 | D-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay. D-030 superseded in ownership. D-032: converted maps are given supply-centre rings they never carried. D-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges. |
+| r25 | 2026-08-29 | D-026 amended: a length is carried onto the scale of the layer it lands in, not the map's; `jdipPlan` gains `labelScale`, derived from the art when a plan omits it. Two dormant faults recorded: jDip label lengths are emitted unitless and inert, and the label layer's `stroke:none` outranks the halo rule. D-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay. D-030 superseded in ownership. D-032: converted maps are given supply-centre rings they never carried. D-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges. |
