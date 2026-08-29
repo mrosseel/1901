@@ -7,7 +7,7 @@ public the moment the phase resolved — and this turns it into the two things
 the screen needs: a drawing plan for the map, and a list of sentences.
 
 Dismissal is per device and nothing else. A player who has read the result
-taps Continue and goes back to the board; nobody else's screen moves, and no
+closes the review and goes back to the board; nobody else's screen moves, and no
 one waits. That choice lives in this browser's localStorage under the identity
 of the phase reviewed, so a refresh does not bring it back but the next
 adjudication does.

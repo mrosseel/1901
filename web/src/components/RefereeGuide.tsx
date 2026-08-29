@@ -35,7 +35,7 @@ export function RefereeGuide({
           </p>
         </div>
         <button type="button" onClick={onClose}>
-          Close
+          Close guide
         </button>
       </header>
 

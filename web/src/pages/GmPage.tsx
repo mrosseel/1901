@@ -9,6 +9,7 @@ import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
 import { ReviewOverlay } from "../components/ReviewOverlay";
 import { RefereeGuide } from "../components/RefereeGuide";
+import { ModalLayer } from "../components/ModalLayer";
 import { refereeGuide } from "../referee";
 import { dismiss, isDismissed, reviewKey, reviewPlan } from "../review";
 
@@ -49,7 +50,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
 
   /*
   The phase that just resolved. The game master reads it on the same terms as
-  every player: it opens once per adjudication on this device, and Continue
+  every player: it opens once per adjudication on this device, and closing it
   puts it away here and nowhere else.
   */
   const review = useMemo(() => reviewPlan(game?.previousPhase), [game?.previousPhase]);
@@ -107,14 +108,23 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   const finalizedCount = game.seats.filter((seat) => seat.finalized).length;
   const allJoined = game.joinedCount >= game.totalSeats;
 
+  // The review and the guide are read, not acted on. While one is open the
+  // controls behind it — the start, the extend, the forced adjudication — are
+  // inert, so the only button on screen is the one that closes what is open.
+  const reading = (refereeing && Boolean(guide)) || (reviewing && Boolean(review));
+
   return (
-    <main className="page wide">
+    <>
+    <main className="page wide" inert={reading || undefined}>
       <header className="page-head">
         <div>
           <h1>Game master</h1>
-          <p className="muted">
-            Game {game.gameId} · {game.started ? phaseLabel(game.phase) : "not started"}
+          {/* The phase, at the size the room reads it at — the same line the
+              players carry at the top of their own boards. */}
+          <p className="phase-now">
+            {game.started ? phaseLabel(game.phase) : "The game has not started"}
           </p>
+          <p className="muted">Game {game.gameId}</p>
           {game.variant ? (
             <p className="variant-line">
               <strong>{game.variant.name}</strong> <SupportedMark supported={game.variant.supported} />
@@ -138,19 +148,10 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       {error ? <p className="error">{error}</p> : null}
       {notice ? <p className="notice">{notice}</p> : null}
 
-      {refereeing && guide ? (
-        <RefereeGuide guide={guide} onClose={() => setRefereeing(false)} />
-      ) : reviewing && review ? (
-        <ReviewOverlay
-          plan={review}
-          deadlineAt={game.deadlineAt}
-          onContinue={closeReview}
-          onReferee={guide ? () => setRefereeing(true) : undefined}
-        />
-      ) : review ? (
+      {review && !reviewing && !refereeing ? (
         <p className="head-links">
           <button type="button" className="link" onClick={() => setReviewing(true)}>
-            Last turn
+            Review last turn
           </button>
           {guide ? (
             <button type="button" className="link" onClick={() => setRefereeing(true)}>
@@ -173,7 +174,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
               </span>
               {game.started ? (
                 <span className={seat.finalized ? "badge done" : "badge out"}>
-                  {seat.finalized ? "Finalized" : "Ordering"}
+                  {seat.finalized ? "Locked in" : "Still ordering"}
                 </span>
               ) : null}
             </li>
@@ -186,7 +187,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
             ? game.seats.filter((seat) => seat.joined).length +
               " powers in play · " +
               finalizedCount +
-              " finalized"
+              " locked in"
             : game.joinedCount + " of " + game.totalSeats + " joined"}
         </p>
         {!game.started ? (
@@ -236,8 +237,8 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           </button>
           <p className="note">
             {game.canForce
-              ? "Powers that have not finalized keep no orders: their units hold."
-              : "Possible once the deadline passes, or when every power but one has finalized."}
+              ? "Powers that have not locked in keep no orders: their units hold."
+              : "Possible once the deadline passes, or when every power but one has locked in."}
           </p>
         </section>
       ) : null}
@@ -270,6 +271,22 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         </section>
       ) : null}
     </main>
+
+    {refereeing && guide ? (
+      <ModalLayer onClose={() => setRefereeing(false)}>
+        <RefereeGuide guide={guide} onClose={() => setRefereeing(false)} />
+      </ModalLayer>
+    ) : reviewing && review ? (
+      <ModalLayer onClose={closeReview}>
+        <ReviewOverlay
+          plan={review}
+          deadlineAt={game.deadlineAt}
+          onClose={closeReview}
+          onReferee={guide ? () => setRefereeing(true) : undefined}
+        />
+      </ModalLayer>
+    ) : null}
+    </>
   );
 }
 

@@ -141,7 +141,7 @@ describe("what this device has read", () => {
     expect(reviewKey("g8", PHASE)).not.toBe(key);
   });
 
-  it("remembers Continue on this device and nowhere else", () => {
+  it("remembers a closed review on this device and nowhere else", () => {
     const key = reviewKey("g7", PHASE);
     expect(isDismissed(key)).toBe(false);
     dismiss(key);

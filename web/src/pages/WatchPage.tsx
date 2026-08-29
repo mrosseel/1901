@@ -11,6 +11,7 @@ import {
 import { Board } from "../components/Board";
 import { Clock } from "../components/Clock";
 import { RefereeGuide } from "../components/RefereeGuide";
+import { ModalLayer } from "../components/ModalLayer";
 import { SplitLayout } from "../components/SplitLayout";
 import { StylePicker, useMapStyle } from "../components/StylePicker";
 import { SupportedMark } from "../components/SupportedMark";
@@ -218,9 +219,14 @@ export function WatchPage({
   const totalSeats = watch?.totalSeats ?? summary?.totalSeats;
   const variant = watch?.variant || summary?.variant;
 
+  // The guide is read, not acted on: while it is open the board and the panel
+  // behind it answer nothing, here as on every other page.
+  const reading = refereeing && Boolean(guide);
+
   return (
-    <SplitLayout className="seat-layout watch">
-      <main className="map-pane">
+    <>
+    <SplitLayout className="seat-layout watch" frozen={reading}>
+      <main className="map-pane" inert={reading || undefined}>
         {boardState ? (
           <Board
             api={api}
@@ -238,14 +244,11 @@ export function WatchPage({
               : error || "Reading the game…"}
           </p>
         )}
-        {refereeing && guide ? (
-          <RefereeGuide guide={guide} onClose={() => setRefereeing(false)} />
-        ) : null}
       </main>
 
-      <aside className="side">
+      <aside className="side" inert={reading || undefined}>
         <header className="seat-head">
-          <h1>{phaseLabel(phase)}</h1>
+          <h1 className="phase-now">{phaseLabel(phase)}</h1>
           <p className="muted">
             Game {gameId}
             {variant ? " · " + variant.name : ""}{" "}
@@ -258,20 +261,20 @@ export function WatchPage({
           )}
           {!historical && totalSeats !== undefined ? (
             <p className="muted">
-              {finalizedCount} of {totalSeats} finalized
+              {finalizedCount} of {totalSeats} powers locked in
             </p>
           ) : null}
         </header>
 
         <nav className="watch-nav">
           <button type="button" disabled={!canPrev} onClick={() => go(prevTo)}>
-            ← Earlier
+            ← Earlier phase
           </button>
           <span className="muted">
             {at === null ? "Live" : phaseCount ? "Phase " + (at + 1) + " of " + phaseCount : "Phase " + (at + 1)}
           </span>
           <button type="button" disabled={!canNext} onClick={() => go(nextTo)}>
-            Later →
+            Later phase →
           </button>
         </nav>
         <p className="note">The arrow keys walk the phases.</p>
@@ -280,7 +283,7 @@ export function WatchPage({
         {feedMissing ? (
           <p className="note">
             The board and the phase history come from the spectator feed, which this
-            server does not answer yet. The phase, the clock and the finalized count
+            server does not answer yet. The phase, the clock and the locked-in count
             below are read from the public summary instead.
           </p>
         ) : null}
@@ -328,5 +331,12 @@ export function WatchPage({
         <StylePicker value={style} onChange={setStyle} />
       </aside>
     </SplitLayout>
+
+    {refereeing && guide ? (
+      <ModalLayer onClose={() => setRefereeing(false)}>
+        <RefereeGuide guide={guide} onClose={() => setRefereeing(false)} />
+      </ModalLayer>
+    ) : null}
+    </>
   );
 }

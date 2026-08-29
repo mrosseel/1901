@@ -43,9 +43,13 @@ function currentMode(): SplitMode {
 
 export function SplitLayout({
   className,
+  frozen,
   children,
 }: {
   className?: string;
+  /** True while a sheet owns the screen: the border stops answering too, so
+      the open sheet is the only layer a tap or a Tab can reach. */
+  frozen?: boolean;
   /** Exactly two: the map pane, then the side panel. */
   children: ReactNode;
 }) {
@@ -175,6 +179,7 @@ export function SplitLayout({
       <div
         className="split-grip"
         role="separator"
+        inert={frozen || undefined}
         tabIndex={0}
         aria-orientation={mode === "desktop" ? "vertical" : "horizontal"}
         aria-label="Resize the map and the order panel"

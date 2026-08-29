@@ -33,6 +33,7 @@ import { StylePicker, useMapStyle } from "../components/StylePicker";
 import { SupportedMark } from "../components/SupportedMark";
 import { styledMapUrl } from "../style";
 import { ReviewOverlay } from "../components/ReviewOverlay";
+import { ModalLayer } from "../components/ModalLayer";
 import { RefereeGuide } from "../components/RefereeGuide";
 import { OrderArrowsToggle, useHideOrders } from "../components/OrderArrowsToggle";
 import { refereeGuide } from "../referee";
@@ -184,8 +185,8 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
 
   A review opens by itself the first time a device sees a new adjudication —
   on a poll that brought one, or on a page opened while one is still unread.
-  Continue writes it off in this browser and nowhere else, so no player ever
-  waits for another to finish reading.
+  Closing the review writes it off in this browser and nowhere else, so no
+  player ever waits for another to finish reading.
   */
   const review = useMemo(() => reviewPlan(state?.previousPhase), [state?.previousPhase]);
   const seenKey = review ? reviewKey(gameId, state?.previousPhase) : "";
@@ -265,11 +266,11 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       not "it did not take".
       */
       if (wanted && !next.youFinalized) {
-        setStatus("Every power finalized. The phase was adjudicated.");
+        setStatus("Every power locked in. The phase was adjudicated.");
       } else if (next.youFinalized) {
-        setStatus("Orders finalized. You can still change them.");
+        setStatus("Orders locked in. You can still change them until the phase resolves.");
       } else {
-        setStatus("Finalize withdrawn.");
+        setStatus("Orders unlocked. Lock them in again before the deadline.");
       }
       setIsError(false);
     } catch (err) {
@@ -303,9 +304,18 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const resolutions = state?.phaseResolutions || state?.resolutions || {};
   const resolutionRows = Object.keys(resolutions).sort();
 
+  /*
+  A review or a guide is a thing to read, and while one is open it owns the
+  screen. The board and the panel behind it go inert — so the phase
+  commitment and a "close this view" button can never be reachable at the
+  same moment, at any size.
+  */
+  const reading = (refereeing && Boolean(guide)) || (reviewing && Boolean(review));
+
   return (
-    <SplitLayout className="seat-layout">
-      <main className="map-pane">
+    <>
+    <SplitLayout className="seat-layout" frozen={reading}>
+      <main className="map-pane" inert={reading || undefined}>
         <Board
           api={api}
           state={state}
@@ -324,27 +334,21 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             handle.current = board;
           }}
         />
-        {refereeing && guide ? (
-          <RefereeGuide guide={guide} onClose={() => setRefereeing(false)} />
-        ) : reviewing && review ? (
-          <ReviewOverlay
-            plan={review}
-            deadlineAt={state?.deadlineAt}
-            onContinue={closeReview}
-            onReferee={guide ? () => setRefereeing(true) : undefined}
-          />
-        ) : null}
       </main>
 
-      <aside className="side">
+      <aside className="side" inert={reading || undefined}>
         <header className="seat-head">
+          {/* The phase is what the whole table is playing. It is read across a
+              room, so it is the largest thing on the page. */}
+          <p className="phase-now">
+            {state?.started ? phaseLabel(state.phase) : "The game has not started"}
+          </p>
           <h1>
             <span className="dot" style={{ background: powerColor(power) }} />
             You are {power || "…"}
           </h1>
           <p className="muted">
-            {state?.started ? phaseLabel(state.phase) : "The game has not started"}
-            {state?.variant ? " · " + state.variant.name : ""}{" "}
+            {state?.variant ? state.variant.name : ""}{" "}
             {state?.variant ? <SupportedMark supported={state.variant.supported} /> : null}
           </p>
           {/* The deadline is the one thing on this page that must never be
@@ -353,7 +357,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           {review && !reviewing ? (
             <span className="head-links">
               <button type="button" className="link" onClick={() => setReviewing(true)}>
-                Last turn
+                Review last turn
               </button>
               {guide ? (
                 <button type="button" className="link" onClick={() => setRefereeing(true)}>
@@ -397,20 +401,39 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
 
         {state?.started ? (
           <section className="finalize">
+            {/*
+            The one control on this page that commits this power to the phase.
+            It is the loudest thing in the panel on purpose: a first-time
+            player must never confuse it with a button that only closes a view.
+            */}
             <button
               type="button"
-              className={state.youFinalized ? "primary done" : "primary"}
+              className={state.youFinalized ? "lock-btn locked" : "lock-btn"}
+              aria-pressed={state.youFinalized}
               onClick={toggleFinalize}
             >
-              {state.youFinalized
-                ? "Finalized — tap to undo"
-                : idle
-                  ? "Nothing to do — finalize"
-                  : "Finalize orders"}
+              <span className="lock-main">
+                {state.youFinalized
+                  ? "Orders locked — " +
+                    state.finalizedCount +
+                    " of " +
+                    state.totalSeats +
+                    " in"
+                  : idle
+                    ? "Nothing to order — lock in"
+                    : "Lock in my orders"}
+              </span>
+              <span className="lock-sub">
+                {state.youFinalized
+                  ? "Tap to unlock · finalized"
+                  : "Finalize this phase · you can still change them"}
+              </span>
             </button>
-            <p className="muted">
-              {state.finalizedCount} of {state.totalSeats} finalized
-            </p>
+            {state.youFinalized ? null : (
+              <p className="muted">
+                {state.finalizedCount} of {state.totalSeats} powers locked in
+              </p>
+            )}
           </section>
         ) : (
           <p className="muted">Waiting for the game master to start the game.</p>
@@ -502,5 +525,21 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         <OrderArrowsToggle value={hideOrders} onChange={setHideOrders} />
       </aside>
     </SplitLayout>
+
+    {refereeing && guide ? (
+      <ModalLayer onClose={() => setRefereeing(false)}>
+        <RefereeGuide guide={guide} onClose={() => setRefereeing(false)} />
+      </ModalLayer>
+    ) : reviewing && review ? (
+      <ModalLayer onClose={closeReview}>
+        <ReviewOverlay
+          plan={review}
+          deadlineAt={state?.deadlineAt}
+          onClose={closeReview}
+          onReferee={guide ? () => setRefereeing(true) : undefined}
+        />
+      </ModalLayer>
+    ) : null}
+    </>
   );
 }

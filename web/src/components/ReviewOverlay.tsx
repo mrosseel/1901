@@ -11,18 +11,19 @@ board. The clock for the NEW phase sits in its header, because the deadline
 does not wait for anyone to finish reading, and a player who loses track of it
 is a player who gets adjudicated as an NMR.
 
-Continue is this device's own. Nothing is sent, nobody is waited for, and
-another player still reading is not holding anyone up.
+Closing is this device's own. Nothing is sent, nobody is waited for, and
+another player still reading is not holding anyone up. The button says
+"Close review" for that reason: it must not read as a step the game takes.
 */
 export function ReviewOverlay({
   plan,
   deadlineAt,
-  onContinue,
+  onClose,
   onReferee,
 }: {
   plan: ReviewPlan;
   deadlineAt: string | null | undefined;
-  onContinue: () => void;
+  onClose: () => void;
   /** Opens the piece pusher's list. Absent on a screen that has no board. */
   onReferee?: () => void;
 }) {
@@ -62,8 +63,8 @@ export function ReviewOverlay({
       </ul>
 
       <div className="review-actions">
-        <button type="button" className="primary" onClick={onContinue}>
-          Continue
+        <button type="button" className="primary" onClick={onClose}>
+          Close review
         </button>
         {/* The same phase, told as physical acts, for whoever is moving the
             pieces on the real board. */}
@@ -73,7 +74,10 @@ export function ReviewOverlay({
           </button>
         ) : null}
       </div>
-      <p className="note">Only your screen. Everyone else reads at their own pace.</p>
+      <p className="note">
+        Closing this changes nothing in the game. Only your screen — everyone else reads at
+        their own pace.
+      </p>
     </section>
   );
 }

@@ -480,6 +480,27 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
 .seat-head h1 { display: flex; align-items: center; gap: 8px; font-size: 18px; }
 .seat-head p { margin: 2px 0 0; }
 
+/* The phase the whole table is playing. It is the one line a player reads
+   from across the table, so it is the biggest text on every page that shows
+   it — the seat, the game master's screen and the spectator screen alike. */
+.phase-now {
+  margin: 0 0 2px;
+  font-size: 25px;
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+/* The spectator screen carries the phase as its heading, so the heading takes
+   the phase's size rather than the panel's. */
+.seat-head h1.phase-now { display: block; font-size: 25px; font-weight: 800; }
+
+@media (min-width: 900px) {
+  .phase-now, .seat-head h1.phase-now { font-size: 28px; }
+}
+
 /* What this phase asks of this power. It sits under the phase name because it
    is the first thing a player needs in a retreat or an adjustment. */
 .duty {
@@ -496,6 +517,39 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
 
 .finalize { display: flex; flex-direction: column; gap: 6px; }
 .finalize .muted { margin: 0; }
+
+/*
+The phase commitment, and the only button on the page that changes the game
+for everybody. Nothing else in the panel is this wide, this tall or this
+loud — a first-time player must be able to tell it apart from a button that
+only closes a view, without reading either one.
+*/
+.lock-btn {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 62px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  text-align: center;
+  color: #fff;
+  background: linear-gradient(180deg, #3f6cae, #2a4880);
+  border: 2px solid #7db0ff;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+}
+
+.lock-btn .lock-main { font-size: 18px; font-weight: 700; }
+.lock-btn .lock-sub { font-size: 12px; font-weight: 400; opacity: 0.85; }
+.lock-btn:hover:not(:disabled) { border-color: #b9d5ff; }
+.lock-btn:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+
+/* Armed: the orders are in. Green, and the second line says the way back. */
+.lock-btn.locked {
+  background: linear-gradient(180deg, #2f7a4d, #22593a);
+  border-color: #6ede8a;
+}
 
 .banner {
   display: flex;
@@ -561,20 +615,6 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
-/* Over the map, the review takes the builder's slot: the map behind it is
-   drawing the same turn, so the sheet must never grow to cover it. */
-.map-pane .review-sheet {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 8px;
-  z-index: 6;
-  max-height: 62%;
-  overflow: auto;
-  background: var(--panel-2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
-
 .builder-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .builder h2 { color: var(--text); text-transform: none; letter-spacing: 0; font-size: 15px; }
 .crumbs { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
@@ -624,24 +664,6 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
     z-index: 2;
   }
 
-  /* The review becomes a bottom sheet, like the order builder, so the map
-     above it keeps the whole width. */
-  .map-pane .review-sheet {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    top: auto;
-    z-index: 11;
-    max-height: 66dvh;
-    border-radius: 12px 12px 0 0;
-    border-bottom: none;
-    padding-bottom: calc(14px + env(safe-area-inset-bottom));
-  }
-
-  .map-pane .review-sheet .review-list { max-height: 30dvh; }
-  .map-pane .review-sheet .clock-face { font-size: 24px; }
-
   .builder {
     position: fixed;
     left: 0;
@@ -675,6 +697,10 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
     padding: 8px 10px;
     font-size: 13px;
   }
+
+  /* With nothing to say it says nothing: an empty chip between the phase and
+     the lock button is only noise where the loudest control should be. */
+  .status:empty { display: none; }
 }
 
 /* Landscape on a phone: vertical space is the scarce one. */
@@ -833,15 +859,6 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
   gap: 14px;
 }
 
-.map-pane .referee {
-  position: absolute;
-  inset: 8px;
-  z-index: 12;
-  overflow: auto;
-  background: var(--panel);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-}
-
 .referee-head { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
 .referee-head h2 { margin: 0 0 2px; font-size: 15px; }
 .referee-head p { margin: 0; }
@@ -905,23 +922,66 @@ kbd {
 /* Two ways into the last turn, side by side under the phase name. */
 .head-links { display: flex; gap: 14px; align-items: baseline; margin: 4px 0 0; }
 
+/*
+The only layer that answers a tap while it is open.
+
+A review is read, not played. So it takes the whole screen, dims everything
+behind it, and puts its one primary action — "Close review" — in the same
+place every time: across the bottom of the sheet, wide, under the thumb.
+The page behind it carries `inert`, so nothing there can be tapped or tabbed
+to while it stands.
+*/
+.modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(8, 10, 14, 0.66);
+}
+
+.modal-layer > * {
+  width: 100%;
+  max-width: 720px;
+  max-height: 88dvh;
+  overflow: auto;
+  background: var(--panel-2);
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.55);
+  border-radius: 14px 14px 0 0;
+  border-bottom: none;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+}
+
+/* With room to spare the sheet stops being a sheet and sits in the middle,
+   still the only thing on screen that answers. */
+@media (min-width: 781px) and (min-height: 501px) {
+  .modal-layer { align-items: center; padding: 24px; }
+  .modal-layer > * { border-radius: 14px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+}
+
+.modal-layer .review-list { max-height: 42dvh; }
+
+/* The dismiss is the primary action and it spans the sheet. The guide beside
+   it is a second way to READ the same turn, so it stays quiet — and on a
+   phone it steps out of the thumb's way, above the button that closes. */
 .review-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.review-actions .primary { flex: 1 1 auto; }
+.review-actions .primary { flex: 1 1 auto; min-height: 48px; font-weight: 600; }
+
+@media (max-width: 780px), (max-height: 500px) {
+  .review-actions { flex-direction: column-reverse; }
+  .review-actions button { width: 100%; }
+}
 
 /* --- the spectator screen ------------------------------------------------- */
+/* The two steps say what they move — a phase, not the game — so they must
+   read as one line each. */
 .watch-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.watch-nav button { white-space: nowrap; padding: 9px 10px; }
 .watch-nav .muted { margin: 0; }
 .watch .side { gap: 12px; }
 .watch-blank { margin: auto; color: var(--muted); text-align: center; padding: 24px; }
 
 @media (max-width: 780px), (max-height: 500px) {
-  .map-pane .referee {
-    position: fixed;
-    inset: auto 0 0 0;
-    max-height: 88dvh;
-    border-radius: 12px 12px 0 0;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  }
-
   .referee-list li { font-size: 17px; }
 }
