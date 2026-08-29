@@ -35,22 +35,30 @@ var safeSVGElements = map[string]bool{
 	"svg": true, "g": true, "defs": true, "title": true, "desc": true,
 	"path": true, "polygon": true, "polyline": true, "line": true,
 	"rect": true, "circle": true, "ellipse": true,
-	"text": true, "tspan": true,
+	"text": true, "tspan": true, "textPath": true,
 	"marker": true, "symbol": true, "use": true,
 	"linearGradient": true, "radialGradient": true, "stop": true,
 	"clipPath": true, "mask": true, "pattern": true,
 	"style": true,
 	// `image` is here only for the raster a map paints its paper texture
 	// with. It is the one element allowed to carry a `data:` URL, and only a
-	// bitmap one: see safeRasterHref.
+	// bitmap one: see safeDataURL.
 	"image": true,
 }
 
-// rasterImageTypes are the media types an <image> may embed. SVG is absent:
-// an embedded SVG document is markup this sanitiser would never see, and it
-// can carry a script.
-var rasterImageTypes = map[string]bool{
-	"png": true, "jpeg": true, "jpg": true, "gif": true, "webp": true,
+// safeDataTypes are the media types a `data:` URL may carry. Pixels and
+// glyphs: neither fetches anything and neither is markup.
+//
+// `image/svg+xml` is absent on purpose. An embedded SVG document is markup
+// this sanitiser would never see, and it can carry a script.
+var safeDataTypes = map[string]bool{
+	"image/png": true, "image/jpeg": true, "image/jpg": true,
+	"image/gif": true, "image/webp": true,
+	"font/woff": true, "font/woff2": true, "font/ttf": true, "font/otf": true,
+	"application/font-woff": true, "application/font-woff2": true,
+	"application/x-font-woff": true, "application/x-font-woff2": true,
+	"application/x-font-ttf": true, "application/x-font-otf": true,
+	"application/vnd.ms-fontobject": true,
 }
 
 // safeSVGAttributes is every attribute that may survive. Geometry,
@@ -76,7 +84,10 @@ var safeSVGAttributes = map[string]bool{
 	"orient": true, "markerUnits": true,
 	"offset": true, "stop-color": true, "stop-opacity": true,
 	"gradientUnits": true, "gradientTransform": true, "spreadMethod": true,
-	"clip-path": true, "clip-rule": true, "mask": true,
+	"clip-path": true, "clip-rule": true, "clipPathUnits": true, "mask": true,
+	"maskUnits": true, "maskContentUnits": true,
+	// Inert, and the only description a screen reader gets from map art.
+	"aria-label":   true,
 	"patternUnits": true, "patternTransform": true,
 	"preserveAspectRatio": true,
 	"xmlns":               true, "version": true,
@@ -225,7 +236,8 @@ const xlinkNamespace = "http://www.w3.org/1999/xlink"
 // that make CSS fetch or execute.
 //
 // A same-document reference like `url(#gradient)` stays: it is how a shape
-// points at a gradient in its own defs, and it reaches nothing outside.
+// points at a gradient in its own defs, and it reaches nothing outside. So does
+// an embedded font, which is how map art carries the typeface it was drawn in.
 func safeCSS(text string) bool {
 	lower := strings.ToLower(text)
 	for _, banned := range []string{
@@ -243,25 +255,35 @@ func safeCSS(text string) bool {
 		}
 		index += at + len("url(")
 		rest := strings.TrimLeft(lower[index:], " \t'\"")
-		if !strings.HasPrefix(rest, "#") {
+		if !safeReference(rest) && !safeDataURL(rest) {
 			return false
 		}
 	}
 }
 
-// safeRasterHref reports whether a value is an embedded bitmap and nothing
-// else. A bitmap is pixels: it fetches nothing and executes nothing.
-func safeRasterHref(value string) bool {
-	rest, found := strings.CutPrefix(strings.ToLower(strings.TrimSpace(value)),
-		"data:image/")
+// safeDataURL reports whether a value embeds one of the inert media types and
+// nothing else.
+func safeDataURL(value string) bool {
+	rest, found := strings.CutPrefix(strings.ToLower(strings.TrimSpace(value)), "data:")
 	if !found {
 		return false
 	}
-	mediaType, rest, found := strings.Cut(rest, ";")
-	if !found || !rasterImageTypes[mediaType] {
+	mediaType, parameters, found := strings.Cut(rest, ";")
+	if !found || !safeDataTypes[mediaType] {
 		return false
 	}
-	return strings.HasPrefix(rest, "base64,")
+	// Anything between the type and the payload is a parameter, `charset=` in
+	// practice. What matters is that the payload is base64 and nothing else.
+	return strings.Contains(parameters, "base64,")
+}
+
+// safeReference reports whether a reference points inside this document.
+//
+// `url(#gradient)` and `xlink:href="#path12"` are how a shape reaches a
+// gradient, a pattern or the path a label curves along. They reach nothing
+// outside the file, which is the whole question.
+func safeReference(value string) bool {
+	return strings.HasPrefix(strings.TrimSpace(value), "#")
 }
 
 // svgAttrAllowed decides one attribute of one element.
@@ -273,13 +295,16 @@ func svgAttrAllowed(element string, attr xml.Attr) bool {
 	if strings.HasPrefix(lower, "on") {
 		return false
 	}
-	// The one reference a board may carry: the bitmap an <image> paints. Real
-	// map art draws its paper on one, and dropping it leaves a board that
-	// renders but no longer looks like the map people played on.
-	if element == "image" && lower == "href" &&
-		(attr.Name.Space == "" || attr.Name.Space == "xlink" ||
-			attr.Name.Space == xlinkNamespace) {
-		return safeRasterHref(attr.Value)
+	// The references a board may carry. A `use` names the path it repeats, a
+	// `textPath` the curve its label follows, a `pattern` the pattern it
+	// inherits from, and an `image` the bitmap it paints. Without them the art
+	// still renders and no longer looks like the map people played on.
+	if lower == "href" && (attr.Name.Space == "" || attr.Name.Space == "xlink" ||
+		attr.Name.Space == xlinkNamespace) {
+		if element == "image" {
+			return safeDataURL(attr.Value)
+		}
+		return safeReference(attr.Value)
 	}
 	// A namespace declaration is inert: it binds a prefix, and no attribute
 	// carrying a prefix is allowed through. Anything else namespaced is xlink,

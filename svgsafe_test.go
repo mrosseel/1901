@@ -185,6 +185,40 @@ func TestReportsWhatItRemoved(t *testing.T) {
 	}
 }
 
+// A reference into the same document reaches nothing outside it. Map art is
+// full of them: a label curving along a path, a pattern inheriting another, a
+// shape repeated by `use`.
+func TestKeepsSameDocumentReferences(t *testing.T) {
+	clean := sanitize(t, `<svg xmlns:xlink="http://www.w3.org/1999/xlink">`+
+		`<defs><path id="curve" d="m 0,0"/><pattern id="grain"/></defs>`+
+		`<text><textPath xlink:href="#curve">Adriatic Sea</textPath></text>`+
+		`<pattern id="paper" xlink:href="#grain"/>`+
+		`<use xlink:href="#curve"/><g id="provinces"/></svg>`)
+	for _, want := range []string{"textPath", `xlink:href="#curve"`, `xlink:href="#grain"`} {
+		if !strings.Contains(clean, want) {
+			t.Errorf("dropped %v:\n%s", want, clean)
+		}
+	}
+}
+
+// godip's maps carry the typeface they were drawn in as a base64 font in a
+// stylesheet. Dropping the stylesheet reletters every board.
+func TestKeepsAnEmbeddedFont(t *testing.T) {
+	const face = "@font-face { font-family: 'Libre Baskerville'; " +
+		"src: url(data:font/woff2;charset=utf-8;base64,d09GMgABAAA=); }"
+	clean := sanitize(t, `<svg><style>`+face+`</style><g id="provinces"/></svg>`)
+	if !strings.Contains(clean, "font-face") {
+		t.Errorf("the embedded typeface was dropped:\n%s", clean)
+	}
+}
+
+func TestStripsARemoteFont(t *testing.T) {
+	clean := sanitize(t,
+		`<svg><style>@font-face { src: url(http://evil/x.woff2); }</style>`+
+			`<g id="provinces"/></svg>`)
+	mustNotContain(t, clean, "evil", "font-face")
+}
+
 func TestRequireBoardLayersRejectsArtWithout(t *testing.T) {
 	if err := requireBoardLayers([]byte(`<svg><g id="something"/></svg>`)); err == nil {
 		t.Error("art with no provinces layer must be rejected")
