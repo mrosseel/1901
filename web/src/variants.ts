@@ -98,12 +98,13 @@ export function findVariant(list: Variant[], key: string): Variant | null {
 // --- filtering by table size ----------------------------------------------
 /*
 Twenty-six cards, and the first question anyone at a real table asks is "how
-many of us are there". So the gallery filters by power count, in the bands the
-catalogue actually falls into: three two-player variants, a handful of small
-ones, a dozen around the classical seven, and the giants — up to Chaos at 34.
+many of us are there". At a table that has an exact answer — five people are
+sitting down, not five to seven — so each chip is one power count. Everything
+from eight up shares a chip, because past a certain size the difference between
+nine and thirty-four stops being a table you can seat.
 
-The bands are fixed rather than computed from the data, because a band whose
-edges move when a variant is added is a band nobody can learn.
+The chips are fixed rather than computed from the data, because a filter whose
+choices move when a variant is added is a filter nobody can learn.
 */
 
 export interface PowerBand {
@@ -118,8 +119,11 @@ export interface PowerBand {
 export const POWER_BANDS: PowerBand[] = [
   { id: "all", label: "All", min: 0, max: 0 },
   { id: "2", label: "2 players", min: 2, max: 2 },
-  { id: "3-4", label: "3–4 players", min: 3, max: 4 },
-  { id: "5-7", label: "5–7 players", min: 5, max: 7 },
+  { id: "3", label: "3 players", min: 3, max: 3 },
+  { id: "4", label: "4 players", min: 4, max: 4 },
+  { id: "5", label: "5 players", min: 5, max: 5 },
+  { id: "6", label: "6 players", min: 6, max: 6 },
+  { id: "7", label: "7 players", min: 7, max: 7 },
   { id: "8+", label: "8+ players", min: 8, max: 0 },
 ];
 
@@ -145,10 +149,21 @@ The picked card is never filtered away.
 
 A filter that hid the variant the game is about to be created on would either
 lie about the choice or silently change it, and both are worse than one card
-that does not match the chip. So it stays, in its place in the order.
+that does not match the chip. When it does not match it goes first, where a
+card that is there for a different reason than the rest can be marked as one;
+buried in catalogue order it only looks like the filter is broken.
 */
 export function filterByBand(list: Variant[], band: string, keep: string): Variant[] {
-  return list.filter((one) => one.key === keep || inBand(one.powerCount, band));
+  const matching = list.filter((one) => inBand(one.powerCount, band));
+  const picked = list.find((one) => one.key === keep);
+  if (!picked || matching.includes(picked)) return matching;
+  return [picked, ...matching];
+}
+
+/** True for the picked card the chip does not match: it is shown as an exception. */
+export function offBand(list: Variant[], band: string, keep: string): boolean {
+  const picked = list.find((one) => one.key === keep);
+  return !!picked && !inBand(picked.powerCount, band);
 }
 
 // --- the lines on a card --------------------------------------------------

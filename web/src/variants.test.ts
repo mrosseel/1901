@@ -8,6 +8,7 @@ import {
   inBand,
   findVariant,
   normalizeVariant,
+  offBand,
   preferredVariant,
   readVariants,
   sortVariants,
@@ -165,11 +166,27 @@ describe("filtering the gallery by table size", () => {
   it("bands a count the way the chips are labelled", () => {
     expect(inBand(2, "2")).toBe(true);
     expect(inBand(3, "2")).toBe(false);
-    expect(inBand(4, "3-4")).toBe(true);
-    expect(inBand(5, "3-4")).toBe(false);
-    expect(inBand(7, "5-7")).toBe(true);
+    expect(inBand(3, "3")).toBe(true);
+    expect(inBand(4, "3")).toBe(false);
+    expect(inBand(4, "4")).toBe(true);
+    expect(inBand(7, "7")).toBe(true);
+    expect(inBand(8, "7")).toBe(false);
     expect(inBand(34, "8+")).toBe(true);
     expect(inBand(7, "8+")).toBe(false);
+  });
+
+  it("gives each table size from two to seven its own chip", () => {
+    expect(POWER_BANDS.map((one) => one.id)).toEqual([
+      "all",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8+",
+    ]);
+    POWER_BANDS.slice(1).forEach((one) => expect(one.label).toMatch(/players$/));
   });
 
   it("lets everything through the All chip, and through a band it does not know", () => {
@@ -179,19 +196,39 @@ describe("filtering the gallery by table size", () => {
   });
 
   it("counts what each chip would show", () => {
-    expect(bandCounts(list)).toEqual({ all: 4, "2": 1, "3-4": 1, "5-7": 1, "8+": 1 });
+    expect(bandCounts(list)).toEqual({
+      all: 4,
+      "2": 1,
+      "3": 1,
+      "4": 0,
+      "5": 0,
+      "6": 0,
+      "7": 1,
+      "8+": 1,
+    });
   });
 
   it("filters to the band", () => {
     expect(filterByBand(list, "2", "cold").map((one) => one.key)).toEqual(["cold"]);
   });
 
-  it("never hides the card the game would be created on", () => {
-    // Classical is a 7, so the 2 chip would drop it — but it is the choice.
-    expect(filterByBand(list, "2", "classical").map((one) => one.key)).toEqual([
-      "classical",
-      "cold",
+  it("never hides the card the game would be created on, and shows it first", () => {
+    // Chaos is a 34, so the 3 chip would drop it — but it is the choice.
+    expect(filterByBand(list, "3", "chaos").map((one) => one.key)).toEqual([
+      "chaos",
+      "hundred",
     ]);
+  });
+
+  it("leaves a picked card the chip does match in catalogue order", () => {
+    expect(filterByBand(list, "7", "classical").map((one) => one.key)).toEqual(["classical"]);
+    expect(offBand(list, "7", "classical")).toBe(false);
+  });
+
+  it("says when the picked card is there as an exception", () => {
+    expect(offBand(list, "3", "chaos")).toBe(true);
+    expect(offBand(list, "all", "chaos")).toBe(false);
+    expect(offBand(list, "3", "nothing-picked")).toBe(false);
   });
 
   it("keeps the catalogue order it was given", () => {

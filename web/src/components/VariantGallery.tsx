@@ -3,6 +3,7 @@ import {
   POWER_BANDS,
   bandCounts,
   filterByBand,
+  offBand,
   variantCard,
   type Variant,
 } from "../variants";
@@ -119,12 +120,15 @@ function VariantCardView({
   variant,
   mapUrl,
   picked,
+  aside,
   onPick,
 }: {
   variant: Variant;
   /** The card's map, in this device's style. */
   mapUrl: string;
   picked: boolean;
+  /** True for the picked card the chip does not match. */
+  aside: boolean;
   onPick: () => void;
 }) {
   const card = variantCard(variant);
@@ -171,6 +175,9 @@ function VariantCardView({
         />
         <span className="variant-name">{card.name}</span>
         <SupportedMark supported={card.supported} />
+        {/* The card is outside the filter and stays anyway, so it says so. A
+            tag on the one card, not a notice over the gallery. */}
+        {aside ? <span className="variant-aside">Your pick</span> : null}
       </label>
 
       <MapPreview
@@ -242,6 +249,7 @@ export function VariantGallery({
   const [band, setBand] = useState("all");
   const counts = bandCounts(variants);
   const shown = filterByBand(variants, band, chosen);
+  const aside = offBand(variants, band, chosen);
 
   return (
     <>
@@ -277,6 +285,7 @@ export function VariantGallery({
             variant={variant}
             mapUrl={styledMapUrl(variant.mapUrl, style || "")}
             picked={variant.key === chosen}
+            aside={aside && variant.key === chosen}
             onPick={() => onChoose(variant.key)}
           />
         ))}

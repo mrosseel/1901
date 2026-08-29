@@ -327,6 +327,24 @@ details.card > summary::marker { color: var(--muted); }
 .variant-name { font-size: 16px; font-weight: 600; flex: 0 1 auto; min-width: 0; }
 .variant-pick .supported-mark { flex: 0 0 auto; }
 
+/* Only on the picked card the active chip does not match. It borrows the card's
+   own accent rather than adding a second colour, so it reads as a footnote to
+   the selection and not as a badge of its own. */
+.variant-aside {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
 /* Present to the keyboard and to a screen reader, absent to the eye. */
 .visually-hidden {
   position: absolute;
