@@ -702,8 +702,16 @@ func TestASavedClassicalGameStillRoundTrips(t *testing.T) {
 	}
 }
 
-// TestAGameFromBeforeTheColumnLoads simulates a database written by the old
-// binary: the row exists, the column does not.
+// TestAGameFromBeforeTheColumnLoads is what happens to a live database when a
+// variant crosses from compiled to descriptor.
+//
+// A game started on the compiled classical recorded no hash, because a
+// compiled variant had none to record. Classical is a descriptor now and does
+// have one, so that game's blank hash no longer matches. It still loads: a
+// blank means "started before this variant had an identity", and the board it
+// replays onto is the same board, which variants_equivalence_test.go is the
+// proof of. A game started on the descriptor records the hash and is held to
+// it from then on.
 func TestAGameFromBeforeTheColumnLoads(t *testing.T) {
 	withGeneratedDir(t, filepath.Join("variants", "generated"))
 	if err := loadGeneratedVariants(); err != nil {

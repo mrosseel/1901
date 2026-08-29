@@ -211,9 +211,8 @@ func generatedVariantList() []common.Variant {
 	return out
 }
 
-// variantHash returns the descriptor hash for a generated variant, or "" for
-// a compiled one. A compiled variant changes only when the binary does, so it
-// needs no hash to detect drift.
+// variantHash returns the descriptor hash for a loaded variant, or "" for a
+// key nothing loaded.
 func variantHash(key string) string {
 	return generatedVariants[key].Hash
 }
@@ -233,8 +232,9 @@ func checkVariantHash(gameID, key, recorded string) error {
 			"game %v started on generated variant %q, which is no longer loaded",
 			gameID, key)
 	case recorded == "":
-		// A game created before this column existed, or on a compiled variant
-		// that has since become generated. Nothing to compare against.
+		// A game created before this column existed, or on a variant that was
+		// compiled when the game began and had no identity to record. Nothing
+		// to compare against, and the board is the one it always was.
 		return nil
 	case current != recorded:
 		return fmt.Errorf(
