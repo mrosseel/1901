@@ -44,8 +44,26 @@ import {
   type Quality,
 } from "./geometry.ts";
 import {
+  BRIEF_FONT_FRACTION,
+  BRIEF_HALO_FRACTION,
+  boxCovered,
+  briefHalo,
+  briefIsClean,
+  clearancePenalty,
+  compareBrief,
+  compareBriefFaults,
+  discGap,
+  level,
+  rectAround,
+  rectGap,
+  type BriefQuality,
+  type Disc,
+  type Rect,
+} from "./geometry.ts";
+import {
   classifyTerrain,
   computePoles,
+  measureBriefBoxes,
   probeCoasts,
   probeOverhang,
   testInside,
@@ -102,6 +120,12 @@ export interface Placement {
   */
   scale: number;
   dislodged: [number, number];
+  /*
+  Where the three-letter code goes when brief labels are on. Absent on a coast
+  key, because the board draws one code per base province; absent on a map the
+  tool could not measure a box for. See placeBrief().
+  */
+  brief?: [number, number];
 }
 
 export interface OverhangNote {
@@ -1215,6 +1239,295 @@ export async function place(
     deviations: deviations,
     keptSeeds: decisions.filter((d) => d.keptSeed).length,
   };
+}
+
+// --- the brief code label ---------------------------------------------------
+
+/*
+Where each province's three-letter code goes when brief labels are on.
+
+Brief mode is a DIFFERENT picture from the one the unit markers were placed
+against. The board hides the full names to draw the codes, so a code cannot
+collide with a name and must not be pushed around by one — the label boxes
+that dominate every score above are simply not on the board here. What is on
+the board is the unit marker, the dislodged marker that stands beside it while
+a retreat resolves, the supply centre glyph, and the province's own border.
+Those four, and nothing else, decide where a code goes.
+
+The board's own heuristic — the code one marker-and-a-bit below the anchor
+when a unit stands there, and on the anchor when none does — is kept as the
+ideal this starts from rather than thrown away. It is the pairing a reader
+already understands. What it cannot do is notice that the ideal spot is over
+the border, on the supply dot, or under the dislodged marker, and that is the
+whole of what this adds: the same aim, checked.
+
+Only base provinces get one. The board draws a single code per province and
+filters the coast keys out before it draws, so a coast entry would be a number
+nothing reads.
+*/
+export interface BriefDecision {
+  key: string;
+  point: Point;
+  quality: BriefQuality;
+  /** The label box measured for this code, in map units. */
+  box: { w: number; h: number };
+  /** No position anywhere in the province is clean; this is the least bad. */
+  unavoidable?: boolean;
+  /*
+  Nothing the search found beats the board's own offset heuristic, so no
+  position is stored and the board keeps doing what it already did. See the
+  end of placeBrief() for why this happens and on what kind of map.
+  */
+  declined?: boolean;
+}
+
+export interface BriefResult {
+  /** Province key to code position. Provinces with no answer are absent. */
+  points: Map<string, Point>;
+  decisions: BriefDecision[];
+}
+
+export async function placeBrief(
+  page: Page,
+  map: MapGeometry,
+  table: PlacementTable,
+  r: number,
+  poles: Map<string, Point>,
+  minClearanceRadii = MIN_CLEARANCE_RADII,
+): Promise<BriefResult> {
+  const wanted = minClearanceRadii * r;
+  const subjects = map.drawsBriefLabels
+    ? []
+    : map.provinces.filter(
+        (province) => province.key === baseKey(province.key) && province.shapes > 0 && table[province.key],
+      );
+  const points = new Map<string, Point>();
+  const decisions: BriefDecision[] = [];
+  if (subjects.length === 0) return { points: points, decisions: decisions };
+
+  /* The code the board would write, and the box the browser lays it out in.
+     mapCode() in notation.ts is the province key upper-cased, and nothing
+     here is allowed to disagree with it. */
+  const measured = await measureBriefBoxes(
+    page,
+    subjects.map((province) => ({ key: province.key, text: province.key.toUpperCase() })),
+    r * BRIEF_FONT_FRACTION,
+    r * BRIEF_HALO_FRACTION,
+  );
+  const boxes = new Map(measured.map((one) => [one.key, { w: one.w, h: one.h }]));
+
+  /*
+  The candidates: the halo around the unit anchor first, then the province at
+  large. Which pool a position came from is carried through to the score as
+  the pairing term, so a code beside its own piece beats one adrift in the
+  province whenever both are equally clean.
+  */
+  const pool = new Map<string, Point[]>();
+  const haloCount = new Map<string, number>();
+  const ideal = new Map<string, Point>();
+  for (const province of subjects) {
+    const spot = table[province.key];
+    const rp = r * (spot.scale || 1);
+    const anchor: Point = { x: spot.unit[0], y: spot.unit[1] };
+    const size = boxes.get(province.key) || { w: r, h: r };
+    const halo = briefHalo(anchor, rp, rectAround(anchor, size.w, size.h));
+    haloCount.set(province.key, halo.length);
+    ideal.set(province.key, halo[0]);
+    const pole = poles.get(province.key) || {
+      x: province.box.x + province.box.w / 2,
+      y: province.box.y + province.box.h / 2,
+    };
+    /*
+    The anchor itself goes in LAST, at an index this function can find again.
+    It is not a candidate like the others: it is the second half of the board's
+    own heuristic, the spot a code takes when no unit stands in the province,
+    and it is scored so the result can be compared against what it replaces.
+    */
+    pool.set(province.key, halo.concat(candidatePoints(province.box, pole, r), [pole], [anchor]));
+  }
+
+  /*
+  Every marker on the map, keyed by province, so a code can be measured
+  against its neighbours' pieces as well as its own.
+
+  A province is small and a marker is not, so the piece a code lands on is as
+  often the neighbour's: Yorkshire's code was found sitting on Liverpool's
+  army, which is exactly as unreadable as sitting on its own. But a
+  neighbour's marker is only SOMETIMES there, and most provinces are empty
+  most of the time, so it is scored below the code's own containment rather
+  than beside its own piece. See BriefQuality; the ordering was measured, not
+  guessed, and the stricter one was worse.
+
+  No province's dislodged marker but its own goes in here. A dislodged marker
+  is on the board for one phase, in one province, and only after a particular
+  attack succeeds.
+  */
+  const markerOf = new Map<string, Disc>();
+  for (const [key, spot] of Object.entries(table)) {
+    if (!Array.isArray(spot.unit)) continue;
+    markerOf.set(key, { centre: { x: spot.unit[0], y: spot.unit[1] }, radius: r * (spot.scale || 1) });
+  }
+
+  const centres = subjects.map((province) => ({
+    key: province.key,
+    centres: pool.get(province.key)!.map((p) => [p.x, p.y]) as Array<[number, number]>,
+    radius: 0,
+    samples: EDGE_SAMPLES,
+  }));
+  /* Whole label inside, and — for a province narrower than the code naming it
+     — the label's middle inside, which is the weaker claim it falls back to. */
+  const fits = await testInside(
+    page,
+    centres.map((request) => {
+      const size = boxes.get(request.key) || { w: r, h: r };
+      return { ...request, box: [size.w / 2, size.h / 2] as [number, number] };
+    }),
+  );
+  const middles = await testInside(page, centres.map((request) => ({ ...request, samples: 0 })));
+
+  for (const province of subjects) {
+    const spot = table[province.key];
+    const rp = r * (spot.scale || 1);
+    const size = boxes.get(province.key) || { w: r, h: r };
+    const anchor: Point = { x: spot.unit[0], y: spot.unit[1] };
+    const away: Point = { x: spot.dislodged[0], y: spot.dislodged[1] };
+    const pole = poles.get(province.key) || anchor;
+    const target = ideal.get(province.key) || anchor;
+    const halo = haloCount.get(province.key) || 0;
+    const candidates = pool.get(province.key)!;
+    const mask = fits[province.key] || [];
+    const middle = middles[province.key] || [];
+
+    /*
+    This province's own two pieces, which are the ones that outrank
+    everything: its marker, and its dislodged marker measured at the ring,
+    because the ring is the part that covers anything.
+    */
+    const own: Disc[] = [{ centre: away, radius: rp * DISLODGED_RING }];
+    const mine = markerOf.get(province.key);
+    if (mine) own.push(mine);
+
+    /*
+    And the neighbours' markers, kept separate and scored lower. Only those
+    near enough to reach the label wherever it might go are tested, judged
+    against the province's own box, so a map with two hundred provinces is not
+    two hundred distance tests per candidate.
+    */
+    const reach = Math.hypot(size.w, size.h) / 2 + r * 2;
+    const neighbours: Disc[] = [];
+    for (const [key, disc] of markerOf) {
+      if (key === province.key) continue;
+      if (
+        disc.centre.x > province.box.x - reach - disc.radius &&
+        disc.centre.x < province.box.x + province.box.w + reach + disc.radius &&
+        disc.centre.y > province.box.y - reach - disc.radius &&
+        disc.centre.y < province.box.y + province.box.h + reach + disc.radius
+      ) {
+        neighbours.push(disc);
+      }
+    }
+    // The glyphs are prefiltered for the same reason the pieces are.
+    const glyphs = map.supplyCentres.filter(
+      (glyph) =>
+        glyph.x + glyph.w > province.box.x - reach &&
+        glyph.x < province.box.x + province.box.w + reach &&
+        glyph.y + glyph.h > province.box.y - reach &&
+        glyph.y < province.box.y + province.box.h + reach,
+    );
+
+    /*
+    One candidate's score. `occupied` says whether this province's own piece
+    is on the board, which is not always the same question as where the label
+    is: see the heuristic below.
+    */
+    const scoreAt = (i: number, occupied: boolean): BriefQuality => {
+      const point = candidates[i];
+      const box: Rect = rectAround(point, size.w, size.h);
+      const pieces = occupied ? own : [];
+      /* The margin is measured from this province's own pieces and from the
+         glyph. A neighbour's marker is scored, not held at a distance. */
+      let clearance = Infinity;
+      for (const piece of pieces) clearance = Math.min(clearance, discGap(box, piece.centre, piece.radius));
+      for (const glyph of glyphs) clearance = Math.min(clearance, rectGap(box, glyph));
+      const inHalo = i < halo;
+      return {
+        stray: middle[i] ? 0 : 1,
+        unit: level(boxCovered(box, pieces, [])),
+        supplyCentre: level(boxCovered(box, [], glyphs)),
+        overhang: mask[i] ? 0 : 1,
+        neighbour: level(boxCovered(box, neighbours, [])),
+        clearance: Math.round(clearancePenalty(clearance, wanted, r) * 50) / 50,
+        pairing: inHalo ? 0 : 1,
+        drift: Math.round((distance(point, inHalo ? target : pole) / r) * 100) / 100,
+      };
+    };
+
+    let best: BriefDecision | null = null;
+    let chosen = -1;
+    for (let i = 0; i < candidates.length; i++) {
+      /*
+      A stored position is one point serving both states, so it is judged in
+      the harder one: with the piece on the board. That is the state where a
+      code has something to hide from, and the one the table exists for.
+      */
+      const quality = scoreAt(i, true);
+      if (!best || compareBrief(quality, best.quality) < 0) {
+        best = { key: province.key, point: candidates[i], quality: quality, box: size };
+        chosen = i;
+      }
+    }
+
+    /*
+    What the board does with no stored position, and how a stored one has to
+    beat it.
+
+    The heuristic is TWO positions, and which one it draws depends on the
+    board: the anchor when the province is empty, the offset below the marker
+    when a unit stands there. That state-dependence is its one real advantage
+    and it has to be scored honestly. In the empty state there is no marker on
+    the anchor and no dislodged ring beside it, so that position is scored
+    with this province's own pieces taken OFF the board.
+
+    The two are then compared state by state, and the stored position has to
+    be no worse in BOTH. Comparing against the worse of the two states was
+    tried first and is far too lenient: the offset spot is often poor, the
+    search beats it trivially, and the empty state — where the heuristic's
+    answer is a code sitting exactly on its own anchor, the one spot in the
+    province no other province's marker can occupy — never gets a say.
+    */
+    const occupied = compareBriefFaults(best.quality, scoreAt(0, true));
+    const empty = compareBriefFaults(scoreAt(chosen, false), scoreAt(candidates.length - 1, false));
+    /*
+    No worse in either state. Requiring it to be strictly BETTER in one of
+    them was tried and measured: it stored 18 fewer codes on classical for
+    exactly the same number of collisions on the drawn board, so it threw
+    away real improvements and bought nothing.
+    */
+    const beatsOccupied = occupied <= 0;
+    const beatsEmpty = empty <= 0;
+    if (!best) continue;
+    if (!briefIsClean(best.quality)) best.unavoidable = true;
+    /*
+    Ship a position only when it is at least as good as the heuristic it would
+    replace. On a map whose provinces are smaller than the codes naming them
+    the search cannot win: every position leans over a border and lands on
+    somebody's marker, and the heuristic's own answer — the code exactly on
+    the anchor, which is the one spot in the province no OTHER province's
+    marker can occupy — is better than anything a single stored point can do.
+    Measured on twentytwenty, storing a position for all 215 provinces put 95
+    codes on a marker where the heuristic put 80. So the tool declines: the
+    table says nothing for that province, and the board falls back.
+    */
+    if (!beatsOccupied || !beatsEmpty) {
+      best.declined = true;
+      decisions.push(best);
+      continue;
+    }
+    points.set(province.key, best.point);
+    decisions.push(best);
+  }
+
+  return { points: points, decisions: decisions };
 }
 
 /*

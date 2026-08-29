@@ -62,6 +62,14 @@ export interface MapGeometry {
   labels: Rect[];
   /** Supply centre glyphs, likewise. */
   supplyCentres: Rect[];
+  /*
+  Whether the map ships its own brief labels. A jDip-converted map carries
+  BriefLabelLayer and FullLabelLayer, and the board shows one and hides the
+  other rather than drawing anything — so a brief position computed for such a
+  map would be a number nothing reads. Their codes are the map author's own
+  work and are left where they were put.
+  */
+  drawsBriefLabels: boolean;
   /** Anchors with no hit shape, and shapes with no anchor. */
   anchorsWithoutShape: string[];
   shapesWithoutAnchor: string[];
@@ -357,6 +365,11 @@ export async function measureMap(page: Page, svgText: string): Promise<MapGeomet
       provinces: provinces,
       labels: labels,
       supplyCentres: supplyCentres,
+      /* The same pair board.ts looks for, and by the same ids: it switches
+         them with the visibility attribute only when it finds both. */
+      drawsBriefLabels: Boolean(
+        svg.querySelector("#BriefLabelLayer") && svg.querySelector("#FullLabelLayer"),
+      ),
       anchorsWithoutShape: provinces.filter((p) => p.anchor && p.shapes === 0).map((p) => p.key),
       shapesWithoutAnchor: provinces.filter((p) => !p.anchor && p.shapes > 0).map((p) => p.key),
       notes: notes,
@@ -570,6 +583,13 @@ export interface InsideRequest {
   centres: Array<[number, number]>;
   radius: number;
   samples: number;
+  /*
+  Half the width and half the height of a BOX to test instead of a disc, for
+  the brief code labels: a three-letter label is a wide, short rectangle, and
+  asking whether the circle around it fits inside a province rules out a great
+  many places the label itself sits in comfortably.
+  */
+  box?: [number, number];
 }
 
 export async function testInside(
@@ -627,21 +647,117 @@ export async function testInside(
         }
         return false;
       };
+      /*
+      The outline the whole shape has to fit inside, as offsets from a centre:
+      a ring for a marker, a rectangle walked corner to corner for a label.
+      */
+      const outline: Array<[number, number]> = [];
+      if (request.box) {
+        const [hw, hh] = request.box;
+        const corners: Array<[number, number]> = [
+          [-hw, -hh],
+          [hw, -hh],
+          [hw, hh],
+          [-hw, hh],
+        ];
+        const perSide = Math.max(1, Math.round(request.samples / 4));
+        for (let i = 0; i < 4; i++) {
+          const from = corners[i];
+          const to = corners[(i + 1) % 4];
+          for (let step = 0; step < perSide; step++) {
+            const t = step / perSide;
+            outline.push([from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t]);
+          }
+        }
+      } else {
+        for (let i = 0; i < request.samples; i++) {
+          const angle = (2 * Math.PI * i) / request.samples;
+          outline.push([Math.cos(angle) * request.radius, Math.sin(angle) * request.radius]);
+        }
+      }
+
       answer[request.key] = request.centres.map(([cx, cy]) => {
         if (shapes.length === 0) return false;
         if (!inside(cx, cy)) return false;
         // The whole marker has to fit, so its edge is walked as well.
-        for (let i = 0; i < request.samples; i++) {
-          const angle = (2 * Math.PI * i) / request.samples;
-          if (!inside(cx + Math.cos(angle) * request.radius, cy + Math.sin(angle) * request.radius)) {
-            return false;
-          }
+        for (const [dx, dy] of outline) {
+          if (!inside(cx + dx, cy + dy)) return false;
         }
         return true;
       });
     }
     return answer;
   }, requests);
+}
+
+/*
+How big a brief code actually is, asked of the engine that will draw it.
+
+The board sets a font size, a bold weight, a letter spacing and a halo width,
+and hands the rest to the font. "MID" and "BUL" are not the same width, and a
+three-letter box guessed at 0.6em a letter is wrong by enough to put a code on
+a marker. So each code is laid out once with the board's own declarations and
+measured.
+
+It is measured on a canvas rather than with getBBox, and that is the whole
+point of the function. getBBox on a <text> returns the font's LINE box — full
+ascent and descent, the room a lower-case "g" and an accented capital would
+need — which for a code of three capitals is nearly twice the height of the
+ink that is actually drawn. Placing against the line box treats a code as far
+taller than it looks, and on a map with a large marker radius that is the
+difference between a code fitting its province and being shoved out of it.
+actualBoundingBoxAscent and its three siblings give the ink, which is what a
+reader sees and what a collision is with.
+
+The halo is a stroke laid down under the fill by paint-order. It sticks out
+half its width all round, so a whole width is added to each dimension.
+*/
+export interface BriefBox {
+  key: string;
+  w: number;
+  h: number;
+}
+
+export async function measureBriefBoxes(
+  page: Page,
+  codes: Array<{ key: string; text: string }>,
+  fontSize: number,
+  strokeWidth: number,
+): Promise<BriefBox[]> {
+  return page.evaluate(
+    (input: { codes: Array<{ key: string; text: string }>; fontSize: number; strokeWidth: number }) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("this browser has no 2d canvas to measure text with");
+      /*
+      The size is given in px because that is the only unit a canvas has, and
+      the answer is used as map units. That is exact rather than approximate:
+      both the canvas and the SVG lay the text out at the same multiple of the
+      font's own units, so the ratio of ink to font size is the same number in
+      either space.
+      */
+      ctx.font = "700 " + input.fontSize + "px system-ui, sans-serif";
+      // Supported in Chromium; older engines ignore it, and a four-hundredth
+      // of an em over three letters is below the resolution of the decision.
+      (ctx as unknown as { letterSpacing: string }).letterSpacing = "0.04em";
+
+      const out: Array<{ key: string; w: number; h: number }> = [];
+      const cache = new Map<string, { w: number; h: number }>();
+      for (const code of input.codes) {
+        let box = cache.get(code.text);
+        if (!box) {
+          const m = ctx.measureText(code.text);
+          const w = m.actualBoundingBoxLeft + m.actualBoundingBoxRight || m.width;
+          const h = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent || input.fontSize * 0.72;
+          box = { w: w + input.strokeWidth, h: h + input.strokeWidth };
+          cache.set(code.text, box);
+        }
+        out.push({ key: code.key, w: box.w, h: box.h });
+      }
+      return out;
+    },
+    { codes: codes, fontSize: fontSize, strokeWidth: strokeWidth },
+  );
 }
 
 /*

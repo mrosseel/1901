@@ -43,6 +43,14 @@ type placementJSON struct {
 	// goes. It stands beside the unit that threw it out until the retreat
 	// resolves, so the two must not overlap.
 	Dislodged [2]float64 `json:"dislodged"`
+	// Brief is where the province's three-letter code goes when the board is
+	// in brief-label mode. Brief mode hides the full names, so the code is
+	// placed clear of the unit markers near it, of its own dislodged ring and
+	// of the supply centre glyph, and of nothing else. Absent on a coast key,
+	// because the board draws one code per base province, and absent on a map
+	// that draws its own brief labels; the board falls back to its offset
+	// heuristic wherever it is missing.
+	Brief *[2]float64 `json:"brief,omitempty"`
 	// Overhang records that this marker was deliberately allowed out over its
 	// own border because the province takes no marker at any size. It is
 	// carried so a later audit can tell a decision from a defect.

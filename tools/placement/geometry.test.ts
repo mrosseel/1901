@@ -23,7 +23,16 @@ import {
   neighbours,
   proofGrid,
   qualityAt,
+  BRIEF_PAIR_OFFSET,
+  boxCovered,
+  briefHalo,
+  briefIsClean,
+  compareBrief,
+  discGap,
+  rectAround,
+  rectGap,
   rectsOverlap,
+  type BriefQuality,
   refinementSteps,
   standardRadius,
   stressRadius,
@@ -295,4 +304,115 @@ test("dislodged candidates ring the unit at a few distances", () => {
   const reaches = new Set(points.map((p) => Math.round(Math.hypot(p.x, p.y))));
   assert.ok(reaches.size >= 3, "expected several rings, got " + reaches.size);
   assert.ok(points.length > 20);
+});
+
+// --- the brief code label ---------------------------------------------------
+
+test("a label box is centred on the point it is anchored at", () => {
+  const box = rectAround({ x: 100, y: 50 }, 20, 10);
+  assert.deepEqual(box, { x: 90, y: 45, w: 20, h: 10 });
+});
+
+test("box gaps are measured edge to edge, and are zero when they touch", () => {
+  const a: Rect = { x: 0, y: 0, w: 10, h: 10 };
+  assert.equal(rectGap(a, { x: 13, y: 0, w: 5, h: 5 }), 3);
+  assert.equal(rectGap(a, { x: 5, y: 5, w: 10, h: 10 }), 0, "overlapping is zero");
+  assert.equal(Math.round(rectGap(a, { x: 13, y: 14, w: 2, h: 2 })), 5, "diagonal gap");
+});
+
+test("a disc reaching into a label box gives a negative gap", () => {
+  const box: Rect = { x: 0, y: 0, w: 10, h: 10 };
+  assert.equal(discGap(box, { x: 20, y: 5 }, 4), 6);
+  assert.equal(discGap(box, { x: 5, y: 5 }, 4), -4, "buried, and the depth is kept");
+});
+
+test("coverage of a label box counts discs and boxes alike", () => {
+  const box: Rect = { x: 0, y: 0, w: 10, h: 10 };
+  assert.equal(boxCovered(box, [], []), 0);
+  assert.equal(boxCovered(box, [{ centre: { x: 5, y: 5 }, radius: 40 }], []), 1);
+  assert.equal(boxCovered(box, [], [{ x: -100, y: -100, w: 1000, h: 1000 }]), 1);
+  const half = boxCovered(box, [], [{ x: 0, y: 0, w: 5, h: 10 }]);
+  assert.ok(Math.abs(half - 0.5) < 0.02, "half the box, got " + half);
+});
+
+test("the first halo spot is exactly where the board draws a code today", () => {
+  const r = 18;
+  const anchor = { x: 200, y: 300 };
+  const label = rectAround(anchor, 30, 14);
+  const halo = briefHalo(anchor, r, label);
+  // board.ts puts the code's middle at anchor.y + r * 1.95 when a unit stands
+  // on the anchor. The ladder's first rung has to agree, or the table would
+  // move every code the moment it shipped.
+  assert.equal(halo[0].x, anchor.x);
+  assert.ok(Math.abs(halo[0].y - (anchor.y + r * BRIEF_PAIR_OFFSET)) < 0.001, "got " + halo[0].y);
+});
+
+test("the halo goes below, then beside, then above, and widens", () => {
+  const r = 10;
+  const anchor = { x: 0, y: 0 };
+  const halo = briefHalo(anchor, r, rectAround(anchor, 24, 12));
+  assert.ok(halo[0].y > 0 && halo[0].x === 0, "below first");
+  assert.ok(halo[1].x > 0 && halo[1].y === 0, "then one side");
+  assert.ok(halo[2].x < 0 && halo[2].y === 0, "then the other");
+  assert.ok(halo[3].y < 0 && halo[3].x === 0, "then above");
+  // A wide code offset sideways has to clear the marker by its own half-width,
+  // not by the vertical figure, or it sits half under the piece.
+  assert.ok(halo[1].x >= r + 12, "sideways offset clears the marker, got " + halo[1].x);
+  const rungs = new Set(halo.map((p) => Math.round(Math.hypot(p.x, p.y))));
+  assert.ok(rungs.size >= 4, "several rungs, got " + rungs.size);
+});
+
+const CLEAN_CODE: BriefQuality = {
+  stray: 0, unit: 0, supplyCentre: 0, overhang: 0, neighbour: 0, clearance: 0, pairing: 0, drift: 0,
+};
+
+test("a code that has left its province is the fault settled first", () => {
+  const home: BriefQuality = { ...CLEAN_CODE, unit: 0.4, supplyCentre: 0.4, overhang: 1, clearance: 2, pairing: 1, drift: 9 };
+  const gone: BriefQuality = { ...CLEAN_CODE, stray: 1 };
+  assert.ok(compareBrief(home, gone) < 0, "a code in the wrong province tells a reader something false");
+  assert.ok(!briefIsClean(home) && !briefIsClean(gone));
+  assert.ok(briefIsClean(CLEAN_CODE));
+});
+
+test("a readable code leaning over a border beats a buried one inside it", () => {
+  // The same ruling compareQuality() makes for markers, where covering a name
+  // outranks containment: a province narrower than the code naming it still
+  // has to be named, and a code under a marker is not there at all.
+  const leaning: BriefQuality = { ...CLEAN_CODE, overhang: 1 };
+  const buried: BriefQuality = { ...CLEAN_CODE, unit: 0.5 };
+  assert.ok(compareBrief(leaning, buried) < 0);
+  // But leaving the province is still worse than either.
+  assert.ok(compareBrief(buried, { ...CLEAN_CODE, stray: 1 }) < 0);
+});
+
+test("a neighbour's marker is scored below the code's own containment", () => {
+  /*
+  A neighbour's piece is only sometimes on the board, and most provinces are
+  empty most of the time. Ranking it with the code's own piece was measured on
+  twentytwenty, whose provinces are smaller than the codes naming them: it
+  drove 80 collisions to 89 by pushing every code off its own anchor and into
+  the next province's marker.
+  */
+  const onNeighbour: BriefQuality = { ...CLEAN_CODE, neighbour: 0.5 };
+  const leaning: BriefQuality = { ...CLEAN_CODE, overhang: 1 };
+  assert.ok(compareBrief(leaning, onNeighbour) < 0, "a marker hides a code; a border does not");
+  assert.ok(compareBrief(onNeighbour, { ...CLEAN_CODE, unit: 0.5 }) < 0, "its own piece still outranks it");
+  /*
+  And it outranks the supply dot, which was measured rather than assumed: with
+  the dot ranked higher the search traded "off the dot" for "onto a piece" on
+  every crowded map.
+  */
+  assert.ok(compareBrief(onNeighbour, { ...CLEAN_CODE, supplyCentre: 0.5 }) > 0);
+  // Last among the faults, but still a fault: it is reported, not ignored.
+  assert.ok(!briefIsClean(onNeighbour));
+  assert.ok(compareBrief(CLEAN_CODE, onNeighbour) < 0);
+});
+
+test("among clean positions the one beside its own piece wins", () => {
+  const beside: BriefQuality = { ...CLEAN_CODE, drift: 3 };
+  const adrift: BriefQuality = { ...CLEAN_CODE, pairing: 1 };
+  assert.ok(compareBrief(beside, adrift) < 0);
+  assert.ok(briefIsClean(beside) && briefIsClean(adrift));
+  // But cleanliness still outranks pairing: a code under the marker loses.
+  assert.ok(compareBrief(adrift, { ...CLEAN_CODE, unit: 0.6 }) < 0);
 });

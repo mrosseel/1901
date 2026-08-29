@@ -603,6 +603,224 @@ export function refinementSteps(radius: number): number[] {
   return steps;
 }
 
+// --- the brief code label ---------------------------------------------------
+
+/*
+The three-letter code the board draws when brief labels are on, and where it
+goes.
+
+Brief mode is a different picture from the one the unit markers were placed
+against: the full names are switched OFF, so a code cannot collide with them
+and must not be pushed around by them. What it can collide with is the unit
+marker, the dislodged marker beside it, the supply centre glyph, and its own
+province border. Those four are what a brief position is judged on.
+
+The three numbers below are the board's, from renderBriefLabels() in
+board.ts. If they drift apart the table is measured for a label the board does
+not draw, exactly as MARKER_PIXELS would be.
+*/
+export const BRIEF_FONT_FRACTION = 0.95;
+export const BRIEF_HALO_FRACTION = 0.16;
+/*
+The offset the board uses today when a unit stands on the anchor: a code one
+marker-and-a-bit below the piece. It is kept as the IDEAL a search starts
+from, because a code directly under its own marker is the pairing a reader
+already understands — this rule replaces the heuristic's aim, not its taste.
+*/
+export const BRIEF_PAIR_OFFSET = 1.95;
+
+/** The box a label of this size occupies, centred on its anchor point. */
+export function rectAround(centre: Point, w: number, h: number): Rect {
+  return { x: centre.x - w / 2, y: centre.y - h / 2, w: w, h: h };
+}
+
+/** Edge-to-edge distance between two boxes; zero when they overlap. */
+export function rectGap(a: Rect, b: Rect): number {
+  const dx = Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), 0);
+  const dy = Math.max(b.y - (a.y + a.h), a.y - (b.y + b.h), 0);
+  return Math.hypot(dx, dy);
+}
+
+/*
+Edge-to-edge distance from a box to a disc. Negative means the disc reaches
+into the box, and the depth is reported rather than clamped for the same
+reason edgeClearance() reports it: grazing and buried are different faults.
+*/
+export function discGap(box: Rect, centre: Point, radius: number): number {
+  return distanceToRect(centre, box) - radius;
+}
+
+export interface Disc {
+  centre: Point;
+  radius: number;
+}
+
+/*
+How much of a label box a set of discs and boxes covers, as a fraction of the
+label's own area. Sampled on a lattice for the same reason coveredFraction()
+samples one: the exact area of a rounded rectangle minus two circles is
+fiddlier than the decision it feeds.
+*/
+export function boxCovered(box: Rect, discs: Disc[], rects: Rect[], steps = 12): number {
+  if (box.w <= 0 || box.h <= 0) return 0;
+  if (discs.length === 0 && rects.length === 0) return 0;
+  let hit = 0;
+  let total = 0;
+  for (let i = 0; i < steps; i++) {
+    for (let j = 0; j < steps; j++) {
+      const px = box.x + (box.w * (i + 0.5)) / steps;
+      const py = box.y + (box.h * (j + 0.5)) / steps;
+      total++;
+      if (
+        discs.some((d) => Math.hypot(px - d.centre.x, py - d.centre.y) <= d.radius) ||
+        rects.some((r) => px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h)
+      ) {
+        hit++;
+      }
+    }
+  }
+  return total === 0 ? 0 : hit / total;
+}
+
+/*
+How good a brief position is, compared term by term in this order:
+
+  stray         the code's middle is not in the province it names. This is the
+                one fault that makes brief mode worse than no labels at all —
+                a code sitting in the wrong country tells a reader something
+                false — so it is settled before anything else is asked
+  unit          the code is under its OWN piece, or under the dislodged piece
+                standing beside it, and cannot be read. Its own piece is the
+                one that is there whenever the code matters, so it is the one
+                that outranks everything below
+  neighbour     the code is under some OTHER province's marker. Separate from
+                `unit` because a neighbour's marker is only sometimes on the
+                board — most provinces are empty most of the time — but ranked
+                straight after it, because when the piece IS there a marker is
+                opaque and the code is simply gone
+  overhang      the code is centred in its province but leans over the border.
+                Ranked BELOW legibility on purpose, and for the same reason
+                compareQuality() ranks containment below name overlap: a
+                province narrower than the code that names it still has to be
+                named, and a code leaning over a border still plainly belongs
+                to the province it is centred in, where a code under a marker
+                is not there at all
+  supplyCentre  the code is on the supply centre dot. Last of the faults, and
+                measured into that position rather than assumed: ranking it
+                above `neighbour` made the search trade "off the dot" for
+                "onto a piece" on every crowded map, which is the wrong way
+                round. A small dot showing through a code costs a reader very
+                little. The same judgement compareQuality() already makes for
+                markers, where a unit is supposed to stand on its own centre
+  clearance     the measured margin (RULE B), graded below the threshold and
+                worth nothing above it, exactly as for a unit marker
+  pairing       0 for a position on the halo around the unit anchor, 1 for one
+                found elsewhere in the province. A code beside its own piece is
+                read as belonging to it; a code adrift in the province has to
+                be matched up by eye
+  drift         within the halo, how far from the ideal spot below the piece;
+                elsewhere, how far from the province's pole. Prettiness, and
+                it only ever breaks ties
+
+Same discipline as compareQuality(): every term that decides anything is
+quantised first, so two positions a reader could not tell apart are equal and
+the tidier one wins.
+*/
+export interface BriefQuality {
+  stray: number;
+  unit: number;
+  supplyCentre: number;
+  overhang: number;
+  neighbour: number;
+  clearance: number;
+  pairing: number;
+  drift: number;
+}
+
+export function compareBrief(a: BriefQuality, b: BriefQuality): number {
+  return (
+    a.stray - b.stray ||
+    a.unit - b.unit ||
+    a.neighbour - b.neighbour ||
+    a.overhang - b.overhang ||
+    a.supplyCentre - b.supplyCentre ||
+    a.clearance - b.clearance ||
+    a.pairing - b.pairing ||
+    a.drift - b.drift
+  );
+}
+
+/*
+The same order, stopping before the terms that are only taste.
+
+Used to decide whether a stored position may replace the board's own offset
+heuristic. That is a question about faults a reader can see, not about which
+position is prettier: a code one radius nearer its piece is not a reason to
+overrule a heuristic that already puts it somewhere harmless, and letting
+`pairing` decide it means the halo always wins and the test never bites.
+*/
+export function compareBriefFaults(a: BriefQuality, b: BriefQuality): number {
+  return (
+    a.stray - b.stray ||
+    a.unit - b.unit ||
+    a.neighbour - b.neighbour ||
+    a.overhang - b.overhang ||
+    a.supplyCentre - b.supplyCentre
+  );
+}
+
+/** Nothing a reader would call wrong: inside, off the pieces, off the dot. */
+export function briefIsClean(quality: BriefQuality): boolean {
+  return (
+    quality.stray === 0 &&
+    quality.unit === 0 &&
+    quality.supplyCentre === 0 &&
+    quality.overhang === 0 &&
+    quality.neighbour === 0
+  );
+}
+
+/*
+Where a code may stand: a halo around the unit anchor, then the province at
+large.
+
+The halo is ordered so that the ideal — directly below the piece, where the
+board draws it today — comes first, then the two sides, then above, each at
+widening reach. Ordering matters only as a tie-break, because the tuple above
+decides cleanliness first; but among clean positions it is the whole of the
+aesthetic, and "below, then beside" is what the task asked for.
+*/
+export function briefHalo(anchor: Point, r: number, label: Rect): Point[] {
+  const hw = label.w / 2;
+  const hh = label.h / 2;
+  /*
+  The gap the board's own offset leaves between the bottom of the marker and
+  the top of the code. Every other direction is given the SAME gap rather than
+  the same centre distance, because a three-letter box is twice as wide as it
+  is tall: offsetting sideways by the vertical figure would put the code half
+  under the piece. It is measured rather than chosen so that the first rung of
+  this ladder reproduces exactly what the board draws today.
+  */
+  const base = Math.max(r * BRIEF_PAIR_OFFSET - r - hh, 0);
+  const points: Point[] = [];
+  for (const extra of [0, r * 0.55, r * 1.2, r * 2]) {
+    const gap = base + extra;
+    const out = r + gap;
+    // Below first — the pairing a reader already knows — then either side,
+    // then above, then the corners a crowded province sometimes has room for.
+    points.push({ x: anchor.x, y: anchor.y + out + hh });
+    points.push({ x: anchor.x + out + hw, y: anchor.y });
+    points.push({ x: anchor.x - out - hw, y: anchor.y });
+    points.push({ x: anchor.x, y: anchor.y - out - hh });
+    const diag = out * Math.SQRT1_2;
+    points.push({ x: anchor.x + diag + hw, y: anchor.y + diag + hh });
+    points.push({ x: anchor.x - diag - hw, y: anchor.y + diag + hh });
+    points.push({ x: anchor.x + diag + hw, y: anchor.y - diag - hh });
+    points.push({ x: anchor.x - diag - hw, y: anchor.y - diag - hh });
+  }
+  return points;
+}
+
 /*
 An exhaustive sweep of a province, used to PROVE that a marker left with a
 violation had nowhere clean to go. One map unit is finer than the marker is by

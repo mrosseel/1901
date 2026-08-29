@@ -26,14 +26,16 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { openBrowser, measureMap, type MapGeometry, type Terrain } from "./browser.ts";
+import { computePoles, openBrowser, measureMap, type MapGeometry, type Terrain } from "./browser.ts";
 import {
   COAST_REACH,
   audit,
   measureClearance,
   place,
+  placeBrief,
   shippedPlacement,
   type Audit,
+  type BriefDecision,
   type ClearanceStudy,
   type Decision,
   type Deviation,
@@ -70,6 +72,12 @@ const PLACEMENTS = resolve(HERE, "..", "..", "placements");
 interface Options {
   variants: string[];
   all: boolean;
+  /*
+  Variants --all must leave alone. An approved table can hold corrections a
+  person made by hand, and re-deriving it would throw them away silently; the
+  only safe way to run the whole set is to be able to name the exceptions.
+  */
+  skip: string[];
   server: string;
   images: boolean;
   editor: boolean;
@@ -80,12 +88,23 @@ interface Options {
   minClearance: number | null;
   /** Write the result to placements/<key>.json as the served table. */
   approve: boolean;
+  /*
+  Add the brief code positions to an approved table and change nothing else.
+
+  An approved table can hold corrections a person made by hand, and the codes
+  are a later question than the markers were: re-deriving the whole table to
+  answer it would throw those corrections away to gain a field. This reads
+  placements/<key>.json, places the codes AGAINST the markers it finds there,
+  and writes the same table back with one key added per province.
+  */
+  briefOnly: boolean;
 }
 
 function parseArgs(argv: string[]): Options {
   const options: Options = {
     variants: [],
     all: false,
+    skip: [],
     server: process.env.MAP_SERVER || "http://localhost:8192",
     images: true,
     editor: false,
@@ -93,11 +112,13 @@ function parseArgs(argv: string[]): Options {
     useSeed: true,
     minClearance: null,
     approve: false,
+    briefOnly: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--variant" || arg === "-v") options.variants.push(argv[++i]);
     else if (arg === "--all") options.all = true;
+    else if (arg === "--skip") options.skip.push(argv[++i]);
     else if (arg === "--server") options.server = argv[++i];
     else if (arg === "--no-images") options.images = false;
     else if (arg === "--editor") options.editor = true;
@@ -105,6 +126,7 @@ function parseArgs(argv: string[]): Options {
     else if (arg === "--no-seed") options.useSeed = false;
     else if (arg === "--min-clearance") options.minClearance = Number(argv[++i]);
     else if (arg === "--approve") options.approve = true;
+    else if (arg === "--brief-only") options.briefOnly = true;
     else if (arg === "--help" || arg === "-h") {
       console.log(usage());
       process.exit(0);
@@ -119,6 +141,7 @@ function usage(): string {
     "",
     "  --variant <key>       a variant to work on; repeatable",
     "  --all                 every variant the server lists",
+    "  --skip <key>          a variant --all must leave alone; repeatable",
     "  --server <url>        where /variants lives (default http://localhost:8192)",
     "  --no-images           skip the before/after PNGs",
     "  --editor              also write the self-contained drag-to-correct page",
@@ -126,6 +149,8 @@ function usage(): string {
     "  --no-seed             ignore placements/<key>.hand.json",
     "  --min-clearance <n>   pin the RULE B margin, in marker radii",
     "  --approve             also write placements/<key>.json, which the server reads",
+    "  --brief-only          add the brief code positions to the approved table",
+    "                        and change nothing else in it",
     "",
     "With no --seed, placements/<key>.hand.json is used when it exists. Its",
     "positions are kept unless a hard constraint or a placement rule overrules",
@@ -200,6 +225,8 @@ interface ReportInput {
   shipped: PlacementTable;
   /** The same clearance measurement run over the table just produced. */
   outcome: ClearanceStudy;
+  /** Where each province's three-letter code ended up. */
+  brief: BriefDecision[];
 }
 
 function report(input: ReportInput): string {
@@ -362,6 +389,50 @@ function report(input: ReportInput): string {
   }
   lines.push("");
 
+  // --- the brief code labels ----------------------------------------------
+
+  lines.push("BRIEF CODES — where the three-letter label goes (brief mode)");
+  if (input.brief.length === 0) {
+    lines.push("  none placed: this map draws its own brief labels, or has no");
+    lines.push("  province the board would write a code for");
+  } else {
+    const box = input.brief[0].box;
+    lines.push("  Brief mode hides the full names, so a code is judged against the");
+    lines.push("  unit marker, the dislodged marker, the supply centre glyph and the");
+    lines.push("  province border — and against nothing else. The names it would have");
+    lines.push("  to dodge are not on the board when it is drawn.");
+    lines.push("  label box                   " + box.w.toFixed(1) + " x " + box.h.toFixed(1) + " map units, at font " +
+      (r * 0.95).toFixed(1) + " with a " + (r * 0.16).toFixed(1) + " halo");
+    const kept = input.brief.filter((d) => !d.declined);
+    const declined = input.brief.filter((d) => d.declined);
+    lines.push("  codes placed                " + kept.length + " of " + input.brief.length + " provinces");
+    lines.push("  left to the board           " + declined.length +
+      " (nothing found beats the offset heuristic there,");
+    lines.push("                              so the table stores nothing and the board falls back)");
+    const beside = kept.filter((d) => d.quality.pairing === 0);
+    lines.push("  beside their own piece      " + beside.length + " of " + kept.length +
+      " (the rest were found elsewhere in the province)");
+    lines.push("  leaning over their border   " + kept.filter((d) => d.quality.overhang > 0).length +
+      " (centred inside, too big for the province)");
+    lines.push("  centred outside as well     " + kept.filter((d) => d.quality.stray > 0).length);
+    lines.push("  on their own piece or ring  " + kept.filter((d) => d.quality.unit > 0).length);
+    lines.push("  on a neighbour's piece      " + kept.filter((d) => d.quality.neighbour > 0).length);
+    lines.push("  on a supply centre glyph    " + kept.filter((d) => d.quality.supplyCentre > 0).length);
+    const stuck = kept.filter((d) => d.unavoidable);
+    lines.push("  nowhere clean in the province (" + stuck.length + ")");
+    for (const item of stuck.slice(0, 20)) {
+      lines.push(
+        "  " + item.key.padEnd(10) +
+          (item.quality.stray ? "outside  " : item.quality.overhang ? "leans    " : "inside   ") +
+          "own piece " + pct(item.quality.unit).padStart(5) +
+          "   glyph " + pct(item.quality.supplyCentre).padStart(5) +
+          "   neighbour " + pct(item.quality.neighbour).padStart(5),
+      );
+    }
+    if (stuck.length > 20) lines.push("  … and " + (stuck.length - 20) + " more");
+  }
+  lines.push("");
+
   lines.push("map faults (not placement, and not fixable here)");
   lines.push("  anchors with no hit shape   " + (map.anchorsWithoutShape.join(", ") || "none"));
   lines.push("  hit shapes with no anchor   " + (map.shapesWithoutAnchor.join(", ") || "none"));
@@ -458,6 +529,11 @@ function pct(fraction: number): string {
   return Math.round(fraction * 100) + "%";
 }
 
+/** Two decimals, which is finer than any map is drawn to. */
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 /** How far apart two provinces' markers stand in a table, or null. */
 function gapBetween(table: PlacementTable | null, a: string, b: string): number | null {
   if (!table || !table[a] || !table[b]) return null;
@@ -469,7 +545,10 @@ function gapBetween(table: PlacementTable | null, a: string, b: string): number 
 
 async function run(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
-  const keys = options.all ? await listVariants(options.server) : options.variants;
+  const asked = options.all ? await listVariants(options.server) : options.variants;
+  const skip = new Set(options.skip);
+  const keys = asked.filter((key) => !skip.has(key));
+  if (skip.size) console.log("skipping " + Array.from(skip).sort().join(", "));
   if (keys.length === 0) {
     console.log(usage());
     process.exit(1);
@@ -487,6 +566,43 @@ async function run(): Promise<void> {
       const map = await measureMap(page, svgText);
       const r = standardRadius(map.viewBox);
       const rStress = stressRadius(map.viewBox);
+
+      /*
+      The codes alone, placed against an approved table and leaving it
+      otherwise exactly as it was. Nothing below this runs: the markers are
+      not re-derived, so there is no before, no after and nothing to compare.
+      */
+      if (options.briefOnly) {
+        const path = join(PLACEMENTS, key + ".json");
+        if (!existsSync(path)) throw new Error(path + ": no approved table to add codes to");
+        if (map.drawsBriefLabels) {
+          console.log("this map draws its own brief labels; the approved table is unchanged");
+          continue;
+        }
+        const approved = await readSeed(path);
+        const drawable = map.provinces.filter((province) => province.shapes > 0).map((province) => province.key);
+        const poleList = await computePoles(page, drawable);
+        const poles = new Map(poleList.map((pole) => [pole.key, pole.point]));
+        /* The same measured threshold the markers were judged on: taken off
+           the approved table, which is the placement in force. */
+        const threshold =
+          options.minClearance !== null ? options.minClearance : measureClearance(map, approved, r).medianRadii;
+        const only = await placeBrief(page, map, approved, r, poles, threshold);
+        /*
+        Written as a replacement, not a merge. A province the tool declines to
+        place a code for has to LOSE any code a previous run left there, or
+        the file keeps an answer this run disagrees with and no rerun can ever
+        take one back.
+        */
+        for (const spot of Object.values(approved)) delete spot.brief;
+        for (const [province, point] of only.points) {
+          approved[province].brief = [round(point.x), round(point.y)];
+        }
+        await writeFile(path, JSON.stringify(approved, null, 2) + "\n");
+        const clean = only.decisions.filter((d) => !d.unavoidable).length;
+        console.log("codes " + clean + "/" + only.decisions.length + " clean, written to " + path);
+        continue;
+      }
 
       const shipped = shippedPlacement(map, r);
 
@@ -527,6 +643,15 @@ async function run(): Promise<void> {
         seed: seed || undefined,
         minClearanceRadii: minClearance,
       });
+      /*
+      The brief codes, once the markers are settled: a code is placed against
+      the pieces, so it can only be placed after it is known where they are.
+      */
+      const brief = await placeBrief(page, map, result.table, r, result.poles, minClearance);
+      for (const [key, point] of brief.points) {
+        result.table[key].brief = [round(point.x), round(point.y)];
+      }
+
       const kind = result.terrain.kind;
       const before = await audit(page, map, shipped, r, kind);
       /* The hand table judged by the same tests, so the report can say what
@@ -581,6 +706,7 @@ async function run(): Promise<void> {
           result: result.table,
           shipped: shipped,
           outcome: outcome,
+          brief: brief.decisions,
         }),
       );
       await writeFile(
@@ -665,7 +791,8 @@ async function run(): Promise<void> {
             : "") +
           (result.decisions.some((d) => d.unavoidable)
             ? ", " + result.decisions.filter((d) => d.unavoidable).length + " unavoidable"
-            : ""),
+            : "") +
+          ", codes " + brief.decisions.filter((d) => !d.unavoidable).length + "/" + brief.decisions.length + " clean",
       );
     }
   } finally {
