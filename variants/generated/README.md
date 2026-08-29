@@ -48,6 +48,11 @@ starting position, so an edited descriptor would replay the game onto a board
 its players never saw. The server refuses to load such a game and names the
 problem.
 
+The hash covers only what decides play: provinces, regions, borders, the
+opening position, the win condition and the rules. Rename the variant, correct
+its description or reflow its JSON and every game survives. Move one border and
+they all stop.
+
 ## What this is not
 
 The server has no upload route. Files arrive here the way the binary does:
