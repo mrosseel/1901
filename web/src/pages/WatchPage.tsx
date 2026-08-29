@@ -261,7 +261,7 @@ export function WatchPage({
           )}
           {!historical && totalSeats !== undefined ? (
             <p className="muted">
-              {finalizedCount} of {totalSeats} powers locked in
+              {finalizedCount} of {totalSeats} players locked in
             </p>
           ) : null}
         </header>

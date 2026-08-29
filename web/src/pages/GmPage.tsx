@@ -187,7 +187,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
             ? game.seats.filter((seat) => seat.joined).length +
               " powers in play · " +
               finalizedCount +
-              " locked in"
+              " players locked in"
             : game.joinedCount + " of " + game.totalSeats + " joined"}
         </p>
         {!game.started ? (

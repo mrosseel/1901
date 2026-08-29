@@ -418,7 +418,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
                     state.finalizedCount +
                     " of " +
                     state.totalSeats +
-                    " in"
+                    " players in"
                   : idle
                     ? "Nothing to order — lock in"
                     : "Lock in my orders"}
@@ -431,7 +431,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             </button>
             {state.youFinalized ? null : (
               <p className="muted">
-                {state.finalizedCount} of {state.totalSeats} powers locked in
+                {state.finalizedCount} of {state.totalSeats} players locked in
               </p>
             )}
           </section>
