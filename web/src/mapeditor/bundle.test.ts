@@ -2,7 +2,8 @@
 The export, checked for the one property that matters: a session that changed
 nothing writes the file that was already there.
 
-The amended table lands in placements/<key>.json and is reviewed as a diff. A
+The amended table lands in variants/generated/<key>/placements.json and is
+reviewed as a diff. A
 diff is only readable if everything that did not move is byte-identical, so
 key order, field order, rounding and whitespace are all part of the contract —
 and the real checked-in table is the fixture, because a table this file made
@@ -10,8 +11,8 @@ up could agree with the writer and still disagree with the repository.
 */
 
 import { describe, expect, test } from "vitest";
-import classicalFile from "../../../placements/classical.json?raw";
-import twentytwentyFile from "../../../placements/twentytwenty.json?raw";
+import classicalFile from "../../../variants/generated/classical/placements.json?raw";
+import twentytwentyFile from "../../../variants/generated/twentytwenty/placements.json?raw";
 import type { PlacementTable } from "../../../tools/placement/rules.ts";
 import {
   canonicalTable,

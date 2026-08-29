@@ -15,7 +15,7 @@ three-letter brief label offered as the fallback text, which is exactly what
 jDip does when a name will not fit.
 
 The repair is coordinated with the unit markers rather than blind to them. A
-label that dodges its border and lands on the spot placements/<key>.json puts
+label that dodges its border and lands on the spot the variant's table puts
 a unit has not been fixed, it has been moved from one collision to another, so
 the marker and its dislodged partner are obstacles the search must clear by
 the same margin RULE B measures.

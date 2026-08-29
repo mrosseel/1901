@@ -42,7 +42,7 @@ export interface VariantAware {
   variant?: VariantRef;
   provinceNames?: Record<string, string>;
   /*
-  The variant's approved marker positions, from placements/<key>.json on the
+  The variant's approved marker positions, from its placements.json on the
   server. Null when that variant has no approved table and the board must fall
   back to the map's own anchors. It rides with the state rather than with the
   variant catalogue because the board is handed state and nothing else.

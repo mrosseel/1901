@@ -9,10 +9,11 @@
 //
 // The file convention, and the whole of it:
 //
-//	placements/<key>.json       the approved table for that variant, and the
-//	                            only one this server reads
-//	placements/<key>.hand.json  a hand-corrected table, an INPUT to the tool
-//	                            and never read here
+//	variants/generated/<key>/placements.json  the approved table, which travels
+//	                                          with the variant and is the only
+//	                                          one this server reads (generated.go)
+//	placements/<key>.hand.json                a hand-corrected table, an INPUT to
+//	                                          tools/placement and never read here
 //
 // A variant with no file falls back to the map's anchors, which is what every
 // unverified variant does and what classical did before this table existed.
@@ -80,7 +81,11 @@ func placementDir() string {
 // needs no lock.
 var placements = map[string]placementTable{}
 
-// loadPlacements reads every placements/<key>.json into memory.
+// loadPlacements reads any table still kept in the placements directory.
+//
+// A variant's own table arrives with the variant, so this normally finds
+// nothing but the hand files it skips. It stays because the directory is where
+// a table for something that is not a variant directory would go.
 //
 // A missing directory is not an error: a checkout with no approved table is a
 // working server, it just draws on the map's own anchors. A malformed file IS

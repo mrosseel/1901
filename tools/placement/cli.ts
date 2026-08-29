@@ -61,14 +61,24 @@ const OUT = join(HERE, "out");
 /*
 Where an approved table lives. The convention, and the whole of it:
 
-  placements/<key>.json       the table the SERVER reads for that variant
-  placements/<key>.hand.json  a table a person corrected by hand
+  variants/generated/<key>/placements.json  the table the SERVER reads
+  placements/<key>.hand.json                a table a person corrected by hand
 
 The hand file is an input — it seeds the next run and is never overwritten by
-the tool. The plain file is the output, and it is the one authority the server
-has. Writing it is what "approved" means.
+the tool. The served table is the output, and it is the one authority the
+server has. Writing it is what "approved" means. It sits in the variant's own
+directory, because a variant is that directory: descriptor, art and table.
 */
 const PLACEMENTS = resolve(HERE, "..", "..", "placements");
+const GENERATED = resolve(HERE, "..", "..", "variants", "generated");
+
+/**
+ * The approved table the server reads, which now travels with its variant:
+ * a variant is a directory holding its descriptor, its art and this.
+ */
+function servedTable(key: string): string {
+  return join(GENERATED, key, "placements.json");
+}
 
 interface Options {
   variants: string[];
@@ -87,7 +97,7 @@ interface Options {
   useSeed: boolean;
   /** The RULE B threshold in radii, if the caller wants to pin it. */
   minClearance: number | null;
-  /** Write the result to placements/<key>.json as the served table. */
+  /** Write the result to the variant directory as the served table. */
   approve: boolean;
   /*
   Add the brief code positions to an approved table and change nothing else.
@@ -95,7 +105,7 @@ interface Options {
   An approved table can hold corrections a person made by hand, and the codes
   are a later question than the markers were: re-deriving the whole table to
   answer it would throw those corrections away to gain a field. This reads
-  placements/<key>.json, places the codes AGAINST the markers it finds there,
+  the served table, places the codes AGAINST the markers it finds there,
   and writes the same table back with one key added per province.
   */
   briefOnly: boolean;
@@ -149,7 +159,7 @@ function usage(): string {
     "  --seed <file>         a privileged table to start from and mostly keep",
     "  --no-seed             ignore placements/<key>.hand.json",
     "  --min-clearance <n>   pin the RULE B margin, in marker radii",
-    "  --approve             also write placements/<key>.json, which the server reads",
+    "  --approve             also write the served table the server reads",
     "  --brief-only          add the brief code positions to the approved table",
     "                        and change nothing else in it",
     "",
@@ -597,7 +607,7 @@ async function run(): Promise<void> {
       not re-derived, so there is no before, no after and nothing to compare.
       */
       if (options.briefOnly) {
-        const path = join(PLACEMENTS, key + ".json");
+        const path = servedTable(key);
         if (!existsSync(path)) throw new Error(path + ": no approved table to add codes to");
         if (map.drawsBriefLabels) {
           console.log("this map draws its own brief labels; the approved table is unchanged");
@@ -699,11 +709,8 @@ async function run(): Promise<void> {
       if (options.approve) {
         // The bare table, which is what the server reads and what the editor
         // exports — so a hand correction can replace this file wholesale.
-        await mkdir(PLACEMENTS, { recursive: true });
-        await writeFile(
-          join(PLACEMENTS, key + ".json"),
-          JSON.stringify(result.table, null, 2) + "\n",
-        );
+        await mkdir(join(GENERATED, key), { recursive: true });
+        await writeFile(servedTable(key), JSON.stringify(result.table, null, 2) + "\n");
       }
       await writeFile(
         join(OUT, key + ".report.txt"),

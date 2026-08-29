@@ -18,7 +18,7 @@ export interface PhaseInfo {
 
 /*
 Where one province's marker goes, in map units, from the variant's approved
-placement table (placements/<key>.json on the server; DESIGN.md D-003).
+placement table (the variant's placements.json on the server; DESIGN.md D-003).
 
 A map's own "<abbr>Center" anchors are only a first guess: they put markers on
 province names, half outside their own province, and — on a coast — so close
