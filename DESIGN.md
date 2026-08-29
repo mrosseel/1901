@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r22 — 2026-08-29
+**Document revision:** r23 — 2026-08-29
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -897,6 +897,28 @@ Where it stands: pure reports zero violations today. Classical reports
 149, of which 79 are the name and glyph overlaps the audit already
 counts. twentytwenty reports 1360.
 
+### D-031 — Pan/zoom stays hand-rolled; Leaflet rejected, its math taken
+**Status:** accepted, r23 (closes the Leaflet spike).
+The spike proved Leaflet integrates cleanly with the island — taps reach
+our province hit-paths through its panes, doubleClickZoom off reclaims
+double-tap-hold, D-017 is untouched — and still loses on cost. 46 KB
+gzipped replaces about 460 lines that work and carry their own tests
+(the gesture layer is ~10% of board.ts), and Leaflet sizes the SVG
+element to the zoomed map instead of the viewport, a 17k-px layout box
+at 30x on a 2 MB map — a phone-performance risk our viewBox arithmetic
+does not have.
+
+What the spike prescribes instead, all in our own gesture code:
+1. Wheel deltaMode normalisation — board.ts and MapLightbox read
+   event.deltaY raw, so Firefox line-mode wheels (deltaY ~3 per notch)
+   zoom at 1.0045x per notch: wheel zoom is effectively dead there.
+2. Pan inertia — velocity from the last pointermove samples, decayed
+   over ~250 ms (Leaflet's Draggable._onUp math).
+3. Eased double-tap zoom — a ~200 ms ramp through zoomedView instead of
+   the instant 1.8x jump.
+4. Wheel debounce — accumulate deltas ~40 ms and apply one step;
+   trackpads emit dozens of events and each runs a full render today.
+
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
 The GM shares ONE invite link/QR. Claiming it assigns a random
@@ -1217,3 +1239,4 @@ Recorded so nobody re-derives them.
 | r20 | 2026-08-29 | D-030: in-app map editor at /mapeditor, with the convergence goal — every hand drag is a scoring bug to encode; zero audit violations auto-promotes the variant to supported. |
 | r21 | 2026-08-29 | Placement tables generated for every variant, not only classical and Sail Ho: 24 more written by `tools/placement --all --skip`, shipped as generated. D-003 amended: the table gained a `brief` position per province for the three-letter code, judged against the province own marker, the neighbours markers, the dislodged ring, the supply glyph and the province border, with the full names off because brief mode hides them. A code is stored only where it measures no worse than the board offset heuristic in both board states, so a map whose provinces are smaller than their codes keeps the heuristic. The board reads the field and falls back per province. `--brief-only` adds codes to an approved table without re-deriving it, which is how classical kept its hand corrections. The jDip maps keep their own BriefLabelLayer; their codes were measured and not moved. |
 | r22 | 2026-08-29 | D-030 implemented: /mapeditor in-app — variant picker, draggable unit/dislodged/brief markers, live violation audit sharing tools/placement rules (rules.ts split out), drag telemetry, province display-name overrides (names/{key}.json over ProvinceLongNames), stable-diff export, disk save only under -tags mapeditordev into .hand files the server never loads. Editor reads terrain from godip, exposing colour-guess faults in the offline audit (open item). |
+| r23 | 2026-08-29 | D-031: Leaflet rejected after a working spike — 46 KB gz for ~460 replaceable lines, plus a zoomed-SVG layout-box risk on phones. Four gesture fixes adopted instead: wheel deltaMode normalisation (Firefox wheel zoom was dead), pan inertia, eased double-tap zoom, wheel debounce. |
