@@ -25,7 +25,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -45,8 +44,9 @@ type generatedVariant struct {
 	Key     string
 	Variant common.Variant
 	SVG     []byte
-	// Hash is the SHA-256 of the descriptor bytes. It identifies the rules of
-	// a game, not the file's name.
+	// Hash identifies the board a game is played on: provinces, borders,
+	// opening position, win condition and rules. Renaming the variant or
+	// reflowing its JSON leaves it unchanged.
 	Hash string
 }
 
@@ -196,7 +196,7 @@ func loadGeneratedVariant(dir, key string) (generatedVariant, error) {
 		Key:     key,
 		Variant: variant,
 		SVG:     art,
-		Hash:    fmt.Sprintf("%x", sha256.Sum256(raw)),
+		Hash:    variantjson.GameHash(descriptor),
 	}, nil
 }
 

@@ -53,6 +53,33 @@ func copyVariant(t *testing.T, key string) string {
 	return dir
 }
 
+// breakTheBoard edits a descriptor so it describes a different board: it
+// deletes a border. Editing metadata would not do, and must not: the hash
+// covers what decides play, not what the file says about itself.
+func breakTheBoard(t *testing.T, path string) {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d map[string]any
+	if err := json.Unmarshal(raw, &d); err != nil {
+		t.Fatal(err)
+	}
+	borders, ok := d["borders"].([]any)
+	if !ok || len(borders) < 2 {
+		t.Fatal("descriptor has no borders to remove")
+	}
+	d["borders"] = borders[1:]
+	out, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, out, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestLoadsAGeneratedVariant(t *testing.T) {
 	withGeneratedDir(t, filepath.Join("testdata", "generated"))
 	if err := loadGeneratedVariants(); err != nil {
@@ -272,13 +299,45 @@ func TestHashChangesWhenTheDescriptorDoes(t *testing.T) {
 	}
 	before := generatedVariants["demo7"].Hash
 
-	path := filepath.Join(dir, "demo7", "variant.json")
-	raw, _ := os.ReadFile(path)
-	edited := strings.Replace(string(raw), `"version": "1"`, `"version": "2"`, 1)
-	if edited == string(raw) {
-		t.Skip("sample descriptor has no version field to edit")
+	breakTheBoard(t, filepath.Join(dir, "demo7", "variant.json"))
+
+	generatedVariants = map[string]generatedVariant{}
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte(edited), 0o644); err != nil {
+	if generatedVariants["demo7"].Hash == before {
+		t.Error("changing the board must change its hash")
+	}
+}
+
+// TestHashSurvivesCosmeticEdits is the other half: a game must not die because
+// somebody corrected a description.
+func TestHashSurvivesCosmeticEdits(t *testing.T) {
+	dir := copyVariant(t, "demo7")
+	withGeneratedDir(t, dir)
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatal(err)
+	}
+	before := generatedVariants["demo7"].Hash
+
+	path := filepath.Join(dir, "demo7", "variant.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d map[string]any
+	if err := json.Unmarshal(raw, &d); err != nil {
+		t.Fatal(err)
+	}
+	d["description"] = "a corrected description"
+	d["name"] = "A Renamed Map"
+	d["version"] = "9"
+	// Reflow it too: indentation must not matter either.
+	out, err := json.MarshalIndent(d, "", "    ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, out, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -286,8 +345,9 @@ func TestHashChangesWhenTheDescriptorDoes(t *testing.T) {
 	if err := loadGeneratedVariants(); err != nil {
 		t.Fatal(err)
 	}
-	if generatedVariants["demo7"].Hash == before {
-		t.Error("editing the descriptor must change its hash")
+	if got := generatedVariants["demo7"].Hash; got != before {
+		t.Errorf("a cosmetic edit changed the hash, so every game on this map "+
+			"would refuse to load\n  before %v\n  after  %v", before, got)
 	}
 }
 
@@ -499,19 +559,8 @@ func TestSavedGameRefusesAChangedMap(t *testing.T) {
 		t.Fatal("the game did not come back")
 	}
 
-	// Now somebody edits the map under the running game.
-	path := filepath.Join(dir, "demo7", "variant.json")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	edited := strings.Replace(string(raw), `"version": "1"`, `"version": "2"`, 1)
-	if edited == string(raw) {
-		t.Fatal("could not edit the sample descriptor")
-	}
-	if err := os.WriteFile(path, []byte(edited), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	// Now somebody moves a border under the running game.
+	breakTheBoard(t, filepath.Join(dir, "demo7", "variant.json"))
 
 	generatedVariants = map[string]generatedVariant{}
 	if err := loadGeneratedVariants(); err != nil {
