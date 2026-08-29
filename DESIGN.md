@@ -834,6 +834,14 @@ the route read-only or not at all (decide at build time). This screen is
 also the verification act behind D-014: a variant whose table was
 reviewed here is promotable to supported.
 
+Convergence goal: the optimizer gets good enough that no human touches
+it. Every hand drag is treated as a scoring bug — diff the hand position
+against the optimizer's, name the rule that would have produced the hand
+one, encode it (the Gascony → lexicographic and clearance-threshold
+history is the pattern). When the audit reports zero violations, the
+variant auto-promotes; the editor's end state is an audit viewer whose
+drag count is zero.
+
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
 The GM shares ONE invite link/QR. Claiming it assigns a random
