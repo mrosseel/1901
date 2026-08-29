@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -309,6 +310,71 @@ func TestEveryJDipPlanStatesTheLabelScaleItsArtDraws(t *testing.T) {
 func TestSetStylePropsReplacesRatherThanRepeats(t *testing.T) {
 	got := setStyleProps("fill:#000;stroke:#fff", []prop{{"stroke", "#123456"}})
 	if got != "fill:#000;stroke:#123456" {
+		t.Errorf("got %q", got)
+	}
+}
+
+// The floor is what the whole legibility fix is: a smallest readable name.
+// Anything above it has to survive untouched, because a placement was
+// measured against the box it produces.
+func TestNoLabelClassIsStyledUnderTheLegibilityFloor(t *testing.T) {
+	if err := loadPlans(); err != nil {
+		t.Fatal(err)
+	}
+	if err := loadStyles(); err != nil {
+		t.Fatal(err)
+	}
+	sizeRule := regexp.MustCompile(`#FullLabelLayer \.([A-Za-z0-9_-]+),[^{]*\{[^}]*font-size:\s*([0-9.]+)px`)
+	for key, plan := range plans {
+		if plan.Kind != "jdip" || plan.JDip == nil {
+			continue
+		}
+		v, found := lookupVariant(key)
+		if !found {
+			t.Fatalf("%v is not registered", key)
+		}
+		original, err := v.SVGMap()
+		if err != nil {
+			t.Fatal(err)
+		}
+		width, err := viewBoxWidth(string(original))
+		if err != nil {
+			t.Fatal(err)
+		}
+		labelScale := plan.JDip.LabelScale
+		if labelScale <= 0 {
+			labelScale = labelLayerScale(string(original))
+		}
+		floor := labelFloor(width, labelScale)
+		for _, name := range styleNames {
+			sheet := buildStylesheet(plan.JDip, styles[name], width, labelScale)
+			matches := sizeRule.FindAllStringSubmatch(sheet, -1)
+			if len(matches) != len(plan.JDip.LabelMetrics) {
+				t.Fatalf("%v/%v: %v size rules for %v label classes",
+					key, name, len(matches), len(plan.JDip.LabelMetrics))
+			}
+			for _, m := range matches {
+				got, err := strconv.ParseFloat(m[2], 64)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got < floor {
+					t.Errorf("%v/%v: .%v renders at %v, under the floor of %v",
+						key, name, m[1], got, floor)
+				}
+			}
+		}
+	}
+}
+
+// A class above the floor is not a class to rescale.
+func TestLiftLabelSizeLeavesALegibleClassExactlyAsMeasured(t *testing.T) {
+	const declarations = "font-size:150px; text-anchor:middle"
+	if got := liftLabelSize(declarations, 83.95); got != declarations {
+		t.Errorf("got %q", got)
+	}
+	if got := liftLabelSize("font-size:06px; text-anchor:middle", 8.752); got !=
+		"font-size:8.752px; text-anchor:middle" {
 		t.Errorf("got %q", got)
 	}
 }

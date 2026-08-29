@@ -619,6 +619,43 @@ var (
 // past the map when the board injects it inline into the app's document.
 const labelScope = "#FullLabelLayer text, #BriefLabelLayer text"
 
+// labelFloorFraction is the smallest a name may be drawn, as a fraction of
+// the map's own width. The board fits a map to a pane about 1070px wide, so
+// a name this size lands at roughly 12 screen pixels before any zoom, which
+// is the point below which a province name stops being readable.
+//
+// The fraction is a floor and nothing else. A class already above it keeps
+// exactly the size jDip chose, because every placement was measured against
+// the label boxes those sizes produce, and growing a name that already fits
+// only crowds the dense parts of the board.
+const labelFloorFraction = 0.0115
+
+// labelFloor is the floor in the units a label rule is QUOTED in, which is
+// the label layer's units and not the map's: a name layer drawn at a scale
+// renders a length by that scale before it reaches the map.
+func labelFloor(width, labelScale float64) float64 {
+	if labelScale == 0 {
+		labelScale = 1
+	}
+	return jsRound(labelFloorFraction*width/labelScale*1000) / 1000
+}
+
+var fontSizeRe = regexp.MustCompile(`(?i)font-size\s*:\s*([0-9]*\.?[0-9]+)\s*(?:px)?`)
+
+// liftLabelSize raises one label class to the floor and returns every other
+// declaration untouched.
+func liftLabelSize(declarations string, floor float64) string {
+	m := fontSizeRe.FindStringSubmatchIndex(declarations)
+	if m == nil {
+		return declarations
+	}
+	value, err := strconv.ParseFloat(declarations[m[2]:m[3]], 64)
+	if err != nil || value >= floor {
+		return declarations
+	}
+	return declarations[:m[0]] + "font-size:" + num(floor) + "px" + declarations[m[1]:]
+}
+
 // buildStylesheet writes the stylesheet that replaces a jDip map's own.
 //
 // jDip's rules are kept for everything the board draws itself — order
@@ -699,9 +736,11 @@ func buildStylesheet(plan *jdipPlan, style *loadedStyle, width, labelScale float
 		"#MapLayer > rect:first-of-type { fill:"+style.Terrain.GroundInland+"; stroke:none; }",
 		"")
 
-	// Names. Sizes are deliberately NOT touched: jDip chose them to fit its
-	// own provinces, and every placement was measured against the label boxes
-	// they produce. What changes is the face, the weight and the tracking.
+	// Names. Sizes are jDip's own, except where a class falls under the
+	// legibility floor: those are lifted TO the floor and no further, so a
+	// class that already fits keeps the box its placement was measured
+	// against. What else changes is the face, the weight and the tracking.
+	floor := labelFloor(width, labelScale)
 	land := style.Typography.Land
 	sea := style.Typography.Sea
 	lines = append(lines,
@@ -712,9 +751,10 @@ func buildStylesheet(plan *jdipPlan, style *loadedStyle, width, labelScale float
 		// text itself, and on the label LAYER for every text that does not
 		// carry one. The layer form sets the size on the group and lets it
 		// inherit, which is what keeps it weaker than a text's own class.
+		declarations := liftLabelSize(metric.Declarations, floor)
 		lines = append(lines,
-			"#FullLabelLayer ."+metric.Class+", #BriefLabelLayer ."+metric.Class+" { "+metric.Declarations+" }",
-			"#FullLabelLayer."+metric.Class+", #BriefLabelLayer."+metric.Class+" { "+metric.Declarations+" }")
+			"#FullLabelLayer ."+metric.Class+", #BriefLabelLayer ."+metric.Class+" { "+declarations+" }",
+			"#FullLabelLayer."+metric.Class+", #BriefLabelLayer."+metric.Class+" { "+declarations+" }")
 	}
 
 	// The halo, which is the whole of the legibility budget. paint-order
