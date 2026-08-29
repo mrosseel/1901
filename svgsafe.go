@@ -105,6 +105,9 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 	skipDepth := 0
 	// inStyle marks CSS text, which is scrubbed rather than escaped.
 	inStyle := false
+	// depth of open elements. Text outside the root is not allowed in XML, and
+	// an SVG that is not well-formed will not render in an <img> at all.
+	depth := 0
 
 	for {
 		token, err := decoder.Token()
@@ -130,6 +133,7 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 			if name == "style" {
 				inStyle = true
 			}
+			depth++
 			out.WriteString("<" + name)
 			for _, attr := range t.Attr {
 				if !svgAttrAllowed(attr) {
@@ -148,10 +152,13 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 			if t.Name.Local == "style" {
 				inStyle = false
 			}
+			depth--
 			out.WriteString("</" + t.Name.Local + ">")
 
 		case xml.CharData:
-			if skipDepth > 0 {
+			if skipDepth > 0 || depth == 0 {
+				// Whitespace around the root element is not character data the
+				// document may carry, and emitting it makes the SVG unparseable.
 				continue
 			}
 			if inStyle {
@@ -164,7 +171,7 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 				}
 				continue
 			}
-			xml.EscapeText(&out, t)
+			out.WriteString(escapeText(string(t)))
 
 		case xml.Comment, xml.ProcInst, xml.Directive:
 			// Comments carry nothing the board reads. A processing
@@ -174,6 +181,17 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 
 	result.Clean = out.Bytes()
 	return result, nil
+}
+
+// escapeText escapes the three characters that would end an element or start
+// an entity, and leaves everything else alone.
+//
+// encoding/xml's own EscapeText also turns newlines and tabs into numeric
+// references. That is legal but it rewrites every line of the art into
+// `&#xA;`, which is unreadable and, outside the root element, unparseable.
+func escapeText(text string) string {
+	replacer := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+	return replacer.Replace(text)
 }
 
 // attrName renders an attribute name including its namespace prefix, so a
