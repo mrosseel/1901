@@ -16,6 +16,13 @@ export interface Settings {
   gmPlays: boolean;
   /** The godip variant key. Absent means the server's default, classical. */
   variant?: string;
+  /*
+  Whether a player may write an order the rules do not allow (D-029). The
+  server keeps it, the adjudicator throws it out, and the unit holds — which
+  is what paper does and what makes a bluff possible. Absent means yes: a
+  server that predates the setting accepted whatever it was sent (illegal.ts).
+  */
+  illegalMoves?: boolean;
 }
 
 /** What a running game says about the variant it was created with. */

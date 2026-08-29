@@ -13,10 +13,14 @@ import { Clock } from "../components/Clock";
 import { RefereeGuide } from "../components/RefereeGuide";
 import { ModalLayer } from "../components/ModalLayer";
 import { SplitLayout } from "../components/SplitLayout";
-import { StylePicker, useMapStyle } from "../components/StylePicker";
+import { useMapStyle } from "../components/StylePicker";
+import { MapToolbar } from "../components/MapToolbar";
+import { OrderNotationToggle } from "../components/OrderNotationToggle";
+import { useBriefLabels, useBriefMoves } from "../prefs";
+import { PhaseName } from "../components/PhaseName";
 import { SupportedMark } from "../components/SupportedMark";
 import { emptyPlan, phaseKind } from "../board/phases";
-import { phaseLabel, powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
+import { powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
 import type { BoardApi, BoardState, ReviewDraw } from "../board/types";
 import { noteServerTime } from "../clock";
 import { usePoll, useTicker } from "../hooks";
@@ -53,6 +57,8 @@ export function WatchPage({
   const [error, setError] = useState<string | null>(null);
   const [refereeing, setRefereeing] = useState(false);
   const [style, setStyle] = useMapStyle();
+  const [briefLabels, setBriefLabels] = useBriefLabels();
+  const [briefMoves, setBriefMoves] = useBriefMoves();
   const asked = useRef<number | null>(null);
 
   // The address is the state: back and forward walk the phases.
@@ -176,6 +182,7 @@ export function WatchPage({
       orderParts: (historical && watch?.orderParts) || {},
       powers: (historical && watch?.powers) || {},
       failed: plan ? Array.from(plan.failed) : [],
+      illegal: plan ? Array.from(plan.illegal) : [],
       dislodged: watch?.dislodged || {},
       style: style,
     }),
@@ -233,6 +240,7 @@ export function WatchPage({
             state={boardState}
             plan={emptyPlan("")}
             review={draw}
+            briefLabels={briefLabels}
             onState={() => undefined}
             onStatus={() => undefined}
             onSelect={() => undefined}
@@ -244,11 +252,24 @@ export function WatchPage({
               : error || "Reading the game…"}
           </p>
         )}
+        {/* The projector's own controls, on the board the room is watching.
+            No arrows switch: this screen draws a resolved phase, which is the
+            picture everybody is reading, not one seat's private draft. */}
+        {boardState ? (
+          <MapToolbar
+            style={style}
+            onStyle={setStyle}
+            briefLabels={briefLabels}
+            onBriefLabels={setBriefLabels}
+          />
+        ) : null}
       </main>
 
       <aside className="side" inert={reading || undefined}>
         <header className="seat-head">
-          <h1 className="phase-now">{phaseLabel(phase)}</h1>
+          <h1 className="phase-now">
+            <PhaseName phase={phase} />
+          </h1>
           <p className="muted">
             Game {gameId}
             {variant ? " · " + variant.name : ""}{" "}
@@ -301,7 +322,10 @@ export function WatchPage({
               </ul>
             ) : null}
             <section>
-              <h2>What happened</h2>
+              <div className="list-head">
+                <h2>What happened</h2>
+                <OrderNotationToggle value={briefMoves} onChange={setBriefMoves} />
+              </div>
               <p className="muted">
                 {plan.succeeded} of {plan.ordered} orders came off.
               </p>
@@ -309,11 +333,19 @@ export function WatchPage({
                 {plan.rows.map((row) => (
                   <li
                     key={row.province}
-                    className={row.failed ? "review-row failed" : "review-row"}
+                    className={
+                      "review-row" +
+                      (row.failed ? " failed" : "") +
+                      (row.illegal ? " illegal" : "")
+                    }
                   >
                     <span className="dot" style={{ background: powerColor(row.power) }} />
-                    <span className="order-text">{row.text}</span>
-                    {row.failed ? <span className="review-why">{row.reason}</span> : null}
+                    <span className="order-text">{briefMoves ? row.brief : row.text}</span>
+                    {row.failed ? (
+                      <span className={row.illegal ? "review-why illegal" : "review-why"}>
+                        {row.reason}
+                      </span>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -326,9 +358,6 @@ export function WatchPage({
           </>
         ) : null}
 
-        {/* Presentation, and this screen's alone — the projector picks the
-            style the room can actually read. */}
-        <StylePicker value={style} onChange={setStyle} />
       </aside>
     </SplitLayout>
 

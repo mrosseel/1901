@@ -136,6 +136,7 @@ var gameColumns = []struct{ name, definition string }{
 	{"first_turn_extra_minutes", `INTEGER NOT NULL DEFAULT 0`},
 	{"press_mode", `TEXT NOT NULL DEFAULT '` + defaultPressMode + `'`},
 	{"gm_device", `TEXT NOT NULL DEFAULT ''`},
+	{"illegal_moves", `INTEGER NOT NULL DEFAULT 1`},
 }
 
 // orderColumns are the columns a game_order row has grown, in the same shape

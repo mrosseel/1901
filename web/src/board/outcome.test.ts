@@ -118,3 +118,29 @@ describe("which supports would draw on top of each other", () => {
     expect(new Set([ranks.eng, ranks.wal])).toEqual(new Set([0, 1]));
   });
 });
+
+describe("an order that was never legal", () => {
+  /* It failed like any other failure — the unit held — but it failed before
+     the adjudication rather than in it, so it gets its own ink (D-029). */
+  it("beats every other reading of the same order", () => {
+    expect(outcomeOf("movement", ["Move", "mos"], false, true)).toBe("illegal");
+    expect(outcomeOf("movement", ["Move", "mos"], true, true)).toBe("illegal");
+    expect(outcomeOf("retreat", ["Move", "alb"], true, true)).toBe("illegal");
+  });
+
+  it("changes nothing when it is not set", () => {
+    expect(outcomeOf("movement", ["Move", "bur"], false)).toBe("success");
+    expect(outcomeOf("movement", ["Move", "bur"], true)).toBe("failed");
+  });
+
+  it("is drawn in the red family, and not in the failure red", () => {
+    const illegal = outcomePaint("illegal", "dark");
+    const failed = outcomePaint("failed", "dark");
+    expect(illegal.line).not.toBe(failed.line);
+    expect(illegal.halo).toBe(failed.halo);
+  });
+
+  it("takes the same halo the other outcomes take on a dark map", () => {
+    expect(outcomePaint("illegal", "light").halo).toBe(outcomePaint("failed", "light").halo);
+  });
+});

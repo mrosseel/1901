@@ -1,6 +1,10 @@
 import { powerColor } from "../board/provinces";
 import { nmrLine, type ReviewPlan } from "../review";
 import { Clock } from "./Clock";
+import { PhaseName } from "./PhaseName";
+import { OrderNotationToggle } from "./OrderNotationToggle";
+import { useBriefMoves } from "../prefs";
+import { ILLEGAL_REASON } from "../illegal";
 
 /*
 What happened last turn, read while the next one is already running.
@@ -27,15 +31,24 @@ export function ReviewOverlay({
   /** Opens the piece pusher's list. Absent on a screen that has no board. */
   onReferee?: () => void;
 }) {
+  /* The same switch as the seat's own order list, reading the same preference:
+     a player who writes their orders in notation reads them back in it. */
+  const [brief, setBrief] = useBriefMoves();
+
   return (
     <section className="review-sheet" aria-label="What happened last turn">
       <header className="review-head">
         <div>
-          <h2>{plan.title}</h2>
+          <h2>
+            <PhaseName label={plan.title} />
+          </h2>
           <p className="muted">
             {plan.ordered === 0
               ? "No orders were given."
-              : plan.succeeded + " of " + plan.ordered + " orders came off."}
+              : plan.succeeded + " of " + plan.ordered + " orders came off."}{" "}
+            {/* The list below is what this rewrites, so the switch sits with
+                the line that counts it. */}
+            <OrderNotationToggle value={brief} onChange={setBrief} />
           </p>
         </div>
         <Clock deadlineAt={deadlineAt} />
@@ -54,10 +67,19 @@ export function ReviewOverlay({
 
       <ul className="review-list">
         {plan.rows.map((row) => (
-          <li key={row.province} className={row.failed ? "review-row failed" : "review-row"}>
+          <li
+            key={row.province}
+            className={
+              "review-row" + (row.failed ? " failed" : "") + (row.illegal ? " illegal" : "")
+            }
+          >
             <span className="dot" style={{ background: powerColor(row.power) }} />
-            <span className="order-text">{row.text}</span>
-            {row.failed ? <span className="review-why">{row.reason}</span> : null}
+            <span className="order-text">{brief ? row.brief : row.text}</span>
+            {row.failed ? (
+              <span className={row.illegal ? "review-why illegal" : "review-why"}>
+                {row.illegal ? ILLEGAL_REASON : row.reason}
+              </span>
+            ) : null}
           </li>
         ))}
       </ul>

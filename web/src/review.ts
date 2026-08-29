@@ -16,6 +16,8 @@ adjudication does.
 import type { PreviousPhase } from "./api";
 import { describeOrder, phaseLabel, provinceName } from "./board/provinces";
 import { describeInPhase, phaseKind, type PhaseKind } from "./board/phases";
+import { abbreviateOrder, proseUnits, unitsOf } from "./notation";
+import { ILLEGAL_REASON, isIllegal } from "./illegal";
 import type { Unit } from "./board/types";
 
 /** One order as the review lists it. */
@@ -24,11 +26,18 @@ export interface ReviewRow {
   power: string;
   /** The sentence, from the server's prose or built from the parts. */
   text: string;
+  /* The same order in notation, for a device that asked for it. Both are
+     built here so the two can never say different things about one order. */
+  brief: string;
   /** "OK" reads as done; anything else is why it failed. */
   resolution: string;
   failed: boolean;
   /** "bounced", "cut", … — the reason, in the server's own words. */
   reason: string;
+  /* Written but never legal (D-029). It is a failure like the others and it is
+     listed as one, in its own words: "bounced" is a story about the board and
+     "illegal" is a story about the order. */
+  illegal: boolean;
 }
 
 /** What the map draws, and what the panel lists. */
@@ -43,6 +52,8 @@ export interface ReviewPlan {
   orderParts: Record<string, string[]>;
   /** Provinces whose order did not come off. */
   failed: Set<string>;
+  /** Of those, the ones the rules never allowed in the first place. */
+  illegal: Set<string>;
   dislodged: Record<string, Unit>;
   /** Powers that gave no orders at all. */
   nmr: string[];
@@ -112,17 +123,25 @@ export function reviewPlan(previous: PreviousPhase | null | undefined): ReviewPl
 
   const kind = phaseKind(previous.phase);
   const failed = new Set<string>();
+  const illegal = new Set<string>();
+  /* A resolved phase carries no board, so the unit types come out of the
+     server's own prose and out of whatever this phase threw out. */
+  const unitAt = unitsOf(proseUnits(orders), previous.dislodged || {});
   const rows: ReviewRow[] = provinces.map((province) => {
     const resolution = String(resolutions[province] || "OK");
     const bad = isFailure(resolution);
+    const never = isIllegal(resolution);
     if (bad) failed.add(province);
+    if (never) illegal.add(province);
     return {
       province: province,
       power: powers[province] || "",
       text: orderText(province, orderParts[province], orders[province], kind),
+      brief: abbreviateOrder(province, orderParts[province] || [], kind, unitAt),
       resolution: resolution,
       failed: bad,
-      reason: failureReason(resolution),
+      reason: never ? ILLEGAL_REASON : failureReason(resolution),
+      illegal: never,
     };
   });
 
@@ -133,6 +152,7 @@ export function reviewPlan(previous: PreviousPhase | null | undefined): ReviewPl
     powers: powers,
     orderParts: orderParts,
     failed: failed,
+    illegal: illegal,
     dislodged: previous.dislodged || {},
     nmr: (previous.nmr || []).filter(Boolean),
     ordered: rows.length,

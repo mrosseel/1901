@@ -25,6 +25,9 @@ creating a classical game, which is what it did before there were variants.
 export function NewGame() {
   const [deadlineMinutes, setDeadlineMinutes] = useState(15);
   const [gmPlays, setGmPlays] = useState(true);
+  /* On by default: the paper game takes any order you can spell, and taking
+     that away is the change, not leaving it (D-029, illegal.ts). */
+  const [illegalMoves, setIllegalMoves] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [game, setGame] = useState<CreatedGame | null>(null);
@@ -62,6 +65,7 @@ export function NewGame() {
       const created = await createGame({
         deadlineMinutes: Math.max(0, Math.floor(deadlineMinutes) || 0),
         gmPlays: gmPlays,
+        illegalMoves: illegalMoves,
         variant: chosen,
       });
       setGame(created);
@@ -150,6 +154,16 @@ export function NewGame() {
           />
           <span>I play a power as well</span>
           <small>One power is held back for you and revealed when the game starts.</small>
+        </label>
+
+        <label className="field check">
+          <input
+            type="checkbox"
+            checked={illegalMoves}
+            onChange={(event) => setIllegalMoves(event.target.checked)}
+          />
+          <span>Allow illegal orders</span>
+          <small>Players may write illegal orders to bluff; they resolve as holds.</small>
         </label>
 
         {picked ? (

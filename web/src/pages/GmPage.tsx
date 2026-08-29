@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, GmClient, type GmState } from "../api";
 import { LinkShare } from "../components/LinkShare";
-import { phaseLabel, powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
+import { powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
 import { StylePicker, useMapStyle } from "../components/StylePicker";
+import { PhaseName } from "../components/PhaseName";
+import { illegalAllowed } from "../illegal";
 import { SupportedMark } from "../components/SupportedMark";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
@@ -122,7 +124,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           {/* The phase, at the size the room reads it at — the same line the
               players carry at the top of their own boards. */}
           <p className="phase-now">
-            {game.started ? phaseLabel(game.phase) : "The game has not started"}
+            {game.started ? <PhaseName phase={game.phase} /> : "The game has not started"}
           </p>
           <p className="muted">Game {game.gameId}</p>
           {game.variant ? (
@@ -297,18 +299,28 @@ function SettingsCard({
   started,
   onSave,
 }: {
-  settings: { deadlineMinutes: number; gmPlays: boolean };
+  settings: { deadlineMinutes: number; gmPlays: boolean; illegalMoves?: boolean };
   started: boolean;
-  onSave: (patch: { deadlineMinutes: number; gmPlays?: boolean }) => void;
+  onSave: (patch: {
+    deadlineMinutes: number;
+    gmPlays?: boolean;
+    illegalMoves?: boolean;
+  }) => void;
 }) {
   const [minutes, setMinutes] = useState(settings.deadlineMinutes);
   const [plays, setPlays] = useState(settings.gmPlays);
+  const allowIllegal = illegalAllowed(settings);
+  const [illegal, setIllegal] = useState(allowIllegal);
 
   // A change made from another device wins over an untouched form.
   useEffect(() => setMinutes(settings.deadlineMinutes), [settings.deadlineMinutes]);
   useEffect(() => setPlays(settings.gmPlays), [settings.gmPlays]);
+  useEffect(() => setIllegal(allowIllegal), [allowIllegal]);
 
-  const dirty = minutes !== settings.deadlineMinutes || plays !== settings.gmPlays;
+  const dirty =
+    minutes !== settings.deadlineMinutes ||
+    plays !== settings.gmPlays ||
+    illegal !== allowIllegal;
 
   return (
     <section className="card">
@@ -339,14 +351,30 @@ function SettingsCard({
         <span>The game master plays a power</span>
         {started ? <small>Fixed once the game has started.</small> : null}
       </label>
+      <label className="field check">
+        <input
+          type="checkbox"
+          checked={illegal}
+          onChange={(event) => setIllegal(event.target.checked)}
+        />
+        <span>Allow illegal orders</span>
+        <small>Players may write illegal orders to bluff; they resolve as holds.</small>
+      </label>
       <button
         type="button"
         disabled={!dirty}
         onClick={() =>
           onSave(
             started
-              ? { deadlineMinutes: Math.max(0, Math.floor(minutes) || 0) }
-              : { deadlineMinutes: Math.max(0, Math.floor(minutes) || 0), gmPlays: plays },
+              ? {
+                  deadlineMinutes: Math.max(0, Math.floor(minutes) || 0),
+                  illegalMoves: illegal,
+                }
+              : {
+                  deadlineMinutes: Math.max(0, Math.floor(minutes) || 0),
+                  gmPlays: plays,
+                  illegalMoves: illegal,
+                },
           )
         }
       >

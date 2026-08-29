@@ -22,11 +22,13 @@ export function Board({
   plan,
   review,
   hideOrders,
+  briefLabels,
   canOrder,
   refusal,
   onState,
   onStatus,
   onSelect,
+  onIllegal,
   onHandle,
 }: {
   api: BoardApi;
@@ -36,11 +38,16 @@ export function Board({
   review?: ReviewDraw | null;
   /** This device's switch: draw the player's own pending arrows, or not. */
   hideOrders?: boolean;
+  /** This device's other switch: province codes on the map, or full names. */
+  briefLabels?: boolean;
   canOrder?: (province: string, unit: Unit | undefined) => boolean;
   refusal?: (province: string, unit: Unit | undefined) => string;
   onState: (state: BoardState) => void;
   onStatus: (text: string, isError: boolean) => void;
   onSelect: (province: string | null) => void;
+  /* The provinces whose drafted order the board knows is illegal (D-029), so
+     the panel can mark the same rows the map marks. */
+  onIllegal?: (provinces: string[]) => void;
   onHandle?: (handle: BoardHandle | null) => void;
 }) {
   const host = useRef<HTMLDivElement | null>(null);
@@ -56,8 +63,8 @@ export function Board({
 
   // The callbacks change with every render; the board keeps this one box and
   // reads the current ones out of it, so it never has to be remounted.
-  const live = useRef({ canOrder, refusal, onState, onStatus, onSelect });
-  live.current = { canOrder, refusal, onState, onStatus, onSelect };
+  const live = useRef({ canOrder, refusal, onState, onStatus, onSelect, onIllegal });
+  live.current = { canOrder, refusal, onState, onStatus, onSelect, onIllegal };
 
   useEffect(() => {
     if (!host.current) return;
@@ -66,6 +73,7 @@ export function Board({
       builder: setBuilder,
       state: (next) => live.current.onState(next),
       select: (province) => live.current.onSelect(province),
+      illegal: (provinces) => live.current.onIllegal?.(provinces),
       canOrder: (province, unit) =>
         live.current.canOrder ? live.current.canOrder(province, unit) : true,
       refusal: (province, unit) =>
@@ -121,6 +129,12 @@ export function Board({
   useEffect(() => {
     handle.current?.setHideOrders(Boolean(hideOrders));
   }, [hideOrders, state]);
+
+  /* The codes are drawn at the province anchors, which arrive with the state,
+     so a board that has just been given its first state redraws them. */
+  useEffect(() => {
+    handle.current?.setBriefLabels(Boolean(briefLabels));
+  }, [briefLabels, state]);
 
   return (
     <>

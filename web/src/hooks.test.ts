@@ -28,10 +28,29 @@ describe("the rules, in words", () => {
     expect(settingsLines({ deadlineMinutes: 15, gmPlays: true })).toEqual([
       "Deadline: 15 minutes for each phase.",
       "The game master plays a power as well.",
+      "Illegal orders may be written; they resolve as holds.",
     ]);
     expect(settingsLines({ deadlineMinutes: 0, gmPlays: false })).toEqual([
       "No deadline.",
       "The game master does not play a power.",
+      "Illegal orders may be written; they resolve as holds.",
     ]);
+  });
+
+  /* A server that predates the setting accepted whatever it was sent, so an
+     absent setting reads as the permissive one (D-029). */
+  it("says illegal orders are allowed when nothing says otherwise", () => {
+    expect(settingsLines({ deadlineMinutes: 0, gmPlays: false })[2]).toBe(
+      "Illegal orders may be written; they resolve as holds.",
+    );
+    expect(settingsLines(undefined)[2]).toBe(
+      "Illegal orders may be written; they resolve as holds.",
+    );
+  });
+
+  it("names the table that turned them off", () => {
+    expect(
+      settingsLines({ deadlineMinutes: 0, gmPlays: false, illegalMoves: false })[2],
+    ).toBe("Only legal orders are accepted.");
   });
 });

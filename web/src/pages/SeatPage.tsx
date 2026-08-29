@@ -3,7 +3,6 @@ import { ApiError, SeatClient, fetchPublic, type SeatState } from "../api";
 import { Board } from "../components/Board";
 import { SplitLayout } from "../components/SplitLayout";
 import {
-  phaseLabel,
   powerColor,
   provinceName,
   setPowerPalette,
@@ -29,13 +28,18 @@ import type {
 import { settingsLines, usePoll, useTicker } from "../hooks";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
-import { StylePicker, useMapStyle } from "../components/StylePicker";
+import { useMapStyle } from "../components/StylePicker";
+import { MapToolbar } from "../components/MapToolbar";
+import { OrderNotationToggle } from "../components/OrderNotationToggle";
+import { abbreviateOrders, unitsOf } from "../notation";
+import { ILLEGAL_DRAFT_NOTE, illegalAllowed } from "../illegal";
+import { PhaseName } from "../components/PhaseName";
 import { SupportedMark } from "../components/SupportedMark";
 import { styledMapUrl } from "../style";
 import { ReviewOverlay } from "../components/ReviewOverlay";
 import { ModalLayer } from "../components/ModalLayer";
 import { RefereeGuide } from "../components/RefereeGuide";
-import { OrderArrowsToggle, useHideOrders } from "../components/OrderArrowsToggle";
+import { useBriefLabels, useBriefMoves, useHideOrders } from "../prefs";
 import { refereeGuide } from "../referee";
 import {
   dismiss,
@@ -66,6 +70,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const [refereeing, setRefereeing] = useState(false);
   const [style, setStyle] = useMapStyle();
   const [hideOrders, setHideOrders] = useHideOrders();
+  const [briefLabels, setBriefLabels] = useBriefLabels();
+  const [briefMoves, setBriefMoves] = useBriefMoves();
+  /*
+  The drafts this device knows the rules refuse (D-029). It comes from the
+  board, which is the only thing that saw the options tree the target was not
+  in, and it goes no further than this panel: nothing about it is sent, and no
+  other seat is told. That is the point of writing one.
+  */
+  const [illegalDrafts, setIllegalDrafts] = useState<string[]>([]);
   const handle = useRef<BoardHandle | null>(null);
   const knownVersion = useRef<number | null>(null);
   const fingerprint = useRef<string>("");
@@ -210,6 +223,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       orderParts: review.orderParts,
       powers: review.powers,
       failed: Array.from(review.failed),
+      illegal: Array.from(review.illegal),
       dislodged: review.dislodged,
       style: style,
     };
@@ -288,8 +302,25 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     );
   }
 
-  const orders = state?.orders || {};
+  /*
+  This power's orders, in whichever of the two languages this device asked
+  for. The notation is built from the raw parts and the units on the board,
+  never from the sentence beside it — a sentence cannot be unwritten into
+  notation, and the two would drift the first time either changed.
+  */
+  const orders = briefMoves
+    ? abbreviateOrders(
+        state?.orderParts || {},
+        kind,
+        unitsOf(state?.units, kind === "retreat" ? state?.dislodged : undefined),
+      )
+    : state?.orders || {};
   const orderRows = Object.keys(orders).sort();
+  /* Only while the rule is on: a server that refuses illegal orders has none
+     to mark, and a stale mark would be a lie about a live draft. */
+  const illegalHere = illegalAllowed(state?.settings)
+    ? new Set(illegalDrafts)
+    : new Set<string>();
   const duty = dutyLine(plan, state);
   // Idle means this power was asked for nothing at all — not that it has
   // already given the orders it owed.
@@ -322,6 +353,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           plan={plan}
           review={reviewDraw}
           hideOrders={hideOrders}
+          briefLabels={briefLabels}
           canOrder={canOrder}
           refusal={refusal}
           onState={onBoardState}
@@ -330,9 +362,20 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             setIsError(error);
           }}
           onSelect={setSelected}
+          onIllegal={setIllegalDrafts}
           onHandle={(board) => {
             handle.current = board;
           }}
+        />
+        {/* On the map, because everything on it changes what the map draws.
+            Presentation, and this device's alone. */}
+        <MapToolbar
+          style={style}
+          onStyle={setStyle}
+          hideOrders={hideOrders}
+          onHideOrders={setHideOrders}
+          briefLabels={briefLabels}
+          onBriefLabels={setBriefLabels}
         />
       </main>
 
@@ -341,7 +384,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           {/* The phase is what the whole table is playing. It is read across a
               room, so it is the largest thing on the page. */}
           <p className="phase-now">
-            {state?.started ? phaseLabel(state.phase) : "The game has not started"}
+            {state?.started ? <PhaseName phase={state.phase} /> : "The game has not started"}
           </p>
           <h1>
             <span className="dot" style={{ background: powerColor(power) }} />
@@ -444,7 +487,11 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         </p>
 
         <section>
-          <h2>Your orders</h2>
+          {/* The switch belongs to the list it rewrites, not to the map. */}
+          <div className="list-head">
+            <h2>Your orders</h2>
+            <OrderNotationToggle value={briefMoves} onChange={setBriefMoves} />
+          </div>
           {orderRows.length === 0 ? (
             <p className="muted">
               {idle
@@ -460,7 +507,11 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
               {orderRows.map((province) => (
                 <li
                   key={province}
-                  className={"pickable" + (selected === province ? " picked" : "")}
+                  className={
+                    "pickable" +
+                    (selected === province ? " picked" : "") +
+                    (illegalHere.has(province) ? " illegal" : "")
+                  }
                   tabIndex={0}
                   onClick={() => handle.current?.selectOrder(province)}
                   onKeyDown={(event) => {
@@ -470,7 +521,14 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
                     }
                   }}
                 >
-                  <span className="order-text">{orders[province]}</span>
+                  <span className="order-text">
+                    {orders[province]}
+                    {/* Said, not only coloured: the player is bluffing on
+                        purpose and is owed both halves of what that costs. */}
+                    {illegalHere.has(province) ? (
+                      <span className="illegal-note">{ILLEGAL_DRAFT_NOTE}</span>
+                    ) : null}
+                  </span>
                   <span className="row-actions">
                     <button
                       type="button"
@@ -519,10 +577,6 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           </section>
         ) : null}
 
-        {/* Presentation, and this device's alone: it changes what this screen
-            draws and nothing any other player sees. */}
-        <StylePicker value={style} onChange={setStyle} />
-        <OrderArrowsToggle value={hideOrders} onChange={setHideOrders} />
       </aside>
     </SplitLayout>
 

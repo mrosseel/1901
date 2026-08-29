@@ -158,7 +158,11 @@ function classesOf(id: string): string[] {
   return Array.from(shapeOf(id)?.classList || []);
 }
 
-function setup(power: string, trees: Record<string, OptionTree>) {
+function setup(
+  power: string,
+  trees: Record<string, OptionTree>,
+  onIllegal?: (provinces: string[]) => void,
+) {
   vi.stubGlobal(
     "fetch",
     async () => ({ ok: true, status: 200, text: async () => MAP }) as unknown as Response,
@@ -184,6 +188,7 @@ function setup(power: string, trees: Record<string, OptionTree>) {
     builder: (view) => { builder = view; },
     state: () => {},
     select: () => {},
+    illegal: (provinces) => onIllegal?.(provinces),
     canOrder: (_province, unit) => Boolean(unit && unit.nation === power),
     refusal: (province, unit) =>
       unit ? province + " is " + unit.nation + "'s." : "no unit in " + province,
@@ -863,6 +868,204 @@ describe("an adjustment phase", () => {
     seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
 
     expect(seat.view()).toBeNull();
+    seat.board.destroy();
+  });
+});
+
+/*
+Illegal orders (D-029). The highlights still say what is legal; they have
+stopped being a fence. Every case below taps a province the option tree never
+offered and checks what is posted.
+*/
+describe("an order the rules refuse", () => {
+  const ALLOWED: BoardState = { ...MOVEMENT_STATE, settings: { illegalMoves: true } };
+  const REFUSED: BoardState = { ...MOVEMENT_STATE, settings: { illegalMoves: false } };
+
+  it("posts a move to an empty province the tree never offered", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(ALLOWED, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    // Rome is not in Vienna's tree, and there is no unit on it.
+    tap("rom");
+    await settle();
+
+    expect(seat.posted).toEqual([{ province: "vie", parts: ["Move", "rom"] }]);
+    expect(seat.status.some((line) => /not legal/.test(line))).toBe(true);
+    seat.board.destroy();
+  });
+
+  it("tells the panel which drafts it knows are illegal", async () => {
+    const marked: string[][] = [];
+    const seat = setup("Austria", { vie: MOVEMENT_TREE }, (provinces) => marked.push(provinces));
+    await seat.board.ready;
+    seat.board.update(ALLOWED, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    tap("rom");
+    await settle();
+
+    expect(marked[marked.length - 1]).toEqual(["vie"]);
+    seat.board.destroy();
+  });
+
+  /* The gesture the whole map is built around: tapping another of your own
+     units switches to ordering it. Losing that would cost more than the
+     bluff is worth, so an own unit is never taken as an illegal target. */
+  it("still switches units when your own unit is tapped", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE, rom: MOVEMENT_TREE });
+    await seat.board.ready;
+    // Rome is outside Vienna's tree AND holds a unit of this seat's own.
+    seat.board.update(
+      {
+        ...ALLOWED,
+        units: {
+          vie: { type: "Army", nation: "Austria" },
+          rom: { type: "Army", nation: "Austria" },
+        },
+      },
+      emptyPlan("Austria"),
+    );
+
+    tap("vie");
+    await settle();
+    tap("rom");
+    await settle();
+
+    expect(seat.posted).toEqual([]);
+    seat.board.destroy();
+  });
+
+  it("keeps refusing the same tap when the table turned the rule off", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(REFUSED, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    tap("rom");
+    await settle();
+
+    expect(seat.posted).toEqual([]);
+    seat.board.destroy();
+  });
+
+  /* A server that predates the setting accepted whatever it was sent, so an
+     absent setting has to behave as the permissive one. */
+  it("allows it where the state says nothing about the rule", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    tap("rom");
+    await settle();
+
+    expect(seat.posted).toEqual([{ province: "vie", parts: ["Move", "rom"] }]);
+    seat.board.destroy();
+  });
+
+  it("draws the draft it knows is illegal apart from the rest", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(ALLOWED, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    tap("rom");
+    await settle();
+    seat.board.update(
+      { ...ALLOWED, orderParts: { vie: ["Move", "rom"] }, orders: { vie: "x" } },
+      emptyPlan("Austria"),
+    );
+
+    const group = document.querySelector('#order-overlay .order[data-province="vie"]')!;
+    expect(Array.from(group.classList)).toContain("illegal");
+    expect(group.querySelector(".order-halo")!.getAttribute("stroke-dasharray")).toBeTruthy();
+    seat.board.destroy();
+  });
+
+  /* The mark is knowledge about a draft. An order the server no longer holds
+     is not a draft, so the mark goes with it. */
+  it("forgets the mark once the order is gone", async () => {
+    const marked: string[][] = [];
+    const seat = setup("Austria", { vie: MOVEMENT_TREE }, (provinces) => marked.push(provinces));
+    await seat.board.ready;
+    seat.board.update(ALLOWED, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    tap("rom");
+    await settle();
+    seat.board.update({ ...ALLOWED, orderParts: {} }, emptyPlan("Austria"));
+
+    expect(marked[marked.length - 1]).toEqual([]);
+    seat.board.destroy();
+  });
+});
+
+describe("province codes on the map", () => {
+  it("draws nothing until it is asked to", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+
+    expect(document.querySelectorAll("#brief-labels text")).toHaveLength(0);
+    seat.board.destroy();
+  });
+
+  /* This map has one names layer and no brief one, which is what every godip
+     map is. The codes are drawn at the anchors instead. */
+  it("hides the names layer and draws codes at the anchors", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+    seat.board.setBriefLabels(true);
+
+    const codes = Array.from(document.querySelectorAll("#brief-labels text")).map(
+      (node) => node.textContent,
+    );
+    expect(codes).toContain("VIE");
+    expect(codes).toContain("ROM");
+    seat.board.destroy();
+  });
+
+  it("takes them off again", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+    seat.board.setBriefLabels(true);
+    seat.board.setBriefLabels(false);
+
+    expect(document.querySelectorAll("#brief-labels text")).toHaveLength(0);
+    seat.board.destroy();
+  });
+
+  it("leaves a coast to its base province rather than labelling it twice", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+    seat.board.setBriefLabels(true);
+
+    const codes = Array.from(document.querySelectorAll("#brief-labels text")).map(
+      (node) => node.textContent,
+    );
+    expect(codes.filter((code) => code === "GAL")).toHaveLength(1);
+    expect(codes).not.toContain("GAL/NC");
+    seat.board.destroy();
+  });
+
+  /* A switch flipped before the map has arrived must not throw: a device with
+     a saved preference sets it on the very first render. */
+  it("survives being set before the map has loaded", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    expect(() => seat.board.setBriefLabels(true)).not.toThrow();
+    expect(() => seat.board.setHideOrders(true)).not.toThrow();
+    await seat.board.ready;
     seat.board.destroy();
   });
 });

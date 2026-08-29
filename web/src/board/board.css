@@ -122,6 +122,32 @@
   fill: #14161a;
 }
 
+/*
+Province codes, where the map had no brief labels of its own to show.
+
+They are drawn over map art this file does not control and cannot recolour, so
+each one carries a halo of the opposite ink: paint-order puts the stroke down
+first and the fill over it, which is a rim rather than a fattened letter. The
+size and the halo width are set as attributes, so they follow the zoom the way
+the markers do.
+*/
+#brief-labels {
+  pointer-events: none;
+}
+
+#brief-labels .brief-label {
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke-linejoin: round;
+}
+
+#brief-labels .on-light { fill: #15181d; stroke: rgba(255, 255, 255, 0.82); }
+#brief-labels .on-dark { fill: #f2efe6; stroke: rgba(0, 0, 0, 0.72); }
+
 /* Order drawings. Picking one in the list brings it forward. */
 #order-overlay .order { pointer-events: none; }
 #order-overlay .order.dim { opacity: 0.25; }

@@ -12,6 +12,32 @@
   --good: #6ede8a;
   --warn: #ffba5c;
   --bad: #ff8b8b;
+  /*
+  The phase line's own inks.
+
+  The season is a tint and the phase type is a colour, which is the difference
+  in weight the two carry: a season tells you which half of the year you are
+  in, a phase type tells you what this screen is for right now. So the seasons
+  sit at low chroma either side of neutral — cool for spring, warm for fall —
+  and the three types take saturated hues far enough apart to be told apart at
+  a glance across a room.
+
+  None of the five is the red or the green the board and the review already
+  spend on whether an order came off. On a screen where red means "this failed"
+  a red phase word would be a second thing red means, which is one too many.
+  */
+  --phase-spring: #7fc4b8;
+  --phase-fall: #d8a173;
+  --phase-season-other: #a9b3c6;
+  --phase-movement: #a98bff;
+  --phase-retreat: #ff77c0;
+  --phase-adjustment: #45c8ee;
+  /* An order the rules never allowed (D-029). The deeper of the two reds: it
+     failed like any other failure, and the word beside it says how. */
+  --illegal: #e5739f;
+  /* A draft this device knows is illegal, before anything has resolved. Amber
+     rather than red, because nothing has happened to it yet. */
+  --illegal-draft: #e5a51f;
   /* The thickness of the draggable border between the map and the panel.
      A mouse needs a target it can hit; a thumb needs more of one. */
   --split-grip: 12px;
@@ -35,6 +61,16 @@ would be measured against before anything commits to one.
   --good: #1f7a44;
   --warn: #a35b00;
   --bad: #a52b2b;
+  /* The same five roles, taken down to where they read on paper-coloured
+     ground. The tint stays a tint and the colour stays a colour. */
+  --phase-spring: #2f6f63;
+  --phase-fall: #8a5424;
+  --phase-season-other: #4a5568;
+  --phase-movement: #5433b8;
+  --phase-retreat: #a82273;
+  --phase-adjustment: #0a6b8c;
+  --illegal: #a01f4d;
+  --illegal-draft: #8a6100;
   color-scheme: light;
 }
 
@@ -417,6 +453,19 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
 .review-row.failed .order-text { color: var(--muted); text-decoration: line-through; }
 .review-why { color: var(--bad); font-size: 12px; flex: 0 0 auto; }
 
+/*
+An order that was never legal (D-029). It is struck through like any other
+failure, because the unit held either way — and it says "illegal" in words,
+because "bounced" and "was never allowed" are two different stories and no
+shade of red tells them apart. The colour is the deeper of the two reds, so
+the list still reads as one family of outcomes.
+*/
+.review-row.illegal .order-text { text-decoration: line-through; }
+.review-why.illegal {
+  color: var(--illegal);
+  font-style: italic;
+}
+
 .events { list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--muted); }
 .events li { padding: 3px 0; border-bottom: 1px solid var(--line); }
 
@@ -517,6 +566,42 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
 /* The spectator screen carries the phase as its heading, so the heading takes
    the phase's size rather than the panel's. */
 .seat-head h1.phase-now { display: block; font-size: 25px; font-weight: 800; }
+
+/*
+The three words of the phase, each saying what it is (PhaseName.tsx).
+
+The gap is a margin rather than a flex gap because the line has to be able to
+wrap: "Spring 1901 Adjustment" does not fit a phone in one line at this size,
+and a flex row would either overflow it or shrink the type it is drawn at.
+*/
+.phase-season,
+.phase-year,
+.phase-type {
+  /* The line may wrap between the words and never inside one: the enclosing
+     rule breaks long words, which would leave "Movemen" over "t". */
+  white-space: nowrap;
+}
+
+.phase-season,
+.phase-year { margin-right: 0.3em; }
+
+.phase-season { color: var(--phase-season-other); }
+.phase-season.is-spring { color: var(--phase-spring); }
+.phase-season.is-fall { color: var(--phase-fall); }
+
+/* The year is the one word that asks nothing, so it keeps the neutral ink. */
+.phase-year { color: var(--text); }
+
+.phase-type { color: var(--text); }
+.phase-type.is-movement { color: var(--phase-movement); }
+.phase-type.is-retreat { color: var(--phase-retreat); }
+.phase-type.is-adjustment { color: var(--phase-adjustment); }
+
+/* In the review sheet the phase is a heading, not the page's loudest line, so
+   the same colours run at the heading's own size. */
+.review-head h2 .phase-season,
+.review-head h2 .phase-year,
+.review-head h2 .phase-type { font-weight: inherit; }
 
 @media (min-width: 900px) {
   .phase-now, .seat-head h1.phase-now { font-size: 28px; }
@@ -758,6 +843,78 @@ only closes a view, without reading either one.
   font-size: 13px;
 }
 
+/* --- the map's own controls ----------------------------------------------
+The bar that sits ON the map (MapToolbar.tsx). It is over the board, so it has
+to earn every pixel it covers: it hugs the top edge, it is half transparent
+until a pointer is near it, and it holds only switches that change what the
+map draws.
+*/
+.map-toolbar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  backdrop-filter: blur(6px);
+  opacity: 0.62;
+  transition: opacity 120ms ease-out;
+  max-width: calc(100% - 20px);
+  flex-wrap: wrap;
+}
+
+/* Quiet until it is wanted, and never quiet while it is being used: a control
+   the keyboard has reached must not be the one control nobody can see. */
+.map-toolbar:hover,
+.map-toolbar:focus-within { opacity: 1; }
+
+.map-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+/* A switch that is off says so by going the colour of the words around it,
+   not by disappearing: it is still the way back. */
+.map-tool.off { color: var(--muted); }
+.map-tool[aria-pressed="true"] { border-color: var(--accent); color: var(--text); }
+
+.map-tool-mark {
+  font-weight: 700;
+  font-size: 13px;
+  min-width: 1.2em;
+  text-align: center;
+}
+
+.map-toolbar .style-picker { gap: 6px; }
+.map-toolbar .style-picker select { padding: 5px 6px; }
+
+/* A phone has room for the marks and not for the words. The words are still
+   there for a screen reader and still in every title. */
+@media (max-width: 780px), (max-height: 500px) {
+  .map-toolbar {
+    top: 6px;
+    left: 6px;
+    gap: 4px;
+    padding: 4px;
+    opacity: 0.9;
+  }
+
+  .map-tool { padding: 7px 8px; }
+  .map-tool-word { display: none; }
+  .map-toolbar .style-picker-label { display: none; }
+}
+
 /* One row over the gallery: how big a table you want on the left, what the
    maps are drawn in on the right. It wraps rather than squeezing, so a phone
    gets two rows instead of a scrollbar. */
@@ -929,16 +1086,34 @@ kbd {
   text-transform: uppercase;
 }
 
-.arrows-toggle {
+/* A list's own heading row: what the list is, and the one switch that changes
+   how it is written. The switch is the list's, not the map's. */
+.list-head {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.list-head h2 { margin-bottom: 8px; }
+
+/* Small enough to be furniture until it is wanted, and wide enough to hit. */
+.notation-toggle {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--muted);
+  background: none;
+  border-radius: 5px;
   flex: 0 0 auto;
 }
 
-.arrows-toggle input { width: 16px; height: 16px; }
+.notation-toggle.on { color: var(--text); border-color: var(--accent); }
+
+/* In the review the switch shares a line with the count, so it sits on the
+   text baseline rather than starting a row of its own. */
+.review-head .notation-toggle { vertical-align: baseline; }
 
 /* Two ways into the last turn, side by side under the phase name. */
 .head-links { display: flex; gap: 14px; align-items: baseline; margin: 4px 0 0; }
@@ -1005,4 +1180,19 @@ to while it stands.
 
 @media (max-width: 780px), (max-height: 500px) {
   .referee-list li { font-size: 17px; }
+}
+
+/*
+Your own draft that the rules refuse (D-029), in the order list beside the
+board that draws it in the same amber. It is a thing you did on purpose, so it
+is not an error: no red, no icon, one line saying what it costs and what it
+buys.
+*/
+.list li.illegal .order-text { color: var(--illegal-draft); }
+
+.illegal-note {
+  display: block;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--muted);
 }

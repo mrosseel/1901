@@ -19,7 +19,7 @@ without a map.
 
 import type { PhaseKind } from "./phases";
 
-export type Outcome = "success" | "failed" | "retreat";
+export type Outcome = "success" | "failed" | "retreat" | "illegal";
 
 /** Which end of the scale the map's art sits at. */
 export type Ink = "dark" | "light";
@@ -35,6 +35,15 @@ const DARK_INK = "#10131a";
 const LIGHT_INK = "#f2efe6";
 const FAILED_RED = "#d8382a";
 const RETREAT_ORANGE = "#e8820c";
+/*
+An order the rules never allowed (D-029). It stays in the red family, because
+what happened to it is what happens to a failure — the unit held — but it is
+the deeper, duller red of the two, and the review says the word "illegal"
+beside it. Colour alone was never going to carry that difference: "bounced"
+and "was never legal" are two stories, and only one of them is about the
+board.
+*/
+const ILLEGAL_RED = "#a01f4d";
 
 /*
 The dark styles are named, not detected: the server publishes four styles and
@@ -53,7 +62,13 @@ went somewhere or was taken off, because orange is what "this is the retreat
 phase" looks like; a failure beats it, because a failed retreat is a unit that
 comes off the board and the table must not miss it.
 */
-export function outcomeOf(kind: PhaseKind, parts: string[], failed: boolean): Outcome {
+export function outcomeOf(
+  kind: PhaseKind,
+  parts: string[],
+  failed: boolean,
+  illegal = false,
+): Outcome {
+  if (illegal) return "illegal";
   if (failed) return "failed";
   if (kind === "retreat" && (parts[0] === "Move" || parts[0] === "Disband")) return "retreat";
   return "success";
@@ -62,6 +77,7 @@ export function outcomeOf(kind: PhaseKind, parts: string[], failed: boolean): Ou
 export function outcomePaint(outcome: Outcome, ink: Ink): OutcomePaint {
   const halo = ink === "dark" ? LIGHT_INK : DARK_INK;
   if (outcome === "failed") return { line: FAILED_RED, halo: halo };
+  if (outcome === "illegal") return { line: ILLEGAL_RED, halo: halo };
   if (outcome === "retreat") return { line: RETREAT_ORANGE, halo: halo };
   return { line: ink === "dark" ? DARK_INK : LIGHT_INK, halo: halo };
 }

@@ -20,6 +20,7 @@ const API = env?.API_TARGET || "http://localhost:8190";
 const endpoints =
   "^/(games$" +
   "|variants$|variants/[^/]+/map\\.svg" + // the variant catalogue and its maps
+  "|styles$" + // the map styles this server can draw in
   "|g/" +
   "|map\\.svg|state|options|order|adjudicate" + // the M0 sandbox's own routes
   // The spectator page stays with vite; its feed goes to Go.

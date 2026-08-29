@@ -40,6 +40,9 @@ export interface Placement {
 
 export interface BoardState {
   phase?: PhaseInfo;
+  /* The rules this game runs under, of which the board needs one: whether an
+     order the variant refuses may be written anyway (D-029, illegal.ts). */
+  settings?: { illegalMoves?: boolean };
   units?: Record<string, Unit>;
   /** The variant's approved marker positions, when the server has a table. */
   placements?: Record<string, Placement> | null;
@@ -101,6 +104,12 @@ export interface BoardCallbacks {
   state(state: BoardState): void;
   /** Which order is singled out on the map, so a list can match it. */
   select(province: string | null): void;
+  /*
+  The provinces whose drafted order this page knows is illegal (D-029). It is
+  this device's knowledge of its own draft and it goes no further: the panel
+  marks the rows, and nothing about the mark is sent anywhere.
+  */
+  illegal?(provinces: string[]): void;
   /** Refuses a unit before any request is made. Seat mode says "not mine". */
   canOrder?(province: string, unit: Unit | undefined): boolean;
   /** The message shown when canOrder refuses. */
@@ -121,6 +130,8 @@ export interface ReviewDraw {
   powers: Record<string, string>;
   /** The provinces whose order did not come off. */
   failed: string[];
+  /** Of those, the ones the rules never allowed (D-029). Absent means none. */
+  illegal?: string[];
   /** Units thrown out by this adjudication, ringed where they stood. */
   dislodged: Record<string, Unit>;
   /* The map style this device draws in. It decides nothing but the ink: a
@@ -142,6 +153,8 @@ export interface BoardHandle {
   press(key: string): boolean;
   /** Hides this device's own pending order arrows while its player thinks. */
   setHideOrders(on: boolean): void;
+  /** Draws province codes on the map instead of the variant's full names. */
+  setBriefLabels(on: boolean): void;
   /** Backs out one step: the chip, then a half-built support, then the order. */
   escape(): void;
   /** Drops the order for a province. */

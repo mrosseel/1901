@@ -164,3 +164,40 @@ describe("what this device has read", () => {
     Object.defineProperty(window, "localStorage", { configurable: true, value: store });
   });
 });
+
+describe("an illegal order in the review", () => {
+  const previous = {
+    phase: { season: "Spring", year: 1901, type: "Movement" },
+    orders: { par: "Army Paris Move Moscow", bur: "Army Burgundy Move Munich" },
+    orderParts: { par: ["Move", "mos"], bur: ["Move", "mun"] },
+    powers: { par: "France", bur: "France" },
+    resolutions: { par: "IllegalOrder", bur: "ErrBounce:mun" },
+    dislodged: {},
+    nmr: [],
+  };
+
+  it("counts as a failure, and says which kind in its own words", () => {
+    const plan = reviewPlan(previous)!;
+    const par = plan.rows.find((row) => row.province === "par")!;
+    const bur = plan.rows.find((row) => row.province === "bur")!;
+    expect(par.failed).toBe(true);
+    expect(par.illegal).toBe(true);
+    expect(par.reason).toBe("illegal — the unit held");
+    expect(bur.failed).toBe(true);
+    expect(bur.illegal).toBe(false);
+    expect(bur.reason).not.toBe(par.reason);
+  });
+
+  it("is in both sets, so the map can colour it apart", () => {
+    const plan = reviewPlan(previous)!;
+    expect(plan.failed.has("par")).toBe(true);
+    expect(plan.illegal.has("par")).toBe(true);
+    expect(plan.illegal.has("bur")).toBe(false);
+  });
+
+  it("leaves the count alone: it is one order that did not come off", () => {
+    const plan = reviewPlan(previous)!;
+    expect(plan.ordered).toBe(2);
+    expect(plan.succeeded).toBe(0);
+  });
+});

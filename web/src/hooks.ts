@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { illegalAllowed } from "./illegal";
+
 /*
 Runs a job now and every `ms` after that, and stops while the tab is hidden so
 a phone in a pocket does not keep asking. The job is read from a ref, so a
@@ -47,7 +49,11 @@ export function useTicker(enabled = true): void {
 export { countdown } from "./clock";
 
 /** The rules, as two plain sentences. */
-export function settingsLines(settings: { deadlineMinutes: number; gmPlays: boolean } | undefined): string[] {
+export function settingsLines(
+  settings:
+    | { deadlineMinutes: number; gmPlays: boolean; illegalMoves?: boolean }
+    | undefined,
+): string[] {
   const rules = settings || { deadlineMinutes: 0, gmPlays: false };
   return [
     rules.deadlineMinutes > 0
@@ -56,5 +62,11 @@ export function settingsLines(settings: { deadlineMinutes: number; gmPlays: bool
     rules.gmPlays
       ? "The game master plays a power as well."
       : "The game master does not play a power.",
+    /* Only the change is worth a line. Allowing illegal orders is what paper
+       does, so it is the quiet case; refusing them is the rule a table has
+       chosen and the one a player needs told (D-029). */
+    illegalAllowed(rules)
+      ? "Illegal orders may be written; they resolve as holds."
+      : "Only legal orders are accepted.",
   ];
 }

@@ -148,3 +148,83 @@ export function phaseLabel(phase: BoardState["phase"]): string {
   if (!phase) return "—";
   return [phase.season, phase.year, phase.type].filter(Boolean).join(" ") || "—";
 }
+
+/*
+The phase line, split into the three things it says.
+
+"Spring 1901 Movement" is read as one word by a player who already knows the
+game and as an undifferentiated string by one who does not — and the two halves
+answer different questions. The season and the type are the ones that change
+what a player must do; the year is the one that never does. So each of the two
+gets its own colour on screen and the year stays in the neutral ink, which
+needs the label taken apart rather than printed.
+
+Splitting is done here rather than in the component because the review sheet
+has only the label string to work from — the phase it belongs to has already
+been resolved and put away — and one splitter that both callers use is the only
+way the seat and the review can be sure to agree.
+*/
+export interface PhaseWords {
+  season: string;
+  year: string;
+  /** "Movement", "Retreat", "Adjustment" — or "" on a variant that names none. */
+  type: string;
+}
+
+const PHASE_TYPES = ["Movement", "Retreat", "Adjustment"];
+
+/** The three parts of a phase, straight from the phase itself. */
+export function phaseWords(phase: BoardState["phase"]): PhaseWords {
+  if (!phase) return { season: "", year: "—", type: "" };
+  return {
+    season: String(phase.season || ""),
+    year: phase.year === undefined || phase.year === null ? "" : String(phase.year),
+    type: String(phase.type || ""),
+  };
+}
+
+/*
+The same three parts, recovered from a label that was already built.
+
+Only a known phase type is taken off the end. A variant that runs a phase this
+build has never heard of keeps its whole label in the neutral ink, which says
+less than a colour would but says nothing false.
+*/
+export function splitPhaseLabel(label: string): PhaseWords {
+  const text = String(label || "").trim();
+  const type = PHASE_TYPES.find(
+    (one) => text.length > one.length && text.slice(-one.length) === one,
+  );
+  if (!type) return { season: text, year: "", type: "" };
+  const lead = text.slice(0, text.length - type.length).trim();
+  const space = lead.lastIndexOf(" ");
+  if (space === -1) return { season: lead, year: "", type: type };
+  return { season: lead.slice(0, space), year: lead.slice(space + 1), type: type };
+}
+
+/*
+Which of the three phase types a word names, as a class name suffix, or "" for
+one this build does not colour.
+*/
+export function phaseTypeKey(type: string): string {
+  const word = String(type || "").toLowerCase();
+  return PHASE_TYPES.some((one) => one.toLowerCase() === word) ? word : "";
+}
+
+/*
+Which season a word names, for its colour.
+
+Seasons are the variant's business, not this build's: godip's classical runs
+Spring and Fall, other variants run one unnamed season a year and some run
+four. So the two that nearly every variant shares get a colour of their own and
+everything else gets one shared "other season" colour — a season still told
+apart from the year and the type beside it, without this file pretending to
+know a list it does not have.
+*/
+export function seasonKey(season: string): string {
+  const word = String(season || "").trim().toLowerCase();
+  if (!word) return "";
+  if (word === "spring") return "spring";
+  if (word === "fall" || word === "autumn") return "fall";
+  return "other";
+}
