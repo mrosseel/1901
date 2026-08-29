@@ -36,6 +36,18 @@ export interface Placement {
   scale: number;
   /** Where a unit thrown out of this province stands until it retreats. */
   dislodged: [number, number];
+  /*
+  Where the province's three-letter code goes when brief labels are on.
+
+  Brief mode hides the full names, so the code is measured against the pieces,
+  the supply centre glyph and the province border, and against nothing else.
+  "The pieces" means every unit marker near enough to reach it, not only this
+  province's: a province is small and a marker is not, so the piece a code
+  lands on is as often the neighbour's. It is absent on a coast key — the
+  board writes one code per base province — and on a map that ships its own
+  brief labels, where the board shows the map's layer and draws nothing.
+  */
+  brief?: [number, number];
 }
 
 export interface BoardState {

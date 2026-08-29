@@ -41,17 +41,28 @@ export function PhaseName({
   const season = seasonKey(words.season);
   const type = phaseTypeKey(words.type);
 
+  /*
+  Two fixed lines, so walking a game's history never reflows the header:
+  the year on top, then "Spring Movement" — always the same shape whatever
+  the words are. Movement wears the season's own colour (the season is the
+  story in a movement phase); a retreat is the same warning colour in
+  spring and fall alike, and an adjustment likewise its own.
+  */
+  const typeClass = ["phase-type"];
+  if (type) typeClass.push("is-" + type);
+  if (type === "movement") typeClass.push(season ? "sn-" + season : "sn-other");
+
   return (
-    <>
-      {words.season ? (
-        <span className={season ? "phase-season is-" + season : "phase-season"}>
-          {words.season}
-        </span>
-      ) : null}
-      {words.year ? <span className="phase-year">{words.year}</span> : null}
-      {words.type ? (
-        <span className={type ? "phase-type is-" + type : "phase-type"}>{words.type}</span>
-      ) : null}
-    </>
+    <span className="phase-lines">
+      <span className="phase-year">{words.year || "\u00a0"}</span>
+      <span className="phase-words">
+        {words.season ? (
+          <span className={season ? "phase-season is-" + season : "phase-season"}>
+            {words.season}
+          </span>
+        ) : null}
+        {words.type ? <span className={typeClass.join(" ")}>{words.type}</span> : null}
+      </span>
+    </span>
   );
 }

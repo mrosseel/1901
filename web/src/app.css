@@ -612,18 +612,26 @@ and a flex row would either overflow it or shrink the type it is drawn at.
   white-space: nowrap;
 }
 
-.phase-season,
-.phase-year { margin-right: 0.3em; }
+.phase-season { margin-right: 0.3em; }
+
+/* Two fixed lines: the year, then the phase words. Block spans with steady
+   line heights, so stepping through a game's history never moves a button. */
+.phase-lines { display: block; }
+.phase-year { display: block; color: var(--text); line-height: 1.05; }
+.phase-words { display: block; line-height: 1.15; }
 
 .phase-season { color: var(--phase-season-other); }
 .phase-season.is-spring { color: var(--phase-spring); }
 .phase-season.is-fall { color: var(--phase-fall); }
 
-/* The year is the one word that asks nothing, so it keeps the neutral ink. */
-.phase-year { color: var(--text); }
-
 .phase-type { color: var(--text); }
-.phase-type.is-movement { color: var(--phase-movement); }
+/* Movement takes the season's colour: in a movement phase the season is the
+   whole story, and "Spring Movement" reads as one thing. */
+.phase-type.is-movement.sn-spring { color: var(--phase-spring); }
+.phase-type.is-movement.sn-fall { color: var(--phase-fall); }
+.phase-type.is-movement.sn-other { color: var(--phase-season-other); }
+/* A retreat is the same colour in spring and fall: it is a state, not a
+   season. Likewise the adjustment. */
 .phase-type.is-retreat { color: var(--phase-retreat); }
 .phase-type.is-adjustment { color: var(--phase-adjustment); }
 

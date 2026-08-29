@@ -1059,6 +1059,63 @@ describe("province codes on the map", () => {
     seat.board.destroy();
   });
 
+  it("puts a code where the table says, not at the offset it would guess", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(
+      { ...MOVEMENT_STATE, placements: { ...PLACEMENTS, vie: { ...PLACEMENTS.vie, brief: [640, 770] } } },
+      emptyPlan("Austria"),
+    );
+    seat.board.setBriefLabels(true);
+
+    const vie = Array.from(document.querySelectorAll("#brief-labels text")).find(
+      (node) => node.textContent === "VIE",
+    )!;
+    expect(vie.getAttribute("x")).toBe("640");
+    expect(vie.getAttribute("y")).toBe("770");
+    seat.board.destroy();
+  });
+
+  /* Two things the offset heuristic cannot do, and the table can: keep a code
+     still while a unit moves in and out, and answer for a province the table
+     places but says nothing about the code for. */
+  it("keeps a measured code still whether or not a unit stands there", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    const table = { ...PLACEMENTS, rom: { unit: [900, 900] as [number, number], scale: 1, dislodged: [930, 870] as [number, number], brief: [900, 940] as [number, number] } };
+    seat.board.update({ ...MOVEMENT_STATE, placements: table }, emptyPlan("Austria"));
+    seat.board.setBriefLabels(true);
+
+    const codeY = () =>
+      Array.from(document.querySelectorAll("#brief-labels text"))
+        .find((node) => node.textContent === "ROM")!
+        .getAttribute("y");
+    const empty = codeY();
+    seat.board.update(
+      { ...MOVEMENT_STATE, units: { ...MOVEMENT_STATE.units, rom: { type: "Army", nation: "Italy" } }, placements: table },
+      emptyPlan("Austria"),
+    );
+    expect(codeY()).toBe(empty);
+    expect(empty).toBe("940");
+    seat.board.destroy();
+  });
+
+  it("falls back to the offset heuristic where the table has no code", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    // Vienna is placed but carries no brief position, so the board draws the
+    // code at the marker itself — an occupied province gets the offset.
+    seat.board.update({ ...MOVEMENT_STATE, placements: PLACEMENTS }, emptyPlan("Austria"));
+    seat.board.setBriefLabels(true);
+
+    const vie = Array.from(document.querySelectorAll("#brief-labels text")).find(
+      (node) => node.textContent === "VIE",
+    )!;
+    expect(vie.getAttribute("x")).toBe("712");
+    expect(Number(vie.getAttribute("y"))).toBeGreaterThan(812);
+    seat.board.destroy();
+  });
+
   /* A switch flipped before the map has arrived must not throw: a device with
      a saved preference sets it on the very first render. */
   it("survives being set before the map has loaded", async () => {

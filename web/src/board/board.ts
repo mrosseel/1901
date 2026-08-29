@@ -730,12 +730,26 @@ export function mount(
         const point = centerOf(province);
         if (!point) return;
         const rp = r * scaleOf(province);
+        /*
+        The approved table's answer when it has one, and the offset heuristic
+        when it does not.
+
+        A measured position beats the heuristic on everything the heuristic
+        cannot see: whether the spot below the marker is still inside the
+        province, whether it is under the supply centre glyph, and whether it
+        is under a NEIGHBOURING province's marker, which is where most of the
+        collisions were. It is also one position rather than two, because it
+        is already clear of this province's own marker — so a code no longer
+        jumps when a unit moves in or out.
+        */
+        const held = placementOf(province)?.brief;
+        const spot = Array.isArray(held) ? held : null;
+        const at = spot
+          ? { x: spot[0], y: spot[1] }
+          : { x: point.x, y: standing[province] ? point.y + rp * 1.95 : point.y };
         const text = document.createElementNS(SVG_NS, "text");
-        text.setAttribute("x", String(point.x));
-        /* A code under an occupied province's marker, and in the middle of an
-           empty one: the anchor is where the marker goes, so on an occupied
-           province it is the one place the code cannot be read. */
-        text.setAttribute("y", String(standing[province] ? point.y + rp * 1.95 : point.y));
+        text.setAttribute("x", String(at.x));
+        text.setAttribute("y", String(at.y));
         text.setAttribute("font-size", String(r * 0.95));
         text.setAttribute("stroke-width", String(r * 0.16));
         text.setAttribute("class", "brief-label " + (ink === "dark" ? "on-light" : "on-dark"));
