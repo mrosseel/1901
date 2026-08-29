@@ -32,14 +32,21 @@ var localVariants = []common.Variant{
 	sailhocrowded.SailHoCrowdedVariant,
 }
 
-// allVariants is every variant this server can play: godip's own, the ones
-// translated from jDip, and any loaded from disk at startup (generated.go).
-func allVariants() []common.Variant {
-	generated := generatedVariantList()
-	out := make([]common.Variant, 0,
-		len(variants.OrderedVariants)+len(localVariants)+len(generated))
+// compiledVariants is every variant built into the binary: godip's own and the
+// ones translated from jDip. It never changes while the server runs.
+func compiledVariants() []common.Variant {
+	out := make([]common.Variant, 0, len(variants.OrderedVariants)+len(localVariants))
 	out = append(out, variants.OrderedVariants...)
 	out = append(out, localVariants...)
+	return out
+}
+
+// allVariants is every variant this server can play: the compiled ones and any
+// loaded from disk at startup (generated.go).
+func allVariants() []common.Variant {
+	generated := generatedVariantList()
+	out := make([]common.Variant, 0, len(compiledVariants())+len(generated))
+	out = append(out, compiledVariants()...)
 	out = append(out, generated...)
 	return out
 }
@@ -63,18 +70,36 @@ func variantKey(name string) string {
 }
 
 var (
-	byKey     = map[string]common.Variant{}
-	byKeyOnce sync.Once
+	byKeyMu sync.Mutex
+	byKey   map[string]common.Variant
 )
+
+// rebuildVariantIndex rebuilds the key index from scratch.
+//
+// It has to be a rebuild rather than a one-time build: generated variants
+// arrive from disk after the process starts, and an index built before they
+// load would never contain them. A game saved on one would then fail to load
+// with "unknown variant".
+func rebuildVariantIndex() {
+	byKeyMu.Lock()
+	defer byKeyMu.Unlock()
+	index := map[string]common.Variant{}
+	for _, v := range allVariants() {
+		index[variantKey(v.Name)] = v
+	}
+	byKey = index
+}
 
 // lookupVariant resolves a key to its godip variant.
 func lookupVariant(key string) (common.Variant, bool) {
-	byKeyOnce.Do(func() {
-		for _, v := range allVariants() {
-			byKey[variantKey(v.Name)] = v
-		}
-	})
+	byKeyMu.Lock()
+	if byKey == nil {
+		byKeyMu.Unlock()
+		rebuildVariantIndex()
+		byKeyMu.Lock()
+	}
 	v, found := byKey[key]
+	byKeyMu.Unlock()
 	return v, found
 }
 

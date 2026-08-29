@@ -27,6 +27,8 @@ func withGeneratedDir(t *testing.T, dir string) {
 	t.Cleanup(func() {
 		generatedVariants = savedVariants
 		placements = savedPlacements
+		// The key index caches whatever was loaded, so it has to follow.
+		rebuildVariantIndex()
 	})
 }
 
@@ -125,6 +127,30 @@ func TestGeneratedVariantJoinsTheRegistry(t *testing.T) {
 	}
 	if !found {
 		t.Error("a loaded generated variant must appear in allVariants()")
+	}
+}
+
+// TestLookupFindsAGeneratedVariant guards a bug that reached the tree: the key
+// index was built once, and loading generated variants consulted it before
+// registering them. The index then never contained them, so every saved game
+// on a generated map failed to load with "unknown variant".
+func TestLookupFindsAGeneratedVariant(t *testing.T) {
+	withGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatalf("loadGeneratedVariants: %v", err)
+	}
+
+	v, found := lookupVariant("demo7")
+	if !found {
+		t.Fatal("lookupVariant must find a generated variant")
+	}
+	if variantKey(v.Name) != "demo7" {
+		t.Errorf("lookupVariant returned %q", v.Name)
+	}
+
+	// The compiled variants must still resolve alongside it.
+	if _, found := lookupVariant("classical"); !found {
+		t.Error("loading generated variants must not hide the compiled ones")
 	}
 }
 
@@ -368,5 +394,141 @@ func TestHashRoundTripsThroughTheDatabase(t *testing.T) {
 	}
 	if stored == "" {
 		t.Error("a generated variant must record a hash")
+	}
+}
+
+// TestEveryLoadedVariantPlays walks whatever is in GENERATED_VARIANTS and
+// checks each one start to finish. Point it at a directory of exports to
+// confirm a batch survived.
+func TestEveryLoadedVariantPlays(t *testing.T) {
+	dir := os.Getenv("VARIANT_BATCH")
+	if dir == "" {
+		dir = filepath.Join("testdata", "generated")
+	}
+	withGeneratedDir(t, dir)
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatalf("loadGeneratedVariants: %v", err)
+	}
+	if len(generatedVariants) == 0 {
+		t.Fatalf("no variants found in %v", dir)
+	}
+
+	for key, gen := range generatedVariants {
+		t.Run(key, func(t *testing.T) {
+			state, err := gen.Variant.Start()
+			if err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+
+			units := map[godip.Nation]int{}
+			for _, u := range state.Units() {
+				units[u.Nation]++
+			}
+			if len(units) != len(gen.Variant.Nations) {
+				t.Errorf("%d nations declared but %d have units",
+					len(gen.Variant.Nations), len(units))
+			}
+			first := units[gen.Variant.Nations[0]]
+			for _, nation := range gen.Variant.Nations {
+				if units[nation] != first {
+					t.Errorf("%v starts with %d units, %v with %d",
+						nation, units[nation], gen.Variant.Nations[0], first)
+				}
+			}
+
+			// Three phases exercises movement, retreat and build.
+			for i := 0; i < 3; i++ {
+				if err := state.Next(); err != nil {
+					t.Fatalf("phase %d: %v", i+1, err)
+				}
+			}
+			t.Logf("%d provinces, %d nations, reached %v",
+				len(gen.Variant.Graph().Provinces()), len(gen.Variant.Nations),
+				state.Phase())
+		})
+	}
+}
+
+// TestSavedGameRefusesAChangedMap is the check the whole hashing story rests
+// on, taken through the real load path rather than the helper.
+//
+// A game replays its order history against the variant's starting position. If
+// the descriptor changed since the game began, that replay lands on a board the
+// players never saw, so loadAll must refuse rather than restore it.
+func TestSavedGameRefusesAChangedMap(t *testing.T) {
+	dir := copyVariant(t, "demo7")
+	withGeneratedDir(t, dir)
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatal(err)
+	}
+
+	handle, err := openDB(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("openDB: %v", err)
+	}
+	savedDB := db
+	savedGames := games.games
+	db = handle
+	games.games = map[string]*game{}
+	t.Cleanup(func() {
+		db = savedDB
+		games.games = savedGames
+		handle.Close()
+	})
+
+	variant := generatedVariants["demo7"].Variant
+	g, err := newGame("demo7", variant)
+	if err != nil {
+		t.Fatalf("newGame: %v", err)
+	}
+	f, err := newFlow(settings{Variant: "demo7"}.normalised(), variant)
+	if err != nil {
+		t.Fatalf("newFlow: %v", err)
+	}
+	g.flow = f
+	if err := g.persistErr("game-1"); err != nil {
+		t.Fatalf("persistErr: %v", err)
+	}
+
+	// The same descriptor still loads.
+	games.games = map[string]*game{}
+	if err := loadAll(); err != nil {
+		t.Fatalf("an unchanged descriptor must still load the game: %v", err)
+	}
+	if _, ok := games.games["game-1"]; !ok {
+		t.Fatal("the game did not come back")
+	}
+
+	// Now somebody edits the map under the running game.
+	path := filepath.Join(dir, "demo7", "variant.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited := strings.Replace(string(raw), `"version": "1"`, `"version": "2"`, 1)
+	if edited == string(raw) {
+		t.Fatal("could not edit the sample descriptor")
+	}
+	if err := os.WriteFile(path, []byte(edited), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	generatedVariants = map[string]generatedVariant{}
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatal(err)
+	}
+
+	games.games = map[string]*game{}
+	err = loadAll()
+	if err == nil {
+		t.Fatal("a changed descriptor must stop the saved game loading")
+	}
+	for _, want := range []string{"game-1", "demo7"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error should name %q, got: %v", want, err)
+		}
+	}
+	if len(games.games) != 0 {
+		t.Error("no game may be restored once the map has changed")
 	}
 }
