@@ -509,6 +509,27 @@ and Firefox. And `#FullLabelLayer text { stroke:none }` outranks
 correcting the scale changes no pixel today. Correcting the units first, with
 the scale still wrong, would have made 1900's names genuinely unreadable.
 
+**A name has a smallest readable size.** A converted map's label sizes are
+jDip's own, with one exception. jDip grades 1900's classes from 6 to 14 units
+on a map 761 units wide, and the board fits that map to a pane about 1072px
+wide, so a 6-unit name lands at 8.5 screen pixels before any zoom. Those were
+the unreadable province names, and the sea names beside them looked fine
+because they were drawn at 14. Any class under 1.15% of the map's width is
+drawn at 1.15% instead, which puts the smallest name near 12 screen pixels at
+the default fit. On 1900 that lifts 6 and 8 to 8.752 and leaves 10, 12 and 14
+exactly as measured.
+
+It is a floor and not a rescale, and that difference is the whole decision.
+Rescaling the band onto a legible minimum grows the names that already fit,
+and the Low Countries and the German coast turn into overlapping text. A class
+above the floor keeps the box its placement was measured against.
+
+`restyle.go` computes the floor from the map's own viewBox width and the scale
+of the layer the rule lands in, so it cannot drift from the art and no plan
+records it. Sail Ho's smallest class is 120 units on a 7300-unit map against a
+floor of 83.95, so both Sail Hos come out byte-identical in all four styles,
+as does every godip map: of 130 served SVGs, only 1900's four styles change.
+
 **Staleness is loud.** A plan names the SHA-256 of the art it was measured on.
 A godip upgrade that redraws a map makes its plan stale, because a fill value
 measured on the old picture may paint something else in the new one. Such a
@@ -1319,4 +1340,4 @@ Recorded so nobody re-derives them.
 | r22 | 2026-08-29 | D-030 implemented: /mapeditor in-app — variant picker, draggable unit/dislodged/brief markers, live violation audit sharing tools/placement rules (rules.ts split out), drag telemetry, province display-name overrides (names/{key}.json over ProvinceLongNames), stable-diff export, disk save only under -tags mapeditordev into .hand files the server never loads. Editor reads terrain from godip, exposing colour-guess faults in the offline audit (open item). |
 | r23 | 2026-08-29 | D-031: Leaflet rejected after a working spike — 46 KB gz for ~460 replaceable lines, plus a zoomed-SVG layout-box risk on phones. Four gesture fixes adopted instead: wheel deltaMode normalisation (Firefox wheel zoom was dead), pan inertia, eased double-tap zoom, wheel debounce. |
 | r24 | 2026-08-29 | Placement optimizer terrain bug: the fill-colour probe measured a hidden map and called almost all land sea on every variant, so coast rules never fired. Terrain now comes from /variants/{key}/provinces.json in tool and editor alike; 22 tables re-derived (containment faults 93 to 10, dislodged-outside 71 to 1), classical patched on bul/ec and bul/sc only. |
-| r25 | 2026-08-29 | D-026 amended: a length is carried onto the scale of the layer it lands in, not the map's; `jdipPlan` gains `labelScale`, derived from the art when a plan omits it. Two dormant faults recorded: jDip label lengths are emitted unitless and inert, and the label layer's `stroke:none` outranks the halo rule. D-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay. D-030 superseded in ownership. D-032: converted maps are given supply-centre rings they never carried. D-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges. |
+| r25 | 2026-08-29 | D-026 amended: a converted label class under 1.15% of the map's width is lifted to that floor, which is what made 1900's province names readable; classes already above it keep the size their placement was measured against. Also: a length is carried onto the scale of the layer it lands in, not the map's; `jdipPlan` gains `labelScale`, derived from the art when a plan omits it. Two dormant faults recorded: jDip label lengths are emitted unitless and inert, and the label layer's `stroke:none` outranks the halo rule. D-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay. D-030 superseded in ownership. D-032: converted maps are given supply-centre rings they never carried. D-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges. |
