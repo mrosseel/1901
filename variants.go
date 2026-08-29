@@ -32,11 +32,15 @@ var localVariants = []common.Variant{
 	sailhocrowded.SailHoCrowdedVariant,
 }
 
-// allVariants is every variant this server can play.
+// allVariants is every variant this server can play: godip's own, the ones
+// translated from jDip, and any loaded from disk at startup (generated.go).
 func allVariants() []common.Variant {
-	out := make([]common.Variant, 0, len(variants.OrderedVariants)+len(localVariants))
+	generated := generatedVariantList()
+	out := make([]common.Variant, 0,
+		len(variants.OrderedVariants)+len(localVariants)+len(generated))
 	out = append(out, variants.OrderedVariants...)
 	out = append(out, localVariants...)
+	out = append(out, generated...)
 	return out
 }
 

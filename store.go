@@ -137,6 +137,9 @@ var gameColumns = []struct{ name, definition string }{
 	{"press_mode", `TEXT NOT NULL DEFAULT '` + defaultPressMode + `'`},
 	{"gm_device", `TEXT NOT NULL DEFAULT ''`},
 	{"illegal_moves", `INTEGER NOT NULL DEFAULT 1`},
+	// The descriptor hash a generated variant had when the game started.
+	// Empty for a compiled variant, which changes only when the binary does.
+	{"variant_hash", `TEXT NOT NULL DEFAULT ''`},
 }
 
 // orderColumns are the columns a game_order row has grown, in the same shape
@@ -218,8 +221,9 @@ func (self *game) persistErr(id string) error {
                           settings_version, started, deadline_at, gm_power,
                           phase_index, created_at, variant,
                           retreat_build_percent, grace_minutes,
-                          first_turn_extra_minutes, press_mode)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          first_turn_extra_minutes, press_mode, illegal_moves,
+                          variant_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             gm_device        = excluded.gm_device,
             deadline_minutes = excluded.deadline_minutes,
@@ -233,12 +237,14 @@ func (self *game) persistErr(id string) error {
             grace_minutes            = excluded.grace_minutes,
             first_turn_extra_minutes = excluded.first_turn_extra_minutes,
             press_mode               = excluded.press_mode,
-            illegal_moves            = excluded.illegal_moves`,
+            illegal_moves            = excluded.illegal_moves,
+            variant_hash             = excluded.variant_hash`,
 		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
 		f.settings.RetreatBuildPercent, f.settings.GraceMinutes,
-		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves)
+		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves,
+		variantHash(self.variantKey))
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
@@ -339,7 +345,7 @@ func loadAll() error {
                settings_version, started, deadline_at, gm_power, phase_index,
                created_at, COALESCE(variant, ?),
                retreat_build_percent, grace_minutes, first_turn_extra_minutes,
-               COALESCE(press_mode, ?), illegal_moves
+               COALESCE(press_mode, ?), illegal_moves, COALESCE(variant_hash, '')
         FROM game`, defaultVariant, defaultPressMode)
 	if err != nil {
 		return err
@@ -357,14 +363,14 @@ func loadAll() error {
 			bySeatToken: map[string]godip.Nation{},
 			byDevice:    map[string]godip.Nation{},
 		}
-		var id, gmPower, createdAt, key string
+		var id, gmPower, createdAt, key, recordedHash string
 		var deadline sql.NullString
 		var phaseIndex int
 		if err := rows.Scan(&id, &f.gmToken, &f.inviteToken, &f.gmDevice, &f.settings.DeadlineMinutes,
 			&f.settings.GMPlays, &f.settingsVersion, &f.started, &deadline, &gmPower,
 			&phaseIndex, &createdAt, &key, &f.settings.RetreatBuildPercent,
 			&f.settings.GraceMinutes, &f.settings.FirstTurnExtraMinutes,
-			&f.settings.PressMode, &f.settings.IllegalMoves); err != nil {
+			&f.settings.PressMode, &f.settings.IllegalMoves, &recordedHash); err != nil {
 			rows.Close()
 			return err
 		}
@@ -372,6 +378,13 @@ func loadAll() error {
 		if !found {
 			rows.Close()
 			return fmt.Errorf("game %v names unknown variant %q", id, key)
+		}
+		// A game replays its whole order history against the variant's start
+		// position. If a generated descriptor changed underneath it, that
+		// replay lands on a board the players never saw.
+		if err := checkVariantHash(id, key, recordedHash); err != nil {
+			rows.Close()
+			return err
 		}
 		f.settings.Variant = key
 		f.settings = f.settings.normalised()

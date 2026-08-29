@@ -660,6 +660,12 @@ func main() {
 	if err := loadPlacements(); err != nil {
 		log.Fatalf("load placements: %v", err)
 	}
+	// Generated variants come off disk rather than out of the binary. They
+	// register their own placement tables, so they load after the compiled
+	// tables and before anything resolves a variant key.
+	if err := loadGeneratedVariants(); err != nil {
+		log.Fatalf("load generated variants: %v", err)
+	}
 	// The display-name overrides that ride on top of godip's own names, for
 	// the same reason and on the same terms.
 	if err := loadNameOverrides(); err != nil {
