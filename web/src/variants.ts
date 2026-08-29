@@ -117,10 +117,10 @@ export interface PowerBand {
 
 export const POWER_BANDS: PowerBand[] = [
   { id: "all", label: "All", min: 0, max: 0 },
-  { id: "2", label: "2", min: 2, max: 2 },
-  { id: "3-4", label: "3–4", min: 3, max: 4 },
-  { id: "5-7", label: "5–7", min: 5, max: 7 },
-  { id: "8+", label: "8+", min: 8, max: 0 },
+  { id: "2", label: "2 players", min: 2, max: 2 },
+  { id: "3-4", label: "3–4 players", min: 3, max: 4 },
+  { id: "5-7", label: "5–7 players", min: 5, max: 7 },
+  { id: "8+", label: "8+ players", min: 8, max: 0 },
 ];
 
 export function inBand(powerCount: number, band: string): boolean {

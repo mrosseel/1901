@@ -39,11 +39,10 @@ export function StylePicker({
     <label className="style-picker">
       <span className="style-picker-label">{label}</span>
       <select
-        value={chosen}
+        value={chosen || "parchment"}
         title={current ? current.description : "The style this device draws maps in"}
         onChange={(event) => onChange(event.target.value)}
       >
-        <option value="">Default</option>
         {styles.map((one) => (
           <option key={one.name} value={one.name} title={one.description}>
             {one.title}

@@ -105,6 +105,7 @@ function MapPreview({
           onError={() => setFailed(true)}
         />
       ) : null}
+      <span className="map-zoom-chip" aria-hidden="true">⤢</span>
     </button>
   );
 }
@@ -190,7 +191,7 @@ function VariantCardView({
       */}
       <button
         type="button"
-        className="link"
+        className="link notes-toggle"
         data-no-select="yes"
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
