@@ -4,6 +4,8 @@ package main
 // and art that arrived as a file. Each test here is a way SVG executes.
 
 import (
+	"encoding/xml"
+	"io"
 	"strings"
 	"testing"
 )
@@ -174,5 +176,62 @@ func TestSanitisingIsIdempotent(t *testing.T) {
 	twice := sanitize(t, once)
 	if once != twice {
 		t.Errorf("a second pass changed the art:\n%s\n%s", once, twice)
+	}
+}
+
+// ---- the output has to be a document a browser will draw -------------------
+
+// parses reports whether the sanitised art is well-formed XML. An <img> tag
+// parses SVG strictly: anything malformed simply does not draw, and the
+// gallery shows "The map for this variant could not be drawn."
+func parses(t *testing.T, svg string) error {
+	t.Helper()
+	decoder := xml.NewDecoder(strings.NewReader(svg))
+	for {
+		_, err := decoder.Token()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func TestOutputIsWellFormed(t *testing.T) {
+	// Leading whitespace and an XML declaration are both normal in real art.
+	raw := "<?xml version=\"1.0\"?>\n\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n" +
+		"\t<g id=\"provinces\">\n\t\t<polygon id=\"a\" points=\"0,0\"/>\n\t</g>\n" +
+		"\t<g id=\"province-centers\"><path id=\"aCenter\" d=\"m 1,1\"/></g>\n</svg>\n"
+	clean := sanitize(t, raw)
+
+	if err := parses(t, clean); err != nil {
+		t.Fatalf("sanitised art must parse: %v\n%s", err, clean)
+	}
+	if !strings.HasPrefix(clean, "<svg") {
+		t.Errorf("a document may not begin with character data:\n%.80s", clean)
+	}
+}
+
+// TestWhitespaceSurvivesUnmangled guards the bug that produced the blank maps:
+// escaping every newline into &#xA; both bloated the art and, before the root
+// element, made it unparseable.
+func TestWhitespaceSurvivesUnmangled(t *testing.T) {
+	clean := sanitize(t, "<svg><g id=\"provinces\">\n\t<text>a\nb</text>\n</g></svg>")
+	if strings.Contains(clean, "&#xA;") || strings.Contains(clean, "&#x9;") {
+		t.Errorf("newlines and tabs must survive as themselves:\n%s", clean)
+	}
+	if !strings.Contains(clean, "a\nb") {
+		t.Errorf("text content lost its newline:\n%s", clean)
+	}
+}
+
+func TestTextIsStillEscaped(t *testing.T) {
+	clean := sanitize(t, `<svg><g id="provinces"><text>a &amp; b &lt;c&gt;</text></g></svg>`)
+	if !strings.Contains(clean, "&amp;") {
+		t.Errorf("an ampersand must stay escaped:\n%s", clean)
+	}
+	if err := parses(t, clean); err != nil {
+		t.Errorf("escaping broke the document: %v", err)
 	}
 }

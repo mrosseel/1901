@@ -210,8 +210,8 @@
  "key": "sailho",
  "kind": "jdip",
  "map": {
-  "bytes": 86530,
-  "sha256": "eb46dd51572cd7dbaa098bef5604a9fb2440c19c175b7601116e06bc7d0acfbd",
+  "bytes": 81976,
+  "sha256": "ef5b7e064751a442232c5b9add9ddf75874a6656cae38abaac5e85e1206677d2",
   "viewBoxWidth": 7300
  },
  "name": "Sail Ho!",
