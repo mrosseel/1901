@@ -93,14 +93,22 @@ func loadGeneratedVariants() error {
 		if err != nil {
 			return err
 		}
-		if _, clash := lookupVariant(key); clash {
-			return fmt.Errorf(
-				"generated variant %q collides with a compiled variant", key)
+		// Check against the compiled set directly. Going through
+		// lookupVariant here would build the key index before this variant is
+		// registered, and the index is what every game load consults.
+		for _, compiled := range compiledVariants() {
+			if variantKey(compiled.Name) == key {
+				return fmt.Errorf(
+					"generated variant %q collides with a compiled variant", key)
+			}
 		}
 		generatedVariants[key] = gen
 		loaded = append(loaded, fmt.Sprintf("%v (%d provinces, %v)",
 			key, len(gen.Variant.Graph().Provinces()), gen.Hash[:12]))
 	}
+
+	// The index every game load consults must now include these.
+	rebuildVariantIndex()
 
 	sort.Strings(loaded)
 	if len(loaded) > 0 {
