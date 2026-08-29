@@ -1,13 +1,11 @@
 // Package variantjson loads a Diplomacy variant from a JSON descriptor at
 // runtime, instead of requiring a generated Go package and a rebuild.
 //
-// Vendored from dipmap's go/dipmapvariant, which is the canonical copy and
-// carries the tests that prove a descriptor and a generated Go package
-// describe the same graph. Keep the two in step; variantjson_test.go checks
-// that a descriptor this package loads still round-trips.
+// This is the only implementation of the format. dipmap writes descriptors and
+// this package reads them, so a change here is a change to the format itself.
 //
-// This exists because a procedurally generated map cannot be committed as Go
-// at any useful rate: a fresh map per game would mean a recompile per game.
+// It exists because a procedurally generated map cannot be committed as Go at
+// any useful rate: a fresh map per game would mean a recompile per game.
 //
 // The descriptor normalises a map into provinces, regions and borders, so each
 // border is written exactly once. The loader adds both directions itself,

@@ -22,9 +22,10 @@ described.
 
 ## Producing one
 
-dipmap writes all three files:
+dipmap writes all three files. It has one output format, because a Go package
+would need a build:
 
-    dipmap export-godip <key> --out variants/generated --players 7
+    dipmap export-variant <key> --out variants/generated --players 7
 
 dipmap refuses to export a map that failed balance validation. Pass `--force`
 to override that.

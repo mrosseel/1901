@@ -1,9 +1,9 @@
 package variantjson
 
-// This package is a copy of dipmap's go/dipmapvariant. That copy carries the
-// equivalence tests, which prove a descriptor and a generated Go package
-// describe the same graph. These tests prove the copy still works, so drift
-// between the two shows up here rather than in a game.
+// These tests run against a descriptor dipmap actually wrote, in
+// testdata/generated. dipmap writes the format and this package reads it, so
+// this is where the two meet. A change to either side that breaks the other
+// shows up here rather than in a game.
 
 import (
 	"encoding/json"
