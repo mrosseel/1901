@@ -9,3 +9,6 @@ web/*.tsbuildinfo
 *.db-shm
 tools/restyle/out/styled/
 result
+
+# the built server binary
+1901srv
