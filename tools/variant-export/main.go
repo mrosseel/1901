@@ -28,6 +28,7 @@ import (
 	"github.com/zond/godip/variants"
 	"github.com/zond/godip/variants/common"
 
+	"spring1901/spike/svgprune"
 	"spring1901/spike/svground"
 	"spring1901/spike/variantjson"
 )
@@ -69,14 +70,16 @@ func main() {
 	placements := flag.String("placements", "placements",
 		"directory holding the approved placement tables to carry across")
 	only := flag.String("only", "", "export just this variant key")
+	plans := flag.String("plans", "styleplans",
+		"directory of style plans, whose ids survive the pruning")
 	flag.Parse()
 
-	if err := run(*out, *placements, *only); err != nil {
+	if err := run(*out, *placements, *plans, *only); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(out, placementDir, only string) error {
+func run(out, placementDir, planDir, only string) error {
 	known := map[string]bool{}
 	for _, v := range variants.OrderedVariants {
 		known[v.Name] = true
@@ -93,7 +96,7 @@ func run(out, placementDir, only string) error {
 		if only != "" && key != only {
 			continue
 		}
-		if err := export(v, key, out, placementDir); err != nil {
+		if err := export(v, key, out, placementDir, planDir); err != nil {
 			return fmt.Errorf("%v: %w", key, err)
 		}
 		exported++
@@ -105,7 +108,7 @@ func run(out, placementDir, only string) error {
 	return nil
 }
 
-func export(v common.Variant, key, out, placementDir string) error {
+func export(v common.Variant, key, out, placementDir, planDir string) error {
 	descriptor, err := describe(v, key)
 	if err != nil {
 		return err
@@ -140,6 +143,17 @@ func export(v common.Variant, key, out, placementDir string) error {
 	// Two decimals, so a re-export does not put the eight-decimal coordinates
 	// the drawing programs write back into the repository. See svground.
 	art = svground.Art(art)
+	// A definition nothing points at is not part of the picture, and godip's
+	// art carries megabytes of orphaned paper texture. See svgprune.
+	roots, err := svgprune.PlanRoots(filepath.Join(planDir, key+".json"))
+	if err != nil {
+		return err
+	}
+	pruned, dropped := svgprune.Art(art, roots)
+	if len(dropped) > 0 {
+		log.Printf("%v: dropped unreachable %v", key, strings.Join(dropped, ", "))
+	}
+	art = pruned
 	if err := os.WriteFile(filepath.Join(dir, "map.svg"), art, 0o644); err != nil {
 		return err
 	}

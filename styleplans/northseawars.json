@@ -4,8 +4,8 @@
   "name": "North Sea Wars",
   "kind": "godip",
   "map": {
-    "bytes": 918238,
-    "sha256": "0062cbadd17ff88611a0b655fb78d480fc6b3188f84fbc01519a2cff881cc157",
+    "bytes": 911925,
+    "sha256": "989a329365fff3208169d182b3b9cf011eeaf908afa95822788fb4ed11d6a34d",
     "viewBoxWidth": 578
   },
   "godip": {

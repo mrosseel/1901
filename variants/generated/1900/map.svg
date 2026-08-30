@@ -89,10 +89,6 @@
 		]]></style>
 	
 	
-		<marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" 
-			markerUnits="strokeWidth" markerWidth="4" markerHeight="4" orient="auto">
-			<path d="M0 0L10 5L0 10z"/>
-		</marker>
 	</defs>
 
 	<g id="MapLayer" transform="translate(0,713) scale(0.1,-0.1)">

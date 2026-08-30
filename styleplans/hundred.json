@@ -4,8 +4,8 @@
   "name": "Hundred",
   "kind": "godip",
   "map": {
-    "bytes": 993790,
-    "sha256": "8a28ef10838673793da3144e517e2d91602f7920461a622c0d062d831f498047",
+    "bytes": 993276,
+    "sha256": "1f1b852e5dd741d7f1663f51a939de37b26d850811e408c458a66df47ff05d24",
     "viewBoxWidth": 662
   },
   "godip": {

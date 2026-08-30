@@ -38,36 +38,6 @@
          inkscape:connector-curvature="0" />
     </marker>
     <marker
-       inkscape:stockid="Arrow1Send"
-       orient="auto"
-       refY="0"
-       refX="0"
-       id="Arrow1Send"
-       style="overflow:visible"
-       inkscape:isstock="true">
-      <path
-         id="path2653"
-         d="M0 0 5 -5 -12.5 0 5 5Z"
-         style="fill:#000100;fill-opacity:1;fill-rule:evenodd;stroke:#000100;stroke-width:1.00000003pt;stroke-opacity:1"
-         transform="matrix(-0.2,0,0,-0.2,-1.2,0)"
-         inkscape:connector-curvature="0" />
-    </marker>
-    <marker
-       inkscape:stockid="Arrow1Lend"
-       orient="auto"
-       refY="0"
-       refX="0"
-       id="Arrow1Lend"
-       style="overflow:visible"
-       inkscape:isstock="true">
-      <path
-         id="path2641"
-         d="M0 0 5 -5 -12.5 0 5 5Z"
-         style="fill:#000100;fill-opacity:1;fill-rule:evenodd;stroke:#000100;stroke-width:1.00000003pt;stroke-opacity:1"
-         transform="matrix(-0.8,0,0,-0.8,-10,0)"
-         inkscape:connector-curvature="0" />
-    </marker>
-    <marker
        inkscape:stockid="Arrow2Send"
        orient="auto"
        refY="0"
@@ -137,19 +107,6 @@
   </metadata>
   <defs
      id="defs">
-     <pattern
-       id="stripes"
-       patternUnits="userSpaceOnUse"
-       x="0" 
-       y="0" 
-       width="24"
-       height="24"
-       >
-        <rect id="Rectangle" fill="#000000" fill-opacity="0.13" x="0" y="0" width="6" height="6"></rect>
-        <rect id="Rectangle" fill="#000000" fill-opacity="0.13" x="12" y="12" width="6" height="6"></rect>
-        <rect id="Rectangle" fill="#FFFFFF" fill-opacity="0.13" x="12" y="0" width="6" height="6"></rect>
-        <rect id="Rectangle" fill="#FFFFFF" fill-opacity="0.13" x="0" y="12" width="6" height="6"></rect>
-    </pattern>
     <pattern
        id="impassableStripes"
        patternUnits="userSpaceOnUse"
