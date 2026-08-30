@@ -276,7 +276,10 @@ export async function postJSON<T>(url: string, body?: unknown): Promise<T> {
 // --- routes ---------------------------------------------------------------
 
 export type Route =
+  /* The landing page (D-043): the one address with nothing behind it. */
   | { kind: "index" }
+  /* The list of games this server holds, which used to stand at the root. */
+  | { kind: "games" }
   | { kind: "new" }
   /* The map editor (D-030). It carries no game and no token: it edits a
      variant's placement table, and a variant is all it needs. */
@@ -293,6 +296,7 @@ export function parseRoute(pathname: string): Route {
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length === 0) return { kind: "index" };
   if (parts.length === 1 && parts[0] === "new") return { kind: "new" };
+  if (parts.length === 1 && parts[0] === "games") return { kind: "games" };
   if (parts.length === 1 && parts[0] === "mapeditor") return { kind: "mapeditor" };
   if (parts.length === 3 && parts[0] === "join") {
     return { kind: "join", gameId: parts[1], inviteToken: parts[2] };
@@ -379,13 +383,16 @@ export function createGame(settings: Settings): Promise<CreatedGame> {
 // --- the main-page list ---------------------------------------------------
 
 /**
- * Every game the server holds, newest first. The answer carries no token of
+ * Every game the server holds, newest first. The list has its own address
+ * because /games is a page now (D-043); a create is still a post to the
+ * collection, which is what /games answers to POST.
+ * The answer carries no token of
  * any kind: an id opens the public pages only. The one exception is the
  * `referee` mark, which the server sets only for the browser that created
  * the game.
  */
 export function fetchGames(): Promise<GameSummary[]> {
-  return getJSON<GameSummary[]>(absolute("/games"));
+  return getJSON<GameSummary[]>(absolute("/games/list"));
 }
 
 // --- join -----------------------------------------------------------------

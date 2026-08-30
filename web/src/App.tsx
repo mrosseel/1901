@@ -3,6 +3,7 @@ import { parseRoute } from "./api";
 import { GamesPage } from "./pages/GamesPage";
 import { GmPage } from "./pages/GmPage";
 import { JoinPage } from "./pages/JoinPage";
+import { LandingPage } from "./pages/LandingPage";
 import { NewGame } from "./pages/NewGame";
 import { SeatPage } from "./pages/SeatPage";
 import { WatchPage } from "./pages/WatchPage";
@@ -63,6 +64,8 @@ export function App() {
 
   switch (route.kind) {
     case "index":
+      return <LandingPage />;
+    case "games":
       return <GamesPage />;
     case "new":
       return <NewGame />;
