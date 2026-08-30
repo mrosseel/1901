@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"regexp"
 	"sort"
 	"strconv"
@@ -227,6 +230,83 @@ func TestStyledMapsActuallyCarryTheStyle(t *testing.T) {
 		if strings.Contains(text, plan.Godip.Sea) {
 			t.Errorf("%v: godip's own sea tone %v survived the restyle",
 				style, plan.Godip.Sea)
+		}
+	}
+}
+
+// TestAStyledMapIsWellFormedXML checks the served art parses as XML.
+//
+// A board is loaded through an <img>, which parses SVG as XML rather than as
+// HTML: one unmatched close tag is fatal there, and the map does not draw at
+// all. An HTML parser forgives the same file, so a check that renders the art
+// inside a page cannot see this.
+func TestAStyledMapIsWellFormedXML(t *testing.T) {
+	if err := loadStyles(); err != nil {
+		t.Fatal(err)
+	}
+	if err := loadPlans(); err != nil {
+		t.Fatal(err)
+	}
+	for key, plan := range plans {
+		if !plan.styleable() {
+			continue
+		}
+		v, found := lookupVariant(key)
+		if !found {
+			continue
+		}
+		for _, name := range styleNames {
+			styled, err := styledMapBytes(key, v, name)
+			if err != nil {
+				t.Fatalf("%v in %v: %v", key, name, err)
+			}
+			decoder := xml.NewDecoder(bytes.NewReader(styled))
+			decoder.Entity = xml.HTMLEntity
+			for {
+				_, err := decoder.Token()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					t.Errorf("%v in %v: %v", key, name, err)
+					break
+				}
+			}
+		}
+	}
+}
+
+// TestAGrainlessStyleShipsNoPaperPhotograph is the point of dropping the
+// overlay's fill rather than dimming it: the pattern nothing points at any
+// more is pruned, and the bitmap inside it goes with it.
+func TestAGrainlessStyleShipsNoPaperPhotograph(t *testing.T) {
+	if err := loadStyles(); err != nil {
+		t.Fatal(err)
+	}
+	if err := loadPlans(); err != nil {
+		t.Fatal(err)
+	}
+	for key, plan := range plans {
+		if plan.Kind != "godip" || !plan.styleable() || plan.Godip.GrainPattern == "" {
+			continue
+		}
+		v, found := lookupVariant(key)
+		if !found {
+			continue
+		}
+		for _, name := range styleNames {
+			styled, err := styledMapBytes(key, v, name)
+			if err != nil {
+				t.Fatalf("%v in %v: %v", key, name, err)
+			}
+			want := 0
+			if styles[name].Grain != nil {
+				want = 1
+			}
+			if got := strings.Count(string(styled), "data:image/"); got != want {
+				t.Errorf("%v in %v: %v embedded bitmap(s), want %v",
+					key, name, got, want)
+			}
 		}
 	}
 }

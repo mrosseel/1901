@@ -2,11 +2,15 @@
 //
 // tools/restyle detects; this applies. Given the original art, the style plan
 // measured from it, and a style's tokens, the two functions here compose the
-// styled map as a string substitution — no browser, no XML parser, no
-// coordinate touched. What changes is a fill value, a pattern's insides, a
-// stroke, a text's typography and, on a converted jDip map, the stylesheet.
-// What does not change is one element, one id or one coordinate, which
+// styled map as a string substitution — no browser, no coordinate touched.
+// What changes is a fill value, a pattern's insides, a stroke, a text's
+// typography and, on a converted jDip map, the stylesheet. What does not
+// change is one drawn element, one id or one coordinate, which
 // restyle_test.go checks rather than assumes.
+//
+// The one element that does go is a definition the styled map no longer
+// points at, which svgprune reads the document to find. That is the only
+// parse here, and it draws nothing either way.
 //
 // The two appliers exist because the two kinds of map are drawn differently
 // (D-024). A converted jDip map paints every province through a semantic
@@ -22,6 +26,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"spring1901/spike/svgprune"
 )
 
 // --- numbers ---------------------------------------------------------------
@@ -459,11 +465,28 @@ func substitutions(plan *godipPlan, style *loadedStyle) map[string]string {
 	return out
 }
 
+// pruneUnreferenced drops the definitions the styled art no longer reaches.
+//
+// It is called once the grain overlay has stopped naming its pattern, which
+// is what leaves that pattern — and the photograph of paper inside it —
+// unreferenced. The impassable hatch is passed as a root because a style may
+// paint impassable ground as a flat colour, and the pattern is then held by
+// the plan rather than by any shape.
+func pruneUnreferenced(svg []byte, impassablePattern string) []byte {
+	var roots []string
+	if impassablePattern != "" {
+		roots = append(roots, impassablePattern)
+	}
+	out, _ := svgprune.Art(svg, roots)
+	return out
+}
+
 // applyGodipStyle puts one of godip's own maps into a style.
 //
-// Nothing here adds, removes or moves an element. The five things it does are
-// each one property: a fill value, a pattern's insides, the grain's strength,
-// a border stroke, a name's typography.
+// Nothing here adds or moves an element, and nothing that draws is removed.
+// The five things it does are each one property: a fill value, a pattern's
+// insides, the grain's strength, a border stroke, a name's typography. The
+// definitions a grainless style orphans are then pruned.
 func applyGodipStyle(original string, plan *godipPlan, style *loadedStyle) (string, error) {
 	width, err := viewBoxWidth(original)
 	if err != nil {
@@ -495,17 +518,24 @@ func applyGodipStyle(original string, plan *godipPlan, style *loadedStyle) (stri
 	// finished art; a style either wants it at its own strength or does not
 	// want it. The texture stays the map's own — it is a photograph of paper,
 	// not a style decision — and only its strength changes.
+	//
+	// A style that wants none does not dim the overlay, it stops naming the
+	// paper: the pattern is then reachable from nothing, and the prune below
+	// takes it away with the photograph inside it. The overlay element itself
+	// has to stay. On seven of the ten maps that carry one it also carries a
+	// stroke, and that hairline frame is the map's own, not the grain's.
 	if plan.GrainOverlayID != "" {
-		wanted := 0.0
+		fill := prop{"fill", "none"}
 		if style.Grain != nil {
-			wanted = style.Grain.Opacity
+			fill = prop{"fill-opacity", num(style.Grain.Opacity)}
 		}
 		tag := regexp.MustCompile(
 			`<[a-z]+\b[^>]*\bid="` + regexp.QuoteMeta(plan.GrainOverlayID) + `"[^>]*?>`)
 		if m := tag.FindStringIndex(svg); m != nil {
-			svg = svg[:m[0]] +
-				withStyle(svg[m[0]:m[1]], []prop{{"fill-opacity", num(wanted)}}) +
-				svg[m[1]:]
+			svg = svg[:m[0]] + withStyle(svg[m[0]:m[1]], []prop{fill}) + svg[m[1]:]
+		}
+		if style.Grain == nil {
+			svg = string(pruneUnreferenced([]byte(svg), plan.ImpassablePattern))
 		}
 	}
 
