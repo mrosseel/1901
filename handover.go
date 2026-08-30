@@ -134,7 +134,14 @@ func handleGMHandover(g *game, id string, w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusNotFound, "%v is not a power in this game", power)
 		return
 	}
-	g.flow.logEvent(id, "the game master minted a handover link for %v", power)
+	// Minting for somebody else's seat is the enumerated, logged act (D-007):
+	// it is the one that could be abused, because a game master who can mint
+	// for any power can take any seat. Minting for the power they play
+	// themselves is their own menu and no more remarkable than a player
+	// opening theirs, so it is not an entry in the record.
+	if power != g.flow.gmPower {
+		g.flow.logEvent(id, "the game master minted a handover link for %v", power)
+	}
 	writeJSON(w, http.StatusOK, handoverJSON{
 		Power: string(power),
 		URL:   handoverURL(r, id, power, s.epoch),
@@ -238,9 +245,12 @@ func handleGMRoleHandover(g *game, id string, w http.ResponseWriter, r *http.Req
 		writeErr(w, http.StatusMethodNotAllowed, "GET only")
 		return
 	}
+	// Not logged on the mint: the game master's screen shows this code
+	// whenever it is open, so a line per page load would say nothing. The
+	// act that matters is somebody taking the role, and that is logged where
+	// it happens.
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.flow.logEvent(id, "the game master minted a link to hand over the role")
 	writeJSON(w, http.StatusOK, handoverJSON{
 		Power: "",
 		URL:   gmHandoverURL(r, id, g.flow.gmEpoch),
@@ -303,4 +313,32 @@ func handleGMRoleClaim(g *game, id string, rest []string, w http.ResponseWriter,
 	writeJSON(w, http.StatusOK, struct {
 		GMURL string `json:"gmUrl"`
 	}{GMURL: gmURL(r, id, token)})
+}
+
+/*
+handleSeatRoleHandover is the role's link, asked for from the seat that holds
+it.
+
+A game master who plays sits at their own board like everybody else, and the
+menu behind their player icon is where they reach both of the things they hold
+(D-041). The game master page can mint this too; this is the same link from the
+screen they are actually looking at.
+
+It answers only for the seat that is the game master's. Any other seat gets the
+404 an address that is not there gets, because a player must not be able to
+learn whether a link exists for something they do not hold.
+*/
+func handleSeatRoleHandover(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "GET only")
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	s, found := g.flow.seats[power]
+	if !found || !s.isGM {
+		http.NotFound(w, r)
+		return
+	}
+	writeJSON(w, http.StatusOK, handoverJSON{URL: gmHandoverURL(r, id, g.flow.gmEpoch)})
 }

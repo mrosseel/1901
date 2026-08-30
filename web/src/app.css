@@ -1812,3 +1812,55 @@ target around it is the size a finger needs.
 
 .game-id-copy:hover:not(:disabled) { border-color: var(--line); background: var(--panel-2); }
 .game-id-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Two handovers side by side (D-041): the role and a power. They are the same
+   kind of object, so they are laid out as one row of equals and wrap to a
+   column when there is no room for two. */
+.handovers { display: flex; flex-wrap: wrap; gap: 12px; }
+.handovers > * { flex: 1 1 300px; min-width: 0; }
+
+/* --- the bar every ordinary page wears (D-043) ---------------------------
+Without it each screen is an island: every address here was handed to you, so
+a player who leaves their seat has only the browser's history to get back. The
+bar is quiet — it is furniture, not a headline — and the one entry that is not
+is the way back into the game this device is playing.
+
+The spectator view and the seat page do not carry it. One is a board on a
+beamer that nobody navigates, and the other is a map fighting a phone for
+height; the seat's links live in its own menu instead.
+*/
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 14px;
+}
+
+.topbar a { text-decoration: none; color: var(--muted); }
+.topbar a:hover { color: var(--text); }
+.topbar a.here { color: var(--text); }
+
+.topbar-mark {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text) !important;
+  letter-spacing: 0.01em;
+}
+
+/* The way back in, and the only entry that is not furniture: it is the one
+   thing on the bar a player at a table actually wants. */
+.topbar-back {
+  margin-left: auto;
+  color: var(--text) !important;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.topbar-back:hover { border-color: var(--accent); }
+
+.seat-menu-links { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }

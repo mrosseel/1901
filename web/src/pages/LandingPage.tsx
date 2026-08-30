@@ -56,6 +56,7 @@ export function LandingPage() {
           <a href="#turn">How a turn runs</a>
           <a href="/new">Variants</a>
           <a href="/games">Watch a game</a>
+          <a href="/faq">Questions</a>
           <a className="cta" href="/new">
             Create a game
           </a>
@@ -280,6 +281,7 @@ export function LandingPage() {
         <span className="lp-mark">1901</span>
         <a href="/games">Games</a>
         <a href="/new">New game</a>
+        <a href="/faq">Questions</a>
         <span className="note">
           GPL-3.0. Adjudication by godip. Diplomacy is a trademark of Hasbro / Avalon
           Hill. This project is not affiliated with or endorsed by Hasbro, and ships no

@@ -190,6 +190,8 @@ export interface SeatState extends BoardState, VariantAware {
   deadlineAt: string | null;
   locked: Record<string, boolean>;
   youLocked: boolean;
+  /** True when this seat is the game master's own (D-021). */
+  youAreGm?: boolean;
   /** How many turns the game has played, for the seat menu (D-041). */
   turns?: number;
   /** When the game was made, for the seat menu's elapsed line. */
@@ -292,6 +294,8 @@ export type Route =
   | { kind: "handover-gm"; gameId: string; epoch: string; signature: string }
   /* The list of games this server holds, which used to stand at the root. */
   | { kind: "games" }
+  /* The questions a first table asks. One page, no game behind it. */
+  | { kind: "faq" }
   | { kind: "new" }
   /* The map editor (D-030). It carries no game and no token: it edits a
      variant's placement table, and a variant is all it needs. */
@@ -309,6 +313,7 @@ export function parseRoute(pathname: string): Route {
   if (parts.length === 0) return { kind: "index" };
   if (parts.length === 1 && parts[0] === "new") return { kind: "new" };
   if (parts.length === 1 && parts[0] === "games") return { kind: "games" };
+  if (parts.length === 1 && parts[0] === "faq") return { kind: "faq" };
   if (parts.length === 4 && parts[0] === "handover-gm") {
     return { kind: "handover-gm", gameId: parts[1], epoch: parts[2], signature: parts[3] };
   }
@@ -500,6 +505,11 @@ export class SeatClient {
   /** The link that hands this power to another phone (D-041). */
   handover(): Promise<Handover> {
     return getJSON<Handover>(this.base + "handover");
+  }
+
+  /** The role's link, for the seat that is the game master's own. */
+  roleHandover(): Promise<Handover> {
+    return getJSON<Handover>(this.base + "handover-role");
   }
 }
 

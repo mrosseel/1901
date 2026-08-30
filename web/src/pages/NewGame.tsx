@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { TopBar } from "../components/TopBar";
 import { createGame, fetchVariants, refereePath } from "../api";
 import { VariantGallery } from "../components/VariantGallery";
 import { useMapStyle } from "../components/StylePicker";
@@ -82,7 +83,9 @@ export function NewGame() {
       });
       // The cookie the create set is the credential; the entry redirects
       // this browser on to the game master page and its own address.
-      location.replace(new URL(refereePath(created.gameId), location.origin).toString());
+      location.replace(
+        new URL(refereePath(created.gameId), location.origin).toString(),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
@@ -90,96 +93,112 @@ export function NewGame() {
   };
 
   return (
-    <main className="page gallery">
-      <h1>New game</h1>
-      <p className="lead">Name the table, set the clock, and pass the invite around it.</p>
+    <>
+      <TopBar here="new" />
+      <main className="page gallery">
+        <h1>New game</h1>
+        <p className="lead">
+          Name the table, set the clock, and pass the invite around it.
+        </p>
 
-      <form onSubmit={submit}>
-        <section className="card">
-          <h2>The game</h2>
-          <label className="field">
-            <span>Name of this game</span>
-            <input
-              type="text"
-              name="gameName"
-              maxLength={60}
-              autoComplete="off"
-              placeholder="Thursday table"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-            <small>Optional. A game with no name is known by its id.</small>
-          </label>
+        <form onSubmit={submit}>
+          <section className="card">
+            <h2>The game</h2>
+            <label className="field">
+              <span>Name of this game</span>
+              <input
+                type="text"
+                name="gameName"
+                maxLength={60}
+                autoComplete="off"
+                placeholder="Thursday table"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+              <small>Optional. A game with no name is known by its id.</small>
+            </label>
 
-          <label className="field">
-            <span>Minutes for each phase</span>
-            <input
-              type="number"
-              min={0}
-              max={1440}
-              inputMode="numeric"
-              value={deadlineMinutes}
-              onChange={(event) => setDeadlineMinutes(Number(event.target.value))}
-            />
-            <small>Zero runs the game with no deadline.</small>
-          </label>
+            <label className="field">
+              <span>Minutes for each phase</span>
+              <input
+                type="number"
+                min={0}
+                max={1440}
+                inputMode="numeric"
+                value={deadlineMinutes}
+                onChange={(event) =>
+                  setDeadlineMinutes(Number(event.target.value))
+                }
+              />
+              <small>Zero runs the game with no deadline.</small>
+            </label>
 
-          <label className="field check">
-            <input
-              type="checkbox"
-              checked={gmPlays}
-              onChange={(event) => setGmPlays(event.target.checked)}
-            />
-            <span>I play a power as well</span>
-            <small>One power is held back for you and revealed when the game starts.</small>
-          </label>
+            <label className="field check">
+              <input
+                type="checkbox"
+                checked={gmPlays}
+                onChange={(event) => setGmPlays(event.target.checked)}
+              />
+              <span>I play a power as well</span>
+              <small>
+                One power is held back for you and revealed when the game
+                starts.
+              </small>
+            </label>
 
-          <label className="field check">
-            <input
-              type="checkbox"
-              checked={illegalMoves}
-              onChange={(event) => setIllegalMoves(event.target.checked)}
-            />
-            <span>Allow illegal orders</span>
-            <small>Players may write illegal orders to bluff; they resolve as holds.</small>
-          </label>
+            <label className="field check">
+              <input
+                type="checkbox"
+                checked={illegalMoves}
+                onChange={(event) => setIllegalMoves(event.target.checked)}
+              />
+              <span>Allow illegal orders</span>
+              <small>
+                Players may write illegal orders to bluff; they resolve as
+                holds.
+              </small>
+            </label>
 
-          {/* The map is picked in the gallery below and named here, where the
+            {/* The map is picked in the gallery below and named here, where the
               button is: the choice is out of sight from the button, so it is
               read back beside it. */}
-          {picked ? (
-            <p className="muted">
-              {picked.name}
-              {picked.powerCount ? " — " + claimLine(picked.powerCount, gmPlays) : ""}
-            </p>
-          ) : null}
+            {picked ? (
+              <p className="muted">
+                {picked.name}
+                {picked.powerCount
+                  ? " — " + claimLine(picked.powerCount, gmPlays)
+                  : ""}
+              </p>
+            ) : null}
 
-          {error ? <p className="error">{error}</p> : null}
+            {error ? <p className="error">{error}</p> : null}
 
-          <button type="submit" className="primary" disabled={busy}>
-            {busy ? "Creating…" : "Create the game"}
-          </button>
-        </section>
+            <button type="submit" className="primary" disabled={busy}>
+              {busy ? "Creating…" : "Create the game"}
+            </button>
+          </section>
 
-        <section className="card">
-          <h2>The map</h2>
-          {loadingVariants ? (
-            <p className="muted">Reading the maps…</p>
-          ) : variants.length === 0 ? (
-            <p className="muted">
-              No map list from the server. The game is created on the classical map.
-            </p>
-          ) : (
-            <VariantGallery
-              variants={variants}
-              chosen={chosen}
-              style={style}
-              onChoose={setChosen}
-              onStyle={setStyle}
-            />
-          )}
-        </section>
-      </form>
-    </main>
+          <section className="card">
+            <h2>The map</h2>
+            {loadingVariants ? (
+              <p className="muted">Reading the maps…</p>
+            ) : variants.length === 0 ? (
+              <p className="muted">
+                No map list from the server. The game is created on the
+                classical map.
+              </p>
+            ) : (
+              <VariantGallery
+                variants={variants}
+                chosen={chosen}
+                style={style}
+                onChoose={setChosen}
+                onStyle={setStyle}
+              />
+            )}
+          </section>
+        </form>
+      </main>
+    </>
   );
 }

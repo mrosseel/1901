@@ -8,6 +8,7 @@ import {
   type Handover,
 } from "../api";
 import { LinkShare } from "../components/LinkShare";
+import { writeRecentGame } from "../recent";
 import { powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
 import { StylePicker, useMapStyle } from "../components/StylePicker";
@@ -42,16 +43,61 @@ it names no order.
 */
 export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string }) {
   const client = useMemo(() => new GmClient(gameId, gmToken), [gameId, gmToken]);
+
   const [game, setGame] = useState<GmState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  /* The handover link the game master last minted, and what went wrong if
-     nothing came back (D-041). One at a time: see the Powers card. */
+  /* The link the game master last minted from a row of the Powers card, and
+     what went wrong if nothing came back (D-041). */
   const [handover, setHandover] = useState<Handover | null>(null);
   const [handoverError, setHandoverError] = useState<string | null>(null);
-  /* The role's own link, kept apart from a seat's so the two can never be
-     shown at once and mistaken for each other. */
+  /* The two handover links the game master's own screen shows (D-041): the
+     role, and the power they play once the start has dealt them one. They are
+     separate pieces of state because they are separate acts, and the wording
+     beside each has to be able to differ. */
   const [role, setRole] = useState<Handover | null>(null);
+  const [ownSeat, setOwnSeat] = useState<Handover | null>(null);
+  /* The role's link again, shown beside a row of the Powers card when that
+     row is the game master's own. It is its own piece of state so the card
+     above and the row below never fight over one box. */
+  const [rowRole, setRowRole] = useState<Handover | null>(null);
+
+  /* The way back to this screen, for the bar on every ordinary page (D-043).
+     A game master is the one person who cannot be handed their link again. */
+  const gameLabel = game?.settings?.name || gameId;
+  const loaded = Boolean(game);
+  useEffect(() => {
+    // On the identity, never on the poll: this page reloads its state every
+    // few seconds, and a tab left open in the background would otherwise keep
+    // overwriting whichever game the person is actually looking at.
+    if (!loaded) return;
+    writeRecentGame({ url: window.location.pathname, label: gameLabel });
+  }, [loaded, gameId, gameLabel]);
+  /*
+  The two codes the Hand over card shows (D-041).
+
+  They are fetched once rather than on a press, because a card that has to be
+  clicked twice to show two codes is a card that gets shown one at a time by
+  mistake. The role's link is there from the start; the power's appears when
+  the start deals the game master one (D-021), which is what the second
+  dependency watches for.
+  */
+  const gmPower = game?.gmPower || "";
+  useEffect(() => {
+    client
+      .roleHandover()
+      .then(setRole)
+      .catch(() => setRole(null));
+  }, [client]);
+  useEffect(() => {
+    if (!gmPower) {
+      setOwnSeat(null);
+      return;
+    }
+    mintHandover(gameId, gmToken, gmPower)
+      .then(setOwnSeat)
+      .catch(() => setOwnSeat(null));
+  }, [gameId, gmToken, gmPower]);
   const [gone, setGone] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [refereeing, setRefereeing] = useState(false);
@@ -267,12 +313,15 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
                   className="link"
                   onClick={() => {
                     setHandover(null);
+                    setRowRole(null);
                     setHandoverError(null);
-                    mintHandover(gameId, gmToken, seat.power)
-                      .then(setHandover)
-                      .catch((err: unknown) =>
-                        setHandoverError(err instanceof Error ? err.message : String(err)),
-                      );
+                    const fail = (err: unknown) =>
+                      setHandoverError(err instanceof Error ? err.message : String(err));
+                    mintHandover(gameId, gmToken, seat.power).then(setHandover).catch(fail);
+                    // The game master's own row holds two things, not one: the
+                    // seat and the role are handed on separately (D-041), so
+                    // that row answers with both codes.
+                    if (seat.isGm) client.roleHandover().then(setRowRole).catch(fail);
                   }}
                 >
                   Hand over
@@ -288,18 +337,32 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           seat and the record is what keeps that visible.
           */}
           {handoverError ? <p className="error">{handoverError}</p> : null}
-          {handover ? (
-            <LinkShare
-              title={"Hand " + handover.power + " to another phone"}
-              url={handover.url}
-              note={
-                <>
-                  Whoever opens this takes {handover.power}. The phone holding it now loses
-                  the seat the moment they do.
-                </>
-              }
-            />
-          ) : null}
+          <div className="handovers">
+            {handover ? (
+              <LinkShare
+                title={"Hand " + handover.power + " to another phone"}
+                url={handover.url}
+                note={
+                  <>
+                    Whoever opens this takes {handover.power}. The phone holding it now
+                    loses the seat the moment they do.
+                  </>
+                }
+              />
+            ) : null}
+            {rowRole ? (
+              <LinkShare
+                title="The game master role"
+                url={rowRole.url}
+                note={
+                  <>
+                    That row is your own, and it holds two things. This one hands on the
+                    rights; the code beside it hands on the seat.
+                  </>
+                }
+              />
+            ) : null}
+          </div>
           {/* Before the start the count is the headline above; here only the
               running game needs a line, and it counts every power in play. */}
           {game.started ? (
@@ -315,66 +378,52 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       The two handovers, which are two acts and not one (D-041). The role and
       the power fail differently: a game master who gives away their power
       still runs the game, and one who gives away the role and keeps their
-      power becomes an ordinary player. So they are two entries, two links and
-      two codes, and neither is worded as the other.
+      power becomes an ordinary player. So there are two codes, side by side,
+      worded differently and never merged into one.
 
-      Both are minted on the press rather than held on the page, so a screen
-      left open never shows a code that has already been used.
+      Before the start there is only one, because there is no power yet: the
+      game master plays the leftover and it is dealt when the game begins
+      (D-021). The card says so rather than showing an empty box.
       */}
       <details className="card">
         <summary>Hand over</summary>
-        <div className="row">
-          <button
-            type="button"
-            onClick={() => {
-              setHandover(null);
-              setHandoverError(null);
-              setRole(null);
-              client
-                .roleHandover()
-                .then(setRole)
-                .catch((err: unknown) =>
-                  setHandoverError(err instanceof Error ? err.message : String(err)),
-                );
-            }}
-          >
-            Hand over the game master role
-          </button>
-          {game.gmPower ? (
-            <button
-              type="button"
-              onClick={() => {
-                setRole(null);
-                setHandoverError(null);
-                setHandover(null);
-                mintHandover(gameId, gmToken, game.gmPower!)
-                  .then(setHandover)
-                  .catch((err: unknown) =>
-                    setHandoverError(err instanceof Error ? err.message : String(err)),
-                  );
-              }}
-            >
-              Hand over {game.gmPower}
-            </button>
-          ) : null}
-        </div>
         <p className="note">
           The role is the rights: the deadline, the start, forcing a phase, handing out
           seats. The power is a seat at the board. Handing over one leaves the other
           exactly where it is.
         </p>
-        {role ? (
-          <LinkShare
-            title="Hand over the game master role"
-            url={role.url}
-            note={
-              <>
-                Whoever opens this runs the game. You stop being the game master the moment
-                they do, and keep whatever power you play.
-              </>
-            }
-          />
-        ) : null}
+        {handoverError ? <p className="error">{handoverError}</p> : null}
+        <div className="handovers">
+          {role ? (
+            <LinkShare
+              title="The game master role"
+              url={role.url}
+              note={
+                <>
+                  Whoever opens this runs the game. You stop being the game master the
+                  moment they do, and keep whatever power you play.
+                </>
+              }
+            />
+          ) : null}
+          {ownSeat ? (
+            <LinkShare
+              title={"Your power · " + ownSeat.power}
+              url={ownSeat.url}
+              note={
+                <>
+                  Whoever opens this plays {ownSeat.power}. You keep the game master role
+                  and stop having a seat at the board.
+                </>
+              }
+            />
+          ) : game.gmPower ? null : (
+            <p className="note">
+              You get a power when the game starts: the game master plays whichever one is
+              left over. Its code appears here then.
+            </p>
+          )}
+        </div>
       </details>
 
       {/*

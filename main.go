@@ -711,6 +711,8 @@ func main() {
 	// no game and no token, so it needs nothing but the shell; whether it can
 	// save is decided by the build, in mapeditor_dev.go.
 	mux.HandleFunc("/mapeditor", srv.serveSPA)
+	// The questions page, and one more route of the same shell (D-043).
+	mux.HandleFunc("/faq", srv.serveSPA)
 	registerEditorSave(mux)
 	// /games is a page and an endpoint at once (D-043). A browser asking for
 	// it gets the game list screen; a POST to it creates a game, which is

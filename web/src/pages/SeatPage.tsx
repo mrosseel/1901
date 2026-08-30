@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, SeatClient, fetchPublic, type SeatState } from "../api";
 import { Board } from "../components/Board";
 import { SeatMenu } from "../components/SeatMenu";
+import { writeRecentGame } from "../recent";
 import { SplitLayout } from "../components/SplitLayout";
 import {
   powerColor,
@@ -89,6 +90,20 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const fingerprint = useRef<string>("");
 
   const power = state?.you?.power || "";
+
+  /*
+  The way back to this board (D-043).
+
+  A player who leaves the seat to look at the list or read the questions has
+  no account to find it again with: the address in the bar is the only copy of
+  their token. So the device notes where it was, and the bar on every ordinary
+  page offers it back.
+  */
+  const gameName = state?.settings?.name || gameId;
+  useEffect(() => {
+    if (!power) return;
+    writeRecentGame({ url: window.location.pathname, label: gameName, power: power });
+  }, [gameName, power]);
 
   const refresh = useCallback(async () => {
     try {
@@ -404,6 +419,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
                   power={power}
                   turns={state?.turns}
                   createdAt={state?.createdAt}
+                  isGameMaster={state?.youAreGm}
                   seat={client}
                 />
               ) : (
