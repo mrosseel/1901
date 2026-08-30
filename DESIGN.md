@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r30 — 2026-08-30
+**Document revision:** r31 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1260,7 +1260,9 @@ The board already draws its brief codes with a halo through a CSS class, so
 the mechanism exists.
 
 This is a move, not a saving. `restyle.go` keeps its two paths for art-mode
-maps, and loses only the name pass for data-mode ones.
+maps, and loses only the name pass for data-mode ones. The paths do collapse
+eventually, but for a different reason: D-039 ends jDip art altogether, and
+one of the two kinds stops existing.
 
 **Two things the record cannot express yet.** A name broken across lines is
 one of them: Sail Ho sets "Village of / Aeolus" as two elements at explicit
@@ -1335,6 +1337,46 @@ breaks nothing. Then the server prefers the records where it finds them. Then
 the exporter stops writing the layers and the plan version moves. The reader
 must be built so a map without records falls back, which is also exactly what
 the two-kinds rule needs.
+
+### D-039 — There will be no jDip maps, only 1901 maps
+**Status:** accepted, r31 (owner decision). Sets the end state for D-016,
+D-024, D-033 and D-038.
+The jDip importer is a one-time migration, not a supported input. Every map it
+converts becomes an ordinary 1901 map, and when the last one has crossed, jDip
+is gone from this project: no jDip art, no jDip code path, no jDip shaped
+plan.
+
+This is what D-016 was always for. It called the translator a way to add
+variants, and the variants it added kept jDip's shape for as long as they
+lived. They no longer do. A converted map is finished when nothing about it
+says where it came from.
+
+**What this deletes, once no jDip art remains.** The second style applier and
+everything only it needs: `applyJDipStyle`, `jdipPlan`, the label scale and
+the legibility floor, `carryLabel`, the label metrics and classes, and the
+typography and supply-centre tokens the jDip path alone reads. On the board:
+the layer pair it switches between, and the code that reads a name or an
+anchor out of the art. A style plan stops having two shapes.
+
+So the two appliers do collapse. Not because labels move to data, which was
+the earlier reading and was wrong: the reason there are two is D-024, one
+matching fills by value and one writing class rules, and that survives labels
+leaving. They collapse because one of the two kinds stops existing.
+
+**The hybrid in D-038 is a stage, not a resting place.** A map keeps its names
+layer only until it is re-authored. The end state has every map in data mode
+and no fallback path at all.
+
+**Four maps need a person, not a pass.** Gateway West, North Sea Wars, Sengoku
+and Vietnam War draw their names as outlined shapes carrying no string, and an
+automatic recovery reached 39 of 53 provinces on one of them while merging and
+splitting names. Those are re-authored in dipmap or dropped. Ancient
+Mediterranean and Unconstitutional never drew names and simply gain them.
+
+**Order.** Nothing here is urgent, and none of the deletions may happen while
+one jDip art is still served. The sequence is: the importer moves (D-033), the
+maps cross one at a time, the last crossing removes the art, and only then the
+code that read it goes. A deletion made early is a variant nobody can play.
 
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
@@ -1664,3 +1706,4 @@ Recorded so nobody re-derives them.
 | r28 | 2026-08-30 | D-038: the province name, the supply-centre glyph and the unit anchor become records in `placements.json`; the art keeps geometry. A label record carries position, size and reserved width, so the drawn box is the measured box. A map is in data mode if it has any label record, and maps whose names are outlined shapes keep their art. D-033 widened: `tools/jdip-import/` moves to dipmap as well, so 1901 never writes a map. |
 | r29 | 2026-08-30 | D-038 corrected after review by the map exporter: `at` is stated as the ink box centre and the record gains `height`, because a reader that took it for the baseline would draw every name half a cap height high; the centre glyph gains a radius, since it is an obstacle the name search fits around; `found` is not the mode flag; name styling moves to the board with the verdict, the typography and the halo travelling with the board state, so the two restyle paths do not collapse; the saving is restated gzipped and net of the records, about 1.8 KB a board load. |
 | r30 | 2026-08-30 | D-038 corrected again after scoping. The record gains `rot`: classical rotates 73 of 90 names and a flat Portugal runs across Spain. `?style=original` keeps its layers. The land-or-sea verdict is derived from the variant graph, not stored. The layers are 27.3% of the art, not 10.4%, but only 14.5% gzipped and almost all of that is in the four maps whose names are outlined shapes and cannot be migrated automatically. 1800 Empires and Coalitions has no long names at all and blocks its own migration. Multi-line names and the gallery card have no answer yet. |
+| r31 | 2026-08-30 | D-039: the jDip importer is a one-time migration and the end state has no jDip maps, only 1901 maps. Once the last jDip art is gone, the second style applier and everything only it reads is deleted, and a style plan stops having two shapes. The hybrid in D-038 is a stage, not a resting place. Four maps whose names are outlined shapes need re-authoring by a person, not a recovery pass. |
