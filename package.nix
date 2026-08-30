@@ -30,6 +30,19 @@ let
       && !lib.hasSuffix ".tsbuildinfo" name;
   };
 
+  # web/src/mapeditor imports ../../../tools/placement/*.ts — shared geometry
+  # and placement rules that live outside web/. The frontend does not typecheck
+  # without them, so they are unpacked beside webSrc at build time.
+  placementSrc = lib.cleanSourceWith {
+    src = ./tools/placement;
+    filter =
+      path: type:
+      !(lib.elem (baseNameOf path) [
+        "node_modules"
+        "out"
+      ]);
+  };
+
   webDeps = fetchNpmDeps {
     src = webSrc;
     hash = "sha256-sCIX+tRlbfsrxEQQFJ2nt5Amef2Ufx/ZNT/DPRlfTP8=";
@@ -45,6 +58,14 @@ let
       npmHooks.npmConfigHook
     ];
     npmDeps = webDeps;
+
+    # The relative imports resolve three levels above web/src/mapeditor, which
+    # is the build directory itself once webSrc is the source root.
+    postUnpack = ''
+      mkdir -p tools
+      cp -r ${placementSrc} tools/placement
+      chmod -R u+w tools
+    '';
 
     buildPhase = ''
       runHook preBuild
@@ -91,7 +112,16 @@ let
     pname = "1901-server";
     inherit version;
     src = goSrc;
-    vendorHash = "sha256-uKBAPllqABZk/AaszQtHRBBAzZWInKmAzfRqTZpx1qw=";
+    vendorHash = "sha256-4qQDpzAs0wuMEKv3o2ZPsLwCgF5cGrDYgMXgL1O8Mbo=";
+
+    # The DATC corpus is data, not code: `go mod vendor` keeps godip's Go
+    # files and drops the .txt case files the test reads from the module
+    # directory. Nothing in the sandbox can put them back, so the compliance
+    # run stays where it has the whole module — the `datc` job in CI.
+    checkFlags = [
+      "-skip"
+      "TestDATCOnTheLoadedClassicalBoard"
+    ];
 
     # `go install` names the binary after the import path, "spike"; the
     # project knows it as 1901.
