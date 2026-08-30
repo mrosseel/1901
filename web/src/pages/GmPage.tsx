@@ -16,7 +16,7 @@ import { refereeGuide } from "../referee";
 import { dismiss, isDismissed, reviewKey, reviewPlan } from "../review";
 
 /*
-The game master's screen: the rules, the invite, who has joined, who has
+The game master's screen: the rules, the invite, how many have joined, who has
 locked, and the two gated actions — start, and force adjudication. It holds
 no orders and never can: the GM state carries booleans only.
 
@@ -25,6 +25,13 @@ on it, because that is what a game master watches across a table while the
 phones come in, and the invite stands open beside it with its QR, because
 filling the seats is then the whole job. The count is live: the poll below runs
 on arrival and every three seconds after it.
+
+While seats are still open the count is all there is. A per-power list would
+say which powers are taken, and the order they were taken in, on a screen the
+whole table can read (D-013) — and seats are anonymous (D-020). The player
+waiting screen shows a count for that reason, so this one does too. The list
+appears when the last seat is claimed: from then on every power is in it and
+it names no order.
 */
 export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string }) {
   const client = useMemo(() => new GmClient(gameId, gmToken), [gameId, gmToken]);
@@ -129,6 +136,9 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       <header className="page-head">
         <div>
           <h1>Game master</h1>
+          {/* What the table calls this game, when it was named. A game master
+              running two tables tells them apart here and on the game list. */}
+          {game.settings.name ? <p className="game-name">{game.settings.name}</p> : null}
           {/* The phase, at the size the room reads it at — the same line the
               players carry at the top of their own boards. */}
           <p className="phase-now">
@@ -196,6 +206,12 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           <p className="joined-big">
             <strong>{game.joinedCount}</strong> of {game.totalSeats} players joined
           </p>
+          {!allJoined ? (
+            <p className="note">
+              Which power each phone took is not shown while seats are open. The powers
+              are listed once they are all claimed.
+            </p>
+          ) : null}
           <button
             type="button"
             className="primary"
@@ -212,34 +228,38 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         </section>
       ) : null}
 
-      <section className="card">
-        <h2>Powers</h2>
-        <ul className="seats">
-          {game.seats.map((seat) => (
-            <li key={seat.power} className={seat.joined ? "seat joined" : "seat"}>
-              <span className="dot" style={{ background: powerColor(seat.power) }} />
-              <span className="seat-name">{seat.power}</span>
-              {seat.isGm ? <span className="badge gm">Game master</span> : null}
-              <span className={seat.joined ? "badge in" : "badge out"}>
-                {seat.joined ? "Joined" : "Waiting"}
-              </span>
-              {game.started ? (
-                <span className={seat.locked ? "badge done" : "badge out"}>
-                  {seat.locked ? "Locked in" : "Still ordering"}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-        {/* Before the start the count is the headline above; here only the
-            running game needs a line, and it counts every power in play. */}
-        {game.started ? (
-          <p className="muted">
-            {game.seats.filter((seat) => seat.joined).length} powers in play ·{" "}
-            {lockedCount} players locked in
-          </p>
-        ) : null}
-      </section>
+      {/*
+      The powers, once they are all claimed. This is where the per-power
+      actions of D-041 belong when they are built: one row is one power, and
+      the row is the place a game master reaches it from.
+      */}
+      {allJoined ? (
+        <section className="card">
+          <h2>Powers</h2>
+          <ul className="seats">
+            {game.seats.map((seat) => (
+              <li key={seat.power} className="seat">
+                <span className="dot" style={{ background: powerColor(seat.power) }} />
+                <span className="seat-name">{seat.power}</span>
+                {seat.isGm ? <span className="badge gm">Game master</span> : null}
+                {game.started ? (
+                  <span className={seat.locked ? "badge done" : "badge out"}>
+                    {seat.locked ? "Locked in" : "Still ordering"}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          {/* Before the start the count is the headline above; here only the
+              running game needs a line, and it counts every power in play. */}
+          {game.started ? (
+            <p className="muted">
+              {game.seats.filter((seat) => seat.joined).length} powers in play ·{" "}
+              {lockedCount} players locked in
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {/*
       The invite, folded away once the game runs — before the start it is open

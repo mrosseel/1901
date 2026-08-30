@@ -40,6 +40,10 @@ export function JoinPage({ gameId, inviteToken }: { gameId: string; inviteToken:
   return (
     <main className="page">
       <h1>Join the game</h1>
+      {/* The name tells a player which table this link belongs to, which is
+          worth knowing before claiming a power on it. It names the table and
+          nothing else, so the seats stay anonymous (D-020). */}
+      {game?.settings?.name ? <p className="game-name">{game.settings.name}</p> : null}
       <p className="lead">
         Game {gameId}. You are given a power at random when you claim.
       </p>

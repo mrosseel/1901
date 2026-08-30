@@ -79,7 +79,7 @@ function isSettings(value: unknown): boolean {
   const rules = bag(value);
   return Boolean(
     rules && isNumber(rules.deadlineMinutes) && isBool(rules.gmPlays) &&
-      optional(rules.variant, isString),
+      optional(rules.variant, isString) && optional(rules.name, isString),
   );
 }
 

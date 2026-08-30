@@ -56,6 +56,10 @@ export function SeatWaiting({ state, beat }: { state: SeatState | null; beat: nu
             <p className="you-are-power">{power || "…"}</p>
           </div>
         </div>
+        {/* What the table calls this game, when it was named. It answers "what
+            game is this" — the name of a table, never of a person, so it says
+            nothing about who holds which power (D-020). */}
+        {state?.settings?.name ? <p className="game-name">{state.settings.name}</p> : null}
         {state?.variant ? (
           <p className="muted variant-line">
             <strong>{state.variant.name}</strong>{" "}

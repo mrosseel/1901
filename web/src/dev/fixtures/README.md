@@ -20,6 +20,10 @@ and `finalizedCount` became `locked`, `youLocked` and `lockedCount`, and the
 event lines these captures carry were rewritten to the words the server now
 writes. No value changed.
 
+`settings.name` arrived the same day and is empty in every capture that
+predates it: none of those games was ever named, so an empty string is what
+that server would have answered.
+
 ## The game behind them
 
 Seven players, no game master seat, a 30-minute deadline, the classical
@@ -70,7 +74,8 @@ beside their state.
 
 | File | The moment |
 | --- | --- |
-| `gm-prestart.json` | A second game where the game master plays: six seats on offer, three joined, invite and QR open |
+| `gm-prestart.json` | A second game where the game master plays: six seats on offer, three joined, invite and QR open. Unnamed, and no power is listed — the count is all the page shows while seats are open |
+| `gm-lobby-full.json` | A fourth game, named "Thursday table at the Ostend", with all six seats claimed and the game not started. The one moment the list of powers appears before the start |
 | `gm-midphase.json` | Spring 1901 running, the clock counting down |
 | `gm-force-armed.json` | Six of seven locked in, so the forced adjudication is live |
 | `gm-deadline-passed.json` | A third game with a one-minute deadline, snapshotted after it ran out with nobody locked in |

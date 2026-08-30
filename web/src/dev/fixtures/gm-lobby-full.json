@@ -3,26 +3,34 @@
     "deadlineAt": null,
     "dislodged": {},
     "events": [
-        "2026-08-29T08:12:16Z game created on Classical, deadlineMinutes=45 gmPlays=true retreatBuildPercent=50 graceMinutes=0 firstTurnExtraMinutes=0 pressMode=ftf",
-        "2026-08-29T08:12:16Z seat claimed (1 of 6)",
-        "2026-08-29T08:12:16Z seat claimed (2 of 6)",
-        "2026-08-29T08:12:16Z seat claimed (3 of 6)"
+        "2026-08-30T14:11:57Z game named \"Thursday table at the Ostend\"",
+        "2026-08-30T14:11:57Z game created on Classical, deadlineMinutes=15 gmPlays=true retreatBuildPercent=50 graceMinutes=0 firstTurnExtraMinutes=0 pressMode=ftf illegalMoves=true",
+        "2026-08-30T14:12:01Z seat claimed (1 of 6)",
+        "2026-08-30T14:12:05Z seat claimed (2 of 6)",
+        "2026-08-30T14:12:09Z seat claimed (3 of 6)",
+        "2026-08-30T14:12:14Z seat claimed (4 of 6)",
+        "2026-08-30T14:12:18Z seat claimed (5 of 6)",
+        "2026-08-30T14:12:22Z seat claimed (6 of 6)"
     ],
-    "gameId": "bypgexuc4h",
+    "gameId": "ahjpd9beks",
     "gmPower": null,
     "gmSeatUrl": null,
     "graceUntil": null,
-    "inviteUrl": "http://localhost:8299/join/bypgexuc4h/koAujCe6sZpke_v_DU0ZNmdpxvPQJGJR",
-    "joinedCount": 3,
-    "now": "2026-08-29T08:12:16Z",
+    "inviteUrl": "http://192.168.5.170:8631/join/ahjpd9beks/Jb8WfuQ6jiAYbZhzpFX1WoN7JVvzHEBv",
+    "joinedCount": 6,
+    "now": "2026-08-30T14:12:31Z",
     "phase": {
         "season": "Spring",
         "type": "Movement",
         "year": 1901
     },
-    "phaseMinutes": 45,
+    "phaseMinutes": 15,
     "placements": {
         "adr": {
+            "brief": [
+                773.04,
+                1060.69
+            ],
             "dislodged": [
                 818.97,
                 1093.29
@@ -34,6 +42,10 @@
             ]
         },
         "aeg": {
+            "brief": [
+                1057.97,
+                1226.6
+            ],
             "dislodged": [
                 1012.52,
                 1193.99
@@ -45,6 +57,10 @@
             ]
         },
         "alb": {
+            "brief": [
+                882.48,
+                1176.1
+            ],
             "dislodged": [
                 881.81,
                 1138.12
@@ -56,6 +72,10 @@
             ]
         },
         "ank": {
+            "brief": [
+                1297.68,
+                1120.96
+            ],
             "dislodged": [
                 1208.34,
                 1120.96
@@ -67,6 +87,10 @@
             ]
         },
         "apu": {
+            "brief": [
+                795.42,
+                1138.09
+            ],
             "dislodged": [
                 754.33,
                 1117.7
@@ -83,6 +107,10 @@
             ]
         },
         "arm": {
+            "brief": [
+                1435.68,
+                1113.02
+            ],
             "dislodged": [
                 1456.86,
                 1055.92
@@ -94,6 +122,10 @@
             ]
         },
         "bal": {
+            "brief": [
+                817.43,
+                569.82
+            ],
             "dislodged": [
                 839.48,
                 533.23
@@ -105,6 +137,10 @@
             ]
         },
         "bar": {
+            "brief": [
+                1084.44,
+                87.57
+            ],
             "dislodged": [
                 1146.18,
                 38.65
@@ -127,6 +163,10 @@
             ]
         },
         "ber": {
+            "brief": [
+                674.82,
+                752.85
+            ],
             "dislodged": [
                 689.17,
                 717.75
@@ -138,6 +178,10 @@
             ]
         },
         "bla": {
+            "brief": [
+                1161.27,
+                1046.52
+            ],
             "dislodged": [
                 1153.52,
                 981.66
@@ -149,6 +193,10 @@
             ]
         },
         "boh": {
+            "brief": [
+                778.91,
+                830.72
+            ],
             "dislodged": [
                 705.53,
                 825.62
@@ -160,6 +208,10 @@
             ]
         },
         "bot": {
+            "brief": [
+                850.63,
+                454.89
+            ],
             "dislodged": [
                 835.14,
                 388.56
@@ -182,6 +234,10 @@
             ]
         },
         "bud": {
+            "brief": [
+                880.45,
+                934.76
+            ],
             "dislodged": [
                 888.2,
                 869.9
@@ -193,6 +249,10 @@
             ]
         },
         "bul": {
+            "brief": [
+                1013.93,
+                1057.07
+            ],
             "dislodged": [
                 1003.3,
                 1092.56
@@ -205,8 +265,8 @@
         },
         "bul/ec": {
             "dislodged": [
-                1065.98,
-                1065.32
+                1062.16,
+                1058.71
             ],
             "scale": 0.85,
             "unit": [
@@ -216,16 +276,20 @@
         },
         "bul/sc": {
             "dislodged": [
-                971.42,
-                1078.54
+                996.85,
+                1089.58
             ],
-            "scale": 1,
+            "scale": 0.75,
             "unit": [
-                959.4,
-                1033.68
+                1030.49,
+                1080.56
             ]
         },
         "bur": {
+            "brief": [
+                508.91,
+                902.48
+            ],
             "dislodged": [
                 481.66,
                 938.09
@@ -237,6 +301,10 @@
             ]
         },
         "cly": {
+            "brief": [
+                365.26,
+                545.17
+            ],
             "dislodged": [
                 364.92,
                 514.85
@@ -253,6 +321,10 @@
             ]
         },
         "con": {
+            "brief": [
+                1097.48,
+                1167.48
+            ],
             "dislodged": [
                 1164.58,
                 1143.65
@@ -264,6 +336,10 @@
             ]
         },
         "den": {
+            "brief": [
+                675.5,
+                622.26
+            ],
             "dislodged": [
                 635.27,
                 593.29
@@ -275,6 +351,10 @@
             ]
         },
         "eas": {
+            "brief": [
+                1197.33,
+                1326.26
+            ],
             "dislodged": [
                 1218.51,
                 1269.16
@@ -297,6 +377,10 @@
             ]
         },
         "eng": {
+            "brief": [
+                301.02,
+                777.65
+            ],
             "dislodged": [
                 345.39,
                 758.14
@@ -308,6 +392,10 @@
             ]
         },
         "fin": {
+            "brief": [
+                905.34,
+                415.39
+            ],
             "dislodged": [
                 969.48,
                 395.4
@@ -319,6 +407,10 @@
             ]
         },
         "gal": {
+            "brief": [
+                940.4,
+                824.75
+            ],
             "dislodged": [
                 986.48,
                 822.45
@@ -330,6 +422,10 @@
             ]
         },
         "gas": {
+            "brief": [
+                366.6,
+                940.77
+            ],
             "dislodged": [
                 339.11,
                 988.52
@@ -341,6 +437,10 @@
             ]
         },
         "gol": {
+            "brief": [
+                446.14,
+                1123.78
+            ],
             "dislodged": [
                 521.3,
                 1138.76
@@ -352,6 +452,10 @@
             ]
         },
         "gre": {
+            "brief": [
+                927.43,
+                1163.33
+            ],
             "dislodged": [
                 933.76,
                 1201.75
@@ -363,6 +467,10 @@
             ]
         },
         "hel": {
+            "brief": [
+                574.39,
+                612.56
+            ],
             "dislodged": [
                 586.38,
                 652.49
@@ -374,6 +482,10 @@
             ]
         },
         "hol": {
+            "brief": [
+                496.19,
+                740.4
+            ],
             "dislodged": [
                 551.46,
                 721.98
@@ -385,6 +497,10 @@
             ]
         },
         "ion": {
+            "brief": [
+                847.39,
+                1308.03
+            ],
             "dislodged": [
                 868.57,
                 1250.93
@@ -396,6 +512,10 @@
             ]
         },
         "iri": {
+            "brief": [
+                272.21,
+                676.88
+            ],
             "dislodged": [
                 313.64,
                 650.32
@@ -407,6 +527,10 @@
             ]
         },
         "kie": {
+            "brief": [
+                603.72,
+                711.45
+            ],
             "dislodged": [
                 649.39,
                 712.11
@@ -429,6 +553,10 @@
             ]
         },
         "lvn": {
+            "brief": [
+                956.97,
+                552.86
+            ],
             "dislodged": [
                 964.72,
                 488
@@ -440,6 +568,10 @@
             ]
         },
         "lvp": {
+            "brief": [
+                392.15,
+                602.86
+            ],
             "dislodged": [
                 380.23,
                 651.25
@@ -451,6 +583,10 @@
             ]
         },
         "mar": {
+            "brief": [
+                499.86,
+                994.47
+            ],
             "dislodged": [
                 430.8,
                 998.46
@@ -462,6 +598,10 @@
             ]
         },
         "mid": {
+            "brief": [
+                114.5,
+                849.15
+            ],
             "dislodged": [
                 135.68,
                 792.05
@@ -473,6 +613,10 @@
             ]
         },
         "mos": {
+            "brief": [
+                1384.96,
+                447.44
+            ],
             "dislodged": [
                 1406.14,
                 390.34
@@ -484,6 +628,10 @@
             ]
         },
         "mun": {
+            "brief": [
+                640.67,
+                860.96
+            ],
             "dislodged": [
                 661.85,
                 824.11
@@ -495,6 +643,10 @@
             ]
         },
         "naf": {
+            "brief": [
+                355.47,
+                1341.96
+            ],
             "dislodged": [
                 376.65,
                 1284.86
@@ -506,6 +658,10 @@
             ]
         },
         "nap": {
+            "brief": [
+                764.06,
+                1234.29
+            ],
             "dislodged": [
                 728.57,
                 1257.81
@@ -517,6 +673,10 @@
             ]
         },
         "nat": {
+            "brief": [
+                182.33,
+                400.03
+            ],
             "dislodged": [
                 203.51,
                 342.93
@@ -528,6 +688,10 @@
             ]
         },
         "nrg": {
+            "brief": [
+                526.34,
+                203.03
+            ],
             "dislodged": [
                 547.52,
                 145.93
@@ -539,6 +703,10 @@
             ]
         },
         "nth": {
+            "brief": [
+                502.83,
+                556.22
+            ],
             "dislodged": [
                 524.01,
                 499.12
@@ -550,6 +718,10 @@
             ]
         },
         "nwy": {
+            "brief": [
+                679.65,
+                401.39
+            ],
             "dislodged": [
                 646.82,
                 470.15
@@ -561,6 +733,10 @@
             ]
         },
         "par": {
+            "brief": [
+                408.1,
+                864.02
+            ],
             "dislodged": [
                 438.06,
                 899.94
@@ -594,6 +770,10 @@
             ]
         },
         "por": {
+            "brief": [
+                124.87,
+                1062.29
+            ],
             "dislodged": [
                 101.4,
                 1102.85
@@ -605,6 +785,10 @@
             ]
         },
         "pru": {
+            "brief": [
+                797.28,
+                667.74
+            ],
             "dislodged": [
                 855.95,
                 682.72
@@ -616,6 +800,10 @@
             ]
         },
         "rom": {
+            "brief": [
+                698.2,
+                1061.9
+            ],
             "dislodged": [
                 698.2,
                 1098.74
@@ -627,6 +815,10 @@
             ]
         },
         "ruh": {
+            "brief": [
+                577.16,
+                765.51
+            ],
             "dislodged": [
                 591.39,
                 809.98
@@ -638,6 +830,10 @@
             ]
         },
         "rum": {
+            "brief": [
+                1036.61,
+                976.83
+            ],
             "dislodged": [
                 991.74,
                 1003.31
@@ -649,6 +845,10 @@
             ]
         },
         "ser": {
+            "brief": [
+                912.15,
+                1059.35
+            ],
             "dislodged": [
                 883.21,
                 1015.68
@@ -660,6 +860,10 @@
             ]
         },
         "sev": {
+            "brief": [
+                1412.85,
+                789.19
+            ],
             "dislodged": [
                 1434.03,
                 732.09
@@ -671,6 +875,10 @@
             ]
         },
         "sil": {
+            "brief": [
+                763,
+                758.78
+            ],
             "dislodged": [
                 782.37,
                 786.07
@@ -693,6 +901,10 @@
             ]
         },
         "smy": {
+            "brief": [
+                1251.45,
+                1228.32
+            ],
             "dislodged": [
                 1313.68,
                 1179.4
@@ -704,6 +916,10 @@
             ]
         },
         "spa": {
+            "brief": [
+                287.2,
+                1163.72
+            ],
             "dislodged": [
                 283.93,
                 1126.28
@@ -737,6 +953,10 @@
             ]
         },
         "stp": {
+            "brief": [
+                1369.57,
+                114.66
+            ],
             "dislodged": [
                 1390.76,
                 57.55
@@ -770,6 +990,10 @@
             ]
         },
         "swe": {
+            "brief": [
+                824.07,
+                258.64
+            ],
             "dislodged": [
                 845.25,
                 201.54
@@ -781,6 +1005,10 @@
             ]
         },
         "syr": {
+            "brief": [
+                1437.91,
+                1280.9
+            ],
             "dislodged": [
                 1459.09,
                 1223.8
@@ -792,6 +1020,10 @@
             ]
         },
         "tri": {
+            "brief": [
+                791.52,
+                1025.32
+            ],
             "dislodged": [
                 835.29,
                 1055.28
@@ -825,6 +1057,10 @@
             ]
         },
         "tyr": {
+            "brief": [
+                736.99,
+                930.77
+            ],
             "dislodged": [
                 674.88,
                 914.51
@@ -836,6 +1072,10 @@
             ]
         },
         "tys": {
+            "brief": [
+                704.75,
+                1211.83
+            ],
             "dislodged": [
                 629.02,
                 1219.58
@@ -847,6 +1087,10 @@
             ]
         },
         "ukr": {
+            "brief": [
+                1079.08,
+                843.13
+            ],
             "dislodged": [
                 1071.33,
                 778.27
@@ -858,6 +1102,10 @@
             ]
         },
         "ven": {
+            "brief": [
+                694.46,
+                963.8
+            ],
             "dislodged": [
                 658.6,
                 992.91
@@ -869,6 +1117,10 @@
             ]
         },
         "vie": {
+            "brief": [
+                790.47,
+                922.87
+            ],
             "dislodged": [
                 826.64,
                 867.12
@@ -880,6 +1132,10 @@
             ]
         },
         "wal": {
+            "brief": [
+                338.67,
+                728.41
+            ],
             "dislodged": [
                 349.62,
                 681.9
@@ -891,6 +1147,10 @@
             ]
         },
         "war": {
+            "brief": [
+                924.91,
+                739.01
+            ],
             "dislodged": [
                 988.61,
                 690.09
@@ -902,6 +1162,10 @@
             ]
         },
         "wes": {
+            "brief": [
+                305.6,
+                1244.43
+            ],
             "dislodged": [
                 225.95,
                 1244.43
@@ -913,6 +1177,10 @@
             ]
         },
         "yor": {
+            "brief": [
+                426.56,
+                646.55
+            ],
             "dislodged": [
                 408.82,
                 680.74
@@ -942,8 +1210,6 @@
         "bre": "Brest",
         "bud": "Budapest",
         "bul": "Bulgaria",
-        "bul/ec": "Bulgaria (EC)",
-        "bul/sc": "Bulgaria (SC)",
         "bur": "Burgundy",
         "cly": "Clyde",
         "con": "Constantinople",
@@ -988,11 +1254,7 @@
         "ska": "Skagerakk (SKA)",
         "smy": "Smyrna",
         "spa": "Spain",
-        "spa/nc": "Spain (NC)",
-        "spa/sc": "Spain (SC)",
         "stp": "St. Petersburg",
-        "stp/nc": "St. Petersburg (NC)",
-        "stp/sc": "St. Petersburg (SC)",
         "swe": "Sweden",
         "syr": "Syria",
         "tri": "Trieste",
@@ -1010,54 +1272,55 @@
     },
     "seats": [
         {
-            "locked": false,
             "isGm": false,
-            "joined": true,
+            "joined": false,
+            "locked": false,
             "power": "Austria"
         },
         {
-            "locked": false,
             "isGm": false,
-            "joined": false,
+            "joined": true,
+            "locked": false,
             "power": "England"
         },
         {
-            "locked": false,
             "isGm": false,
-            "joined": false,
+            "joined": true,
+            "locked": false,
             "power": "France"
         },
         {
-            "locked": false,
             "isGm": false,
-            "joined": false,
+            "joined": true,
+            "locked": false,
             "power": "Germany"
         },
         {
-            "locked": false,
             "isGm": false,
             "joined": true,
+            "locked": false,
             "power": "Italy"
         },
         {
-            "locked": false,
             "isGm": false,
             "joined": true,
+            "locked": false,
             "power": "Russia"
         },
         {
-            "locked": false,
             "isGm": false,
-            "joined": false,
+            "joined": true,
+            "locked": false,
             "power": "Turkey"
         }
     ],
     "settings": {
-        "deadlineMinutes": 45,
+        "deadlineMinutes": 15,
         "firstTurnExtraMinutes": 0,
         "gmPlays": true,
         "graceMinutes": 0,
-        "name": "",
+        "illegalMoves": true,
+        "name": "Thursday table at the Ostend",
         "pressMode": "ftf",
         "retreatBuildPercent": 50,
         "variant": "classical"

@@ -56,7 +56,10 @@ CREATE TABLE IF NOT EXISTS game (
     press_mode               TEXT    NOT NULL DEFAULT 'ftf',
     -- D-029, and the default is ON: a game written before the setting
     -- existed is one where nobody was ever refused a misorder.
-    illegal_moves            INTEGER NOT NULL DEFAULT 1
+    illegal_moves            INTEGER NOT NULL DEFAULT 1,
+    -- What the table calls this game. Empty is the ordinary case and means
+    -- the game is known by its id, which is what every game did before.
+    name                     TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS seat (
@@ -140,6 +143,8 @@ var gameColumns = []struct{ name, definition string }{
 	// The descriptor hash a generated variant had when the game started.
 	// Empty for a compiled variant, which changes only when the binary does.
 	{"variant_hash", `TEXT NOT NULL DEFAULT ''`},
+	// A game written before names existed keeps the identity it had: its id.
+	{"name", `TEXT NOT NULL DEFAULT ''`},
 }
 
 // orderColumns are the columns a game_order row has grown, in the same shape
@@ -270,8 +275,8 @@ func (self *game) persistErr(id string) error {
                           phase_index, created_at, variant,
                           retreat_build_percent, grace_minutes,
                           first_turn_extra_minutes, press_mode, illegal_moves,
-                          variant_hash)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          variant_hash, name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             gm_device        = excluded.gm_device,
             deadline_minutes = excluded.deadline_minutes,
@@ -286,13 +291,14 @@ func (self *game) persistErr(id string) error {
             first_turn_extra_minutes = excluded.first_turn_extra_minutes,
             press_mode               = excluded.press_mode,
             illegal_moves            = excluded.illegal_moves,
-            variant_hash             = excluded.variant_hash`,
+            variant_hash             = excluded.variant_hash,
+            name                     = excluded.name`,
 		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
 		f.settings.RetreatBuildPercent, f.settings.GraceMinutes,
 		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves,
-		variantHash(self.variantKey))
+		variantHash(self.variantKey), f.settings.Name)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
@@ -393,7 +399,8 @@ func loadAll() error {
                settings_version, started, deadline_at, gm_power, phase_index,
                created_at, COALESCE(variant, ?),
                retreat_build_percent, grace_minutes, first_turn_extra_minutes,
-               COALESCE(press_mode, ?), illegal_moves, COALESCE(variant_hash, '')
+               COALESCE(press_mode, ?), illegal_moves, COALESCE(variant_hash, ''),
+               COALESCE(name, '')
         FROM game`, defaultVariant, defaultPressMode)
 	if err != nil {
 		return err
@@ -418,7 +425,8 @@ func loadAll() error {
 			&f.settings.GMPlays, &f.settingsVersion, &f.started, &deadline, &gmPower,
 			&phaseIndex, &createdAt, &key, &f.settings.RetreatBuildPercent,
 			&f.settings.GraceMinutes, &f.settings.FirstTurnExtraMinutes,
-			&f.settings.PressMode, &f.settings.IllegalMoves, &recordedHash); err != nil {
+			&f.settings.PressMode, &f.settings.IllegalMoves, &recordedHash,
+			&f.settings.Name); err != nil {
 			rows.Close()
 			return err
 		}
