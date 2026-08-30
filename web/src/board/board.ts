@@ -924,13 +924,23 @@ export function mount(
   function drawnLayer(id: string): SVGGElement {
     const layer = overlay(id);
     layer.replaceChildren();
-    for (const above of DRAWN_LAYERS.slice(DRAWN_LAYERS.indexOf(id) + 1)) {
-      const node = svgRoot!.querySelector<SVGGElement>("#" + above);
-      if (!node) continue;
-      if (layer.nextSibling !== node) svgRoot!.insertBefore(layer, node);
-      break;
-    }
     return layer;
+  }
+
+  /*
+  Appending a node already in the document moves it, so one pass over the
+  declared order leaves the stack in that order whatever order the layers were
+  created in. Placing each layer relative to the next one that happens to exist
+  cannot do this: on a first render the overlays do not exist yet, the data
+  layers land at the end, and from then on each finds the other as its next
+  sibling and never looks further.
+  */
+  function orderDrawnLayers(): void {
+    if (!svgRoot) return;
+    for (const id of DRAWN_LAYERS) {
+      const node = svgRoot.querySelector<SVGGElement>("#" + id);
+      if (node) svgRoot.appendChild(node);
+    }
   }
 
   function renderDataCentres(): void {
@@ -2422,6 +2432,7 @@ export function mount(
     renderBriefLabels();
     renderHighlights();
     renderBuilder();
+    orderDrawnLayers();
   }
 
   /** Presses one of the bottom bar's buttons, whether by tap or by key. */
@@ -2532,6 +2543,7 @@ export function mount(
       if (svgRoot) {
         renderDataNames();
         renderBriefLabels();
+        orderDrawnLayers();
       }
     },
     escape: escape,

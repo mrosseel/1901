@@ -312,6 +312,31 @@ describe("the art wins where it draws the layer", () => {
     board.destroy();
   });
 
+  it("keeps the data layers under the pieces across redraws", async () => {
+    /*
+    The glyphs go down first, the names are fitted around them, and the pieces
+    are placed around both, so a name must never be drawn over a marker. The
+    first render creates the data layers before either overlay exists, so an
+    order decided once at creation is decided wrong and stays wrong.
+    */
+    const board = await boardFor(dataModeArt(), DATA_STATE);
+    const order = () =>
+      [...(document.querySelector("svg")?.children || [])]
+        .map((node) => node.id)
+        .filter((id) => id === "data-centres" || id === "data-labels" || id.endsWith("-overlay"));
+    board.setBriefLabels(true);
+    board.setBriefLabels(false);
+    const seen = order();
+    const centres = seen.indexOf("data-centres");
+    const labels = seen.indexOf("data-labels");
+    expect(centres).toBeGreaterThanOrEqual(0);
+    expect(labels).toBeGreaterThan(centres);
+    seen
+      .filter((id) => id.endsWith("-overlay"))
+      .forEach((id) => expect(seen.indexOf(id)).toBeGreaterThan(labels));
+    board.destroy();
+  });
+
   it("shows the codes instead of the names in brief mode", async () => {
     const board = await boardFor(dataModeArt(), DATA_STATE);
     expect(Object.keys(drawnNames()).length).toBe(73);
