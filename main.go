@@ -731,6 +731,10 @@ func main() {
 	// route of the same shell; the claim it posts to lives under /game/.
 	mux.HandleFunc("/handover/", srv.serveSPA)
 	mux.HandleFunc("/handover-gm/", srv.serveSPA)
+	// Where a game master types their twelve words (D-048). Another route
+	// of the same shell; the challenge and the answer live under /game/.
+	mux.HandleFunc("/recover/", srv.serveSPA)
+	mux.HandleFunc("/recover", srv.serveSPA)
 
 	addr := listenAddr()
 	origin := baseURLFixed

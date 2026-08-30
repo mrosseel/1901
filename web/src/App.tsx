@@ -7,6 +7,7 @@ import { HandoverPage } from "./pages/HandoverPage";
 import { JoinPage } from "./pages/JoinPage";
 import { LandingPage } from "./pages/LandingPage";
 import { NewGame } from "./pages/NewGame";
+import { RecoverPage } from "./pages/RecoverPage";
 import { SeatPage } from "./pages/SeatPage";
 import { WatchPage } from "./pages/WatchPage";
 
@@ -71,6 +72,8 @@ export function App() {
       return <GamesPage />;
     case "faq":
       return <FaqPage />;
+    case "recover":
+      return <RecoverPage gameId={route.gameId} />;
     case "handover":
       return (
         <HandoverPage

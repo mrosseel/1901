@@ -161,7 +161,12 @@ type flow struct {
 	// gmEpoch is the handover counter for the role (D-041). The role and a
 	// power are separate acts and fail differently, so they count
 	// separately: a game master who gives the role away still plays.
-	gmEpoch     int
+	gmEpoch int
+	// gmPublicKey is the Ed25519 public half the game master's browser
+	// registered (D-048), base64url. Empty means the game has no key and
+	// cannot be recovered by its words, which is every game made before
+	// this existed and every one whose game master declined.
+	gmPublicKey string
 	inviteToken string
 	// gmDevice is the referee cookie secret: the browser that created the
 	// game holds it, and it is what /game/{id}/referee/ answers to. It
@@ -1096,6 +1101,10 @@ type gmStateJSON struct {
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
 	Now             string              `json:"now"`
+	// Whether this game has a recovery key (D-048). A boolean and not the
+	// key: the page needs to know which card to draw, not what the server
+	// holds.
+	HasGMKey bool `json:"hasGmKey"`
 }
 
 // gmState renders the GM view. The caller must hold g.mu. It contains
@@ -1127,6 +1136,7 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		Dislodged:     self.dislodgedMap(),
 		PreviousPhase: self.previousPhase,
 		Now:           serverNow(),
+		HasGMKey:      f.gmPublicKey != "",
 	}
 	for _, p := range f.powers {
 		s := f.seats[p]
@@ -1720,6 +1730,7 @@ var gmRoutes = map[string]gameHandler{
 	"state":         handleGMState,
 	"handover":      handleGMHandover,
 	"handover-role": handleGMRoleHandover,
+	"key":           handleGMKey,
 	"settings":      handleGMSettings,
 	"start":         handleGMStart,
 	"adjudicate":    handleGMForce,
@@ -1783,6 +1794,11 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 		handleHandoverClaim(g, id, segments[2:], w, r)
 	case "handover-gm":
 		handleGMRoleClaim(g, id, segments[2:], w, r)
+	case "recover":
+		// Token-free for the reason it exists (D-048): the person asking
+		// has lost every token they had. The signature they send back is
+		// the credential.
+		handleRecover(g, id, w, r)
 	case "gm", "seat":
 		self.serveTokenScope(g, id, segments, w, r)
 	default:

@@ -42,6 +42,24 @@ export function FaqPage() {
         </section>
 
         <section className="card">
+          <h2>What if the game master loses their link?</h2>
+          <p>
+            The game master's screen carries a <strong>If you lose this screen</strong>{" "}
+            card. It shows that page's own address, to keep on a second device, and it
+            offers a key: twelve words, written on this app's screen and nowhere else.
+          </p>
+          <p>
+            Typing the words at <a href="/recover">/recover</a> gives the game back on any
+            device. The server is handed a public half that opens nothing, so it cannot
+            run your game and cannot help anybody who does not have the words.
+          </p>
+          <p className="note">
+            A game whose game master never made a key has no recovery. Nothing on the
+            server can give the role back, because nothing on the server is the role.
+          </p>
+        </section>
+
+        <section className="card">
           <h2>Can the game master read my orders?</h2>
           <p>
             Today, yes, if they go looking: the orders are on the server and the game master
