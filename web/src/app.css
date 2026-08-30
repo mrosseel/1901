@@ -1120,6 +1120,28 @@ map draws.
 .referee-text { flex: 1 1 auto; min-width: 0; }
 .referee-note { color: var(--muted); font-size: 15px; }
 
+/* The whole line is the target: this is tapped by someone looking at the board,
+   not at the phone. */
+.referee-tick {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.referee-tick input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.referee-list li.is-done .referee-text { color: var(--muted); text-decoration: line-through; }
+.referee-list li.is-done .dot { opacity: 0.45; }
+
 /* The pieces that do not move are still a decision, so they are shown — but
    they are not an act, so they are quieter than the acts. */
 .referee-group.stays .referee-list li { font-size: 16px; color: var(--muted); }
