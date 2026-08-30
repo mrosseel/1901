@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, GmClient, watchPath, type GmState } from "../api";
+import {
+  ApiError,
+  GmClient,
+  mintHandover,
+  watchPath,
+  type GmState,
+  type Handover,
+} from "../api";
 import { LinkShare } from "../components/LinkShare";
 import { powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
@@ -38,6 +45,10 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   const [game, setGame] = useState<GmState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /* The handover link the game master last minted, and what went wrong if
+     nothing came back (D-041). One at a time: see the Powers card. */
+  const [handover, setHandover] = useState<Handover | null>(null);
+  const [handoverError, setHandoverError] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [refereeing, setRefereeing] = useState(false);
@@ -229,9 +240,10 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       ) : null}
 
       {/*
-      The powers, once they are all claimed. This is where the per-power
-      actions of D-041 belong when they are built: one row is one power, and
-      the row is the place a game master reaches it from.
+      The powers, once they are all claimed. One row is one power, and the row
+      is where the game master reaches it: today that is the handover of
+      D-041, which is here rather than on the seat because the case it exists
+      for is a phone that cannot open its own menu any more.
       */}
       {allJoined ? (
         <section className="card">
@@ -247,9 +259,44 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
                     {seat.locked ? "Locked in" : "Still ordering"}
                   </span>
                 ) : null}
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => {
+                    setHandover(null);
+                    setHandoverError(null);
+                    mintHandover(gameId, gmToken, seat.power)
+                      .then(setHandover)
+                      .catch((err: unknown) =>
+                        setHandoverError(err instanceof Error ? err.message : String(err)),
+                      );
+                  }}
+                >
+                  Hand over
+                </button>
               </li>
             ))}
           </ul>
+          {/*
+          The link the game master just minted. It is one at a time on purpose:
+          two codes on one screen is how the wrong seat gets handed over.
+          Minting is an enumerated, logged act (D-007) and appears in the log
+          below, because a game master who can mint for any power can take any
+          seat and the record is what keeps that visible.
+          */}
+          {handoverError ? <p className="error">{handoverError}</p> : null}
+          {handover ? (
+            <LinkShare
+              title={"Hand " + handover.power + " to another phone"}
+              url={handover.url}
+              note={
+                <>
+                  Whoever opens this takes {handover.power}. The phone holding it now loses
+                  the seat the moment they do.
+                </>
+              }
+            />
+          ) : null}
           {/* Before the start the count is the headline above; here only the
               running game needs a line, and it counts every power in play. */}
           {game.started ? (

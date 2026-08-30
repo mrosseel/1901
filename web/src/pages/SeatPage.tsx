@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, SeatClient, fetchPublic, type SeatState } from "../api";
 import { Board } from "../components/Board";
+import { SeatMenu } from "../components/SeatMenu";
 import { SplitLayout } from "../components/SplitLayout";
 import {
   powerColor,
@@ -394,8 +395,20 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             <p className="phase-now">
               <PhaseName phase={state?.phase} />
             </p>
+            {/* The power, and the seat's own menu behind it (D-041). The icon
+                is the way to hand this seat to another phone, which is what a
+                dead battery or a player going home needs. */}
             <h1>
-              <span className="dot" style={{ background: powerColor(power) }} />
+              {power ? (
+                <SeatMenu
+                  power={power}
+                  turns={state?.turns}
+                  createdAt={state?.createdAt}
+                  seat={client}
+                />
+              ) : (
+                <span className="dot" style={{ background: powerColor(power) }} />
+              )}
               You are {power || "…"}
             </h1>
             <p className="muted">

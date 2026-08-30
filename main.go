@@ -725,6 +725,9 @@ func main() {
 	mux.HandleFunc("/game/", srv.serveFlow)
 	mux.HandleFunc("/join/", srv.serveJoinPage)
 	mux.HandleFunc("/watch/", srv.serveWatchPage)
+	// The page the next person opens from a QR code (D-041). It is one more
+	// route of the same shell; the claim it posts to lives under /game/.
+	mux.HandleFunc("/handover/", srv.serveSPA)
 
 	addr := listenAddr()
 	origin := baseURLFixed

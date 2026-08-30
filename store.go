@@ -8,7 +8,9 @@ package main
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -106,6 +108,14 @@ CREATE TABLE IF NOT EXISTS event (
 );
 
 CREATE INDEX IF NOT EXISTS event_by_game ON event(game_id, id);
+
+-- Secrets that belong to the server rather than to a game. One row today:
+-- the salt every handover link is signed with (D-041). It lives here so a
+-- QR code on a table outlives the process that printed it.
+CREATE TABLE IF NOT EXISTS server_secret (
+    name  TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 `
 
 // openDB opens the database and applies the schema.
@@ -125,7 +135,37 @@ func openDB(path string) (*sql.DB, error) {
 		handle.Close()
 		return nil, err
 	}
+	if err := loadHandoverSalt(handle); err != nil {
+		handle.Close()
+		return nil, err
+	}
 	return handle, nil
+}
+
+// loadHandoverSalt reads the salt every handover link is signed with, making
+// it on first run (D-041). It is stored rather than generated per boot so a
+// code somebody photographed still works after a restart.
+func loadHandoverSalt(handle *sql.DB) error {
+	var stored string
+	err := handle.QueryRow(
+		`SELECT value FROM server_secret WHERE name = 'handover_salt'`).Scan(&stored)
+	if err == nil {
+		handoverSalt, err = base64.RawURLEncoding.DecodeString(stored)
+		return err
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	made, err := newToken()
+	if err != nil {
+		return err
+	}
+	if _, err := handle.Exec(
+		`INSERT INTO server_secret (name, value) VALUES ('handover_salt', ?)`, made); err != nil {
+		return err
+	}
+	handoverSalt, err = base64.RawURLEncoding.DecodeString(made)
+	return err
 }
 
 // gameColumns are the columns a game row has grown since the first schema,
@@ -159,6 +199,9 @@ var orderColumns = []struct{ name, definition string }{
 // which keeps the stored value.
 var seatColumns = []struct{ name, definition string }{
 	{"locked", `INTEGER NOT NULL DEFAULT 0`},
+	// The handover counter (D-041). A game from before handovers existed
+	// starts every seat at zero, which is the epoch its links would carry.
+	{"epoch", `INTEGER NOT NULL DEFAULT 0`},
 }
 
 // renamedColumns are columns that changed name. The rename must run before
@@ -306,14 +349,15 @@ func (self *game) persistErr(id string) error {
 	for _, p := range f.powers {
 		s := f.seats[p]
 		_, err = tx.Exec(`
-            INSERT INTO seat (game_id, power, seat_token, device, is_gm, locked)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO seat (game_id, power, seat_token, device, is_gm, locked, epoch)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(game_id, power) DO UPDATE SET
                 seat_token = excluded.seat_token,
                 device     = excluded.device,
                 is_gm      = excluded.is_gm,
-                locked  = excluded.locked`,
-			id, string(p), s.token, s.device, s.isGM, s.locked)
+                locked  = excluded.locked,
+                epoch      = excluded.epoch`,
+			id, string(p), s.token, s.device, s.isGM, s.locked, s.epoch)
 		if err != nil {
 			return fmt.Errorf("seat %v: %v", p, err)
 		}
@@ -492,14 +536,15 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 		f.seats[p] = &seat{power: p}
 	}
 	rows, err := db.Query(
-		`SELECT power, seat_token, device, is_gm, locked FROM seat WHERE game_id = ?`, id)
+		`SELECT power, seat_token, device, is_gm, locked, epoch FROM seat WHERE game_id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		var power, token, device string
 		var isGM, locked bool
-		if err := rows.Scan(&power, &token, &device, &isGM, &locked); err != nil {
+		var epoch int
+		if err := rows.Scan(&power, &token, &device, &isGM, &locked, &epoch); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -507,7 +552,7 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 		if !found {
 			continue
 		}
-		s.token, s.device, s.isGM, s.locked = token, device, isGM, locked
+		s.token, s.device, s.isGM, s.locked, s.epoch = token, device, isGM, locked, epoch
 		if token != "" {
 			f.bySeatToken[token] = s.power
 		}

@@ -143,6 +143,11 @@ type seat struct {
 	isGM   bool
 	locked bool
 
+	// epoch is the handover counter (D-041). Every link ever minted for
+	// this seat is signed for one epoch, so taking the seat and raising it
+	// kills the rest — including the phone that just gave the power away.
+	epoch int
+
 	// autoLocked marks a seat the server locked because its power has no
 	// legal order this phase (D-034). It is derived from the resolved
 	// position, so it is recomputed on restore rather than stored.
@@ -1394,6 +1399,10 @@ type seatStateJSON struct {
 	PhaseMinutes    int             `json:"phaseMinutes"`
 	Locked          map[string]bool `json:"locked"`
 	YouLocked       bool            `json:"youLocked"`
+	// What the seat menu says about the game it belongs to (D-041): how
+	// many turns have been played, and when the game was made.
+	Turns     int    `json:"turns"`
+	CreatedAt string `json:"createdAt"`
 	// NothingToOrder says this seat was locked by the server because its
 	// power has no legal order this phase (D-034). The screen must say so;
 	// a seat that finds itself locked with no explanation reads as a bug.
@@ -1468,6 +1477,8 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 		PhaseMinutes:     f.phaseMinutes(self.state.Phase()),
 		Locked:           f.lockedMap(),
 		YouLocked:        f.seats[power].locked,
+		Turns:            f.phaseIndex,
+		CreatedAt:        f.createdAt.UTC().Format(time.RFC3339),
 		NothingToOrder:   f.seats[power].autoLocked,
 		LockedCount:      f.lockedCount(),
 		TotalSeats:       f.activeSeats(),
@@ -1698,6 +1709,7 @@ func (self *game) advance(id string, dropUnlocked bool) error {
 
 var gmRoutes = map[string]gameHandler{
 	"state":      handleGMState,
+	"handover":   handleGMHandover,
 	"settings":   handleGMSettings,
 	"start":      handleGMStart,
 	"adjudicate": handleGMForce,
@@ -1706,11 +1718,12 @@ var gmRoutes = map[string]gameHandler{
 }
 
 var seatRoutes = map[string]seatHandler{
-	"state":   handleSeatState,
-	"options": handleSeatOptions,
-	"order":   handleSeatOrder,
-	"lock":    handleSeatLock,
-	"unlock":  handleSeatUnlock,
+	"state":    handleSeatState,
+	"handover": handleSeatHandover,
+	"options":  handleSeatOptions,
+	"order":    handleSeatOrder,
+	"lock":     handleSeatLock,
+	"unlock":   handleSeatUnlock,
 
 	// The names these two carried until 2026-08-30. A phone that loaded the
 	// seat page before the rename shipped still posts to them, and a game at
@@ -1753,6 +1766,10 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		handleJoin(g, id, segments[2], w, r)
+	case "handover":
+		// The signature in the path is the whole credential (D-041), so
+		// this sits beside join rather than inside a token scope.
+		handleHandoverClaim(g, id, segments[2:], w, r)
 	case "gm", "seat":
 		self.serveTokenScope(g, id, segments, w, r)
 	default:

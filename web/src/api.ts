@@ -190,6 +190,10 @@ export interface SeatState extends BoardState, VariantAware {
   deadlineAt: string | null;
   locked: Record<string, boolean>;
   youLocked: boolean;
+  /** How many turns the game has played, for the seat menu (D-041). */
+  turns?: number;
+  /** When the game was made, for the seat menu's elapsed line. */
+  createdAt?: string;
   /**
    * This seat was locked by the server because its power has no legal
    * order this phase. The seat cannot be unlocked while it is set.
@@ -280,6 +284,9 @@ export async function postJSON<T>(url: string, body?: unknown): Promise<T> {
 export type Route =
   /* The landing page (D-043): the one address with nothing behind it. */
   | { kind: "index" }
+  /* The page a handover QR code opens (D-041). Everything it needs to take
+     the seat is in the address, and the signature is what authorises it. */
+  | { kind: "handover"; gameId: string; power: string; epoch: string; signature: string }
   /* The list of games this server holds, which used to stand at the root. */
   | { kind: "games" }
   | { kind: "new" }
@@ -299,6 +306,15 @@ export function parseRoute(pathname: string): Route {
   if (parts.length === 0) return { kind: "index" };
   if (parts.length === 1 && parts[0] === "new") return { kind: "new" };
   if (parts.length === 1 && parts[0] === "games") return { kind: "games" };
+  if (parts.length === 5 && parts[0] === "handover") {
+    return {
+      kind: "handover",
+      gameId: parts[1],
+      power: decodeURIComponent(parts[2]),
+      epoch: parts[3],
+      signature: parts[4],
+    };
+  }
   if (parts.length === 1 && parts[0] === "mapeditor") return { kind: "mapeditor" };
   if (parts.length === 3 && parts[0] === "join") {
     return { kind: "join", gameId: parts[1], inviteToken: parts[2] };
@@ -469,4 +485,56 @@ export class SeatClient {
   lock(on: boolean): Promise<SeatState> {
     return postJSON<SeatState>(this.base + (on ? "lock" : "unlock"));
   }
+
+  /** The link that hands this power to another phone (D-041). */
+  handover(): Promise<Handover> {
+    return getJSON<Handover>(this.base + "handover");
+  }
+}
+
+/** A minted handover link, and the power it hands over. */
+export interface Handover {
+  power: string;
+  url: string;
+}
+
+/*
+Taking a power from a handover link (D-041).
+
+The signature in the address is the whole credential, which is why this is a
+post and never a page load: a link preview or a scanner that fetches before it
+shows would otherwise burn the seat and strand the phone that still holds it.
+*/
+export function claimHandover(
+  gameId: string,
+  power: string,
+  epoch: string,
+  signature: string,
+): Promise<{ power: string; seatUrl: string }> {
+  return postJSON<{ power: string; seatUrl: string }>(
+    absolute(
+      "/game/" +
+        encodeURIComponent(gameId) +
+        "/handover/" +
+        encodeURIComponent(power) +
+        "/" +
+        encodeURIComponent(epoch) +
+        "/" +
+        encodeURIComponent(signature),
+    ),
+  );
+}
+
+/** The game master mints a link for any power, dead phone or not (r44). */
+export function mintHandover(gameId: string, gmToken: string, power: string): Promise<Handover> {
+  return getJSON<Handover>(
+    absolute(
+      "/game/" +
+        encodeURIComponent(gameId) +
+        "/gm/" +
+        encodeURIComponent(gmToken) +
+        "/handover?power=" +
+        encodeURIComponent(power),
+    ),
+  );
 }
