@@ -50,6 +50,7 @@ import {
   failureReason,
   isDismissed,
   isFailure,
+  orderText,
   reviewKey,
   reviewPlan,
 } from "../review";
@@ -363,17 +364,31 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
 
   /*
   This power's orders, in whichever of the two languages this device asked
-  for. The notation is built from the raw parts and the units on the board,
-  never from the sentence beside it — a sentence cannot be unwritten into
-  notation, and the two would drift the first time either changed.
+  for. Both are built from the raw parts and the units on the board, never
+  one from the other — a sentence cannot be unwritten into notation, and the
+  two would drift the first time either changed.
+
+  The long form is the board's own sentence, the same one the review writes.
+  It used to be the server's prose, which is godip's words joined with spaces:
+  "Fleet Norwegian Sea Convoy Quebec Norway". That string is still the
+  fallback, for an order shape this device does not know how to say.
   */
+  const orderParts = state?.orderParts || {};
+  const serverProse = state?.orders || {};
   const orders = briefMoves
     ? abbreviateOrders(
-        state?.orderParts || {},
+        orderParts,
         kind,
         unitsOf(state?.units, kind === "retreat" ? state?.dislodged : undefined),
       )
-    : state?.orders || {};
+    : Object.fromEntries(
+        Object.keys(serverProse)
+          .concat(Object.keys(orderParts))
+          .map((province) => [
+            province,
+            orderText(province, orderParts[province], serverProse[province], kind),
+          ]),
+      );
   const orderRows = Object.keys(orders).sort();
   /* Only while the rule is on: a server that refuses illegal orders has none
      to mark, and a stale mark would be a lie about a live draft. */

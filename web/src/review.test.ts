@@ -114,6 +114,23 @@ describe("the plan a review draws", () => {
   });
 
   /*
+  The worst of godip's prose, and the reason the seat's own order list reads
+  these sentences too: "Fleet Norwegian Sea Convoy Quebec Norway" is four
+  place names in a row and says nothing about who is carrying whom.
+  */
+  it("says who a convoy carries and where to", () => {
+    setProvinceNames({ nwg: "Norwegian Sea", qbc: "Quebec", nwy: "Norway" });
+    const plan = reviewPlan({
+      phase: { season: "Spring", year: 1901, type: "Movement" },
+      orderParts: { nwg: ["Convoy", "qbc", "nwy"] },
+      orders: { nwg: "Fleet Norwegian Sea Convoy Quebec Norway" },
+      powers: { nwg: "England" },
+      resolutions: { nwg: "OK" },
+    })!;
+    expect(plan.rows[0].text).toBe("Norwegian Sea convoys Quebec to Norway.");
+  });
+
+  /*
   godip's own prose reads "Army Galicia Move Budapest". The board already
   writes sentences, so it writes these too.
   */

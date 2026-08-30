@@ -91,10 +91,14 @@ export function failureReason(resolution: string | undefined): string {
 
 /*
 The sentence for one order. The server's own prose is godip's — "Army Galicia
-Move Budapest" — so the board's wording is preferred, and the server's string
-is only the fallback for an order shape the board does not know.
+Move Budapest", or worse "Fleet Norwegian Sea Convoy Quebec Norway" — so the
+board's wording is preferred, and the server's string is only the fallback for
+an order shape the board does not know.
+
+Exported because the seat's own order list needs exactly this: one order, one
+sentence, written the same way wherever it is read.
 */
-function orderText(
+export function orderText(
   province: string,
   parts: string[] | undefined,
   prose: string | undefined,
