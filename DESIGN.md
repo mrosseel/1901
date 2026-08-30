@@ -507,7 +507,7 @@ CSS unit, so every `letter-spacing` in a jDip stylesheet is inert in Chrome
 and Firefox. And `#FullLabelLayer text { stroke:none }` outranks
 `.map-landname`, so the halo never applies on a converted map. This is why
 correcting the scale changes no pixel today. Correcting the units first, with
-the scale still wrong, would have made 1900's names genuinely unreadable.
+the scale still wrong, would have made 1900's names unreadable.
 
 **A name has a smallest readable size.** A converted map's label sizes are
 jDip's own, with one exception. jDip grades 1900's classes from 6 to 14 units
@@ -528,7 +528,7 @@ above the floor keeps the box its placement was measured against.
 of the layer the rule lands in, so it cannot drift from the art and no plan
 records it. Sail Ho's smallest class is 120 units on a 7300-unit map against a
 floor of 83.95, so both Sail Hos come out byte-identical in all four styles,
-as does every godip map: of 130 served SVGs, only 1900's four styles change.
+as does every godip map. Of 130 served SVGs, only 1900's four styles change.
 
 **Staleness is loud.** A plan names the SHA-256 of the art it was measured on.
 A godip upgrade that redraws a map makes its plan stale, because a fill value
@@ -977,7 +977,7 @@ What the spike prescribes instead, all in our own gesture code:
 ### D-032 — A converted map is given the supply centres it does not draw
 **Status:** accepted, r25. Implemented in the converter; port to master pending.
 godip's own maps have drawn a glyph on every supply centre since the first
-one. jDip's converted maps do not: `SupplyCenterLayer` ships empty, 1900's
+one. jDip's converted maps do not. `SupplyCenterLayer` ships empty, 1900's
 source carries no centre coordinate at all (Sail Ho's has 21), and nothing
 downstream draws one. `board.ts` has no supply-centre drawing code and
 `placements.json` has no slot for one, so no style could show them. A player
@@ -991,7 +991,7 @@ Radius is 10/1524 of map width, matching godip's classical.
 The glyph is a ring, not a disc, drawn as an even-odd annulus. jDip's anchor
 is often under the province name and a filled dot would swallow it. The id is
 `sc-<key>`, deliberately not `<key>Center`, because `board.ts` matches
-`[id$="Center"]` for anchors. `?style=original` gains nothing: it stays a
+`[id$="Center"]` for anchors. `?style=original` gains nothing. It stays a
 faithful copy.
 
 ### D-033 — Map authoring moves to dipmap; 1901 plays maps
@@ -1000,9 +1000,10 @@ half of D-030 and D-003.
 1901 becomes the tool that plays maps. dipmap becomes the tool that makes
 them. Moving out: `tools/placement/`, `tools/restyle/`, `web/src/mapeditor/`,
 `mapeditor_dev.go`, `mapeditor_off.go` and the `/mapeditor` route. Staying:
-every serve-time reader — `placements.go`, `names.go`, `mapstyles.go`,
-`styleplans.go`, `restyle.go` — and `tools/jdip-import/`, because dipmap draws
-from real per-province polygons and cannot ingest a jDip SVG.
+every serve-time reader, meaning `placements.go`, `names.go`,
+`mapstyles.go`, `styleplans.go` and `restyle.go`, plus `tools/jdip-import/`,
+because dipmap draws from real per-province polygons and cannot ingest a jDip
+SVG.
 
 The deletions happen on this side, once the ported code is proven. A style
 plan and a placement table are committed data, so both keep working across the
@@ -1010,10 +1011,10 @@ move; only regenerating them needs the tool.
 
 Two findings from the handover are worth keeping, because they outlast the
 code that produced them. For a map dipmap drew, a style plan is written rather
-than detected — the exporter already chose the literals and can hash the art
-it just emitted, so confidence is 1 by construction and a plan cannot name the
+than detected. The exporter already chose the literals and can hash the art it
+just emitted, so confidence is 1 by construction and a plan cannot name the
 hash of art it never measured. And a detector that derives verdicts by
-hit-testing fails silently: when 1900's art failed to render, every hit-test
+hit-testing fails silently. When 1900's art failed to render, every hit-test
 missed and the detector wrote a well-formed plan calling all 181 names land,
 twenty-one seas among them. A plan writer must count the labels that land on
 nothing and refuse rather than write.
@@ -1029,7 +1030,8 @@ the tree is fixed the moment the position resolved, so nothing can fill it in
 later. The check runs on every path into a new phase: game start, every
 adjudication, and the replay-based restore.
 
-Why: in a typical retreat phase one or two powers have a dislodged unit. The
+The reason is arithmetic. In a typical retreat phase one or two powers have a
+dislodged unit. The
 other five or six were tapping Finalize to confirm they had nothing to
 confirm, and the table waited on all of them. This is not a choice being
 declined, it is an empty option set. The same holds in an adjustment phase for
@@ -1376,5 +1378,5 @@ Recorded so nobody re-derives them.
 | r22 | 2026-08-29 | D-030 implemented: /mapeditor in-app — variant picker, draggable unit/dislodged/brief markers, live violation audit sharing tools/placement rules (rules.ts split out), drag telemetry, province display-name overrides (names/{key}.json over ProvinceLongNames), stable-diff export, disk save only under -tags mapeditordev into .hand files the server never loads. Editor reads terrain from godip, exposing colour-guess faults in the offline audit (open item). |
 | r23 | 2026-08-29 | D-031: Leaflet rejected after a working spike — 46 KB gz for ~460 replaceable lines, plus a zoomed-SVG layout-box risk on phones. Four gesture fixes adopted instead: wheel deltaMode normalisation (Firefox wheel zoom was dead), pan inertia, eased double-tap zoom, wheel debounce. |
 | r24 | 2026-08-29 | Placement optimizer terrain bug: the fill-colour probe measured a hidden map and called almost all land sea on every variant, so coast rules never fired. Terrain now comes from /variants/{key}/provinces.json in tool and editor alike; 22 tables re-derived (containment faults 93 to 10, dislodged-outside 71 to 1), classical patched on bul/ec and bul/sc only. |
-| r25 | 2026-08-29 | D-026 amended: a converted label class under 1.15% of the map's width is lifted to that floor, which is what made 1900's province names readable; classes already above it keep the size their placement was measured against. Also: a length is carried onto the scale of the layer it lands in, not the map's; `jdipPlan` gains `labelScale`, derived from the art when a plan omits it. Two dormant faults recorded: jDip label lengths are emitted unitless and inert, and the label layer's `stroke:none` outranks the halo rule. D-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay. D-030 superseded in ownership. D-032: converted maps are given supply-centre rings they never carried. D-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges. |
+| r25 | 2026-08-29 | D-026 amended: a converted label class under 1.15% of the map's width is lifted to that floor, which is what made 1900's province names readable. Classes already above it keep the size their placement was measured against. A length is now carried onto the scale of the layer it lands in rather than the map's, and `jdipPlan` gains `labelScale`, derived from the art when a plan omits it. Two dormant faults recorded: jDip label lengths are emitted unitless and inert, and the label layer's `stroke:none` outranks the halo rule. D-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay. D-030 superseded in ownership. D-032: converted maps are given supply-centre rings they never carried. D-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges. |
 | r26 | 2026-08-30 | D-034: a seat whose power has no legal order this phase is finalized by the server, in every phase type, so an empty retreat never reaches a screen. Force adjudication counts only the seats a phase asked a player for; the seat screen says why it is locked; an auto-locked seat cannot be unlocked. Move the pieces became a checklist. |
