@@ -232,3 +232,38 @@ func TestAnOldGameKeepsItsTokens(t *testing.T) {
 		t.Fatalf("%v seat tokens, want 1", len(g.flow.bySeatToken))
 	}
 }
+
+/*
+TestTheSeatPageOpensWithoutASession is the lockout D-049 nearly shipped.
+
+Sessions live in the server's memory, so a restart, a second device or a
+private tab arrives with no cookie. The thing that signs back in is the
+JavaScript on the seat page itself, using the seed the device already holds —
+so refusing that page makes the only way back into a seat a page the seat
+cannot open.
+*/
+func TestTheSeatPageOpensWithoutASession(t *testing.T) {
+	id := makeGame(t)
+	g, _ := games.lookup(id)
+	joinWithKey(t, g, id)
+
+	// Every session gone, as a restart leaves it.
+	g.flow.sessions = map[string]godip.Nation{}
+
+	srv := &server{spaDir: t.TempDir()}
+	rec := httptest.NewRecorder()
+	srv.serveTokenScope(g, id, []string{id, "seat", "me", ""}, rec,
+		httptest.NewRequest(http.MethodGet, "/game/"+id+"/seat/me/", nil))
+	if rec.Code == http.StatusNotFound {
+		t.Fatal("the seat page is a 404 without a session, so nothing can sign back in")
+	}
+
+	// The page, and only the page. Everything it goes on to ask for still
+	// needs a device that can sign for the seat.
+	rec = httptest.NewRecorder()
+	srv.serveTokenScope(g, id, []string{id, "seat", "me", "state"}, rec,
+		httptest.NewRequest(http.MethodGet, "/game/"+id+"/seat/me/state", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("the seat state answered %v without a session, want 404", rec.Code)
+	}
+}
