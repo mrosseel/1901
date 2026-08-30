@@ -48,6 +48,96 @@ export interface Placement {
   brief labels, where the board shows the map's layer and draws nothing.
   */
   brief?: [number, number];
+  /*
+  The province's full name: the box the placement search reserved for it, and
+  which every marker near it was then kept clear of (D-038).
+
+  Absent where the map draws no name for this province — a name whose fitted
+  size fell under the exporter's floor is dropped in favour of the code, which
+  says the same thing and can be read. That is not the same as the map drawing
+  its own names, which is a decision for the whole map.
+  */
+  label?: Label;
+  /*
+  The lines a name broken across several elements is drawn in, where its
+  author broke it. `label` stays the union of them, so the box the search
+  reserved has one meaning on every map. A run's text wins for drawing and for
+  nothing else.
+  */
+  labelRuns?: LabelRun[];
+  /** The middle of the supply centre glyph. */
+  centre?: [number, number];
+  /*
+  The glyph's radius. It is carried because the glyph is an obstacle as well
+  as a drawing: the exporter places the glyphs, fits the names around them,
+  then fits the markers around both. A board that chose a size of its own
+  would draw an obstacle nobody measured.
+  */
+  centreRadius?: number;
+}
+
+/*
+One name's ink box, in map units.
+
+`at` is the CENTRE of that box, across and down — not the baseline. SVG text
+sits on its baseline, so it is drawn at `at[1] + height / 2` with
+text-anchor:middle. `height` is stated rather than worked out from `size`,
+because the cap-height fraction relating the two lives in the exporter and a
+constant copied across that boundary drifts.
+*/
+export interface Label {
+  at: [number, number];
+  size: number;
+  width: number;
+  height: number;
+  /** Rotation in degrees about `at`, absent when the name is drawn flat. */
+  rot?: number;
+}
+
+export interface LabelRun extends Label {
+  /** The line's own string. The breaks are the map author's. */
+  text: string;
+}
+
+/** How one kind of name is set. Lengths are already in map units. */
+export interface LabelFace {
+  family: string;
+  weight: string;
+  style: string;
+  letterSpacing: number;
+  fill: string;
+  halo: { color: string; width: number } | null;
+}
+
+export interface LabelFaces {
+  land: LabelFace;
+  sea: LabelFace;
+}
+
+/*
+What the board needs to draw a map whose names left the art (D-038).
+
+It is absent on every map that draws its own names, which is all of them
+today. Its presence is not what puts a map in data mode — the server decides
+that per map, from a flag — but its absence does mean the board draws nothing:
+a second set of names over the art's own would be worse than none.
+
+The board draws and does not choose. The face a name takes, the two inks and
+the halo under them are all resolved on the server, because in data mode there
+is no names layer for the styling pass to rewrite and the board would
+otherwise be guessing at typography.
+*/
+export interface LabelPlan {
+  /** "records". Any other value is a mode this board does not know. */
+  mode: string;
+  /** The provinces whose name takes the sea face. Land is the default. */
+  sea?: string[];
+  /* Keyed by style name. The style is a device preference, chosen in the map
+     URL rather than in the game, so the server resolves every style it serves
+     and the board takes the one it is showing. */
+  typography?: Record<string, LabelFaces>;
+  /** The entry to use for a map asked for in no style. */
+  defaultStyle?: string;
 }
 
 export interface BoardState {
@@ -58,6 +148,8 @@ export interface BoardState {
   units?: Record<string, Unit>;
   /** The variant's approved marker positions, when the server has a table. */
   placements?: Record<string, Placement> | null;
+  /** Set only on a map whose art no longer draws its names and centres. */
+  labels?: LabelPlan | null;
   /* Units thrown out of their province by the last adjudication, keyed by the
      province they were thrown out of. They stand beside the winner until the
      retreat phase resolves, so the map must draw both. Public knowledge. */

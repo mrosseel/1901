@@ -122,6 +122,7 @@ type watchJSON struct {
 	Variant       variantRefJSON    `json:"variant"`
 	ProvinceNames map[string]string `json:"provinceNames"`
 	Placements    placementTable    `json:"placements"`
+	Labels        *labelPlanJSON    `json:"labels,omitempty"`
 	Now           string            `json:"now"`
 }
 
@@ -139,6 +140,7 @@ func (self *game) watchState(id string, phaseIndex int) (watchJSON, bool) {
 		Variant:       self.variantRef(),
 		ProvinceNames: self.provinceNames(),
 		Placements:    self.placements(),
+		Labels:        self.labels(),
 		Now:           serverNow(),
 		Units:         map[string]unitJSON{},
 		Dislodged:     map[string]unitJSON{},

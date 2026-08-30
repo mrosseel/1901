@@ -56,6 +56,53 @@ type placementJSON struct {
 	// own border because the province takes no marker at any size. It is
 	// carried so a later audit can tell a decision from a defect.
 	Overhang *overhangJSON `json:"overhang,omitempty"`
+	// Label is the province's full name: the box the placement search
+	// reserved for it, which every marker near it was then kept clear of
+	// (D-038). Absent where the map draws no name for this province, which is
+	// not the same as the map drawing its own names.
+	Label *labelJSON `json:"label,omitempty"`
+	// LabelRuns are the lines a name broken across several elements is drawn
+	// in, when the map's author broke it. Label stays the union of them: the
+	// box the search reserved. A run's text wins for drawing and for nothing
+	// else.
+	LabelRuns []labelRunJSON `json:"labelRuns,omitempty"`
+	// Centre is the middle of the supply centre glyph, and CentreRadius its
+	// radius. The radius is stored because the glyph is an obstacle as well
+	// as a drawing: the names and the markers were fitted around a circle of
+	// exactly this size.
+	Centre       *[2]float64 `json:"centre,omitempty"`
+	CentreRadius float64     `json:"centreRadius,omitempty"`
+}
+
+// labelJSON is one name's ink box, in map units.
+//
+// At is the CENTRE of that box, across and down. It is not the baseline. SVG
+// text sits on its baseline, so a reader draws at At.y + Height/2 with
+// text-anchor:middle. Height is stated rather than derived from Size, because
+// the cap-height fraction that relates them lives in the exporter, in another
+// language and another repository, and a constant copied across a boundary
+// drifts.
+type labelJSON struct {
+	At    [2]float64 `json:"at"`
+	Size  float64    `json:"size"`
+	Width float64    `json:"width"`
+	// Height is the ink height, which is what turns At into a baseline.
+	Height float64 `json:"height"`
+	// Rot is the rotation in degrees about At, omitted when zero. Classical
+	// rotates 73 of its 90 names; Portugal drawn flat runs across Spain.
+	Rot float64 `json:"rot,omitempty"`
+}
+
+// labelRunJSON is one line of a name the map's author broke across lines. It
+// carries its own box for the same reason the label does, and the string,
+// because the line breaks are the author's and cannot be worked out from the
+// province's long name.
+type labelRunJSON struct {
+	At     [2]float64 `json:"at"`
+	Size   float64    `json:"size"`
+	Width  float64    `json:"width"`
+	Height float64    `json:"height"`
+	Text   string     `json:"text"`
 }
 
 type overhangJSON struct {

@@ -148,6 +148,26 @@ the markers do.
 #brief-labels .on-light { fill: #15181d; stroke: rgba(255, 255, 255, 0.82); }
 #brief-labels .on-dark { fill: #f2efe6; stroke: rgba(0, 0, 0, 0.72); }
 
+/*
+Province names and supply centre glyphs, where the art no longer draws them.
+
+Only the mechanism is here. Every number and every colour arrives with the
+board state, because the box a name is drawn in is the box the placement
+search measured and neither this file nor the board may choose another. The
+halo is the same rim the codes above get: paint-order puts the stroke down
+first and the fill over it.
+*/
+#data-centres,
+#data-labels {
+  pointer-events: none;
+}
+
+#data-labels .province-name {
+  paint-order: stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
 /* Order drawings. Picking one in the list brings it forward. */
 #order-overlay .order { pointer-events: none; }
 #order-overlay .order.dim { opacity: 0.25; }

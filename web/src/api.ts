@@ -6,7 +6,7 @@ ever told where its API lives: the addresses are built from location.pathname.
 Nothing here holds a token in module state — the route object does.
 */
 
-import type { BoardState, OptionTree, Placement, Unit } from "./board/types";
+import type { BoardState, LabelPlan, OptionTree, Placement, Unit } from "./board/types";
 import { readVariants, type Variant } from "./variants";
 
 // --- shapes ---------------------------------------------------------------
@@ -48,6 +48,12 @@ export interface VariantAware {
   variant catalogue because the board is handed state and nothing else.
   */
   placements?: Record<string, Placement> | null;
+  /*
+  How to draw the names and the supply centre glyphs of a map whose art no
+  longer carries them (D-038). Absent on every map that draws its own, which
+  is what a map does until its exporter stops.
+  */
+  labels?: LabelPlan | null;
   /*
   The server's own clock, RFC3339. Every countdown is measured against it,
   because a phone at the table can be minutes out (see clock.ts).

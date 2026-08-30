@@ -128,6 +128,16 @@ type stylePlan struct {
 	} `json:"map"`
 	Godip *godipPlan `json:"godip"`
 	JDip  *jdipPlan  `json:"jdip"`
+	// DataMode says the art no longer draws the province names or the supply
+	// centre glyphs, so the board draws both from the placement records
+	// (D-038). It is per map and it is a flag, not an inference: while the
+	// exporter writes records AND still draws the layers, a server that read
+	// "has records, therefore hide the layer" would change every map's
+	// picture on a release that changed nothing. It is not the same fact as
+	// Names.Found either — a map that never drew names, and one whose names
+	// are outlined shapes carrying no string, both have Found false and
+	// neither has records to draw from.
+	DataMode bool `json:"dataMode"`
 }
 
 // styleable reports whether this plan can put its map into any style at all.

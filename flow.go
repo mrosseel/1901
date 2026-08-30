@@ -915,6 +915,7 @@ type gmStateJSON struct {
 	Variant         variantRefJSON      `json:"variant"`
 	ProvinceNames   map[string]string   `json:"provinceNames"`
 	Placements      placementTable      `json:"placements"`
+	Labels          *labelPlanJSON      `json:"labels,omitempty"`
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
 	Now             string              `json:"now"`
@@ -945,6 +946,7 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		Variant:       self.variantRef(),
 		ProvinceNames: self.provinceNames(),
 		Placements:    self.placements(),
+		Labels:        self.labels(),
 		Dislodged:     self.dislodgedMap(),
 		PreviousPhase: self.previousPhase,
 		Now:           serverNow(),
@@ -1154,6 +1156,7 @@ type publicStateJSON struct {
 	Variant         variantRefJSON      `json:"variant"`
 	ProvinceNames   map[string]string   `json:"provinceNames"`
 	Placements      placementTable      `json:"placements"`
+	Labels          *labelPlanJSON      `json:"labels,omitempty"`
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
 	Now             string              `json:"now"`
@@ -1182,6 +1185,7 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 		Variant:         g.variantRef(),
 		ProvinceNames:   g.provinceNames(),
 		Placements:      g.placements(),
+		Labels:          g.labels(),
 		Dislodged:       g.dislodgedMap(),
 		PreviousPhase:   g.previousPhase,
 		Now:             serverNow(),
@@ -1216,6 +1220,7 @@ type seatStateJSON struct {
 	Variant          variantRefJSON    `json:"variant"`
 	ProvinceNames    map[string]string `json:"provinceNames"`
 	Placements       placementTable    `json:"placements"`
+	Labels           *labelPlanJSON    `json:"labels,omitempty"`
 	PreviousPhase    *phaseReviewJSON  `json:"previousPhase"`
 	Now              string            `json:"now"`
 	// RefereeURL is set only for the GM's own seat: the seat that holds
@@ -1278,6 +1283,7 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 		Variant:          self.variantRef(),
 		ProvinceNames:    self.provinceNames(),
 		Placements:       self.placements(),
+		Labels:           self.labels(),
 		PreviousPhase:    self.previousPhase,
 		Now:              serverNow(),
 		RefereeURL:       referee,

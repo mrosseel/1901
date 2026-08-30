@@ -39,6 +39,10 @@ import type {
   BoardHandle,
   BoardState,
   BuilderView,
+  Label,
+  LabelFace,
+  LabelFaces,
+  LabelPlan,
   OptionNode,
   OptionTree,
   Placement,
@@ -843,6 +847,186 @@ export function mount(
         text.textContent = mapCode(province);
         layer.appendChild(text);
       });
+  }
+
+  // --- Names and centres the art does not draw ----------------------------
+  /*
+  A map's names and supply centre glyphs are either drawn in its art or handed
+  over as records in the placement table (D-038). Where the art draws the
+  layer, the art wins and nothing here runs; a second set of names over the
+  first is worse than none.
+
+  Which of the two a map is, is decided per map and on the server, from a flag
+  the exporter sets when it stops drawing the layers. It is not read off the
+  presence of records: through the transition a map has records AND draws
+  them, and a board that inferred the mode would change every map's picture on
+  a release that changed nothing.
+
+  The board draws and does not choose. The face each name takes, the two inks
+  and the halo width all arrive resolved, because the styling pass that
+  rewrites a names layer has nothing to work on when there is no layer.
+  */
+  const DATA_CENTRE_LAYER = "data-centres";
+  const DATA_LABEL_LAYER = "data-labels";
+
+  /*
+  godip's own supply centre glyph: a stroked circle, no fill, black at 0.47
+  opacity. The radius is the record's, because the exporter fitted every name
+  and every marker around a circle of exactly that size. The stroke is the
+  ratio godip draws classical at, 2.25 units of stroke on a 10-unit radius.
+  */
+  const CENTRE_INK = "#000000";
+  const CENTRE_OPACITY = "0.470588";
+  const CENTRE_STROKE_RATIO = 2.25273 / 10;
+
+  function labelPlan(): LabelPlan | null {
+    const plan = state?.labels;
+    return plan && plan.mode === "records" ? plan : null;
+  }
+
+  /* The style is a device preference and the plan carries every style the
+     server serves, so the board takes the one its map URL asked for. */
+  function labelFaces(): LabelFaces | null {
+    const plan = labelPlan();
+    if (!plan) return null;
+    const styled = plan.typography || {};
+    return styled[styleOfUrl(api.mapUrl)] || styled[plan.defaultStyle || ""] || null;
+  }
+
+  function artDraws(selector: string): boolean {
+    return Boolean(svgRoot?.querySelector(selector));
+  }
+
+  function labelledProvinces(): Array<[string, Placement]> {
+    const table = state?.placements || {};
+    return Object.keys(table)
+      .filter((province) => province === baseProvince(province))
+      .map((province): [string, Placement] => [province, table[province]]);
+  }
+
+  /*
+  A layer of this file's own, in its place in the stack.
+
+  The order is the order the exporter measured in: the glyphs go down first,
+  the names are fitted around them, and the pieces are placed around both. So
+  a name is never read through a marker, and a glyph never through a name.
+  */
+  const DRAWN_LAYERS = [
+    DATA_CENTRE_LAYER,
+    DATA_LABEL_LAYER,
+    BRIEF_LAYER,
+    "order-overlay",
+    "unit-overlay",
+  ];
+
+  function drawnLayer(id: string): SVGGElement {
+    const layer = overlay(id);
+    layer.replaceChildren();
+    for (const above of DRAWN_LAYERS.slice(DRAWN_LAYERS.indexOf(id) + 1)) {
+      const node = svgRoot!.querySelector<SVGGElement>("#" + above);
+      if (!node) continue;
+      if (layer.nextSibling !== node) svgRoot!.insertBefore(layer, node);
+      break;
+    }
+    return layer;
+  }
+
+  function renderDataCentres(): void {
+    if (!svgRoot) return;
+    // The art wins where it has drawn the glyph.
+    if (!labelPlan() || artDraws("#supply-centers, #SupplyCenterLayer")) {
+      svgRoot.querySelector("#" + DATA_CENTRE_LAYER)?.remove();
+      return;
+    }
+    const layer = drawnLayer(DATA_CENTRE_LAYER);
+    labelledProvinces().forEach(([province, spot]) => {
+      const at = spot.centre;
+      const radius = spot.centreRadius || 0;
+      if (!Array.isArray(at) || radius <= 0) return;
+      const ring = document.createElementNS(SVG_NS, "circle");
+      /* Never "<key>Center": the board matches [id$="Center"] to find unit
+         anchors, and a ring answering that selector would be read as one
+         (D-032). */
+      ring.id = "sc-" + province;
+      ring.setAttribute("cx", String(at[0]));
+      ring.setAttribute("cy", String(at[1]));
+      ring.setAttribute("r", String(radius));
+      ring.setAttribute("fill", "none");
+      ring.setAttribute("stroke", CENTRE_INK);
+      ring.setAttribute("stroke-opacity", CENTRE_OPACITY);
+      ring.setAttribute("stroke-width", String(radius * CENTRE_STROKE_RATIO));
+      layer.appendChild(ring);
+    });
+  }
+
+  /*
+  One line of a name, in the box the placement search reserved for it.
+
+  `at` is the centre of the ink box, so the baseline is half the ink height
+  below it. textLength with lengthAdjust="spacing" is the whole guarantee: the
+  browser draws the string at exactly the width that was measured, so the box
+  on the screen is the box the markers were kept clear of.
+  */
+  function nameText(run: Label, text: string, face: LabelFace | null): SVGElement {
+    const node = document.createElementNS(SVG_NS, "text");
+    node.setAttribute("class", "province-name");
+    node.setAttribute("x", String(run.at[0]));
+    node.setAttribute("y", String(run.at[1] + run.height / 2));
+    node.setAttribute("text-anchor", "middle");
+    node.setAttribute("font-size", String(run.size));
+    node.setAttribute("textLength", String(run.width));
+    node.setAttribute("lengthAdjust", "spacing");
+    if (face) {
+      node.setAttribute("font-family", face.family);
+      node.setAttribute("font-weight", face.weight);
+      node.setAttribute("font-style", face.style);
+      node.setAttribute("letter-spacing", String(face.letterSpacing));
+      node.setAttribute("fill", face.fill);
+      if (face.halo) {
+        node.setAttribute("stroke", face.halo.color);
+        node.setAttribute("stroke-width", String(face.halo.width));
+      }
+    }
+    node.textContent = text;
+    return node;
+  }
+
+  function renderDataNames(): void {
+    if (!svgRoot) return;
+    const plan = labelPlan();
+    if (!plan || artDraws("#names, #FullLabelLayer")) {
+      svgRoot.querySelector("#" + DATA_LABEL_LAYER)?.remove();
+      return;
+    }
+    const layer = drawnLayer(DATA_LABEL_LAYER);
+    // Brief mode shows the codes instead of the names, on this map as on any.
+    if (briefLabels) return;
+
+    const faces = labelFaces();
+    const sea = new Set(plan.sea || []);
+    labelledProvinces().forEach(([province, spot]) => {
+      const label = spot.label;
+      if (!label || !Array.isArray(label.at)) return;
+      const face = faces ? (sea.has(province) ? faces.sea : faces.land) : null;
+      const runs = spot.labelRuns && spot.labelRuns.length ? spot.labelRuns : null;
+      const drawn = runs
+        ? runs.map((run) => nameText(run, run.text, face))
+        : [nameText(label, provinceName(province), face)];
+      if (!label.rot) {
+        drawn.forEach((node) => layer.appendChild(node));
+        return;
+      }
+      /* The rotation is about the box's own centre, so a name set down a
+         coast turns where it sits rather than swinging off it. A wrapped name
+         turns as one block, about the union box the runs belong to. */
+      const turned = document.createElementNS(SVG_NS, "g");
+      turned.setAttribute(
+        "transform",
+        "rotate(" + label.rot + " " + label.at[0] + " " + label.at[1] + ")",
+      );
+      drawn.forEach((node) => turned.appendChild(node));
+      layer.appendChild(turned);
+    });
   }
 
   // Map units per screen pixel, so markers keep one size however far you zoom.
@@ -2228,6 +2412,8 @@ export function mount(
     if (!svgRoot) return;
     renderOrders();
     renderUnits();
+    renderDataCentres();
+    renderDataNames();
     renderBriefLabels();
     renderHighlights();
     renderBuilder();
@@ -2338,7 +2524,10 @@ export function mount(
     setBriefLabels(on: boolean) {
       if (briefLabels === on) return;
       briefLabels = on;
-      if (svgRoot) renderBriefLabels();
+      if (svgRoot) {
+        renderDataNames();
+        renderBriefLabels();
+      }
     },
     escape: escape,
     cancelOrder: cancelOrder,

@@ -165,6 +165,7 @@ export function WatchPage({
       dislodged: watch.dislodged || {},
       supplyCenters: watch.supplyCenters || {},
       placements: watch.placements,
+      labels: watch.labels,
       orders: {},
       orderParts: {},
     };

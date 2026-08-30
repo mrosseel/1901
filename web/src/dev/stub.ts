@@ -84,6 +84,7 @@ function summary(scene: Scenario): PublicState | null {
     variant: source.variant,
     provinceNames: source.provinceNames,
     placements: source.placements,
+    labels: source.labels,
   };
 }
 
