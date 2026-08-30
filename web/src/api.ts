@@ -14,6 +14,12 @@ import { readVariants, type Variant } from "./variants";
 export interface Settings {
   deadlineMinutes: number;
   gmPlays: boolean;
+  /*
+  What the table calls this game. Optional, and empty is the ordinary case:
+  an unnamed game is known by its id. It names the table, never a person, so
+  nothing here is bound to a seat and D-020's anonymity is untouched.
+  */
+  name?: string;
   /** The godip variant key. Absent means the server's default, classical. */
   variant?: string;
   /*
@@ -210,6 +216,8 @@ export interface SeatState extends BoardState, VariantAware {
  */
 export interface GameSummary {
   gameId: string;
+  /** What the table calls this game, empty when nobody named it. */
+  name?: string;
   variant?: VariantRef;
   started: boolean;
   phase: BoardState["phase"];

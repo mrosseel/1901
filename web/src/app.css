@@ -126,6 +126,19 @@ input[type="number"] {
   width: 7em;
 }
 
+/* The game name. Wider than a number and still not the whole card: it holds a
+   short line, and a field the width of the page invites a paragraph. */
+input[type="text"] {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 10px;
+  width: 100%;
+  max-width: 22em;
+}
+
 /* --- ordinary pages ------------------------------------------------------ */
 
 .page {
@@ -294,7 +307,6 @@ details.card > summary::marker { color: var(--muted); }
   color: var(--muted);
 }
 
-.badge.in { color: var(--good); border-color: #2f6b45; }
 .badge.done { color: var(--good); border-color: #2f6b45; }
 .badge.gm { color: var(--warn); border-color: #7a5a24; }
 .badge.warn { color: var(--warn); border-color: #7a5a24; }
@@ -454,6 +466,17 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
 .variant-map .muted { font-size: 12px; padding: 8px; text-align: center; }
 
 .variant-line { margin: 4px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* What the table calls this game. It sits under the page's own heading and is
+   read at a glance, so it takes weight without competing with the phase. */
+.game-name {
+  margin: 2px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
 
 .variant-notes { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .variant-notes p { margin: 0; }

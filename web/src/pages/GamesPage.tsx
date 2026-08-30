@@ -81,8 +81,12 @@ function GameRow({ game }: { game: GameSummary }) {
   return (
     <li>
       <div className="row-main">
-        <strong>{game.gameId}</strong>
+        {/* The name is what a game master reads first when two tables are
+            running; the id stays on the row, because it is the address and an
+            unnamed game has nothing else. */}
+        <strong>{game.name || game.gameId}</strong>
         <span className="muted">
+          {game.name ? game.gameId + " · " : ""}
           {game.variant ? game.variant.name : ""}
           {game.variant ? <SupportedMark supported={game.variant.supported} /> : null}
           {" · "}

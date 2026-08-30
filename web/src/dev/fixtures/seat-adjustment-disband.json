@@ -1057,6 +1057,7 @@
         "firstTurnExtraMinutes": 0,
         "gmPlays": false,
         "graceMinutes": 0,
+        "name": "",
         "pressMode": "ftf",
         "retreatBuildPercent": 50,
         "variant": "classical"

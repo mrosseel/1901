@@ -260,3 +260,90 @@ func TestPinLANHostLeavesAPinnedOriginAlone(t *testing.T) {
 		t.Errorf("pinLANHost looked for an address behind BASE_URL: %q", lanHost)
 	}
 }
+
+// TestGameNameIsSetAtCreationAndShownOnTheList: the name rides in with the
+// settings, comes back on the GM view and on the public list, and is tidied
+// on the way in.
+func TestGameNameIsSetAtCreationAndShownOnTheList(t *testing.T) {
+	body := `{"settings":{"name":"  Thursday   table  "}}`
+	req := httptest.NewRequest(http.MethodPost, "/games", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	handleCreateGame(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create: got %v: %v", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		GameID string `json:"gameId"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	g, found := games.lookup(created.GameID)
+	if !found {
+		t.Fatal("the created game is not in the registry")
+	}
+	if got := g.flow.settings.Name; got != "Thursday table" {
+		t.Errorf("stored name %q, want the tidied one", got)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/games", nil)
+	rec = httptest.NewRecorder()
+	handleListGames(rec, req)
+	var list []map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	seen := false
+	for _, row := range list {
+		if row["gameId"] == created.GameID {
+			seen = true
+			if row["name"] != "Thursday table" {
+				t.Errorf("the list row carries name %v", row["name"])
+			}
+		}
+	}
+	if !seen {
+		t.Error("the named game is not on the list")
+	}
+
+	// An unnamed game is the empty string, never a missing key.
+	other := makeGame(t)
+	og, _ := games.lookup(other)
+	if og.flow.settings.Name != "" {
+		t.Errorf("an unnamed game came out as %q", og.flow.settings.Name)
+	}
+}
+
+// TestRenameIsNotARuleChange: a name carries no rule, so renaming must not
+// bump the settings version that tells every seat "the rules changed".
+func TestRenameIsNotARuleChange(t *testing.T) {
+	id := makeGame(t)
+	g, _ := games.lookup(id)
+	before := g.flow.settingsVersion
+
+	req := httptest.NewRequest(http.MethodPost, "/game/"+id+"/gm/settings",
+		strings.NewReader(`{"name":"Ostend club"}`))
+	rec := httptest.NewRecorder()
+	handleGMSettings(g, id, rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rename: got %v: %v", rec.Code, rec.Body.String())
+	}
+	if g.flow.settings.Name != "Ostend club" {
+		t.Errorf("name after the rename is %q", g.flow.settings.Name)
+	}
+	if g.flow.settingsVersion != before {
+		t.Errorf("the rename bumped the settings version to %v", g.flow.settingsVersion)
+	}
+
+	// A rule beside the name still bumps it.
+	req = httptest.NewRequest(http.MethodPost, "/game/"+id+"/gm/settings",
+		strings.NewReader(`{"name":"Ostend club","deadlineMinutes":42}`))
+	rec = httptest.NewRecorder()
+	handleGMSettings(g, id, rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("settings: got %v", rec.Code)
+	}
+	if g.flow.settingsVersion == before {
+		t.Error("a changed deadline did not bump the settings version")
+	}
+}

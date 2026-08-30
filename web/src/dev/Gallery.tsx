@@ -193,6 +193,13 @@ function buildCatalogue(): Entry[] {
       "gm-prestart",
     ),
     gmEntry(
+      "lobby-full",
+      "The table is full",
+      "Every power claimed and the game named. The list of powers appears only here, "
+        + "when there is no join order left to read off it.",
+      "gm-lobby-full",
+    ),
+    gmEntry(
       "midphase",
       "Mid-phase",
       "Spring 1901 running, some powers locked in, the clock counting down.",

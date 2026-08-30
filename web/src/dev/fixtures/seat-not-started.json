@@ -1289,6 +1289,7 @@
     "gmPlays": false,
     "graceMinutes": 0,
     "illegalMoves": true,
+    "name": "",
     "pressMode": "ftf",
     "retreatBuildPercent": 50,
     "variant": "classical"

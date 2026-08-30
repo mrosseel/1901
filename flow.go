@@ -17,6 +17,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/zond/godip"
 	"github.com/zond/godip/variants/common"
@@ -57,6 +58,12 @@ type settings struct {
 	DeadlineMinutes int    `json:"deadlineMinutes"`
 	GMPlays         bool   `json:"gmPlays"`
 	Variant         string `json:"variant"`
+
+	// Name is what the table calls this game. Optional: an unnamed game is
+	// identified by its id, as every game was before this field existed.
+	// It names the table, never a person — nothing binds it to a seat, so
+	// D-020's anonymity is untouched and every screen may show it.
+	Name string `json:"name"`
 
 	// RetreatBuildPercent is what share of the movement clock a retreat or
 	// build phase gets. Backstabbr's default is 50, and it is right: those
@@ -702,6 +709,7 @@ type settingsPatch struct {
 	DeadlineMinutes       *int    `json:"deadlineMinutes"`
 	GMPlays               *bool   `json:"gmPlays"`
 	Variant               *string `json:"variant"`
+	Name                  *string `json:"name"`
 	RetreatBuildPercent   *int    `json:"retreatBuildPercent"`
 	GraceMinutes          *int    `json:"graceMinutes"`
 	FirstTurnExtraMinutes *int    `json:"firstTurnExtraMinutes"`
@@ -718,6 +726,9 @@ func (self settingsPatch) apply(base settings) settings {
 	}
 	if self.Variant != nil {
 		base.Variant = *self.Variant
+	}
+	if self.Name != nil {
+		base.Name = *self.Name
 	}
 	if self.RetreatBuildPercent != nil {
 		base.RetreatBuildPercent = *self.RetreatBuildPercent
@@ -777,7 +788,33 @@ func (self settings) normalised() settings {
 	if self.PressMode == "" {
 		self.PressMode = defaultPressMode
 	}
+	self.Name = tidyName(self.Name)
 	return self
+}
+
+// maxNameRunes caps the game name. It is a line on a list and a heading on a
+// page, not a paragraph, and the cap is what keeps it one.
+const maxNameRunes = 60
+
+// tidyName folds every run of whitespace to one space, trims the ends, and
+// cuts the result to maxNameRunes. Control characters go: the name is drawn
+// as one line, in a list beside other names.
+func tidyName(name string) string {
+	clean := strings.Map(func(r rune) rune {
+		if r == '\t' || r == '\n' || r == '\r' {
+			return ' '
+		}
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, name)
+	clean = strings.Join(strings.Fields(clean), " ")
+	runes := []rune(clean)
+	if len(runes) > maxNameRunes {
+		clean = strings.TrimSpace(string(runes[:maxNameRunes]))
+	}
+	return clean
 }
 
 func decodeSettings(r *http.Request, base settings) (settings, error) {
@@ -843,6 +880,9 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.mu.Lock()
+	if s.Name != "" {
+		f.logEvent(id, "game named %q", s.Name)
+	}
 	f.logEvent(id, "game created on %v, deadlineMinutes=%v gmPlays=%v "+
 		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v pressMode=%v "+
 		"illegalMoves=%v",
@@ -873,7 +913,10 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 // public watch view holds and nothing more: the id opens the public pages
 // only, and every secret stays behind its token.
 type gameSummaryJSON struct {
-	GameID      string         `json:"gameId"`
+	GameID string `json:"gameId"`
+	// Name is what the table calls this game, empty when nobody named it.
+	// It belongs to the game, not to any seat, so it is as public as the id.
+	Name        string         `json:"name"`
 	Variant     variantRefJSON `json:"variant"`
 	Started     bool           `json:"started"`
 	Phase       phaseJSON      `json:"phase"`
@@ -910,6 +953,7 @@ func handleListGames(w http.ResponseWriter, r *http.Request) {
 		f := g.flow
 		out = append(out, gameSummaryJSON{
 			GameID:  id,
+			Name:    f.settings.Name,
 			Variant: g.variantRef(),
 			Started: f.started,
 			Phase: phaseJSON{
@@ -1134,7 +1178,24 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusConflict, "the variant is fixed when the game is created")
 		return
 	}
+	// The name is not a rule. It changes nothing about how the game is
+	// played, so it does not bump the settings version and no seat is told
+	// "the rules changed" over it. It is still a game master act, so it is
+	// logged (D-007).
+	renamed := neu.Name != old.Name
+	if renamed {
+		f.settings.Name = neu.Name
+		if neu.Name == "" {
+			f.logEvent(id, "game name cleared")
+		} else {
+			f.logEvent(id, "game renamed to %q", neu.Name)
+		}
+	}
+	old.Name = neu.Name
 	if neu == old {
+		if renamed {
+			g.persist(id)
+		}
 		writeJSON(w, http.StatusOK, g.gmState(id, r))
 		return
 	}

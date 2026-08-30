@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/zond/godip/variants/classical"
@@ -122,5 +123,117 @@ func TestMigrationIsIdempotent(t *testing.T) {
 			t.Fatalf("pass %v left the seat columns as %v", i, present)
 		}
 		handle.Close()
+	}
+}
+
+// TestMigrationAddsTheGameName runs against a file whose game table really
+// lacks the column: a game created before names existed must still load, and
+// must load unnamed rather than not at all.
+func TestMigrationAddsTheGameName(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "unnamed.db")
+
+	handle, err := openDB(path)
+	if err != nil {
+		t.Fatalf("openDB: %v", err)
+	}
+	saved := db
+	db = handle
+	t.Cleanup(func() {
+		db = saved
+		games.mu.Lock()
+		games.games = map[string]*game{}
+		games.mu.Unlock()
+	})
+
+	f, err := newFlow(defaultSettings(), classical.ClassicalVariant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, id, err := games.create("classical", classical.ClassicalVariant, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.persist(id)
+	handle.Close()
+
+	// Put the file back the way a server without names wrote it.
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`ALTER TABLE game DROP COLUMN name`); err != nil {
+		t.Fatalf("could not build the old schema: %v", err)
+	}
+	present, err := columnNames(raw, "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if present["name"] {
+		t.Fatal("the old database still has game.name")
+	}
+	raw.Close()
+
+	migrated, err := openDB(path)
+	if err != nil {
+		t.Fatalf("openDB on the old database: %v", err)
+	}
+	db = migrated
+	t.Cleanup(func() { migrated.Close() })
+
+	present, err = columnNames(migrated, "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !present["name"] {
+		t.Fatal("game.name is missing after the migration")
+	}
+
+	games.mu.Lock()
+	games.games = map[string]*game{}
+	games.mu.Unlock()
+	if err := loadAll(); err != nil {
+		t.Fatalf("loadAll: %v", err)
+	}
+	restored, found := games.lookup(id)
+	if !found {
+		t.Fatal("the game written before names did not come back")
+	}
+	if restored.flow.settings.Name != "" {
+		t.Errorf("an unnamed game came back as %q", restored.flow.settings.Name)
+	}
+
+	// And the migrated database takes a name and gives it back.
+	restored.mu.Lock()
+	restored.flow.settings.Name = "Thursday table"
+	restored.persist(id)
+	restored.mu.Unlock()
+
+	games.mu.Lock()
+	games.games = map[string]*game{}
+	games.mu.Unlock()
+	if err := loadAll(); err != nil {
+		t.Fatalf("loadAll after naming: %v", err)
+	}
+	again, found := games.lookup(id)
+	if !found {
+		t.Fatal("the named game did not come back")
+	}
+	if again.flow.settings.Name != "Thursday table" {
+		t.Errorf("name came back as %q", again.flow.settings.Name)
+	}
+}
+
+func TestTidyName(t *testing.T) {
+	long := strings.Repeat("x", 80)
+	cases := []struct{ in, want string }{
+		{"", ""},
+		{"  Thursday   table  ", "Thursday table"},
+		{"a\tb\nc", "a b c"},
+		{long, long[:maxNameRunes]},
+	}
+	for _, c := range cases {
+		if got := tidyName(c.in); got != c.want {
+			t.Errorf("tidyName(%q) = %q, want %q", c.in, got, c.want)
+		}
 	}
 }
