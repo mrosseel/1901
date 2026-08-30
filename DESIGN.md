@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r38 — 2026-08-30
+**Document revision:** r39 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1251,7 +1251,9 @@ from province key to verdict. The exporter moves its plan version to 2 and
 1901 moves the version it refuses on, in one step. `found` keeps its meaning
 and nothing more: it says whether the art draws names. In data mode it is
 false while the map certainly has names, so it is not the mode flag. The mode
-is the presence of a label record, and only that.
+is `dataMode` in the plan, and only that. A map has records before it stops
+drawing its layers, so the presence of a record cannot be the mode without
+changing every map's picture on a release that changed nothing.
 
 **The name string is not stored twice.** The descriptor already writes
 province rows as `[key, longName, supplyCenter]`, so a variant carries every
@@ -1289,8 +1291,11 @@ The typography cannot be resolved to one face on the server, because the style
 is a device preference carried in the map URL and not a property of the game,
 so all four styles travel together at about a kilobyte. And `?style=original`
 keeps its layers only while a map has them: once a map is authored without
-them there is no original to be faithful to, and the default style's faces are
-used.
+them there is no original to be faithful to. The plan answers instead: it
+carries `names.typography` beside `names.kinds`, the face, the inks and the
+halo the art drew its own names in, measured before the layer was dropped.
+`?style=original` on a data-mode map takes that, and falls back to the default
+style's faces only where a plan states none.
 
 **Name styling moves to the board, and the two style paths do not collapse.**
 Today the server rewrites each `<text>` in the art before sending it, choosing
@@ -1844,3 +1849,4 @@ Recorded so nobody re-derives them.
 | r36 | 2026-08-30 | The reader lands, inert. The board can draw a name, a code and a supply-centre glyph from records, and does not, because every map still draws its own and the art wins. D-038 corrected: it said the mode was inferred from the presence of a record and also that it was an explicit flag. It is the flag, `dataMode` in the style plan. The land-or-sea verdict is derived from godip's graph and agrees with the art's own measurement on 73 of 73. With the flag off, 130 renders are byte-identical to master. |
 | r37 | 2026-08-30 | D-038: the supply-centre record gains `centreStroke`. Asking what stroke width a glyph uses found that it is a line weight in map units and not a fraction of the radius, so the reader's derivation from godip's ratio was wrong by more than a factor of two, and that the exporter reserved `2 * radius` when the ink reaches `radius + stroke / 2`. A `labelRuns` anchor is in unrotated space and a run carries no rotation of its own. |
 | r38 | 2026-08-30 | The demo7 fixture carries `centreStroke`, verified independently: 31 records against 31 stroked circles, worst deviation 0.0500, every stroke 1.10. D-038 gains the rule that a record is compared to the art with a tolerance of half the art's rounding step, and never looked up by formatted string, because the two roundings do not commute. |
+| r39 | 2026-08-30 | The server reads a version-2 style plan. The gate is a range, 1 to 2, because every checked-in plan is version 1 until its map is re-authored. `kinds` is a list in one version and a map in the other, and neither is converted into the other: a list is keyed by position and a map has no document order. `names.typography` answers `?style=original` on a map with no original names layer. D-038 corrected: the sentence saying the mode is the presence of a label record is struck, having been overturned at r36. With no plan in data mode, 130 of 130 served SVGs are byte-identical. |
