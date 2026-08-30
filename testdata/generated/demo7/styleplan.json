@@ -4,8 +4,8 @@
   "name": "Generated 7-player map",
   "kind": "godip",
   "map": {
-    "bytes": 36242,
-    "sha256": "1727e01c116ca0c9e68c36a3f49791b3994e6fed2157ddc098d225c4e4d2e247",
+    "bytes": 36273,
+    "sha256": "653cd76c0983cf13f49ee9aa8daae2dd6d8f819bc1109b8cada6a29e5f03c676",
     "viewBoxWidth": 1000.0
   },
   "godip": {
