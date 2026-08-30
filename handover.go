@@ -54,6 +54,25 @@ func handoverSig(id string, power godip.Nation, epoch int) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))[:32]
 }
 
+/*
+gmHandoverSig signs a handover of the role rather than of a seat.
+
+The two are kept apart all the way down, as D-041 asks, because they fail
+differently: a game master who gives away their power still runs the game, and
+one who gives away the role and keeps their power becomes an ordinary player.
+Two epochs, two signatures, two links.
+*/
+func gmHandoverSig(id string, epoch int) string {
+	mac := hmac.New(sha256.New, handoverSalt)
+	fmt.Fprintf(mac, "%v|gm|%v", id, epoch)
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))[:32]
+}
+
+// gmHandoverURL is the address the role's QR code carries.
+func gmHandoverURL(r *http.Request, id string, epoch int) string {
+	return fmt.Sprintf("%v/handover-gm/%v/%v/%v", baseURL(r), id, epoch, gmHandoverSig(id, epoch))
+}
+
 // handoverURL is the address the QR code carries.
 func handoverURL(r *http.Request, id string, power godip.Nation, epoch int) string {
 	return fmt.Sprintf("%v/handover/%v/%v/%v/%v",
@@ -204,4 +223,84 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 		Power:   string(power),
 		SeatURL: seatURL(r, id, token),
 	})
+}
+
+/*
+handleGMRoleHandover mints the link that hands the game master role on.
+
+The rights travel and a power does not. Whoever opens this runs the game: they
+may force a phase, change the settings and mint links for any seat. If the
+game master also plays, their power stays exactly where it is and is handed
+over separately, or not at all.
+*/
+func handleGMRoleHandover(g *game, id string, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "GET only")
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.flow.logEvent(id, "the game master minted a link to hand over the role")
+	writeJSON(w, http.StatusOK, handoverJSON{
+		Power: "",
+		URL:   gmHandoverURL(r, id, g.flow.gmEpoch),
+	})
+}
+
+/*
+handleGMRoleClaim takes the game master role.
+
+Everything the last game master held stops working: the token is replaced, so
+their page is a 404 on its next poll, and the referee cookie's secret is
+dropped, so the browser that created the game cannot walk back in through
+/game/{id}/referee/ either. That door is the one that would otherwise survive a
+handover, because it never carried the token in the first place.
+
+A POST, for the same reason the seat handover is: the signature in the address
+is the whole credential, and a scanner that fetches before it shows must not be
+able to take the game away from the person running it.
+*/
+func handleGMRoleClaim(g *game, id string, rest []string, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	if len(rest) != 2 {
+		http.NotFound(w, r)
+		return
+	}
+	epoch, err := strconv.Atoi(rest[0])
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !hmac.Equal([]byte(rest[1]), []byte(gmHandoverSig(id, epoch))) {
+		http.NotFound(w, r)
+		return
+	}
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	f := g.flow
+
+	if epoch != f.gmEpoch {
+		writeErr(w, http.StatusConflict, "this link has been used — ask for a new one")
+		return
+	}
+
+	token, err := newToken()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+		return
+	}
+	f.gmToken = token
+	f.gmDevice = ""
+	f.gmEpoch++
+
+	f.logEvent(id, "the game master role was handed to another device")
+	g.persist(id)
+
+	writeJSON(w, http.StatusOK, struct {
+		GMURL string `json:"gmUrl"`
+	}{GMURL: gmURL(r, id, token)})
 }

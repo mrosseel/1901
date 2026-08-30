@@ -287,6 +287,9 @@ export type Route =
   /* The page a handover QR code opens (D-041). Everything it needs to take
      the seat is in the address, and the signature is what authorises it. */
   | { kind: "handover"; gameId: string; power: string; epoch: string; signature: string }
+  /* The same, for the game master role. It is a separate address because it
+     is a separate act: the rights travel and a power does not. */
+  | { kind: "handover-gm"; gameId: string; epoch: string; signature: string }
   /* The list of games this server holds, which used to stand at the root. */
   | { kind: "games" }
   | { kind: "new" }
@@ -306,6 +309,9 @@ export function parseRoute(pathname: string): Route {
   if (parts.length === 0) return { kind: "index" };
   if (parts.length === 1 && parts[0] === "new") return { kind: "new" };
   if (parts.length === 1 && parts[0] === "games") return { kind: "games" };
+  if (parts.length === 4 && parts[0] === "handover-gm") {
+    return { kind: "handover-gm", gameId: parts[1], epoch: parts[2], signature: parts[3] };
+  }
   if (parts.length === 5 && parts[0] === "handover") {
     return {
       kind: "handover",
@@ -453,6 +459,11 @@ export class GmClient {
   extend(minutes: number): Promise<unknown> {
     return postJSON(this.base + "extend", { minutes: minutes });
   }
+
+  /** The link that hands the game master role to another device (D-041). */
+  roleHandover(): Promise<Handover> {
+    return getJSON<Handover>(this.base + "handover-role");
+  }
 }
 
 // --- seat -----------------------------------------------------------------
@@ -518,6 +529,29 @@ export function claimHandover(
         "/handover/" +
         encodeURIComponent(power) +
         "/" +
+        encodeURIComponent(epoch) +
+        "/" +
+        encodeURIComponent(signature),
+    ),
+  );
+}
+
+/*
+Taking the game master role (D-041).
+
+The rights travel and a power does not: whoever opens this runs the game, and
+the power the last game master played stays where it is.
+*/
+export function claimGmHandover(
+  gameId: string,
+  epoch: string,
+  signature: string,
+): Promise<{ gmUrl: string }> {
+  return postJSON<{ gmUrl: string }>(
+    absolute(
+      "/game/" +
+        encodeURIComponent(gameId) +
+        "/handover-gm/" +
         encodeURIComponent(epoch) +
         "/" +
         encodeURIComponent(signature),

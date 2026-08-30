@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { claimHandover } from "../api";
+import { claimGmHandover, claimHandover } from "../api";
 
 /*
 The page a handover QR code opens (D-041).
@@ -22,7 +22,10 @@ export function HandoverPage({
   signature,
 }: {
   gameId: string;
-  power: string;
+  /* The power being handed over, or null for the game master role. They are
+     one page because the moment is the same — read this, then press once —
+     and two acts because what travels is different (D-041). */
+  power: string | null;
   epoch: string;
   signature: string;
 }) {
@@ -33,13 +36,43 @@ export function HandoverPage({
     setTaking(true);
     setError(null);
     try {
-      const seat = await claimHandover(gameId, power, epoch, signature);
-      window.location.href = seat.seatUrl;
+      if (power === null) {
+        const gm = await claimGmHandover(gameId, epoch, signature);
+        window.location.href = gm.gmUrl;
+      } else {
+        const seat = await claimHandover(gameId, power, epoch, signature);
+        window.location.href = seat.seatUrl;
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setTaking(false);
     }
   };
+
+  if (power === null) {
+    return (
+      <main className="page">
+        <h1>Take the game master role</h1>
+        <section className="card">
+          <p>
+            This link makes you the game master of game {gameId}. You set the deadline,
+            start the game, force a phase when the room is waiting on one person, and hand
+            out seats.
+          </p>
+          <p className="note">
+            The rights travel; a power does not. Whoever runs the game now stops being able
+            to, and keeps whatever power they play.
+          </p>
+          {error ? <p className="error">{error}</p> : null}
+          <p>
+            <button type="button" className="primary" onClick={take} disabled={taking}>
+              {taking ? "Taking the role…" : "Take the game master role"}
+            </button>
+          </p>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="page">

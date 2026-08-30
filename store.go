@@ -185,6 +185,9 @@ var gameColumns = []struct{ name, definition string }{
 	{"variant_hash", `TEXT NOT NULL DEFAULT ''`},
 	// A game written before names existed keeps the identity it had: its id.
 	{"name", `TEXT NOT NULL DEFAULT ''`},
+	// The handover counter for the game master role (D-041). A game from
+	// before role handovers starts at zero, which is what its links carry.
+	{"gm_epoch", `INTEGER NOT NULL DEFAULT 0`},
 }
 
 // orderColumns are the columns a game_order row has grown, in the same shape
@@ -318,9 +321,13 @@ func (self *game) persistErr(id string) error {
                           phase_index, created_at, variant,
                           retreat_build_percent, grace_minutes,
                           first_turn_extra_minutes, press_mode, illegal_moves,
-                          variant_hash, name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          variant_hash, name, gm_epoch)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+            -- The role can be handed on (D-041), which rotates the token, so
+            -- unlike the invite it is not write-once.
+            gm_token         = excluded.gm_token,
+            gm_epoch         = excluded.gm_epoch,
             gm_device        = excluded.gm_device,
             deadline_minutes = excluded.deadline_minutes,
             gm_plays         = excluded.gm_plays,
@@ -341,7 +348,7 @@ func (self *game) persistErr(id string) error {
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
 		f.settings.RetreatBuildPercent, f.settings.GraceMinutes,
 		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves,
-		variantHash(self.variantKey), f.settings.Name)
+		variantHash(self.variantKey), f.settings.Name, f.gmEpoch)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
@@ -444,7 +451,7 @@ func loadAll() error {
                created_at, COALESCE(variant, ?),
                retreat_build_percent, grace_minutes, first_turn_extra_minutes,
                COALESCE(press_mode, ?), illegal_moves, COALESCE(variant_hash, ''),
-               COALESCE(name, '')
+               COALESCE(name, ''), COALESCE(gm_epoch, 0)
         FROM game`, defaultVariant, defaultPressMode)
 	if err != nil {
 		return err
@@ -470,7 +477,7 @@ func loadAll() error {
 			&phaseIndex, &createdAt, &key, &f.settings.RetreatBuildPercent,
 			&f.settings.GraceMinutes, &f.settings.FirstTurnExtraMinutes,
 			&f.settings.PressMode, &f.settings.IllegalMoves, &recordedHash,
-			&f.settings.Name); err != nil {
+			&f.settings.Name, &f.gmEpoch); err != nil {
 			rows.Close()
 			return err
 		}
