@@ -340,6 +340,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           <div className="handovers">
             {handover ? (
               <LinkShare
+                private
                 title={"Hand " + handover.power + " to another phone"}
                 url={handover.url}
                 note={
@@ -352,6 +353,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
             ) : null}
             {rowRole ? (
               <LinkShare
+                private
                 title="The game master role"
                 url={rowRole.url}
                 note={
@@ -392,10 +394,15 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           seats. The power is a seat at the board. Handing over one leaves the other
           exactly where it is.
         </p>
+        <p className="note">
+          Both are hidden until you ask for them. Either one gives away what it names to
+          whoever reads it off the screen, and this screen is often the one on the beamer.
+        </p>
         {handoverError ? <p className="error">{handoverError}</p> : null}
         <div className="handovers">
           {role ? (
             <LinkShare
+              private
               title="The game master role"
               url={role.url}
               note={
@@ -408,6 +415,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           ) : null}
           {ownSeat ? (
             <LinkShare
+              private
               title={"Your power · " + ownSeat.power}
               url={ownSeat.url}
               note={
@@ -436,6 +444,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         <details className="card">
           <summary>Invite link and QR code</summary>
           <LinkShare
+            private
             title="Invite link"
             url={inviteUrl}
             note="A player who opens this on their own phone lands back on their power. On a new device it takes the next free one."

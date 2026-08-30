@@ -1864,3 +1864,12 @@ height; the seat's links live in its own menu instead.
 .topbar-back:hover { border-color: var(--accent); }
 
 .seat-menu-links { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
+
+/* A link that is not being shown, on a screen a room can see. It takes the
+   space the address would, so opening a fold never moves the page under a
+   hand that is about to press Copy. */
+.share-hidden {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
