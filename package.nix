@@ -144,6 +144,7 @@ symlinkJoin {
   postBuild = ''
     wrapProgram $out/bin/1901 \
       --set-default SPADIR ${web}/share/1901/web/dist \
+      --set-default GENERATED_VARIANTS ${goSrc}/variants/generated \
       --set-default PLACEMENTS ${goSrc}/placements
   '';
 
