@@ -355,55 +355,8 @@
     ["syb", "vin", "sea"]
   ],
   "start": {
-    "units": {
-      "flo": ["fleet", "Player1"],
-      "the": ["army", "Player1"],
-      "per": ["fleet", "Player1"],
-      "pyr": ["fleet", "Player2"],
-      "zac": ["army", "Player2"],
-      "plo": ["army", "Player2"],
-      "kno": ["fleet", "Player3"],
-      "lam": ["army", "Player3"],
-      "bon": ["fleet", "Player3"],
-      "fav": ["fleet", "Player4"],
-      "nic": ["army", "Player4"],
-      "ges": ["fleet", "Player4"],
-      "cil": ["fleet", "Player5"],
-      "thu": ["army", "Player5"],
-      "myn": ["fleet", "Player5"],
-      "vir": ["fleet", "Player6"],
-      "nor": ["army", "Player6"],
-      "arc": ["fleet", "Player6"],
-      "cor": ["fleet", "Player7"],
-      "fer": ["army", "Player7"],
-      "sop": ["army", "Player7"]
-    },
-    "supplyCenters": {
-      "flo": "Player1",
-      "the": "Player1",
-      "per": "Player1",
-      "pyr": "Player2",
-      "zac": "Player2",
-      "plo": "Player2",
-      "kno": "Player3",
-      "lam": "Player3",
-      "bon": "Player3",
-      "fav": "Player4",
-      "nic": "Player4",
-      "ges": "Player4",
-      "cil": "Player5",
-      "thu": "Player5",
-      "myn": "Player5",
-      "vir": "Player6",
-      "nor": "Player6",
-      "arc": "Player6",
-      "cor": "Player7",
-      "fer": "Player7",
-      "sop": "Player7"
-    }
+    "units": {"flo": ["fleet", "Player1"], "the": ["army", "Player1"], "per": ["fleet", "Player1"], "pyr": ["fleet", "Player2"], "zac": ["army", "Player2"], "plo": ["army", "Player2"], "kno": ["fleet", "Player3"], "lam": ["army", "Player3"], "bon": ["fleet", "Player3"], "fav": ["fleet", "Player4"], "nic": ["army", "Player4"], "ges": ["fleet", "Player4"], "cil": ["fleet", "Player5"], "thu": ["army", "Player5"], "myn": ["fleet", "Player5"], "vir": ["fleet", "Player6"], "nor": ["army", "Player6"], "arc": ["fleet", "Player6"], "cor": ["fleet", "Player7"], "fer": ["army", "Player7"], "sop": ["army", "Player7"]},
+    "supplyCenters": {"flo": "Player1", "the": "Player1", "per": "Player1", "pyr": "Player2", "zac": "Player2", "plo": "Player2", "kno": "Player3", "lam": "Player3", "bon": "Player3", "fav": "Player4", "nic": "Player4", "ges": "Player4", "cil": "Player5", "thu": "Player5", "myn": "Player5", "vir": "Player6", "nor": "Player6", "arc": "Player6", "cor": "Player7", "fer": "Player7", "sop": "Player7"}
   },
-  "rules": {
-    "profile": "classical",
-    "orders": ["move", "moveViaConvoy", "hold", "support", "convoy", "build", "disband"]
-  }
+  "rules": {"profile": "classical", "orders": ["move", "moveViaConvoy", "hold", "support", "convoy", "build", "disband"]}
 }
