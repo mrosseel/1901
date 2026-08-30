@@ -1913,6 +1913,25 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 	}
 	g.mu.Unlock()
 
+	/*
+	The page of a keyed seat is served to anybody who asks (D-049).
+
+	It has to be. The address carries no secret and the session is a cookie
+	the server keeps in memory, so a restart, a new device or a private tab
+	arrives with nothing — and the thing that signs back in is the JavaScript
+	on this very page, using the seed the device already holds. Refusing the
+	page would mean the only way back into a seat is a page the seat cannot
+	open, which is a locked door with the key behind it.
+
+	Nothing is given away. The page is the same shell every address serves,
+	it holds no state, and every request it goes on to make is answered only
+	for a device that can sign for the seat.
+	*/
+	if action == "" && kind == "seat" && token == "me" {
+		self.serveSPA(w, r)
+		return
+	}
+
 	if !authorized {
 		http.NotFound(w, r)
 		return
