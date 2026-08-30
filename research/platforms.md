@@ -947,14 +947,14 @@ plus resolutions, so it is nearly free.
 
 ### 3. Order semantics drawn into the map
 **From:** Backstabbr.
-**Touches:** D-003 (placements), D-023 (map styles), M2.
+**Touches:** D-003 (placements), D-033 (map styles), M2.
 
 Specifically: black for a successful order and red for a failed one, orange for
 retreats, a dotted line for a support, a wave glyph for a convoy, a circle for a
 hold, a dotted ghost for a build, a red X for a disband. And the detail that
 makes it work at density: **support lines are quadratic Béziers bent by a
 perpendicular offset of 0.05 of the span**, so two supports of the same move do
-not draw on top of each other. Our style system (D-023) should carry these as
+not draw on top of each other. Our style system (D-033) should carry these as
 style tokens, not hardcode them.
 
 ### 4. Decide what to do about illegal and bluff orders

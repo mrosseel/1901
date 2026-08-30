@@ -682,6 +682,7 @@ func loadState() error {
 
 func main() {
 	pinBaseURL()
+	pinLANHost()
 	games.limit = gameLimit()
 	handle, err := openDB(dbPath())
 	if err != nil {
@@ -715,7 +716,11 @@ func main() {
 
 	addr := listenAddr()
 	origin := baseURLFixed
-	if origin == "" {
+	switch {
+	case origin != "":
+	case lanHost != "":
+		origin = "each request, with localhost swapped for " + lanHost
+	default:
 		origin = "each request — set BASE_URL to pin it"
 	}
 	log.Printf("listening on http://localhost%v (app from %v, database %v, links %v, cap %v game(s))",

@@ -50,6 +50,14 @@ scan the invite QR from the phones. Useful environment variables:
 | `ADDR` | `:8190` | Listen address |
 | `DB` | `1901.db` | SQLite file; delete it for a clean slate |
 | `BASE_URL` | derived from the request | Pin the origin used in invite links (set this behind a proxy) |
+
+A link to `localhost` cannot open on a phone. When `BASE_URL` is unset and the
+GM reaches the server on localhost, the server puts its own LAN address in the
+generated links instead, keeping the port. It asks the kernel which address a
+packet would leave from, so a laptop running docker still gets the right one.
+It takes IPv4 only. With no default route it reads the interfaces instead, and
+it declines when that leaves more than one candidate. The startup log states
+which address it will hand out. Set `BASE_URL` when it declines.
 | `MAX_GAMES` | `100` | Cap on live games |
 
 ## Developing
