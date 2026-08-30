@@ -67,7 +67,7 @@ import type { Page } from "playwright-core";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const VARIANTS = resolve(HERE, "..", "..", "variants1901");
 const OUT = join(HERE, "out");
-const PLACEMENTS = resolve(HERE, "..", "..", "placements");
+const GENERATED = resolve(HERE, "..", "..", "variants", "generated");
 const STYLES = stylesDir(HERE);
 
 /** The style a map is served in when nobody asks for one. */
@@ -191,7 +191,7 @@ export interface MapFacts {
   The size and alignment jDip chose for each of its label classes, kept
   verbatim. These are a LAYOUT decision, not a style one: jDip sized each
   label to fit the province it names, and — more to the point — every entry in
-  placements/<key>.json was measured against the label boxes these produce.
+  every placement was measured against the label boxes these produce.
   Restyling the face is a restyle; resizing the labels would silently
   invalidate the placement table.
   */
@@ -546,7 +546,7 @@ export function buildStylesheet(
 
   /*
   Names. Sizes are deliberately NOT touched: jDip chose them to fit its own
-  provinces, and every placement in placements/<key>.json was measured against
+  provinces, and every placement in the variant's table was measured against
   the label boxes they produce. What changes is the face, the weight and the
   tracking — classical's typography, on jDip's layout.
   */
@@ -929,7 +929,7 @@ pass. A variant with no table yet gets an empty one and the labels are placed
 against the border alone — which is right: there is nothing to collide with.
 */
 async function readPlacements(key: string): Promise<Record<string, MarkerSpot> & { __any?: boolean }> {
-  const path = join(PLACEMENTS, key + ".json");
+  const path = join(GENERATED, key, "placements.json");
   if (!existsSync(path)) return {};
   const table = JSON.parse(await readFile(path, "utf8")) as Record<string, MarkerSpot>;
   return Object.assign(table, { __any: true });
@@ -988,7 +988,7 @@ function labelReportOf(
   lines.push("    inside but on a marker " + blocked.length +
     " — the name fits; the marker is what moves, in the placement pass");
   lines.push("    markers avoided      " + (hasPlacements
-    ? "yes — placements/" + key + ".json was read, and a repaired label clears"
+    ? "yes — the table for " + key + " was read, and a repaired label clears"
     : "no placement table yet, so only the border constrained the search"));
   if (hasPlacements) {
     lines.push("                         the unit and dislodged markers by the RULE B margin");

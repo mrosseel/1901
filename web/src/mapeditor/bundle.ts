@@ -2,7 +2,7 @@
 What the editor hands back, and why it is written this way.
 
 Two things come out of a session. One is the amended placement table, which
-has to land in placements/<key>.json as a DIFF: a table written a different
+has to land in the variant's placements.json as a DIFF: a table written a different
 way every time is a table nobody can review, and reviewing it is the whole
 point of the file existing. So it is written exactly as tools/placement writes
 it — keys sorted, fields in one order, two decimals, two-space indent, one
@@ -80,7 +80,7 @@ export function canonicalTable(table: PlacementTable): PlacementTable {
   return out;
 }
 
-/** The bytes that go in placements/<key>.json, as tools/placement writes them. */
+/** The bytes that go in the variant's placements.json, as tools/placement writes them. */
 export function placementFile(table: PlacementTable): string {
   return JSON.stringify(canonicalTable(table), null, 2) + "\n";
 }

@@ -48,6 +48,10 @@ jobs:
       # regression files from real games; running it here is our compliance
       # statement until the dedicated report page lands.
       - run: go test github.com/zond/godip/... 2>&1 | tee datc-results.txt
+      # The same corpus, adjudicated on the classical board this server loads
+      # from variants/generated. godip's run proves the adjudicator; this one
+      # proves the descriptor the adjudicator is handed.
+      - run: go test -run TestDATCOnTheLoadedClassicalBoard -v . 2>&1 | tee -a datc-results.txt
       - uses: actions/upload-artifact@v4
         with:
           name: datc-results

@@ -4,8 +4,8 @@
   "name": "Classical - Crowded",
   "kind": "godip",
   "map": {
-    "bytes": 2235724,
-    "sha256": "086c4834c81d6d086652a231c2bb55735378f27b972a4f18fc87c83ccbf8241a",
+    "bytes": 1186945,
+    "sha256": "0a5f754a53373e55f41e95c22695bb1708a8de38040312e01cb15b20f664a21c",
     "viewBoxWidth": 1524
   },
   "godip": {

@@ -4,8 +4,8 @@
   "name": "Pure",
   "kind": "godip",
   "map": {
-    "bytes": 129991,
-    "sha256": "ad0e73cf914b5b0d74295cdceff12cd7e5bacaa40af401f0a9d5edc44fb2d271",
+    "bytes": 88880,
+    "sha256": "fad0db8fc2b3a55e068ade78412b4b7520737ee8b2fb89b17ac198c7ad1f1b40",
     "viewBoxWidth": 700
   },
   "godip": {

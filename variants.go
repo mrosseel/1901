@@ -1,5 +1,12 @@
-// The variant registry: godip's variants exposed by a URL-safe key, with
-// the metadata the create-game gallery needs.
+// The variant registry: every variant this server can play, by URL-safe key,
+// with the metadata the create-game gallery needs.
+//
+// One source feeds it. Every variant is a descriptor under variants/generated,
+// read at startup (generated.go) — godip's own maps included, converted once by
+// tools/variant-export and held against their Go packages by
+// variants_equivalence_test.go. godip remains the adjudicator and the source of
+// the rule profiles a descriptor names; it is no longer a second way for a
+// board to reach a game.
 //
 // Only classical is supported (D-014). The rest are playable but their
 // map placement anchors are unverified, so they are marked experimental.
@@ -16,28 +23,13 @@ import (
 	"sync"
 
 	"github.com/zond/godip"
-	"github.com/zond/godip/variants"
 	"github.com/zond/godip/variants/common"
-
-	"spring1901/spike/variants1901/jdip1900"
-	"spring1901/spike/variants1901/sailho"
-	"spring1901/spike/variants1901/sailhocrowded"
 )
 
-// localVariants are the ones translated from jDip by tools/jdip-import.
-// They sit beside godip's own and are served exactly the same way.
-var localVariants = []common.Variant{
-	jdip1900.Nineteen00Variant,
-	sailho.SailHoVariant,
-	sailhocrowded.SailHoCrowdedVariant,
-}
-
-// allVariants is every variant this server can play.
+// allVariants is every variant this server can play, all of them loaded from
+// disk at startup (generated.go).
 func allVariants() []common.Variant {
-	out := make([]common.Variant, 0, len(variants.OrderedVariants)+len(localVariants))
-	out = append(out, variants.OrderedVariants...)
-	out = append(out, localVariants...)
-	return out
+	return generatedVariantList()
 }
 
 // defaultVariant is what a game gets when none is named.
@@ -59,18 +51,36 @@ func variantKey(name string) string {
 }
 
 var (
-	byKey     = map[string]common.Variant{}
-	byKeyOnce sync.Once
+	byKeyMu sync.Mutex
+	byKey   map[string]common.Variant
 )
+
+// rebuildVariantIndex rebuilds the key index from scratch.
+//
+// It has to be a rebuild rather than a one-time build: generated variants
+// arrive from disk after the process starts, and an index built before they
+// load would never contain them. A game saved on one would then fail to load
+// with "unknown variant".
+func rebuildVariantIndex() {
+	byKeyMu.Lock()
+	defer byKeyMu.Unlock()
+	index := map[string]common.Variant{}
+	for _, v := range allVariants() {
+		index[variantKey(v.Name)] = v
+	}
+	byKey = index
+}
 
 // lookupVariant resolves a key to its godip variant.
 func lookupVariant(key string) (common.Variant, bool) {
-	byKeyOnce.Do(func() {
-		for _, v := range allVariants() {
-			byKey[variantKey(v.Name)] = v
-		}
-	})
+	byKeyMu.Lock()
+	if byKey == nil {
+		byKeyMu.Unlock()
+		rebuildVariantIndex()
+		byKeyMu.Lock()
+	}
 	v, found := byKey[key]
+	byKeyMu.Unlock()
 	return v, found
 }
 
@@ -273,21 +283,86 @@ func styledMapBytes(key string, v common.Variant, style string) ([]byte, error) 
 // /game/{id}/map.svg for a board — so the two can never disagree about which
 // map a variant has.
 func variantMapBytes(key string, v common.Variant, r *http.Request) ([]byte, error) {
+	b, _, err := variantMapArt(key, v, r)
+	return b, err
+}
+
+// variantMapArt is variantMapBytes and the name the answer is cached under.
+//
+// The name is what serveMapArt keys the compressed copy by, so it has to say
+// which art came back rather than which style was asked for: a request with no
+// style that falls back to the unrestyled file must not be cached as the
+// default style's.
+func variantMapArt(key string, v common.Variant, r *http.Request) ([]byte, string, error) {
+	original := func() ([]byte, string, error) {
+		b, err := v.SVGMap()
+		return b, key + "/original", err
+	}
 	style := r.URL.Query().Get("style")
 	if style == "original" {
-		return v.SVGMap()
+		return original()
 	}
 	if style == "" {
 		if b, err := styledMapBytes(key, v, defaultMapStyle); err == nil {
-			return b, nil
+			return b, key + "/" + defaultMapStyle, nil
 		} else if !errors.Is(err, errUnknownStyle) {
-			return nil, err
+			return nil, "", err
 		}
 		// A map with no plan, or one whose plan no longer matches the art, is
 		// served as it was drawn. It is the right map; it is not restyled.
-		return v.SVGMap()
+		return original()
 	}
-	return styledMapBytes(key, v, style)
+	b, err := styledMapBytes(key, v, style)
+	return b, key + "/" + style, err
+}
+
+// compressedArt is the gzipped map art, keyed exactly as styledArt is.
+//
+// A map is compressed once per style and then only read. That is worth doing
+// rather than compressing per request: classical's parchment SVG is 1.8 MB and
+// takes 63 ms to deflate, which is longer than composing the styled map in the
+// first place, and it would be spent again on every board load. Compressing
+// once and keeping the 976 KB result costs a fraction of what the uncompressed
+// copy beside it already costs.
+//
+// The default compression level is the right one here for the same reason.
+// Level 1 would finish in 9 ms and produce 1055 KB; over a cached entry the
+// 63 ms is paid once and the 79 KB is saved on every request after.
+var compressedArt = struct {
+	mu sync.RWMutex
+	by map[string][]byte
+}{by: map[string][]byte{}}
+
+// serveMapArt writes one variant's map art, compressed when the client offered
+// gzip. Both routes that serve a board go through it.
+func serveMapArt(w http.ResponseWriter, r *http.Request, key string, v common.Variant) error {
+	body, name, err := variantMapArt(key, v, r)
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Vary", "Accept-Encoding")
+	if !acceptsGzip(r) || len(body) < minCompressBytes {
+		w.Write(body)
+		return nil
+	}
+
+	compressedArt.mu.RLock()
+	packed, hit := compressedArt.by[name]
+	compressedArt.mu.RUnlock()
+	if !hit {
+		packed = gzipBytes(body)
+		compressedArt.mu.Lock()
+		if first, raced := compressedArt.by[name]; raced {
+			packed = first
+		} else {
+			compressedArt.by[name] = packed
+		}
+		compressedArt.mu.Unlock()
+	}
+	w.Header().Set("Content-Encoding", "gzip")
+	w.Write(packed)
+	return nil
 }
 
 // provinceJSON says what one province IS: the terrain a unit may stand on.
@@ -366,17 +441,14 @@ func handleVariantMap(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, provinces)
 		return
 	}
-	b, err := variantMapBytes(key, v, r)
+	err := serveMapArt(w, r, key, v)
 	if errors.Is(err, errUnknownStyle) {
 		http.NotFound(w, r)
 		return
 	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "svg map: %v", err)
-		return
 	}
-	w.Header().Set("Content-Type", "image/svg+xml")
-	w.Write(b)
 }
 
 // variantRefJSON identifies the variant a game is played on.

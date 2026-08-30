@@ -4,8 +4,8 @@
   "name": "Cold War",
   "kind": "godip",
   "map": {
-    "bytes": 1639972,
-    "sha256": "33f5076a434133ff06b08bd965394dad8c647111628e4789c389ac494b937991",
+    "bytes": 1224153,
+    "sha256": "57b365e7d78183e6de5c0896f5d6e9dc15c61fc7f5b798c6e1a9550f8269a599",
     "viewBoxWidth": 3576
   },
   "godip": {

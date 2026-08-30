@@ -4,8 +4,8 @@
   "name": "Western World 901",
   "kind": "godip",
   "map": {
-    "bytes": 783581,
-    "sha256": "358f2a35153304ab979bab684fc637fadaa143d95d3d82f9bcd8124f25a703ae",
+    "bytes": 584672,
+    "sha256": "2daf938afc9390940eced7acd921ca0882ec9c92db5445021d05bbb533ae0911",
     "viewBoxWidth": 1768
   },
   "godip": {
