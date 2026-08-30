@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r36 — 2026-08-30
+**Document revision:** r37 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1220,6 +1220,16 @@ fixes `sc-<key>` for it. The board matches `[id$="Center"]` to find anchors,
 so a ring with that id in a map that also has an anchors layer would be read
 as an anchor.
 
+**The glyph carries a radius and a stroke.** `centreRadius` is the radius of
+the circle's path. `centreStroke` is the width of its outline, in map units.
+The stroke is a line weight and not a fraction of the radius: a fraction makes
+a small province's centre a smudge and a large one's a doughnut.
+
+Both are needed because a stroke straddles the path it is drawn on. The ink
+reaches `centreRadius + centreStroke / 2`, and that is the circle the names
+and the markers were fitted around. An exporter that reserved `2 * radius`
+fitted every name to a box half a stroke too small on each side.
+
 **The glyph carries a radius for the same reason a name carries a width.**
 The supply-centre glyph is not only drawn, it is an obstacle. The exporter
 places the glyphs first, fits every name around them, then places every marker
@@ -1264,11 +1274,17 @@ exporter writes records and still draws the layers, a server that inferred
 data-only release. The flag is set when the exporter stops drawing them.
 
 **Four things the entry did not settle, found while building the reader.**
-A run carries no rotation, and nothing said whether run anchors are written in
-unrotated space: the whole block turns about the label's `at`, and no fixture
-exercises it yet. The glyph's stroke width is not in the record, so it is
-derived from the radius at godip's ratio, 2.25273 units of stroke on a radius
-of 10; a map whose glyphs are not drawn at that ratio needs a fourth number.
+A run's `at` is in unrotated map space, like every other coordinate in the
+file. `rot` on the parent label turns the whole block about `label.at`. A run
+carries no rotation of its own: a wrapped name is parallel lines of one block,
+and letting each line turn separately expresses something no map draws while
+making every reader handle it. `label` stays the union box and the obstacle;
+`labelRuns` says only how the text is broken up. No fixture exercises it yet.
+
+The glyph's stroke was not in the record and had to be guessed from godip's
+ratio, which was wrong by more than a factor of two against a real exporter.
+It is now `centreStroke`. Where a record does not state one, the ratio stands
+as the fallback.
 The typography cannot be resolved to one face on the server, because the style
 is a device preference carried in the map URL and not a property of the game,
 so all four styles travel together at about a kilobyte. And `?style=original`
@@ -1813,3 +1829,4 @@ Recorded so nobody re-derives them.
 | r34 | 2026-08-30 | D-038: the supply-centre glyph follows the same rule as the name. Where the art draws the layer, the art wins. Where it does not, the board draws from the record. A drawn ring keeps the id from D-032 and never `<key>Center`, which the board matches to find anchors. |
 | r35 | 2026-08-30 | D-038: a wrapped name gets an optional `labelRuns` beside `label` rather than turning `at` into a list, and a run's text wins for drawing only. The claim that moving a short label makes the payload bigger is withdrawn: it was JSON pretty-printing, not the format. Tables collapse arrays and innermost objects onto one line, 30.1% off raw and 4.3% gzipped, keeping one line per field so a moved marker stays a one-line diff. |
 | r36 | 2026-08-30 | The reader lands, inert. The board can draw a name, a code and a supply-centre glyph from records, and does not, because every map still draws its own and the art wins. D-038 corrected: it said the mode was inferred from the presence of a record and also that it was an explicit flag. It is the flag, `dataMode` in the style plan. The land-or-sea verdict is derived from godip's graph and agrees with the art's own measurement on 73 of 73. With the flag off, 130 renders are byte-identical to master. |
+| r37 | 2026-08-30 | D-038: the supply-centre record gains `centreStroke`. Asking what stroke width a glyph uses found that it is a line weight in map units and not a fraction of the radius, so the reader's derivation from godip's ratio was wrong by more than a factor of two, and that the exporter reserved `2 * radius` when the ink reaches `radius + stroke / 2`. A `labelRuns` anchor is in unrotated space and a run carries no rotation of its own. |

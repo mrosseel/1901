@@ -74,6 +74,7 @@ export interface Placement {
   would draw an obstacle nobody measured.
   */
   centreRadius?: number;
+  centreStroke?: number;
 }
 
 /*

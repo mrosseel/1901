@@ -874,6 +874,8 @@ export function mount(
   opacity. The radius is the record's, because the exporter fitted every name
   and every marker around a circle of exactly that size. The stroke is the
   ratio godip draws classical at, 2.25 units of stroke on a 10-unit radius.
+  A record that states its own stroke wins: the stroke is a line weight, not a
+  fraction of the radius, so a map drawn at another weight cannot be derived.
   */
   const CENTRE_INK = "#000000";
   const CENTRE_OPACITY = "0.470588";
@@ -954,7 +956,10 @@ export function mount(
       ring.setAttribute("fill", "none");
       ring.setAttribute("stroke", CENTRE_INK);
       ring.setAttribute("stroke-opacity", CENTRE_OPACITY);
-      ring.setAttribute("stroke-width", String(radius * CENTRE_STROKE_RATIO));
+      ring.setAttribute(
+        "stroke-width",
+        String(spot.centreStroke || radius * CENTRE_STROKE_RATIO),
+      );
       layer.appendChild(ring);
     });
   }

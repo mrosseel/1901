@@ -66,12 +66,17 @@ type placementJSON struct {
 	// box the search reserved. A run's text wins for drawing and for nothing
 	// else.
 	LabelRuns []labelRunJSON `json:"labelRuns,omitempty"`
-	// Centre is the middle of the supply centre glyph, and CentreRadius its
-	// radius. The radius is stored because the glyph is an obstacle as well
-	// as a drawing: the names and the markers were fitted around a circle of
-	// exactly this size.
+	// Centre is the middle of the supply centre glyph. CentreRadius is the
+	// radius of the circle's path and CentreStroke the width of its outline.
+	// Both are stored because the glyph is an obstacle as well as a drawing:
+	// a stroke straddles the path it is drawn on, so the ink reaches
+	// CentreRadius + CentreStroke/2, and that is the circle the names and the
+	// markers were fitted around. The stroke is a line weight in map units,
+	// not a fraction of the radius: a fraction makes a small province's
+	// centre a smudge and a large one's a doughnut.
 	Centre       *[2]float64 `json:"centre,omitempty"`
 	CentreRadius float64     `json:"centreRadius,omitempty"`
+	CentreStroke float64     `json:"centreStroke,omitempty"`
 }
 
 // labelJSON is one name's ink box, in map units.
