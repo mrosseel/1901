@@ -595,6 +595,15 @@ func (self *server) serveRoot(w http.ResponseWriter, r *http.Request) {
 	self.serveSPAAsset(w, r)
 }
 
+// serveGames answers the one address the game list and the create share.
+func (self *server) serveGames(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		self.serveSPA(w, r)
+		return
+	}
+	handleCreateGame(w, r)
+}
+
 // absPath resolves a path against the working directory, leaving it as
 // given when that fails.
 func absPath(path string) string {
@@ -703,7 +712,13 @@ func main() {
 	// save is decided by the build, in mapeditor_dev.go.
 	mux.HandleFunc("/mapeditor", srv.serveSPA)
 	registerEditorSave(mux)
-	mux.HandleFunc("/games", handleCreateGame)
+	// /games is a page and an endpoint at once (D-043). A browser asking for
+	// it gets the game list screen; a POST to it creates a game, which is
+	// what a post to a collection has always meant here. Only the JSON list
+	// moved, to /games/list, because a page and its data cannot share one
+	// address and answer the same method.
+	mux.HandleFunc("/games", srv.serveGames)
+	mux.HandleFunc("/games/list", handleListGames)
 	mux.HandleFunc("/variants", handleVariants)
 	mux.HandleFunc("/styles", handleStyles)
 	mux.HandleFunc("/variants/", handleVariantMap)

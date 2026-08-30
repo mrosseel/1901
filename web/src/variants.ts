@@ -239,3 +239,15 @@ export function claimLine(powerCount: number, gmPlays: boolean): string {
     " powers. One is held for the game master."
   );
 }
+
+/*
+The Classical board, at the address every other screen asks for it at.
+
+The landing page (D-043) is the only screen with no game and no variant
+behind it, so it names the one map by hand. Parchment is the style the
+classical art was drawn in, and asking for it by name keeps the page's
+picture steady when the device's own style preference changes.
+*/
+export function classicalMapUrl(): string {
+  return "/variants/classical/map.svg?style=parchment";
+}

@@ -33,6 +33,9 @@ describe("routes", () => {
   it("reads the four page addresses", () => {
     expect(parseRoute("/")).toEqual({ kind: "index" });
     expect(parseRoute("/new")).toEqual({ kind: "new" });
+    // The root is the landing page and the list has its own address (D-043).
+    expect(parseRoute("/games")).toEqual({ kind: "games" });
+    expect(parseRoute("/games/")).toEqual({ kind: "games" });
     expect(parseRoute("/join/7/abc")).toEqual({
       kind: "join",
       gameId: "7",
@@ -132,7 +135,7 @@ describe("requests", () => {
       ]),
     });
     const list = await fetchGames();
-    expect(calls[0].url).toBe("http://localhost:3000/games");
+    expect(calls[0].url).toBe("http://localhost:3000/games/list");
     expect(list.map((game) => game.gameId)).toEqual(["7", "9"]);
     expect(list[1].referee).toBe(true);
   });

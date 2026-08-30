@@ -846,10 +846,6 @@ type createResponse struct {
 // itself reaches only two places: the GM pages behind /game/{id}/gm/, and
 // the seat state of the GM's own power once the game has started.
 func handleCreateGame(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		handleListGames(w, r)
-		return
-	}
 	if r.Method != http.MethodPost {
 		writeErr(w, http.StatusMethodNotAllowed, "POST only")
 		return

@@ -149,10 +149,10 @@ func TestGameListPublishesPublicFactsOnly(t *testing.T) {
 		t.Fatal("the created game is not in the registry")
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/games", nil)
+	req := httptest.NewRequest(http.MethodGet, "/games/list", nil)
 	req.AddCookie(&http.Cookie{Name: refereeCookieName(id), Value: g.flow.gmDevice})
 	rec := httptest.NewRecorder()
-	handleCreateGame(rec, req)
+	handleListGames(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list: got %v", rec.Code)
 	}
@@ -179,9 +179,9 @@ func TestGameListPublishesPublicFactsOnly(t *testing.T) {
 	}
 
 	// Without the cookie the row is still there, but unmarked.
-	req = httptest.NewRequest(http.MethodGet, "/games", nil)
+	req = httptest.NewRequest(http.MethodGet, "/games/list", nil)
 	rec = httptest.NewRecorder()
-	handleCreateGame(rec, req)
+	handleListGames(rec, req)
 	list = nil
 	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
 		t.Fatal(err)
@@ -286,7 +286,7 @@ func TestGameNameIsSetAtCreationAndShownOnTheList(t *testing.T) {
 		t.Errorf("stored name %q, want the tidied one", got)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/games", nil)
+	req = httptest.NewRequest(http.MethodGet, "/games/list", nil)
 	rec = httptest.NewRecorder()
 	handleListGames(rec, req)
 	var list []map[string]any
