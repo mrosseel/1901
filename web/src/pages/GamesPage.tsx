@@ -82,11 +82,11 @@ function GameRow({ game }: { game: GameSummary }) {
     <li>
       <div className="row-main">
         {/* The name is what a game master reads first when two tables are
-            running; the id stays on the row, because it is the address and an
-            unnamed game has nothing else. */}
+            running. An unnamed game falls back to its id, because it has
+            nothing else; a named one does not repeat it. The id is an
+            address, and the links on the row already carry it. */}
         <strong>{game.name || game.gameId}</strong>
         <span className="muted">
-          {game.name ? game.gameId + " · " : ""}
           {game.variant ? game.variant.name : ""}
           {game.variant ? <SupportedMark supported={game.variant.supported} /> : null}
           {" · "}
