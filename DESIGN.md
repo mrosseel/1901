@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r33 — 2026-08-30
+**Document revision:** r34 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1202,6 +1202,16 @@ the anchor both use the id `<key>Center`, and the board selects `[id$="Center"]`
 across both layers, so a document holding one of each would have the board
 read a glyph as an anchor.
 
+**The art wins where it has drawn the glyph.** A map whose SVG carries a
+supply-centre layer keeps it, and the board draws nothing. A map without one
+takes the position and the radius from the record. This is the same rule as
+for names, and it is decided per map by what the art holds.
+
+That is why a drawn ring may never use the id `<key>Center`. D-032 already
+fixes `sc-<key>` for it. The board matches `[id$="Center"]` to find anchors,
+so a ring with that id in a map that also has an anchors layer would be read
+as an anchor.
+
 **The glyph carries a radius for the same reason a name carries a width.**
 The supply-centre glyph is not only drawn, it is an obstacle. The exporter
 places the glyphs first, fits every name around them, then places every marker
@@ -1758,3 +1768,4 @@ Recorded so nobody re-derives them.
 | r31 | 2026-08-30 | D-039: the jDip importer is a one-time migration and the end state has no jDip maps, only 1901 maps. Once the last jDip art is gone, the second style applier and everything only it reads is deleted, and a style plan stops having two shapes. The hybrid in D-038 is a stage, not a resting place. Four maps whose names are outlined shapes need re-authoring by a person, not a recovery pass. |
 | r32 | 2026-08-30 | D-039 refined: the importer may outlive the migration, in dipmap, because what it produces is an ordinary 1901 map. The jDip format still ends in this repository, and no code here is kept alive against the chance of another jDip map appearing. |
 | r33 | 2026-08-30 | D-040: a style with no grain drops the overlay's fill instead of dimming it, so the paper pattern is orphaned and the existing prune takes the 29 KB bitmap with it. 20 of 130 map and style pairs get 22.4 KB smaller gzipped, 447 KB over the set, with no pixel changed and `?style=original` byte-identical. The overlay element stays: on seven of the ten maps it carries the board's hairline frame. Styled art is now checked to parse as XML, which is how a board's `<img>` reads it. |
+| r34 | 2026-08-30 | D-038: the supply-centre glyph follows the same rule as the name. Where the art draws the layer, the art wins. Where it does not, the board draws from the record. A drawn ring keeps the id from D-032 and never `<key>Center`, which the board matches to find anchors. |
