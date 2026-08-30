@@ -85,6 +85,35 @@ describe("the plan a review draws", () => {
   });
 
   /*
+  Seven powers interleaved down a sheet made a reader scan for their own
+  colour, and an adjustment phase — where the question is what each power
+  built and disbanded — was unreadable. One power is one run.
+  */
+  it("groups the orders by power, and by province inside a power", () => {
+    const plan = reviewPlan({
+      phase: { season: "Fall", year: 1901, type: "Adjustment" },
+      orderParts: {
+        ank: ["Build", "Army"],
+        ber: ["Build", "Army"],
+        con: ["Build", "Fleet"],
+        kie: ["Build", "Fleet"],
+      },
+      orders: {},
+      powers: { ank: "Turkey", ber: "Germany", con: "Turkey", kie: "Germany" },
+      resolutions: {},
+    })!;
+    // By province alone this would read ank, ber, con, kie: Turkey, Germany,
+    // Turkey, Germany.
+    expect(plan.rows.map((row) => row.province)).toEqual(["ber", "kie", "ank", "con"]);
+    expect(plan.rows.map((row) => row.power)).toEqual([
+      "Germany",
+      "Germany",
+      "Turkey",
+      "Turkey",
+    ]);
+  });
+
+  /*
   godip's own prose reads "Army Galicia Move Budapest". The board already
   writes sentences, so it writes these too.
   */

@@ -702,9 +702,29 @@ export function mount(
     }
   }
 
+  /*
+  One layer takes clicks, and it is the one whose shapes are provinces.
+
+  A tap is resolved by asking what is under the finger and walking up to a
+  child of #provinces, so anything drawn above it answers with itself and the
+  tap is lost. Plenty is drawn above it: this board's own order arrows and unit
+  markers, and the map's own supply-centre and province-centre art. The arrow
+  of an order covers the unit that gave it, which made a unit with orders the
+  one unit on the board that could not be told to do something else.
+
+  So everything else is made transparent to the pointer, once, as the map is
+  bound. Layers this board adds later are marked as they are made (overlay()).
+  */
+  function passClicksThrough(): void {
+    svgRoot?.querySelectorAll<SVGElement>(":scope > g[id]").forEach((layer) => {
+      if (layer.id !== "provinces") layer.setAttribute("pointer-events", "none");
+    });
+  }
+
   function bindMapClicks(): void {
     const layer = svgRoot?.querySelector("#provinces");
     if (!layer) throw new Error("the map has no #provinces layer");
+    passClicksThrough();
     listen(layer, "click", ((event: MouseEvent) => {
       const shape = (event.target as Element).closest("[id]");
       if (shape && shape.parentNode === layer) {
@@ -715,12 +735,23 @@ export function mount(
 
   // --- Overlays -----------------------------------------------------------
 
-  // Orders are drawn under the unit markers, both in map coordinates.
+  /*
+  Orders are drawn under the unit markers, both in map coordinates.
+
+  Every layer made here sits above #provinces, and none of them may take a
+  click. A click is resolved by asking what is under the finger and walking up
+  to a child of #provinces, so anything drawn on top answers with itself and
+  the tap is lost. That is not a detail: the arrow of an order covers the unit
+  that gave it, so a unit with orders would become the one unit on the board
+  you could not tap to change its mind. The unit markers, the labels and the
+  supply-centre rings would each eat a tap the same way.
+  */
   function overlay(id: string): SVGGElement {
     let layer = svgRoot!.querySelector<SVGGElement>("#" + id);
     if (!layer) {
       layer = document.createElementNS(SVG_NS, "g");
       layer.id = id;
+      layer.setAttribute("pointer-events", "none");
       svgRoot!.appendChild(layer);
     }
     return layer;

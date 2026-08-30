@@ -116,9 +116,27 @@ export function reviewPlan(previous: PreviousPhase | null | undefined): ReviewPl
   const orders = previous.orders || {};
   const powers = previous.powers || {};
   const resolutions = previous.resolutions || {};
+  /*
+  Grouped by power, and inside a power by province.
+
+  The list used to be sorted by province alone, which interleaved seven
+  colours down the sheet. Reading it then meant scanning for your own dot, and
+  in an adjustment phase — where the question is what each power built and
+  disbanded — it fell apart completely. A power's orders are one thought, so
+  they are one run of one colour.
+
+  Powers are ordered by name. It is arbitrary but stable, which is what
+  matters: the same power sits in the same place every turn, so a player
+  learns where to look instead of searching each time.
+  */
   const provinces = Array.from(
     new Set(Object.keys(orderParts).concat(Object.keys(orders))),
-  ).sort();
+  ).sort((a, b) => {
+    const left = powers[a] || "";
+    const right = powers[b] || "";
+    if (left !== right) return left < right ? -1 : 1;
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
   if (provinces.length === 0 && !(previous.nmr || []).length) return null;
 
   const kind = phaseKind(previous.phase);
