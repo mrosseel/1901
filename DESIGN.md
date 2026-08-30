@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r43 — 2026-08-30
+**Document revision:** r44 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1552,6 +1552,22 @@ Keeping them apart matters because they fail differently: a game master who
 gives away their power still runs the game, and a game master who gives away
 the rights and keeps their power becomes an ordinary player.
 
+**The game master can mint a link for any power.** A phone that dies takes its
+menu with it, so the holder cannot hand the seat over themselves. That is the
+case this exists for, and it is the common one.
+
+The link the game master mints is the same signed value and behaves the same
+way: opening it raises the epoch, and the dead phone's token would stop working
+if it ever came back.
+
+This is a game master power and is enumerated and logged like the others
+(D-007). It has to be, because it is the one that could be abused: a game
+master who can mint a link for any power can take any seat, or give it to
+anyone. Nothing prevents that and nothing should pretend to. What the log does
+is make it visible afterwards, which is the same answer D-007 gives for forcing
+adjudication. A game master is trusted with the game; the record is what keeps
+the trust honest.
+
 **What this does not do.** It does not name anybody. A handover moves a seat
 between devices and the game stays anonymous (D-020). The menu shows the
 holder nothing about who the other players are.
@@ -1962,3 +1978,4 @@ Recorded so nobody re-derives them.
 | r41 | 2026-08-30 | The invite link reaches the table. Without BASE_URL the server swaps a loopback host for its own LAN address, keeping the port and the scheme, because a QR code that says localhost opens on no phone. It asks the kernel for the address with a UDP dial that sends nothing, so a laptop running docker gets the right one of its several addresses, and it declines rather than guesses when there is no default route. |
 | r42 | 2026-08-30 | D-041: a power can be handed to another person by a signed link, `HMAC(salt, power, game id, epoch)`, with the epoch raised on use so the previous holder's access dies with it. Every seat gets an icon and a menu carrying the power, the turns played, the time elapsed, and the handover. The game master has two entries, one for the rights and one for the power, because they fail differently. Designed, not built. |
 | r43 | 2026-08-30 | D-041's open question is closed and was malformed. The signed value authenticates commands, so an order the server accepted was accepted under a valid epoch and is server state from that moment. Raising the epoch stops the old holder sending anything further and reaches back into nothing. The new holder inherits the seat as it stands, orders included. |
+| r44 | 2026-08-30 | D-041: the game master can mint a handover link for any power. A dead phone takes its own menu with it, which is the case this exists for. It is an enumerated, logged game master power (D-007), because a game master who can mint a link for any seat can take any seat; the record is what makes that visible rather than prevented. |
