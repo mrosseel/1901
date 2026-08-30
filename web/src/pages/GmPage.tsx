@@ -10,7 +10,8 @@ import {
 import { GmKeyCard } from "../components/GmKeyCard";
 import { LinkShare } from "../components/LinkShare";
 import { writeRecentGame } from "../recent";
-import { powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
+import { setPowerPalette, setProvinceNames } from "../board/provinces";
+import { PowerChip } from "../components/PowerChip";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
 import { StylePicker, useMapStyle } from "../components/StylePicker";
 import { PhaseName } from "../components/PhaseName";
@@ -304,8 +305,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           <ul className="seats">
             {game.seats.map((seat) => (
               <li key={seat.power} className="seat">
-                <span className="dot" style={{ background: powerColor(seat.power) }} />
-                <span className="seat-name">{seat.power}</span>
+                <PowerChip power={seat.power} />
                 {seat.isGm ? <span className="badge gm">Game master</span> : null}
                 {game.started ? (
                   <span className={seat.locked ? "badge done" : "badge out"}>

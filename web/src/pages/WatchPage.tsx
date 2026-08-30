@@ -20,7 +20,9 @@ import { useBriefLabels, useBriefMoves } from "../prefs";
 import { PhaseName } from "../components/PhaseName";
 import { SupportedMark } from "../components/SupportedMark";
 import { emptyPlan, phaseKind } from "../board/phases";
-import { powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
+import { setPowerPalette, setProvinceNames } from "../board/provinces";
+import { PowerChip } from "../components/PowerChip";
+import { Standings } from "../components/Standings";
 import type { BoardApi, BoardState, ReviewDraw } from "../board/types";
 import { noteServerTime } from "../clock";
 import { usePoll, useTicker } from "../hooks";
@@ -332,6 +334,13 @@ export function WatchPage({
           ) : null}
         </header>
 
+        {/* The centre count, which is what a room watching a board wants to
+            know and what the whole game is about. Public arithmetic on a
+            position this page is already drawing (D-013). */}
+        {waiting ? null : (
+          <Standings state={boardState} powers={Object.keys(summary?.locked || {})} />
+        )}
+
         {/* Nothing to walk before the first phase has resolved. */}
         {waiting ? null : (
           <>
@@ -369,7 +378,7 @@ export function WatchPage({
               <ul className="review-nmr">
                 {plan.nmr.map((power) => (
                   <li key={power}>
-                    <span className="dot" style={{ background: powerColor(power) }} />
+                    <PowerChip power={power} small />
                     {nmrLine(power)}
                   </li>
                 ))}
@@ -393,7 +402,7 @@ export function WatchPage({
                       (row.illegal ? " illegal" : "")
                     }
                   >
-                    <span className="dot" style={{ background: powerColor(row.power) }} />
+                    <PowerChip power={row.power} small />
                     <span className="order-text">{briefMoves ? row.brief : row.text}</span>
                     {row.failed ? (
                       <span className={row.illegal ? "review-why illegal" : "review-why"}>

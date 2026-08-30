@@ -2,15 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, SeatClient, fetchPublic, type SeatState } from "../api";
 import { Board } from "../components/Board";
 import { SeatMenu } from "../components/SeatMenu";
+import { Standings } from "../components/Standings";
 import { writeRecentGame } from "../recent";
 import { readSeatSeed, takeSeedFromAddress } from "../seatkey";
 import { SplitLayout } from "../components/SplitLayout";
-import {
-  powerColor,
-  provinceName,
-  setPowerPalette,
-  setProvinceNames,
-} from "../board/provinces";
+import { provinceName, setPowerPalette, setProvinceNames } from "../board/provinces";
 import {
   candidates,
   dutyLine,
@@ -468,7 +464,11 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             {/* The power, and the seat's own menu behind it (D-041). The icon
                 is the way to hand this seat to another phone, which is what a
                 dead battery or a player going home needs. */}
-            <h1>
+            {/* The power names itself, on its own colour, and the menu is
+                behind it (D-041) — which is how a dead battery or a player
+                going home hands the seat on. */}
+            <h1 className="seat-you">
+              <span className="seat-you-word">You are</span>
               {power ? (
                 <SeatMenu
                   gameId={gameId}
@@ -479,9 +479,8 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
                   seat={client}
                 />
               ) : (
-                <span className="dot" style={{ background: powerColor(power) }} />
+                <span className="muted">…</span>
               )}
-              You are {power || "…"}
             </h1>
             <p className="muted">
               {state?.variant ? state.variant.name : ""}{" "}
@@ -592,6 +591,13 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         <p className={isError ? "status error" : "status"} role="status">
           {status}
         </p>
+
+        {/* Every power's centre count, from the board this screen is already
+            drawing. It is the number the game is about, and counting it off
+            the map by hand is what players did instead. */}
+        {started ? (
+          <Standings state={state} you={power} powers={Object.keys(state?.locked || {})} />
+        ) : null}
 
         {/* No orders before the start: no phase has asked for one and the
             server refuses one. So the list, its heading and the switch that
