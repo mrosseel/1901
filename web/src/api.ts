@@ -110,6 +110,8 @@ so the page can offer prev and next without guessing.
 */
 export interface WatchState extends VariantAware {
   gameId: string;
+  /** What the table calls this game (D-042). Absent when it has no name. */
+  name?: string;
   phase: BoardState["phase"];
   started: boolean;
   /** Which phase this answer is, counting resolved phases from zero. */

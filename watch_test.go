@@ -151,6 +151,27 @@ func TestWatchCountsTheSeatsBeforeTheGameStarts(t *testing.T) {
 	}
 }
 
+// TestWatchCarriesTheGameName: the spectator screen is the one screen read
+// across a room, and an id names nothing there (D-042).
+func TestWatchCarriesTheGameName(t *testing.T) {
+	g := watchTestGame(t)
+	g.flow.settings.Name = "Thursday table"
+
+	now, found := g.watchState("game", 0)
+	if !found {
+		t.Fatal("the phase being played is not watchable")
+	}
+	if now.Name != "Thursday table" {
+		t.Errorf("name %q, want the game's own", now.Name)
+	}
+
+	g.flow.settings.Name = ""
+	bare, _ := g.watchState("game", 0)
+	if bare.Name != "" {
+		t.Errorf("an unnamed game answered with %q", bare.Name)
+	}
+}
+
 func TestWatchRefusesAPhaseThatHasNotHappened(t *testing.T) {
 	g := watchTestGame(t)
 	for _, index := range []int{-1, 1, 99} {
