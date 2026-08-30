@@ -1212,7 +1212,8 @@ export function mount(
     Hold          ring around the unit marker
     Support move  dashed curve to the middle of the supported move, T-bar end
     Support hold  dashed curve to the supported unit, open circle end
-    Convoy        dashed curve to the middle of the convoyed move
+    Convoy        dashed stub to the crossing, ticks across it where this
+                  fleet carries it
   */
 
   function towards(from: Point, to: Point, distance: number): Point {
@@ -1228,6 +1229,25 @@ export function mount(
 
   function distance(a: Point, b: Point): number {
     return Math.hypot(b.x - a.x, b.y - a.y);
+  }
+
+  /*
+  The point of a crossing that a convoying fleet sits closest to.
+
+  A convoy is a chain, and each fleet carries one leg of it. Pointing every
+  fleet at the middle of the move — which is what a support does — drew two
+  fleets aiming at the same patch of empty sea and reading as two supports.
+  The foot of the perpendicular puts each fleet's mark where that fleet
+  actually is on the crossing, so a chain reads as a chain.
+  */
+  function nearestOn(a: Point, b: Point, of: Point): Point {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const span = dx * dx + dy * dy;
+    if (span === 0) return a;
+    const along = ((of.x - a.x) * dx + (of.y - a.y) * dy) / span;
+    const held = Math.min(1, Math.max(0, along));
+    return { x: a.x + dx * held, y: a.y + dy * held };
   }
 
   // The unit vector across a line, for arrow wings and support bars.
@@ -1520,6 +1540,44 @@ export function mount(
         missPoint = tip;
       } else if (type === "Hold") {
         shapes.push(ring(from, rp * 1.5));
+      } else if (type === "Convoy" && order[1] && order[2] && order[2] !== order[1]) {
+        /*
+        A convoy is not a support and must not be drawn as one.
+
+        The army draws its own arrow, from where it stands to where it is
+        going, and that arrow is the crossing. What a fleet adds is one leg of
+        it: a dashed stub from the fleet to the place on that arrow the fleet
+        is closest to, and a pair of ticks across the arrow there — the mark of
+        something carried through. Two fleets on one convoy mark two different
+        places, which is the picture. A T-bar at the middle of the move, which
+        is what this used to draw, said "support" and pointed at open water.
+        */
+        const src = anchorOf(order[1]);
+        const dest = anchorOf(order[2]);
+        if (!src || !dest) return;
+        const foot = nearestOn(src, dest, from);
+        const gap = distance(from, foot);
+        // A fleet all but on the line has no stub worth drawing; the ticks
+        // alone say what it does, and they land where the fleet is.
+        if (gap > rp * 1.9) {
+          const fit = fitEnds(gap, rp * 1.25, 0, 0.45);
+          shapes.push(dashedRun(towards(from, foot, fit.start), towards(foot, from, fit.end)));
+        }
+        const along = towards(foot, dest, 1);
+        const step = { x: along.x - foot.x, y: along.y - foot.y };
+        const across = normalOf(src, dest);
+        const reach = r * 0.72;
+        const spacing = r * 0.5;
+        [-spacing, spacing].forEach((offset) => {
+          const at = { x: foot.x + step.x * offset, y: foot.y + step.y * offset };
+          shapes.push(
+            segment(
+              { x: at.x - across.x * reach, y: at.y - across.y * reach },
+              { x: at.x + across.x * reach, y: at.y + across.y * reach },
+            ),
+          );
+        });
+        missPoint = foot;
       } else if (type === "Support" || type === "Convoy") {
         const src = anchorOf(order[1] || "");
         if (!src) return;

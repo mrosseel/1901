@@ -1382,7 +1382,39 @@ to while it stands.
   .modal-layer > * { border-radius: 14px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
 }
 
-.modal-layer .review-list { max-height: 42dvh; }
+/*
+The sheet grows into the screen it is given.
+
+The list used to be capped at a fixed slice of the viewport, which was right
+for a seven-power classical board and wrong for ten: the sheet stayed small
+while half the screen sat empty, and the orders scrolled inside a letterbox.
+Now the sheet takes the height it is allowed and the list takes what is left,
+so a long turn fills the screen and a short one still wraps to its content.
+*/
+.modal-layer > .review-sheet { max-height: 92dvh; overflow: hidden; }
+.modal-layer .review-list { max-height: none; flex: 1 1 auto; min-height: 0; }
+
+/*
+The review with the sheet put away: two buttons over the map, and nothing
+else. It is not a dimmed layer — the whole point is to see what is behind it —
+so it covers only the strip it needs.
+*/
+.review-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.45);
+}
+
+.review-bar-title { margin: 0; font-size: 14px; color: var(--muted); text-align: center; }
 
 /* The dismiss is the primary action and it spans the sheet. The guide beside
    it is a second way to READ the same turn, so it stays quiet — and on a
@@ -1390,9 +1422,24 @@ to while it stands.
 .review-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .review-actions .primary { flex: 1 1 auto; min-height: 48px; font-weight: 600; }
 
+/*
+The flip between the list and the map is the same size as the close, because
+neither is the answer: a player checking whether a support landed wants the
+map, and one counting builds wants the list. It is the quieter of the two
+only in colour.
+*/
+.review-flip {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.review-flip:hover { border-color: var(--accent); }
+
+/* On a phone the two big buttons keep their row — a thumb finds either — and
+   the quiet link takes a row of its own beneath them. */
 @media (max-width: 780px), (max-height: 500px) {
-  .review-actions { flex-direction: column-reverse; }
-  .review-actions button { width: 100%; }
+  .review-actions .link { flex: 1 1 100%; width: 100%; }
 }
 
 /* --- the spectator screen ------------------------------------------------- */

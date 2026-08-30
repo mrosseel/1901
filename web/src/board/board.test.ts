@@ -1232,3 +1232,78 @@ describe("what the board draws on top of the map", () => {
     seat.board.destroy();
   });
 });
+
+/*
+A convoy is a chain, and each fleet carries one leg of it.
+
+It used to be drawn exactly like a support of the same move: a dashed curve to
+the middle of the crossing with a bar across the end. Two fleets carrying one
+army then aimed at the same patch of open water, and the picture said
+"support" — which is a different order with different rules.
+*/
+describe("a convoy", () => {
+  const CONVOY_STATE: BoardState = {
+    phase: { season: "Spring", year: 1901, type: "Movement" },
+    units: {
+      vie: { type: "Army", nation: "Austria" },
+      adr: { type: "Fleet", nation: "Austria" },
+      alb: { type: "Fleet", nation: "Austria" },
+    },
+    // vie 730,830 → rom 1130,830 is a straight run east; the two fleets sit
+    // south of it, at 1030,930 and 930,930.
+    orders: { vie: "", adr: "", alb: "" },
+    orderParts: {
+      vie: ["Move", "rom"],
+      adr: ["Convoy", "vie", "rom"],
+      alb: ["Convoy", "vie", "rom"],
+    },
+  };
+
+  function ticksOf(province: string): Array<{ x: number; y: number }> {
+    return Array.from(
+      document.querySelectorAll(
+        '#order-overlay .order[data-province="' + province + '"] line.order-line',
+      ),
+    )
+      // The stub from the fleet to the crossing is dashed; the ticks are not.
+      .filter((node) => !node.getAttribute("stroke-dasharray"))
+      .map((node) => ({
+        x: (Number(node.getAttribute("x1")) + Number(node.getAttribute("x2"))) / 2,
+        y: (Number(node.getAttribute("y1")) + Number(node.getAttribute("y2"))) / 2,
+      }));
+  }
+
+  it("marks the crossing where each fleet is, not the middle of the move", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(CONVOY_STATE, emptyPlan("Austria"));
+
+    // Two ticks per fleet, and each pair straddles the point on the move line
+    // nearest that fleet: 1030,830 for the Adriatic, 930,830 for Albania.
+    const adr = ticksOf("adr");
+    const alb = ticksOf("alb");
+    expect(adr).toHaveLength(2);
+    expect(alb).toHaveLength(2);
+    const centre = (marks: Array<{ x: number; y: number }>) => ({
+      x: (marks[0].x + marks[1].x) / 2,
+      y: (marks[0].y + marks[1].y) / 2,
+    });
+    expect(centre(adr).x).toBeCloseTo(1030, 0);
+    expect(centre(alb).x).toBeCloseTo(930, 0);
+    // Not the same place: the old drawing put both at the middle of the move.
+    expect(Math.abs(centre(adr).x - centre(alb).x)).toBeGreaterThan(50);
+    seat.board.destroy();
+  });
+
+  it("reaches the crossing with a dashed stub, and draws no support curve", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(CONVOY_STATE, emptyPlan("Austria"));
+
+    const order = document.querySelector('#order-overlay .order[data-province="adr"]')!;
+    expect(order.querySelector("line[stroke-dasharray]")).not.toBeNull();
+    // A support is the only thing that draws a curve, and this is not one.
+    expect(order.querySelector("path")).toBeNull();
+    seat.board.destroy();
+  });
+});
