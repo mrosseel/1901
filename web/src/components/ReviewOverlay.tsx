@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { powerColor } from "../board/provinces";
+import { PowerChip } from "./PowerChip";
 import { nmrLine, type ReviewPlan } from "../review";
 import { Clock } from "./Clock";
 import { PhaseName } from "./PhaseName";
@@ -66,7 +66,7 @@ export function ReviewOverlay({
         <ul className="review-nmr">
           {plan.nmr.map((power) => (
             <li key={power}>
-              <span className="dot" style={{ background: powerColor(power) }} />
+              <PowerChip power={power} small />
               {nmrLine(power)}
             </li>
           ))}
@@ -81,7 +81,7 @@ export function ReviewOverlay({
               "review-row" + (row.failed ? " failed" : "") + (row.illegal ? " illegal" : "")
             }
           >
-            <span className="dot" style={{ background: powerColor(row.power) }} />
+            <PowerChip power={row.power} small />
             <span className="order-text">{brief ? row.brief : row.text}</span>
             {row.failed ? (
               <span className={row.illegal ? "review-why illegal" : "review-why"}>

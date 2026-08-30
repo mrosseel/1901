@@ -1,9 +1,9 @@
 import { useState } from "react";
 
 import { type Handover, type SeatClient } from "../api";
-import { powerColor } from "../board/provinces";
 import { readSeatSeed, seatLink } from "../seatkey";
 import { LinkShare } from "./LinkShare";
+import { PowerChip } from "./PowerChip";
 import { ModalLayer } from "./ModalLayer";
 
 /*
@@ -69,7 +69,7 @@ export function SeatMenu({
         title={"The " + power + " seat"}
         aria-label={"The " + power + " seat"}
       >
-        <span className="dot" style={{ background: powerColor(power) }} />
+        <PowerChip power={power} />
         <PlayerIcon />
       </button>
 
@@ -78,7 +78,9 @@ export function SeatMenu({
           <section className="seat-menu">
             <header>
               <p className="you-are-label">This seat</p>
-              <p className="seat-menu-power">{power}</p>
+              <p className="seat-menu-power">
+                <PowerChip power={power} />
+              </p>
               <p className="muted">
                 {turns === undefined ? "" : turns + (turns === 1 ? " turn" : " turns") + " played"}
                 {turns !== undefined && createdAt ? " · " : ""}
