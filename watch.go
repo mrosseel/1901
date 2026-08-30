@@ -90,7 +90,11 @@ func (self *game) recordWatch(phaseIndex int, position watchPosition, review *ph
 
 // watchJSON is one phase, as anybody with the link may see it.
 type watchJSON struct {
-	GameID     string `json:"gameId"`
+	GameID string `json:"gameId"`
+	// Name is what the table calls this game (D-042). The spectator screen
+	// is read across a room, where an id identifies nothing; this feed was
+	// the only one of the three that did not carry the name.
+	Name       string `json:"name,omitempty"`
 	PhaseIndex int    `json:"phaseIndex"`
 	// PhaseCount is how many phases the game has had, the last of which is
 	// the one being played. It is what a viewer pages through.
@@ -143,6 +147,7 @@ func (self *game) watchState(id string, phaseIndex int) (watchJSON, bool) {
 	}
 	out := watchJSON{
 		GameID:        id,
+		Name:          f.settings.Name,
 		PhaseIndex:    phaseIndex,
 		PhaseCount:    count,
 		Variant:       self.variantRef(),

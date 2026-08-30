@@ -239,6 +239,9 @@ export function WatchPage({
     Object.values(summary?.locked || {}).filter(Boolean).length;
   const totalSeats = watch?.totalSeats ?? summary?.totalSeats;
   const variant = watch?.variant || summary?.variant;
+  /* What the table calls this game (D-042). The feed carries it; the public
+     summary carries it under settings, which is the fallback's only source. */
+  const name = watch?.name || summary?.settings?.name;
 
   /*
   The game that has not begun. A spectator link is opened at the table before
@@ -295,6 +298,7 @@ export function WatchPage({
           <h1 className="phase-now">
             {waiting ? "Waiting to start" : <PhaseName phase={phase} />}
           </h1>
+          {name ? <p className="game-name">{name}</p> : null}
           <p className="muted">
             Game {gameId}
             {variant ? " · " + variant.name : ""}{" "}
