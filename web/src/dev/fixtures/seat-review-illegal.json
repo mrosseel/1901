@@ -2,11 +2,11 @@
     "canForce": false,
     "deadlineAt": null,
     "dislodged": {},
-    "finalized": {
+    "locked": {
         "Austria": false,
         "France": false
     },
-    "finalizedCount": 0,
+    "lockedCount": 0,
     "gameId": "cv3s49k7jv",
     "graceUntil": null,
     "illegal": [],
@@ -223,5 +223,5 @@
     "you": {
         "power": "Austria"
     },
-    "youFinalized": false
+    "youLocked": false
 }

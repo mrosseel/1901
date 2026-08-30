@@ -12,12 +12,12 @@
         "2026-08-29T08:11:52Z seat claimed (6 of 7)",
         "2026-08-29T08:11:52Z seat claimed (7 of 7)",
         "2026-08-29T08:11:52Z game started, Movement has 30 minute(s) until 2026-08-29T08:41:52Z",
-        "2026-08-29T08:11:52Z England finalized",
-        "2026-08-29T08:11:52Z Austria finalized",
-        "2026-08-29T08:11:52Z France finalized",
-        "2026-08-29T08:11:52Z Germany finalized",
-        "2026-08-29T08:11:52Z Italy finalized",
-        "2026-08-29T08:11:52Z Russia finalized"
+        "2026-08-29T08:11:52Z England locked",
+        "2026-08-29T08:11:52Z Austria locked",
+        "2026-08-29T08:11:52Z France locked",
+        "2026-08-29T08:11:52Z Germany locked",
+        "2026-08-29T08:11:52Z Italy locked",
+        "2026-08-29T08:11:52Z Russia locked"
     ],
     "gameId": "jtq9tg9s52",
     "gmPower": null,
@@ -1021,43 +1021,43 @@
     },
     "seats": [
         {
-            "finalized": true,
+            "locked": true,
             "isGm": false,
             "joined": true,
             "power": "Austria"
         },
         {
-            "finalized": true,
+            "locked": true,
             "isGm": false,
             "joined": true,
             "power": "England"
         },
         {
-            "finalized": true,
+            "locked": true,
             "isGm": false,
             "joined": true,
             "power": "France"
         },
         {
-            "finalized": true,
+            "locked": true,
             "isGm": false,
             "joined": true,
             "power": "Germany"
         },
         {
-            "finalized": true,
+            "locked": true,
             "isGm": false,
             "joined": true,
             "power": "Italy"
         },
         {
-            "finalized": true,
+            "locked": true,
             "isGm": false,
             "joined": true,
             "power": "Russia"
         },
         {
-            "finalized": false,
+            "locked": false,
             "isGm": false,
             "joined": true,
             "power": "Turkey"

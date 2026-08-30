@@ -3,7 +3,7 @@
     "current": true,
     "deadlineAt": "2026-08-29T08:26:52Z",
     "dislodged": {},
-    "finalized": {
+    "locked": {
         "Austria": false,
         "England": false,
         "France": false,

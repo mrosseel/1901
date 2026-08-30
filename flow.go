@@ -1,5 +1,5 @@
 // M1 game flow: GM setup, one shared invite, random anonymous seats,
-// per-seat order scoping, finalize, and adjudication.
+// per-seat order scoping, lock, and adjudication.
 //
 // See M1-CONTRACT.md and DESIGN.md D-020, D-021, D-022, D-011, D-010, D-008.
 package main
@@ -129,13 +129,13 @@ func defaultSettings() settings {
 // seat is one power in one game together with its claim state.
 // It deliberately carries no player name (D-020).
 type seat struct {
-	power     godip.Nation
-	token     string // seatToken, empty until claimed
-	device    string // device secret, empty until claimed
-	isGM      bool
-	finalized bool
+	power  godip.Nation
+	token  string // seatToken, empty until claimed
+	device string // device secret, empty until claimed
+	isGM   bool
+	locked bool
 
-	// autoLocked marks a seat the server finalized because its power has no
+	// autoLocked marks a seat the server locked because its power has no
 	// legal order this phase (D-034). It is derived from the resolved
 	// position, so it is recomputed on restore rather than stored.
 	autoLocked bool
@@ -232,17 +232,17 @@ func (self *flow) joinedCount() int {
 	return n
 }
 
-func (self *flow) finalizedCount() int {
+func (self *flow) lockedCount() int {
 	n := 0
 	for _, s := range self.seats {
-		if s.finalized {
+		if s.locked {
 			n++
 		}
 	}
 	return n
 }
 
-// activeSeats is how many seats must finalize before the phase resolves.
+// activeSeats is how many seats must lock before the phase resolves.
 func (self *flow) activeSeats() int {
 	n := 0
 	for _, s := range self.seats {
@@ -253,23 +253,23 @@ func (self *flow) activeSeats() int {
 	return n
 }
 
-func (self *flow) finalizedMap() map[string]bool {
+func (self *flow) lockedMap() map[string]bool {
 	out := map[string]bool{}
 	for _, p := range self.powers {
-		out[string(p)] = self.seats[p].finalized
+		out[string(p)] = self.seats[p].locked
 	}
 	return out
 }
 
 // pendingCounts is how many claimed seats this phase actually asked a player
-// for, and how many of those have finalized.
+// for, and how many of those have locked.
 func (self *flow) pendingCounts() (asked, in int) {
 	for _, s := range self.seats {
 		if s.token == "" || s.autoLocked {
 			continue
 		}
 		asked++
-		if s.finalized {
+		if s.locked {
 			in++
 		}
 	}
@@ -285,7 +285,7 @@ func (self *flow) canForce() bool {
 	if active == 0 {
 		return false
 	}
-	done := self.finalizedCount()
+	done := self.lockedCount()
 	if done >= active {
 		// Auto-adjudication already covers this case (D-008).
 		return false
@@ -330,7 +330,7 @@ func (self *game) anyoneCouldOrder() bool {
 	return false
 }
 
-// autoLock finalizes every claimed seat whose power has no legal order in
+// autoLock locks every claimed seat whose power has no legal order in
 // the phase now on the board, and returns the powers it locked (D-034).
 // The caller must hold g.mu.
 func (self *game) autoLock() []godip.Nation {
@@ -341,7 +341,7 @@ func (self *game) autoLock() []godip.Nation {
 		if s.token == "" || s.autoLocked || !self.nothingToOrder(p) {
 			continue
 		}
-		s.finalized = true
+		s.locked = true
 		s.autoLocked = true
 		locked = append(locked, p)
 	}
@@ -363,10 +363,10 @@ func (self *game) enterPhase(id string) error {
 	for i := 0; i < maxAutoPhases; i++ {
 		locked := self.autoLock()
 		for _, p := range locked {
-			f.logEvent(id, "%v has no order to give this phase — finalized automatically", p)
+			f.logEvent(id, "%v has no order to give this phase — locked automatically", p)
 		}
 		active := f.activeSeats()
-		if active == 0 || f.finalizedCount() < active {
+		if active == 0 || f.lockedCount() < active {
 			if len(locked) > 0 {
 				self.persist(id)
 			}
@@ -436,7 +436,7 @@ resetDeadline restarts the clock for the phase now on the board.
 `carry` is the time that was still on the clock when the previous phase
 resolved, and it is the anti-rush rule (Backstabbr's, copied exactly): with
 period T and remaining R, if R < T the next deadline is R + T; otherwise it is
-R. Both are at least T, so a table that finalizes early never costs the next
+R. Both are at least T, so a table that locks early never costs the next
 table its turn. A phase that ran its clock out carries nothing.
 */
 func (self *flow) resetDeadline(phase godip.Phase, carry time.Duration) {
@@ -889,10 +889,10 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 // ---------------------------------------------------------------------- GM
 
 type gmSeatJSON struct {
-	Power     string `json:"power"`
-	Joined    bool   `json:"joined"`
-	Finalized bool   `json:"finalized"`
-	IsGM      bool   `json:"isGm"`
+	Power  string `json:"power"`
+	Joined bool   `json:"joined"`
+	Locked bool   `json:"locked"`
+	IsGM   bool   `json:"isGm"`
 }
 
 type gmStateJSON struct {
@@ -954,10 +954,10 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 	for _, p := range f.powers {
 		s := f.seats[p]
 		out.Seats = append(out.Seats, gmSeatJSON{
-			Power:     string(p),
-			Joined:    s.token != "",
-			Finalized: s.finalized,
-			IsGM:      s.isGM,
+			Power:  string(p),
+			Joined: s.token != "",
+			Locked: s.locked,
+			IsGM:   s.isGM,
 		})
 	}
 	if f.gmPower != "" {
@@ -1096,7 +1096,7 @@ func handleGMForce(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	}
 	if !f.canForce() {
 		writeErr(w, http.StatusConflict,
-			"force adjudication is locked until the deadline passes or all but one power has finalized")
+			"force adjudication is locked until the deadline passes or all but one power has locked")
 		return
 	}
 	if err := g.adjudicate(id, true); err != nil {
@@ -1147,7 +1147,7 @@ type publicStateJSON struct {
 	Started         bool                `json:"started"`
 	JoinedCount     int                 `json:"joinedCount"`
 	TotalSeats      int                 `json:"totalSeats"`
-	Finalized       map[string]bool     `json:"finalized"`
+	Locked          map[string]bool     `json:"locked"`
 	Settings        settings            `json:"settings"`
 	SettingsVersion int                 `json:"settingsVersion"`
 	DeadlineAt      interface{}         `json:"deadlineAt"`
@@ -1176,7 +1176,7 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 		Started:         f.started,
 		JoinedCount:     f.joinedCount(),
 		TotalSeats:      f.joinerSeats(),
-		Finalized:       f.finalizedMap(),
+		Locked:          f.lockedMap(),
 		Settings:        f.settings,
 		SettingsVersion: f.settingsVersion,
 		DeadlineAt:      rfc3339(f.deadlineAt),
@@ -1207,17 +1207,17 @@ type seatStateJSON struct {
 	DeadlineAt      interface{}     `json:"deadlineAt"`
 	GraceUntil      interface{}     `json:"graceUntil"`
 	PhaseMinutes    int             `json:"phaseMinutes"`
-	Finalized       map[string]bool `json:"finalized"`
-	YouFinalized    bool            `json:"youFinalized"`
-	// NothingToOrder says this seat was finalized by the server because its
+	Locked          map[string]bool `json:"locked"`
+	YouLocked       bool            `json:"youLocked"`
+	// NothingToOrder says this seat was locked by the server because its
 	// power has no legal order this phase (D-034). The screen must say so;
-	// a seat that finds itself finalized with no explanation reads as a bug.
+	// a seat that finds itself locked with no explanation reads as a bug.
 	NothingToOrder bool `json:"nothingToOrder"`
-	FinalizedCount int  `json:"finalizedCount"`
+	LockedCount    int  `json:"lockedCount"`
 	TotalSeats     int  `json:"totalSeats"`
 	// JoinedCount and SeatsOnOffer are the table filling up, for the screen a
 	// player sits on before the start. TotalSeats cannot say it: it counts the
-	// seats that must finalize, which is the wrong denominator before a phase
+	// seats that must lock, which is the wrong denominator before a phase
 	// exists and, when the GM plays, excludes a seat that is not handed out.
 	// Both numbers are already public on /public, and neither says WHICH
 	// powers are taken — that stays unsaid (D-020, D-021).
@@ -1281,10 +1281,10 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 		DeadlineAt:       rfc3339(f.deadlineAt),
 		GraceUntil:       rfc3339(f.graceEndsAt()),
 		PhaseMinutes:     f.phaseMinutes(self.state.Phase()),
-		Finalized:        f.finalizedMap(),
-		YouFinalized:     f.seats[power].finalized,
+		Locked:           f.lockedMap(),
+		YouLocked:        f.seats[power].locked,
 		NothingToOrder:   f.seats[power].autoLocked,
-		FinalizedCount:   f.finalizedCount(),
+		LockedCount:      f.lockedCount(),
 		TotalSeats:       f.activeSeats(),
 		JoinedCount:      f.joinedCount(),
 		SeatsOnOffer:     f.joinerSeats(),
@@ -1382,15 +1382,15 @@ func handleSeatOrder(g *game, id string, power godip.Nation, w http.ResponseWrit
 	writeJSON(w, http.StatusOK, g.seatState(id, power, r))
 }
 
-func handleSeatFinalize(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
-	g.seatFinalize(id, power, true, w, r)
+func handleSeatLock(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
+	g.seatLock(id, power, true, w, r)
 }
 
-func handleSeatUnfinalize(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
-	g.seatFinalize(id, power, false, w, r)
+func handleSeatUnlock(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
+	g.seatLock(id, power, false, w, r)
 }
 
-func (self *game) seatFinalize(id string, power godip.Nation, want bool, w http.ResponseWriter, r *http.Request) {
+func (self *game) seatLock(id string, power godip.Nation, want bool, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
@@ -1405,18 +1405,18 @@ func (self *game) seatFinalize(id string, power godip.Nation, want bool, w http.
 	}
 	if !want && f.seats[power].autoLocked {
 		writeErr(w, http.StatusConflict,
-			"%v has no order to give this phase, so this seat stays finalized", power)
+			"%v has no order to give this phase, so this seat stays locked", power)
 		return
 	}
-	f.seats[power].finalized = want
+	f.seats[power].locked = want
 	if want {
-		f.logEvent(id, "%v finalized", power)
+		f.logEvent(id, "%v locked", power)
 	} else {
-		f.logEvent(id, "%v withdrew its finalize", power)
+		f.logEvent(id, "%v withdrew its lock", power)
 	}
 
-	// Every power finalized: resolve at once (D-008).
-	if want && f.finalizedCount() >= f.activeSeats() {
+	// Every power locked: resolve at once (D-008).
+	if want && f.lockedCount() >= f.activeSeats() {
 		if err := self.adjudicate(id, false); err != nil {
 			writeErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
 			return
@@ -1428,10 +1428,10 @@ func (self *game) seatFinalize(id string, power godip.Nation, want bool, w http.
 }
 
 // adjudicate resolves the phase and settles the one that follows it. With
-// dropUnfinalized set, powers that have not finalized lose their orders and
+// dropUnlocked set, powers that have not locked lose their orders and
 // their units hold — an NMR (D-010). The caller must hold g.mu.
-func (self *game) adjudicate(id string, dropUnfinalized bool) error {
-	if err := self.advance(id, dropUnfinalized); err != nil {
+func (self *game) adjudicate(id string, dropUnlocked bool) error {
+	if err := self.advance(id, dropUnlocked); err != nil {
 		return err
 	}
 	return self.enterPhase(id)
@@ -1440,24 +1440,24 @@ func (self *game) adjudicate(id string, dropUnfinalized bool) error {
 // advance resolves the phase and puts the next one on the board, without
 // auto-locking it. Only adjudicate and enterPhase may call it: every other
 // caller wants the auto-lock that goes with a new phase.
-func (self *game) advance(id string, dropUnfinalized bool) error {
+func (self *game) advance(id string, dropUnlocked bool) error {
 	f := self.flow
 
 	// What is still on the clock as this phase resolves. When every power
-	// finalized early it is carried onto the next phase, so resolving early
+	// locked early it is carried onto the next phase, so resolving early
 	// never shortens the next turn for anybody (the anti-rush rule). A phase
 	// the GM forced carries nothing: its clock had run out, or the GM chose
 	// to spend it.
 	carry := time.Duration(0)
-	if !dropUnfinalized {
+	if !dropUnlocked {
 		carry = f.remaining()
 	}
 
 	nmr := []string{}
-	if dropUnfinalized {
+	if dropUnlocked {
 		for _, p := range f.powers {
 			s := f.seats[p]
-			if s.token == "" || s.finalized {
+			if s.token == "" || s.locked {
 				continue
 			}
 			dropped := 0
@@ -1468,11 +1468,11 @@ func (self *game) advance(id string, dropUnfinalized bool) error {
 				}
 			}
 			nmr = append(nmr, string(p))
-			f.logEvent(id, "NMR for %v — no finalize, %v draft order(s) dropped, units hold", p, dropped)
+			f.logEvent(id, "NMR for %v — no lock, %v draft order(s) dropped, units hold", p, dropped)
 		}
 		f.logEvent(id, "GM forced adjudication")
 	} else {
-		f.logEvent(id, "every power finalized — adjudicating")
+		f.logEvent(id, "every power locked — adjudicating")
 	}
 
 	// Freeze this phase's order rows as they will actually be applied,
@@ -1496,7 +1496,7 @@ func (self *game) advance(id string, dropUnfinalized bool) error {
 	self.parts = map[godip.Province][]string{}
 	self.owner = map[godip.Province]godip.Nation{}
 	for _, s := range f.seats {
-		s.finalized = false
+		s.locked = false
 		s.autoLocked = false
 	}
 	f.phaseIndex++
@@ -1521,11 +1521,18 @@ var gmRoutes = map[string]gameHandler{
 }
 
 var seatRoutes = map[string]seatHandler{
-	"state":      handleSeatState,
-	"options":    handleSeatOptions,
-	"order":      handleSeatOrder,
-	"finalize":   handleSeatFinalize,
-	"unfinalize": handleSeatUnfinalize,
+	"state":   handleSeatState,
+	"options": handleSeatOptions,
+	"order":   handleSeatOrder,
+	"lock":    handleSeatLock,
+	"unlock":  handleSeatUnlock,
+
+	// The names these two carried until 2026-08-30. A phone that loaded the
+	// seat page before the rename shipped still posts to them, and a game at
+	// the table cannot be asked to reload mid-phase. Delete both once no
+	// session that predates the rename can still be open.
+	"finalize":   handleSeatLock,
+	"unfinalize": handleSeatUnlock,
 }
 
 // serveFlow routes everything under /game/{id}/.

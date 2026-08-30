@@ -2,7 +2,7 @@
     "canForce": false,
     "deadlineAt": "2026-08-29T08:26:52Z",
     "dislodged": {},
-    "finalized": {
+    "locked": {
         "Austria": false,
         "England": true,
         "France": true,
@@ -11,7 +11,7 @@
         "Russia": true,
         "Turkey": true
     },
-    "finalizedCount": 6,
+    "lockedCount": 6,
     "gameId": "jtq9tg9s52",
     "graceUntil": "2026-08-29T08:26:52Z",
     "joinedCount": 7,
@@ -1356,5 +1356,5 @@
     "you": {
         "power": "Germany"
     },
-    "youFinalized": true
+    "youLocked": true
 }

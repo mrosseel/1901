@@ -797,8 +797,8 @@ and a flex row would either overflow it or shrink the type it is drawn at.
   .live-dot { animation: none; }
 }
 
-.finalize { display: flex; flex-direction: column; gap: 6px; }
-.finalize .muted { margin: 0; }
+.lock { display: flex; flex-direction: column; gap: 6px; }
+.lock .muted { margin: 0; }
 
 /*
 The phase commitment, and the only button on the page that changes the game

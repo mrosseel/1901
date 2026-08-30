@@ -84,7 +84,7 @@ export function WatchPage({
   The spectator feed, with the public summary as the fallback.
 
   The summary is not a substitute — it carries no units, so no board can be
-  drawn from it — but it does carry the phase, the clock and the finalized
+  drawn from it — but it does carry the phase, the clock and the locked
   count, and those are most of the header. So a server that does not serve
   /watch yet gets a page that says what it can and says plainly what it
   cannot, rather than a blank screen.
@@ -94,7 +94,7 @@ export function WatchPage({
     try {
       const next = await fetchWatch(gameId, at);
       setProvinceNames(next.provinceNames);
-      setPowerPalette(Object.keys(next.finalized || {}));
+      setPowerPalette(Object.keys(next.locked || {}));
       noteServerTime(next.now);
       setWatch(next);
       setFeedMissing(false);
@@ -111,7 +111,7 @@ export function WatchPage({
     try {
       const fallback = await fetchPublic(gameId);
       setProvinceNames(fallback.provinceNames);
-      setPowerPalette(Object.keys(fallback.finalized || {}));
+      setPowerPalette(Object.keys(fallback.locked || {}));
       noteServerTime(fallback.now);
       setSummary(fallback);
       setFeedMissing(true);
@@ -234,9 +234,9 @@ export function WatchPage({
     return () => window.removeEventListener("keydown", onKey);
   }, [canPrev, canNext, prevTo, nextTo, go]);
 
-  const finalizedCount =
-    watch?.finalizedCount ??
-    Object.values(summary?.finalized || {}).filter(Boolean).length;
+  const lockedCount =
+    watch?.lockedCount ??
+    Object.values(summary?.locked || {}).filter(Boolean).length;
   const totalSeats = watch?.totalSeats ?? summary?.totalSeats;
   const variant = watch?.variant || summary?.variant;
 
@@ -319,7 +319,7 @@ export function WatchPage({
             </>
           ) : totalSeats !== undefined ? (
             <p className="muted">
-              {finalizedCount} of {totalSeats} players locked in
+              {lockedCount} of {totalSeats} players locked in
             </p>
           ) : null}
         </header>

@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r39 — 2026-08-30
+**Document revision:** r40 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1850,3 +1850,4 @@ Recorded so nobody re-derives them.
 | r37 | 2026-08-30 | D-038: the supply-centre record gains `centreStroke`. Asking what stroke width a glyph uses found that it is a line weight in map units and not a fraction of the radius, so the reader's derivation from godip's ratio was wrong by more than a factor of two, and that the exporter reserved `2 * radius` when the ink reaches `radius + stroke / 2`. A `labelRuns` anchor is in unrotated space and a run carries no rotation of its own. |
 | r38 | 2026-08-30 | The demo7 fixture carries `centreStroke`, verified independently: 31 records against 31 stroked circles, worst deviation 0.0500, every stroke 1.10. D-038 gains the rule that a record is compared to the art with a tolerance of half the art's rounding step, and never looked up by formatted string, because the two roundings do not commute. |
 | r39 | 2026-08-30 | The server reads a version-2 style plan. The gate is a range, 1 to 2, because every checked-in plan is version 1 until its map is re-authored. `kinds` is a list in one version and a map in the other, and neither is converted into the other: a list is keyed by position and a map has no document order. `names.typography` answers `?style=original` on a map with no original names layer. D-038 corrected: the sentence saying the mode is the presence of a label record is struck, having been overturned at r36. With no plan in data mode, 130 of 130 served SVGs are byte-identical. |
+| r40 | 2026-08-30 | Lock is the word for the act D-008, D-011 and D-034 call finalize. It runs front and back: the button, the JSON, the routes and `seat.locked`. Finalize was never true, because D-011 makes the commit replaceable until the phase resolves, and a lock is a thing you can open again. Commit and Reveal keep their names. The decision entries above are left as they were written; CONTEXT.md carries the retired word. |

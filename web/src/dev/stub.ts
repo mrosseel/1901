@@ -16,7 +16,7 @@ Two things deliberately still reach the network:
   /styles      The style catalogue, so the picker lists what this server can
                actually draw.
 
-Writes — an order, a finalize, a forced adjudication — are answered but not
+Writes — an order, a lock, a forced adjudication — are answered but not
 simulated: the fixture comes straight back. The gallery is for looking at
 states, not for playing, and a half-simulated server would be a lie of a
 different kind. The README says so too.
@@ -39,7 +39,7 @@ export interface Scenario {
   options?: Record<string, OptionTree>;
 }
 
-const SEAT = /^\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|finalize|unfinalize)$/;
+const SEAT = /^\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|lock|unlock)$/;
 const GM = /^\/game\/[^/]+\/gm\/[^/]+\/(state|settings|start|adjudicate|extend)$/;
 const WATCH = /^\/game\/[^/]+\/watch(?:\/(\d+))?$/;
 const PUBLIC = /^\/game\/[^/]+\/public$/;
@@ -76,7 +76,7 @@ function summary(scene: Scenario): PublicState | null {
     started: Boolean(source.started),
     joinedCount: gm?.joinedCount ?? watch?.totalSeats ?? seat?.totalSeats ?? 0,
     totalSeats: gm?.totalSeats ?? watch?.totalSeats ?? seat?.totalSeats ?? 0,
-    finalized: seat?.finalized || watch?.finalized || {},
+    locked: seat?.locked || watch?.locked || {},
     settings: seat?.settings || gm?.settings || { deadlineMinutes: 0, gmPlays: false },
     settingsVersion: seat?.settingsVersion ?? gm?.settingsVersion ?? 1,
     deadlineAt: source.deadlineAt ?? null,

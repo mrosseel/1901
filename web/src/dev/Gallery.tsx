@@ -120,7 +120,7 @@ function buildCatalogue(): Entry[] {
     seatEntry(
       "locked",
       "Orders locked",
-      "England has finalized. The lock button carries the count.",
+      "England has locked. The lock button carries the count.",
       "seat-locked",
     ),
     seatEntry(

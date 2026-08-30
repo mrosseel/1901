@@ -32,7 +32,7 @@ const endpoints =
   "|map\\.svg" +
   "|join/[^/]+" +
   "|gm/[^/]+/(state|settings|start|adjudicate|extend|map\\.svg)" +
-  "|seat/[^/]+/(state|options|order|finalize|unfinalize|map\\.svg))" +
+  "|seat/[^/]+/(state|options|order|lock|unlock|map\\.svg))" +
   ")";
 
 export default defineConfig({

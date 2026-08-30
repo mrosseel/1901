@@ -8,7 +8,7 @@
             "type": "Fleet"
         }
     },
-    "finalized": null,
+    "locked": null,
     "gameId": "jtq9tg9s52",
     "graceUntil": null,
     "nmr": [

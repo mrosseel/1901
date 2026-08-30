@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS seat (
     seat_token TEXT    NOT NULL DEFAULT '',
     device     TEXT    NOT NULL DEFAULT '',
     is_gm      INTEGER NOT NULL DEFAULT 0,
-    finalized  INTEGER NOT NULL DEFAULT 0,
+    locked  INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (game_id, power)
 );
 
@@ -87,8 +87,8 @@ CREATE TABLE IF NOT EXISTS game_order (
 );
 
 -- Which powers were resolved as NMR in a given phase. Replay cannot work
--- this out on its own: a power with no stored orders may have finalized
--- with nothing to order rather than failed to finalize.
+-- this out on its own: a power with no stored orders may have locked
+-- with nothing to order rather than failed to lock.
 CREATE TABLE IF NOT EXISTS phase_nmr (
     game_id     TEXT    NOT NULL REFERENCES game(id) ON DELETE CASCADE,
     phase_index INTEGER NOT NULL,
@@ -148,33 +148,57 @@ var orderColumns = []struct{ name, definition string }{
 	{"illegal", `INTEGER NOT NULL DEFAULT 0`},
 }
 
-// migrate adds the columns an older database lacks.
+// seatColumns are the columns a seat row has grown, in the same shape as
+// gameColumns. `locked` is here only for a database that has neither name:
+// one written before the rename is carried across by renamedColumns instead,
+// which keeps the stored value.
+var seatColumns = []struct{ name, definition string }{
+	{"locked", `INTEGER NOT NULL DEFAULT 0`},
+}
+
+// renamedColumns are columns that changed name. The rename must run before
+// addColumns, or a database holding only the old name would gain an empty
+// column under the new one and lose what it stored.
+var renamedColumns = []struct{ table, from, to string }{
+	// "finalize" was the word for this act until 2026-08-30; see CONTEXT.md.
+	{"seat", "finalized", "locked"},
+}
+
+// migrate brings an older database up to the current schema.
 func migrate(handle *sql.DB) error {
+	for _, r := range renamedColumns {
+		if err := renameColumn(handle, r.table, r.from, r.to); err != nil {
+			return err
+		}
+	}
 	if err := addColumns(handle, "game", gameColumns); err != nil {
 		return err
 	}
-	return addColumns(handle, "game_order", orderColumns)
+	if err := addColumns(handle, "game_order", orderColumns); err != nil {
+		return err
+	}
+	return addColumns(handle, "seat", seatColumns)
 }
 
-func addColumns(handle *sql.DB, table string, columns []struct{ name, definition string }) error {
-	rows, err := handle.Query(`PRAGMA table_info(` + table + `)`)
+// renameColumn renames one column if the old name is still there and the new
+// one is not. Both present, or neither, means there is nothing to do.
+func renameColumn(handle *sql.DB, table, from, to string) error {
+	present, err := columnNames(handle, table)
 	if err != nil {
 		return err
 	}
-	present := map[string]bool{}
-	for rows.Next() {
-		var cid int
-		var name, ctype string
-		var notNull, pk int
-		var deflt sql.NullString
-		if err := rows.Scan(&cid, &name, &ctype, &notNull, &deflt, &pk); err != nil {
-			rows.Close()
-			return err
-		}
-		present[name] = true
+	if !present[from] || present[to] {
+		return nil
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
+	log.Printf("migrating: renaming %v.%v to %v.%v", table, from, table, to)
+	_, err = handle.Exec(
+		`ALTER TABLE ` + table + ` RENAME COLUMN ` + from + ` TO ` + to)
+	return err
+}
+
+func addColumns(handle *sql.DB, table string, columns []struct{ name, definition string }) error {
+	present, err := columnNames(handle, table)
+	if err != nil {
 		return err
 	}
 	for _, column := range columns {
@@ -188,6 +212,30 @@ func addColumns(handle *sql.DB, table string, columns []struct{ name, definition
 		}
 	}
 	return nil
+}
+
+func columnNames(handle *sql.DB, table string) (map[string]bool, error) {
+	rows, err := handle.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return nil, err
+	}
+	present := map[string]bool{}
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notNull, pk int
+		var deflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notNull, &deflt, &pk); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		present[name] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return present, nil
 }
 
 // persist writes the whole game — its settings, seats, current-phase
@@ -252,14 +300,14 @@ func (self *game) persistErr(id string) error {
 	for _, p := range f.powers {
 		s := f.seats[p]
 		_, err = tx.Exec(`
-            INSERT INTO seat (game_id, power, seat_token, device, is_gm, finalized)
+            INSERT INTO seat (game_id, power, seat_token, device, is_gm, locked)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(game_id, power) DO UPDATE SET
                 seat_token = excluded.seat_token,
                 device     = excluded.device,
                 is_gm      = excluded.is_gm,
-                finalized  = excluded.finalized`,
-			id, string(p), s.token, s.device, s.isGM, s.finalized)
+                locked  = excluded.locked`,
+			id, string(p), s.token, s.device, s.isGM, s.locked)
 		if err != nil {
 			return fmt.Errorf("seat %v: %v", p, err)
 		}
@@ -436,14 +484,14 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 		f.seats[p] = &seat{power: p}
 	}
 	rows, err := db.Query(
-		`SELECT power, seat_token, device, is_gm, finalized FROM seat WHERE game_id = ?`, id)
+		`SELECT power, seat_token, device, is_gm, locked FROM seat WHERE game_id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		var power, token, device string
-		var isGM, finalized bool
-		if err := rows.Scan(&power, &token, &device, &isGM, &finalized); err != nil {
+		var isGM, locked bool
+		if err := rows.Scan(&power, &token, &device, &isGM, &locked); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -451,7 +499,7 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 		if !found {
 			continue
 		}
-		s.token, s.device, s.isGM, s.finalized = token, device, isGM, finalized
+		s.token, s.device, s.isGM, s.locked = token, device, isGM, locked
 		if token != "" {
 			f.bySeatToken[token] = s.power
 		}
