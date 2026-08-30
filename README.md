@@ -89,6 +89,19 @@ iterate on any screen without creating or joining a game. Playing a real game
 under the dev server, `await __1901capture()` in the console snapshots the
 current state as a new fixture.
 
+An empty server opens on an empty list, so there is a seeder:
+
+```
+go run ./tools/seed -url http://localhost:8000
+```
+
+It makes six Classical games over HTTP, each named after the opening it
+plays — the Blitzkrieg, the Juggernaut, the Lepanto, the Maginot, the Northern
+Opening, the Hedgehog — joins seven seats, plays Spring 1901 and leaves each
+game at Fall 1901, so the spectator pages have a real board on them. An opening
+is a named idea rather than a transcript, and the tool states one standard
+version of each; nothing in it reproduces a game anybody played.
+
 Tests:
 
 ```
