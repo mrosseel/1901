@@ -64,34 +64,39 @@ func recoverMessage(id, nonce string) string {
 	return "1901 game master recovery|" + id + "|" + nonce
 }
 
-// recoverNonce mints a challenge nobody can forge and the server need not
-// remember: random bytes, an expiry, and an HMAC over both under the salt that
-// signs the handover links.
-func recoverNonce(id string) (string, error) {
+/*
+nonceFor mints a challenge nobody can forge and the server need not remember:
+random bytes, an expiry, and an HMAC over both under the salt that signs the
+handover links.
+
+The purpose is inside the HMAC, so a challenge minted for one route cannot be
+answered on another — a recovery nonce is not a session nonce.
+*/
+func nonceFor(id, purpose string) (string, error) {
 	raw := make([]byte, 16)
 	if _, err := rand.Read(raw); err != nil {
 		return "", err
 	}
 	body := base64.RawURLEncoding.EncodeToString(raw) + "." +
 		strconv.FormatInt(time.Now().Add(recoverWindow).Unix(), 10)
-	return body + "." + nonceSig(id, body), nil
+	return body + "." + nonceSig(id, purpose, body), nil
 }
 
-func nonceSig(id, body string) string {
+func nonceSig(id, purpose, body string) string {
 	mac := hmac.New(sha256.New, handoverSalt)
-	fmt.Fprintf(mac, "recover|%v|%v", id, body)
+	fmt.Fprintf(mac, "%v|%v|%v", purpose, id, body)
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))[:32]
 }
 
 // checkNonce says whether a challenge is one this server minted for this game
-// and is still inside its window.
-func checkNonce(id, nonce string) bool {
+// and this purpose, and is still inside its window.
+func checkNonce(id, purpose, nonce string) bool {
 	parts := strings.Split(nonce, ".")
 	if len(parts) != 3 {
 		return false
 	}
 	body := parts[0] + "." + parts[1]
-	if !hmac.Equal([]byte(parts[2]), []byte(nonceSig(id, body))) {
+	if !hmac.Equal([]byte(parts[2]), []byte(nonceSig(id, purpose, body))) {
 		return false
 	}
 	expiry, err := strconv.ParseInt(parts[1], 10, 64)
@@ -158,7 +163,7 @@ func handleRecoverChallenge(g *game, id string, w http.ResponseWriter, r *http.R
 		writeErr(w, http.StatusNotFound, "this game has no recovery key")
 		return
 	}
-	nonce, err := recoverNonce(id)
+	nonce, err := nonceFor(id, "recover")
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "nonce: %v", err)
 		return
@@ -187,7 +192,7 @@ func handleRecoverClaim(g *game, id string, w http.ResponseWriter, r *http.Reque
 		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
-	if !checkNonce(id, body.Nonce) {
+	if !checkNonce(id, "recover", body.Nonce) {
 		writeErr(w, http.StatusForbidden, "this challenge has expired — start again")
 		return
 	}

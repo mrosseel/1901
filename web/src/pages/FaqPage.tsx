@@ -22,8 +22,15 @@ export function FaqPage() {
           <h2>Do I need an account?</h2>
           <p>
             No. There are no accounts, names or passwords anywhere in this app. The game
-            master shares one invite link or QR code, scanning it deals you a random power,
-            and the address in your browser is your seat.
+            master shares one invite link or QR code, and scanning it deals you a random
+            power.
+          </p>
+          <p>
+            Your phone makes the seat's key itself and keeps it. The server is given a
+            public half that opens nothing, so a copy of its database is not a set of
+            seats. To play the same power on a second device, open the seat menu and use{" "}
+            <strong>This seat, on another device</strong>: the key rides in the part of the
+            address after the #, which no browser ever sends to a server.
           </p>
         </section>
 
@@ -38,6 +45,10 @@ export function FaqPage() {
             If the phone is already dead, the game master can mint the same link for any
             power from their own screen. That is logged, because a game master who can hand
             out any seat can take any seat, and the record is what keeps it visible.
+          </p>
+          <p className="note">
+            The phone that takes the seat makes a new key. The one that gave it away keeps
+            nothing that opens the seat, which is what makes a handover a handover.
           </p>
         </section>
 

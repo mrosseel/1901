@@ -3,6 +3,7 @@ import { ApiError, SeatClient, fetchPublic, type SeatState } from "../api";
 import { Board } from "../components/Board";
 import { SeatMenu } from "../components/SeatMenu";
 import { writeRecentGame } from "../recent";
+import { readSeatSeed, takeSeedFromAddress } from "../seatkey";
 import { SplitLayout } from "../components/SplitLayout";
 import {
   powerColor,
@@ -62,6 +63,18 @@ a tap on someone else's unit is answered with a sentence, not a 403.
 */
 export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: string }) {
   const client = useMemo(() => new SeatClient(gameId, seatToken), [gameId, seatToken]);
+  /*
+  A keyed seat (D-049). The address carries no token: the seed does the work,
+  and it arrives either from this device's storage or, once, from the fragment
+  of the link that was opened. Reading it here is what moves it into storage
+  and takes it out of the address bar.
+
+  It is read before anything else on this page runs, because every request
+  below needs a session and a session needs the seed.
+  */
+  const [heldSeat] = useState(() =>
+    seatToken === "me" ? Boolean(takeSeedFromAddress(gameId) || readSeatSeed(gameId)) : true,
+  );
   const [state, setState] = useState<SeatState | null>(null);
   const [status, setStatus] = useState("");
   const [isError, setIsError] = useState(false);
@@ -131,11 +144,12 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   }, [client]);
 
   useEffect(() => {
+    if (!heldSeat) return;
     refresh().catch((err: unknown) => {
       setStatus(err instanceof Error ? err.message : String(err));
       setIsError(true);
     });
-  }, [refresh]);
+  }, [refresh, heldSeat]);
 
   /*
   The cheap public endpoint is the liveness poll. The seat state — which is the
@@ -161,7 +175,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       fingerprint.current = mark;
       await refresh();
     },
-    !gone,
+    !gone && heldSeat,
   );
   useTicker(Boolean(state?.deadlineAt));
 
@@ -316,6 +330,24 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     }
   };
 
+  if (!heldSeat) {
+    return (
+      <main className="page">
+        <h1>This device holds no seat here</h1>
+        <p>
+          A seat lives on the phone that claimed it, not in this address (D-049). This
+          browser has no key for game {gameId}: it never claimed a power here, or its
+          storage was cleared.
+        </p>
+        <p>
+          If another device still has the seat, open its menu and use{" "}
+          <strong>This seat, on another device</strong>. Otherwise ask the game master to
+          hand the power over, which gives it to whichever phone scans the code.
+        </p>
+      </main>
+    );
+  }
+
   if (gone) {
     return (
       <main className="page">
@@ -416,6 +448,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             <h1>
               {power ? (
                 <SeatMenu
+                  gameId={gameId}
                   power={power}
                   turns={state?.turns}
                   createdAt={state?.createdAt}

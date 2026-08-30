@@ -17,10 +17,19 @@ the godip boundary.
 _Avoid_: nation (outside godip calls), country, faction
 
 **Seat**:
-One Power in one game, together with its join state: token, device claim,
-GM rights. What a QR code hands out and what token rotation replaces.
-Backstage term (code, docs, API) — never shown in game UI.
+One Power in one game, together with its join state: its credential, its
+device claim, GM rights. What a QR code hands out and what a handover
+replaces. The credential is a token in the address for a game made before
+D-049 and a key the device holds for one made after it; a Seat has one or
+the other, never both. Backstage term (code, docs, API) — never shown in
+game UI.
 _Avoid_: slot, position
+
+**Seat key**:
+The 32 bytes a joining device makes for itself (D-049). It never reaches
+the server, which stores only the public half. It lives in the device's
+storage and travels, when asked for, in the fragment of a seat link.
+_Avoid_: seat token (that is the older, different thing), password
 
 **Player**:
 The human. Players occupy Seats; Seats belong to Powers. Backstage term;
