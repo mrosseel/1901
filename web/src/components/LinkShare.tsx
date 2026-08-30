@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { copyText } from "../clipboard";
 import { QrImage } from "./QrImage";
 
 /*
@@ -20,12 +21,7 @@ export function LinkShare({
   const [copied, setCopied] = useState<string | null>(null);
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied("Copied");
-    } catch {
-      setCopied("Copy failed — select the link");
-    }
+    setCopied((await copyText(url)) ? "Copied" : "Copy failed — select the link");
     setTimeout(() => setCopied(null), 1500);
   };
 
