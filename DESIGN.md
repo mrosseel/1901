@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r29 — 2026-08-30
+**Document revision:** r30 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1131,10 +1131,16 @@ glyph and the unit anchor leave the art and become records in
       "dislodged": [559.35, 196.85],
       "brief": [563.11, 209.76],
       "label": { "at": [563.11, 171.85], "size": 19.93,
-                 "width": 71.4, "height": 14.35 },
+                 "width": 71.4, "height": 14.35, "rot": -62 },
       "centre": [561.4, 180.2],
       "centreRadius": 10.97
     }
+
+`rot` is the label's rotation in degrees, omitted when zero. It is not a
+nicety. Classical rotates 73 of its 90 names, Canton 72 of 99, Twenty Twenty
+100 of 219. Portugal is set at -62 degrees, running down the coast; drawn flat
+at the same anchor it runs across Spain. Twenty bytes a row, and the map is
+wrong without it.
 
 `at` is the CENTRE of the name's ink box, across and down. It is not the
 baseline. SVG text sits on its baseline, so the board computes
@@ -1224,6 +1230,21 @@ province rows as `[key, longName, supplyCenter]`, so a variant carries every
 long name. `names.json` stays as the per-variant override layer only, and the
 descriptor wins where both speak.
 
+**`?style=original` keeps its layers.** That route bypasses restyling so the
+bytes are the art's own, and D-032 promises it stays a faithful copy.
+Stripping it would make that untrue. The stripped art is served on the styled
+paths only, at the cost of a second cached copy per map.
+
+**Which face a name takes is derived, not stored.** The plan's list of
+land-or-sea verdicts dies with the names layer, and the verdict does not move
+into the placement table. godip's own graph already knows land from sea, so
+the board asks the variant, not a second copy that can drift.
+
+**During the transition the mode is a flag, not an inference.** While the
+exporter writes records and still draws the layers, a server that inferred
+"has records, therefore hide the layer" would change the picture on a
+data-only release. The flag is set when the exporter stops drawing them.
+
 **Name styling moves to the board, and the two style paths do not collapse.**
 Today the server rewrites each `<text>` in the art before sending it, choosing
 the face from the plan's land-or-sea verdict for that name. In data mode there
@@ -1241,9 +1262,33 @@ the mechanism exists.
 This is a move, not a saving. `restyle.go` keeps its two paths for art-mode
 maps, and loses only the name pass for data-mode ones.
 
+**Two things the record cannot express yet.** A name broken across lines is
+one of them: Sail Ho sets "Village of / Aeolus" as two elements at explicit
+offsets, 105 elements for 60 provinces, and Europe 1939, Twenty Twenty,
+Western World 901 and Youngstown Redux put several lines on every label. One
+anchor and one width collapse those to a single line wider than the province.
+If line breaks matter, `at` becomes a list of anchors, and that is cheaper to
+decide now than after the exporter ships. The other is hand-kerning: classical
+carries per-label letter-spacing on 30 names, italic on 49 and bold on 28. A
+drawn label with one style rule will be legible and flatter.
+
+**Four arts cannot make the crossing at all.** Gateway West, North Sea Wars,
+Sengoku and Vietnam War draw their names as outlined shapes carrying no
+string. An automatic pass was tried: clustering the glyphs into lines and
+matching each to its nearest anchor recovered 39 labels for Vietnam War's 53
+provinces, merging some two-word names and splitting others. That is proof the
+idea works and proof it cannot ship. Those four keep their layers. So do
+Ancient Mediterranean and Unconstitutional, which have never drawn names.
+
+Nothing in the catalogue needs the hybrid for its alphabet. Two arts hold any
+non-ASCII at all: one degree sign in Coldwar, five accented letters in
+Unconstitutional. Sengoku and Canton spell Japanese and Chinese places in
+romaji and pinyin. The test is whether the string exists, not which script it
+is in.
+
 **What it saves.** Across the 22 arts we hold, the three layers are 2,498,170
-bytes, 10.4%. On a map the exporter draws they are 61.5%: names 42.1%,
-centres 11.0%, anchors 8.4%.
+bytes, 27.3%: names 21.8%, centres 2.4%, anchors 3.0%. On a map the
+exporter draws they are 61.5%.
 
 The raw figure overstates the win, because responses are gzipped (D-036) and
 the records are not free. Measured on one 73-territory map: art with every
@@ -1256,6 +1301,34 @@ ones we already have.
 
 Positions in a record are rounded to two decimals, like every other position
 in the table, so the file stays diffable and consistent with D-037.
+
+**Do not do this for the bytes on the maps we already hold.** Stripping all
+four layer kinds across the 22 arts cuts 28.4% raw but only 14.5% gzipped, and
+most of that is one map. Measured on three of different kinds: classical loses
+12.0% raw and 1.8% gzipped, because a names layer is text that gzip already
+crushes while the file's weight is a noise texture that will not compress;
+Vietnam War loses 51.4% raw and 40.8% gzipped, because an outlined name is
+thousands of unique digits gzip cannot help; Sail Ho gets 2.0% smaller raw and
+7.7% smaller gzipped only because recovering its brief positions costs more
+JSON than the art it removes. So the compressed win sits almost entirely in
+the four maps that cannot be migrated automatically.
+
+The reasons to do it are that a name in a record can be translated, restyled,
+searched and read aloud, and that 61.5% is the figure for every map made from
+now on.
+
+**One blocker to clear first.** 1800 Empires and Coalitions carries an empty
+long name for all 96 provinces, while its art draws 96 of them. Move that map
+to records and it goes blank. Three more descriptors each miss one or three
+names. Fix the descriptors before touching the art.
+
+**What breaks outside the board.** The gallery card and the map lightbox draw
+the art as a plain image, with no board and no records, so a stripped map
+shows there with no names and no centres. There is no mitigation in the
+current code. The map editor loses more: it scores marker collisions against
+the label and centre layers it reads out of the art, so it would stop
+reporting a marker sitting on a name, and it edits a brief position as a point
+while a label is a point plus four numbers and needs a different control.
 
 **Order of work.** The exporter writes the records and keeps the layers, which
 breaks nothing. Then the server prefers the records where it finds them. Then
@@ -1590,3 +1663,4 @@ Recorded so nobody re-derives them.
 | r27 | 2026-08-30 | D-036: text responses are gzipped for clients that offer it, with `Vary: Accept-Encoding` on everything compressible; the map art is compressed once per style and cached beside the composed bytes, 64% off the wire. D-037: map art is stored at two decimals, 19% off disk and 24% off the gzipped bytes, touching only `d` and `points` so the viewBox and every placement table stay valid. Dead definitions are pruned from the art, which changes the bytes of `?style=original` but not its picture. |
 | r28 | 2026-08-30 | D-038: the province name, the supply-centre glyph and the unit anchor become records in `placements.json`; the art keeps geometry. A label record carries position, size and reserved width, so the drawn box is the measured box. A map is in data mode if it has any label record, and maps whose names are outlined shapes keep their art. D-033 widened: `tools/jdip-import/` moves to dipmap as well, so 1901 never writes a map. |
 | r29 | 2026-08-30 | D-038 corrected after review by the map exporter: `at` is stated as the ink box centre and the record gains `height`, because a reader that took it for the baseline would draw every name half a cap height high; the centre glyph gains a radius, since it is an obstacle the name search fits around; `found` is not the mode flag; name styling moves to the board with the verdict, the typography and the halo travelling with the board state, so the two restyle paths do not collapse; the saving is restated gzipped and net of the records, about 1.8 KB a board load. |
+| r30 | 2026-08-30 | D-038 corrected again after scoping. The record gains `rot`: classical rotates 73 of 90 names and a flat Portugal runs across Spain. `?style=original` keeps its layers. The land-or-sea verdict is derived from the variant graph, not stored. The layers are 27.3% of the art, not 10.4%, but only 14.5% gzipped and almost all of that is in the four maps whose names are outlined shapes and cannot be migrated automatically. 1800 Empires and Coalitions has no long names at all and blocks its own migration. Multi-line names and the gallery card have no answer yet. |
