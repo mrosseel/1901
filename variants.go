@@ -211,6 +211,25 @@ var stalePlans = struct {
 	by map[string]bool
 }{by: map[string]bool{}}
 
+// supplyCentreKeys names every province that is a supply centre, from the
+// variant's own graph, which is the only place that knows: a converted jDip
+// map carries no mark of one (D-032). A variant with no graph reports none,
+// so a map that would have been styled still is.
+func supplyCentreKeys(v common.Variant) []string {
+	if v.Graph == nil {
+		return nil
+	}
+	graph := v.Graph()
+	if graph == nil {
+		return nil
+	}
+	out := []string{}
+	for _, province := range graph.AllSCs() {
+		out = append(out, string(province))
+	}
+	return out
+}
+
 // styledMapBytes composes one variant's map in one style, or reports that it
 // cannot be styled.
 //
@@ -255,7 +274,7 @@ func styledMapBytes(key string, v common.Variant, style string) ([]byte, error) 
 		return nil, fmt.Errorf("%q: %w", style, errUnknownStyle)
 	}
 
-	composed, err := applyStyle(string(original), plan, tokens)
+	composed, err := applyStyle(string(original), plan, tokens, supplyCentreKeys(v))
 	if err != nil {
 		return nil, fmt.Errorf("style %v for %v: %w", style, key, err)
 	}

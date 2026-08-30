@@ -135,11 +135,14 @@ func TestStyledMapsKeepEveryElementWhereItWas(t *testing.T) {
 			// What each applier is allowed to add. The godip applier adds
 			// nothing at all and is held to the stricter promise: every
 			// element in the file, in order. The jDip applier lays the
-			// style's grain into a drawing layer that ships empty, which is
-			// one rect with a known id and nothing else.
+			// style's grain and one ring per supply centre into two drawing
+			// layers that ship empty, each with a known id and nothing else.
 			allowed := map[string]bool{}
 			if plans[key].Kind == "jdip" {
 				allowed["paper-grain"] = true
+				for _, province := range supplyCentreKeys(v) {
+					allowed["sc-"+province] = true
+				}
 			}
 			if len(after.tags)-len(before.tags) > len(allowed) {
 				t.Errorf("%v in %v: element count changed, %v -> %v",
@@ -273,6 +276,66 @@ func TestAStyledMapIsWellFormedXML(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// TestAConvertedMapIsGivenItsSupplyCentres covers D-032: jDip marks no supply
+// centre, so without these rings a player cannot see which provinces are worth
+// taking.
+func TestAConvertedMapIsGivenItsSupplyCentres(t *testing.T) {
+	if err := loadStyles(); err != nil {
+		t.Fatal(err)
+	}
+	if err := loadPlans(); err != nil {
+		t.Fatal(err)
+	}
+	converted := 0
+	for key, plan := range plans {
+		if plan.Kind != "jdip" || !plan.styleable() {
+			continue
+		}
+		v, found := lookupVariant(key)
+		if !found {
+			continue
+		}
+		converted++
+		centres := supplyCentreKeys(v)
+		if len(centres) == 0 {
+			t.Fatalf("%v: the variant names no supply centre", key)
+		}
+		for _, name := range styleNames {
+			styled, err := styledMapBytes(key, v, name)
+			if err != nil {
+				t.Fatalf("%v in %v: %v", key, name, err)
+			}
+			layer, held := layerText(string(styled), "SupplyCenterLayer")
+			if !held {
+				t.Errorf("%v in %v: no supply-centre layer", key, name)
+				continue
+			}
+			for _, province := range centres {
+				if !strings.Contains(layer, `id="sc-`+province+`"`) {
+					t.Errorf("%v in %v: supply centre %v is not marked", key, name, province)
+				}
+			}
+			if got := strings.Count(layer, "<circle "); got != len(centres) {
+				t.Errorf("%v in %v: %v rings for %v supply centres",
+					key, name, got, len(centres))
+			}
+			// A ring whose id ended in Center would be read as a unit anchor,
+			// which the board finds by matching [id$="Center"].
+			if strings.Contains(layer, `Center"`) {
+				t.Errorf("%v in %v: a ring is named like a unit anchor", key, name)
+			}
+			// A ring, never a disc: jDip's coordinate for a province is where
+			// it puts the unit, which is often under the province name.
+			if !strings.Contains(string(styled), "circle.sc-ring { fill:none;") {
+				t.Errorf("%v in %v: the rings are not drawn unfilled", key, name)
+			}
+		}
+	}
+	if converted == 0 {
+		t.Fatal("no converted map was checked, so this proves nothing")
 	}
 }
 
@@ -427,7 +490,7 @@ func TestNoLabelClassIsStyledUnderTheLegibilityFloor(t *testing.T) {
 		}
 		floor := labelFloor(width, labelScale)
 		for _, name := range styleNames {
-			sheet := buildStylesheet(plan.JDip, styles[name], width, labelScale)
+			sheet := buildStylesheet(plan.JDip, styles[name], width, labelScale, true)
 			matches := sizeRule.FindAllStringSubmatch(sheet, -1)
 			if len(matches) != len(plan.JDip.LabelMetrics) {
 				t.Fatalf("%v/%v: %v size rules for %v label classes",
