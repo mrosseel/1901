@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r26 — 2026-08-30
+**Document revision:** r28 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -995,15 +995,22 @@ is often under the province name and a filled dot would swallow it. The id is
 faithful copy.
 
 ### D-033 — Map authoring moves to dipmap; 1901 plays maps
-**Status:** accepted, r25 (owner decision, final). Supersedes the ownership
-half of D-030 and D-003.
+**Status:** accepted, r25 (owner decision, final). Widened r28. Supersedes
+the ownership half of D-030 and D-003.
 1901 becomes the tool that plays maps. dipmap becomes the tool that makes
 them. Moving out: `tools/placement/`, `tools/restyle/`, `web/src/mapeditor/`,
 `mapeditor_dev.go`, `mapeditor_off.go` and the `/mapeditor` route. Staying:
 every serve-time reader, meaning `placements.go`, `names.go`,
-`mapstyles.go`, `styleplans.go` and `restyle.go`, plus `tools/jdip-import/`,
-because dipmap draws from real per-province polygons and cannot ingest a jDip
-SVG.
+`mapstyles.go`, `styleplans.go` and `restyle.go`.
+
+Widened r28: `tools/jdip-import/` moves as well. 1901 reads maps and never
+produces one, by any route. The earlier reasoning kept the importer here
+because dipmap draws from polygons and cannot ingest a jDip SVG; the owner
+ruled that a second place which writes maps is worse than an importer in an
+awkward home. One consequence follows: dipmap ends up owning the Playwright
+dependency, because a style plan for art dipmap did not draw has to be
+measured rather than written. It goes in a dependency group the server never
+loads, the way `--group geo` already holds shapely.
 
 The deletions happen on this side, once the ported code is proven. A style
 plan and a placement table are committed data, so both keep working across the
@@ -1055,6 +1062,154 @@ forever.
    server sends `nothingToOrder` and the screen writes it out.
 7. A seat the server locked cannot be unlocked. There is nothing to change,
    and re-finalizing (D-011) has nothing to replace.
+
+### D-036 — Text responses are served compressed, and the maps only once
+**Status:** accepted, r27.
+Every text response is gzipped for a client that offered gzip. The map art is
+compressed once per style and cached, not once per request.
+
+A board is the largest thing this server sends by two orders of magnitude:
+classical's parchment map is 1.8 MB of SVG and gzips to 976 KB.
+
+1. A client that did not offer gzip never gets it, and `gzip;q=0` counts as
+   not offering.
+2. Only text is compressed: `text/*`, JSON, SVG, JS, and any `+json` or `+xml`
+   suffix. A PNG is already compressed and deflate over it adds bytes.
+3. A body under a kilobyte is sent as it is.
+4. `Vary: Accept-Encoding` goes on every response that COULD be compressed,
+   not only the ones that were. A cache that stores one answer per URL and
+   ignores Vary would hand a gzip body to a client that cannot read it.
+5. `Content-Length` is dropped when the body is compressed, and a request
+   carrying `Range` passes through untouched: a range names bytes of a
+   representation whose numbering compression would change.
+6. The map art is compressed once and kept. Deflating classical's parchment
+   map takes 63 ms, longer than composing the styled map, and it would be paid
+   on every board load. The composed bytes are already cached for the life of
+   the process, so the compressed copy is cached beside them.
+7. Both routes that serve a board go through one function, so the gallery and
+   a game table cannot disagree about the bytes or the headers.
+
+### D-037 — Map art is stored at two decimals
+**Status:** accepted, r27.
+Coordinates in the art are rounded to at most two decimal places. Nothing else
+in the art is.
+
+The drawing programs write eight decimals. On a board 1524 units wide the
+third decimal is a five-thousandth of a province border, and the file pays six
+bytes a number for it. The 22 arts go from 31.5 MB to 25.5 MB, and from 9.8 MB
+to 7.5 MB gzipped.
+
+1. Only a path's `d` and a polygon or polyline's `points` are rewritten. Two
+   decimals is the wrong precision for the rest: an opacity, a gradient stop's
+   offset and a transform's scale factor all live between 0 and 1, where a
+   hundredth is a visible change or, at `scale(0.001)`, the drawing collapsing
+   to nothing.
+2. The viewBox is left alone for a second reason. Every placement table is
+   quoted in the coordinate space it declares (D-003), so rescaling would
+   invalidate all of them. Rounding inside the space keeps them valid.
+3. A relative path command is a delta, so what is rounded is the ABSOLUTE
+   position: the residual of each rounding carries into the next delta, and no
+   drawn point sits more than half a hundredth from where the art put it.
+4. A definition nothing references is deleted in the same pass. That changes
+   the bytes of `?style=original` and not its picture: a pattern nothing points
+   at is not part of the drawing. Measured across 26 variants in 5 styles, no
+   pixel changed.
+5. The art bytes change, so every style plan is re-pinned to the digest of
+   what it was measured on (D-026).
+
+### D-038 — A name, a centre and an anchor are data, not drawing
+**Status:** accepted, r28. Agreed with the map exporter before writing.
+Extends D-003 and D-026. Moves the storage half of D-032.
+
+A map SVG carries province geometry. The province name, the supply-centre
+glyph and the unit anchor leave the art and become records in
+`placements.json`, beside the `brief` position that is already there.
+
+    "dal": {
+      "unit": [546.62, 209.58],
+      "scale": 1,
+      "dislodged": [559.35, 196.85],
+      "brief": [563.11, 209.76],
+      "label": { "at": [563.11, 171.85], "size": 19.93, "width": 71.4 },
+      "centre": [561.4, 180.2]
+    }
+
+One file, one digest, one thing to keep in step. A name and a three-letter
+code are two labels for one province, and both come out of the same placement
+search in the same coordinate space. Records are per province, never per
+region: a coast has no name and no centre, which is why the table already
+omits `brief` on a coast key.
+
+**The reserved width is the whole point.** The placement search gives each
+name a box, then keeps the unit marker, the dislodged ring and the code clear
+of it. The exporter writes `textLength` with `lengthAdjust="spacing"`, so the
+browser draws the string at exactly the width that was reserved. That is what
+makes the box on the screen the box the server measured. So a label record
+carries three numbers, not two: where it sits, how big it is, and how wide it
+is allowed to be, and the board sets `textLength` from the width. A board that
+picked its own size or typeface would draw a box nobody measured, and a marker
+would sit on a name.
+
+**Two kinds of map, chosen per map.** A map whose names are data draws them
+from the records. A map whose names must stay in the art keeps its names
+layer. The reader chooses on the presence of ANY `label` record: one record
+means the whole map is in data mode.
+
+It cannot choose per province. A province may legitimately carry no label,
+because a name whose fitted size falls under the exporter's floor is dropped
+in favour of the code, which says the same thing and can be read. A missing
+label means "this province draws no name", not "this map uses its art".
+
+**Why a map keeps its art, and it is not the alphabet.** The reserved width is
+not script-neutral: the exporter's average glyph advance is 0.55, which is a
+mixed-case Latin string in a humanist sans, while a full-width CJK glyph
+advances about 1.0. A width computed that way is roughly half what such a name
+needs, and `lengthAdjust="spacing"` closes the gap by shrinking the spaces
+until the characters overlap. The art already draws those names correctly and
+is the only thing that does.
+
+The measured test is not the script either. Five of our maps draw their names
+as outlined paths rather than text, so they carry no string at all: Vietnam
+War 108 shapes, North Sea Wars 58, Canton 14, Coldwar 9, Sengoku 5,
+Gateway West 4. Those are art-mode maps until an importer recovers both the
+string and the position.
+
+**The anchors layer goes in the same step as the centres.** `placements.json`
+already carries a unit position for every province, so `#province-centers`
+duplicates it. It cannot be dropped separately: the supply-centre glyph and
+the anchor both use the id `<key>Center`, and the board selects `[id$="Center"]`
+across both layers, so a document holding one of each would have the board
+read a glyph as an anchor.
+
+**A centre record names the province, not the owner.** The art cannot do this.
+It is drawn once, so a home centre captured in 1905 still shows its first
+owner's mark. The board knows the true owner from the game state, so drawing
+the glyph from data corrects a fault as well as saving bytes. The glyph itself
+is godip's: a stroked circle, no fill, black at 0.47 opacity.
+
+**The plan's name kinds change shape.** A style plan records one land-or-sea
+verdict per name as a LIST in document order, so position in the list is the
+key. With no names layer there is nothing to align to, and it becomes a map
+from province key to verdict. The exporter moves its plan version to 2 and
+1901 moves the version it refuses on, in one step. `found` keeps its meaning
+and now also tells the reader which mode a map is in.
+
+**The name string is not stored twice.** The descriptor already writes
+province rows as `[key, longName, supplyCenter]`, so a variant carries every
+long name. `names.json` stays as the per-variant override layer only, and the
+descriptor wins where both speak.
+
+**What it saves.** Across the 22 arts we hold, the three layers are 2,498,170
+bytes, 10.4%. On a map the exporter draws they are 61.5%: names 42.1%,
+centres 11.0%, anchors 8.4%. A 73-territory map falls from 36 KB to about
+14 KB. The saving is much larger for maps made from now on than for the ones
+we already have.
+
+**Order of work.** The exporter writes the records and keeps the layers, which
+breaks nothing. Then the server prefers the records where it finds them. Then
+the exporter stops writing the layers and the plan version moves. The reader
+must be built so a map without records falls back, which is also exactly what
+the two-kinds rule needs.
 
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
@@ -1380,3 +1535,5 @@ Recorded so nobody re-derives them.
 | r24 | 2026-08-29 | Placement optimizer terrain bug: the fill-colour probe measured a hidden map and called almost all land sea on every variant, so coast rules never fired. Terrain now comes from /variants/{key}/provinces.json in tool and editor alike; 22 tables re-derived (containment faults 93 to 10, dislodged-outside 71 to 1), classical patched on bul/ec and bul/sc only. |
 | r25 | 2026-08-29 | D-026 amended: a converted label class under 1.15% of the map's width is lifted to that floor, which is what made 1900's province names readable. Classes already above it keep the size their placement was measured against. A length is now carried onto the scale of the layer it lands in rather than the map's, and `jdipPlan` gains `labelScale`, derived from the art when a plan omits it. Two dormant faults recorded: jDip label lengths are emitted unitless and inert, and the label layer's `stroke:none` outranks the halo rule. D-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay. D-030 superseded in ownership. D-032: converted maps are given supply-centre rings they never carried. D-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges. |
 | r26 | 2026-08-30 | D-034: a seat whose power has no legal order this phase is finalized by the server, in every phase type, so an empty retreat never reaches a screen. Force adjudication counts only the seats a phase asked a player for; the seat screen says why it is locked; an auto-locked seat cannot be unlocked. Move the pieces became a checklist. |
+| r27 | 2026-08-30 | D-036: text responses are gzipped for clients that offer it, with `Vary: Accept-Encoding` on everything compressible; the map art is compressed once per style and cached beside the composed bytes, 64% off the wire. D-037: map art is stored at two decimals, 19% off disk and 24% off the gzipped bytes, touching only `d` and `points` so the viewBox and every placement table stay valid. Dead definitions are pruned from the art, which changes the bytes of `?style=original` but not its picture. |
+| r28 | 2026-08-30 | D-038: the province name, the supply-centre glyph and the unit anchor become records in `placements.json`; the art keeps geometry. A label record carries position, size and reserved width, so the drawn box is the measured box. A map is in data mode if it has any label record, and maps whose names are outlined shapes keep their art. D-033 widened: `tools/jdip-import/` moves to dipmap as well, so 1901 never writes a map. |
