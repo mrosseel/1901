@@ -2,11 +2,11 @@
 
 Scope: the end-to-end flow of DESIGN.md D-020/D-021/D-022 on top of the M0
 spike. In-memory for now (SQLite later within M1). Classical only. Orders
-are stored plainly server-side (commit-reveal is M3); "finalize" here
-means: mark the seat's orders locked-in, replaceable until the phase
-resolves (D-011).
+are stored plainly server-side (commit-reveal is M3); "lock" here
+means: mark the seat's orders locked in, replaceable until the phase
+resolves (D-011). The word was "finalize" until 2026-08-30.
 
-Terminology per CONTEXT.md: Power (UI word), Seat, Player, Finalize,
+Terminology per CONTEXT.md: Power (UI word), Seat, Player, Lock,
 Adjudicate, Resolution, NMR, Spectator view.
 
 ## Tokens
@@ -39,7 +39,7 @@ New game flow lives under /game/ (server) and new pages:
   carries no secret, so the main page may offer it per game.
 - GM (all under /game/{id}/gm/{gmToken}):
   - `GET  .../state` → `{settings, settingsVersion, started, phase,
-     seats: [{power, joined, finalized}], joinedCount, totalSeats,
+     seats: [{power, joined, locked}], joinedCount, totalSeats,
      gmPower (null until started; then the leftover power when gmPlays),
      inviteUrl, deadlineAt (RFC3339 or null), canForce: bool}`
      Seats carry NO device or identity info.
@@ -49,7 +49,7 @@ New game flow lives under /game/ (server) and new pages:
      leftover power to the GM seat when gmPlays; starts phase 1 and the
      deadline clock.
   - `POST .../adjudicate` → force adjudication; only when `canForce`
-     (deadline passed, or all-but-one finalized — D-007). Unfinalized
+     (deadline passed, or all-but-one locked — D-007). Unlocked
      seats resolve as NMR (units hold), event-logged.
   - `POST .../extend` `{minutes}` → push deadlineAt; event-logged.
 - Join:
@@ -63,7 +63,7 @@ New game flow lives under /game/ (server) and new pages:
    - `GET  .../state` → M0-shaped state BUT: `orders`/`orderParts` contain
       ONLY this seat's power's orders; adds `you: {power}`, `settings`,
       `settingsVersion`, `started`, `deadlineAt`,
-      `finalized: {power: bool}` (public), `phaseResolutions` (public,
+      `locked: {power: bool}` (public), `phaseResolutions` (public,
       previous phase, all powers — resolutions are public after
       adjudication). The GM's own power additionally gets
       `refereeUrl`, the GM view address: the switch from the board to
@@ -71,11 +71,14 @@ New game flow lives under /game/ (server) and new pages:
   - `GET  .../options?province=` → 403 unless the province's unit belongs
      to this seat's power. No nation query parameter accepted.
   - `POST .../order` → same body as M0; 403 for another power's unit.
-  - `POST .../finalize` and `POST .../unfinalize` → toggle; auto-
-     adjudicate the moment every power is finalized (D-008). After
-     adjudication all seats' finalized flags reset.
+  - `POST .../lock` and `POST .../unlock` → toggle; auto-
+     adjudicate the moment every power is locked (D-008). After
+     adjudication all seats' locked flags reset.
+     `finalize` and `unfinalize` still reach the same two handlers, for
+     phones that loaded the page before the 2026-08-30 rename. Delete
+     them once no such session can be open.
 - Public (no token): `GET /game/{id}/public` → `{phase, started,
-   joinedCount, totalSeats, finalized: {power: bool}, settingsVersion,
+   joinedCount, totalSeats, locked: {power: bool}, settingsVersion,
    deadlineAt}` — the polling target for join/GM/seat pages and the
    later spectator view.
 
@@ -99,13 +102,13 @@ public only after adjudication.
 - Join page: shows settings (the rules) before claiming; Claim button →
   redirect to seatUrl. Already-claimed device: straight to seat.
 - GM page: settings editor, invite link + QR, seat grid (power names with
-  joined/finalized badges), Start button (enabled when all joined),
+  joined/locked badges), Start button (enabled when all joined),
   deadline countdown, Extend and Force-adjudicate (enabled per canForce),
   gmPower reveal at start ("You are Austria"), event feed later.
 - Seat page: the existing board UI scoped to own power: only own units
   orderable, only own orders listed/drawn during the phase; after
   adjudication show all resolutions (public). Header: "You are Austria",
-  phase, deadline countdown, Finalize toggle + "N of 7 finalized",
+  phase, deadline countdown, Lock toggle + "N of 7 locked",
   "rules changed" banner on settingsVersion bump.
 - Poll /public every ~3s for liveness (SSE comes later per D-006).
 
@@ -197,7 +200,7 @@ No token. The JSON is
 - for an adjudicated phase, `orders`, `orderParts`, `powers`, `resolutions`
   and `nmr`. That is the position the phase was played from and everything
   that happened in it. All of it is public once the phase resolves.
-- for the current phase, `started`, `finalized`, `deadlineAt` and
+- for the current phase, `started`, `locked`, `deadlineAt` and
   `graceUntil`. Never a draft order, not even the caller's own. This
   endpoint has no token and cannot know who is asking.
 

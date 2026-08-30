@@ -20,7 +20,7 @@
 // is nothing here to leak.
 //
 // What the CURRENT phase shows is the board, the phase, the deadline and who
-// has finalized. Never an order, not even one's own: this endpoint has no
+// has locked. Never an order, not even one's own: this endpoint has no
 // token and cannot know who is asking, so it carries no draft orders at all.
 // That is the no-leak discipline, and it is why the two shapes are one type
 // with a flag rather than two functions that might drift apart.
@@ -119,13 +119,13 @@ type watchJSON struct {
 	// state a spectator link is most often opened in, and "3 of 7 joined"
 	// is the whole of what there is to watch then. It names nobody: the
 	// same two numbers the join page shows anyone with the invite.
-	JoinedCount    int             `json:"joinedCount"`
-	SeatsToFill    int             `json:"seatsToFill"`
-	FinalizedCount int             `json:"finalizedCount"`
-	TotalSeats     int             `json:"totalSeats"`
-	Finalized      map[string]bool `json:"finalized"`
-	DeadlineAt     interface{}     `json:"deadlineAt"`
-	GraceUntil     interface{}     `json:"graceUntil"`
+	JoinedCount int             `json:"joinedCount"`
+	SeatsToFill int             `json:"seatsToFill"`
+	LockedCount int             `json:"lockedCount"`
+	TotalSeats  int             `json:"totalSeats"`
+	Locked      map[string]bool `json:"locked"`
+	DeadlineAt  interface{}     `json:"deadlineAt"`
+	GraceUntil  interface{}     `json:"graceUntil"`
 
 	Variant       variantRefJSON    `json:"variant"`
 	ProvinceNames map[string]string `json:"provinceNames"`
@@ -157,7 +157,7 @@ func (self *game) watchState(id string, phaseIndex int) (watchJSON, bool) {
 
 	if phaseIndex == f.phaseIndex {
 		// The phase now being played: the board, the clock, and who has
-		// finalized. Nothing else exists here to show.
+		// locked. Nothing else exists here to show.
 		position := self.positionNow()
 		out.Current = true
 		out.Phase = position.phase
@@ -167,9 +167,9 @@ func (self *game) watchState(id string, phaseIndex int) (watchJSON, bool) {
 		out.Started = f.started
 		out.JoinedCount = f.joinedCount()
 		out.SeatsToFill = f.joinerSeats()
-		out.FinalizedCount = f.finalizedCount()
+		out.LockedCount = f.lockedCount()
 		out.TotalSeats = f.activeSeats()
-		out.Finalized = f.finalizedMap()
+		out.Locked = f.lockedMap()
 		out.DeadlineAt = rfc3339(f.deadlineAt)
 		out.GraceUntil = rfc3339(f.graceEndsAt())
 		return out, true

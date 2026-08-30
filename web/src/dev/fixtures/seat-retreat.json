@@ -7,7 +7,7 @@
             "type": "Fleet"
         }
     },
-    "finalized": {
+    "locked": {
         "Austria": false,
         "England": false,
         "France": false,
@@ -16,7 +16,7 @@
         "Russia": false,
         "Turkey": false
     },
-    "finalizedCount": 0,
+    "lockedCount": 0,
     "gameId": "jtq9tg9s52",
     "graceUntil": "2026-08-29T08:26:52Z",
     "joinedCount": 7,
@@ -1348,5 +1348,5 @@
     "you": {
         "power": "Austria"
     },
-    "youFinalized": false
+    "youLocked": false
 }

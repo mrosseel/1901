@@ -3,7 +3,7 @@
     "current": false,
     "deadlineAt": null,
     "dislodged": {},
-    "finalized": null,
+    "locked": null,
     "gameId": "jtq9tg9s52",
     "graceUntil": null,
     "nmr": [

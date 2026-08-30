@@ -123,8 +123,8 @@ export interface WatchState extends VariantAware {
   resolutions?: Record<string, string>;
   /** Powers that gave no orders in this phase. */
   nmr?: string[];
-  finalized?: Record<string, boolean>;
-  finalizedCount?: number;
+  locked?: Record<string, boolean>;
+  lockedCount?: number;
   totalSeats?: number;
   /** Seats filled, and how many the invite still may hand out. Counts only. */
   joinedCount?: number;
@@ -140,7 +140,7 @@ export interface CreatedGame {
 export interface GmSeat {
   power: string;
   joined: boolean;
-  finalized: boolean;
+  locked: boolean;
   isGm?: boolean;
 }
 
@@ -168,7 +168,7 @@ export interface PublicState extends VariantAware {
   started: boolean;
   joinedCount: number;
   totalSeats: number;
-  finalized: Record<string, boolean>;
+  locked: Record<string, boolean>;
   settings: Settings;
   settingsVersion: number;
   deadlineAt: string | null;
@@ -180,15 +180,15 @@ export interface SeatState extends BoardState, VariantAware {
   settingsVersion: number;
   started: boolean;
   deadlineAt: string | null;
-  finalized: Record<string, boolean>;
-  youFinalized: boolean;
+  locked: Record<string, boolean>;
+  youLocked: boolean;
   /**
-   * This seat was finalized by the server because its power has no legal
+   * This seat was locked by the server because its power has no legal
    * order this phase. The seat cannot be unlocked while it is set.
    */
   nothingToOrder?: boolean;
-  finalizedCount: number;
-  /** Powers that must finalize before the phase resolves. */
+  lockedCount: number;
+  /** Powers that must lock before the phase resolves. */
   totalSeats: number;
   /** Powers the invite has handed out so far. */
   joinedCount: number;
@@ -449,7 +449,7 @@ export class SeatClient {
     return postJSON<SeatState>(this.base + "order", { province: province, parts: parts });
   }
 
-  finalize(on: boolean): Promise<SeatState> {
-    return postJSON<SeatState>(this.base + (on ? "finalize" : "unfinalize"));
+  lock(on: boolean): Promise<SeatState> {
+    return postJSON<SeatState>(this.base + (on ? "lock" : "unlock"));
   }
 }

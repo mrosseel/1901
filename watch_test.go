@@ -32,7 +32,7 @@ func watchTestGame(t *testing.T) *game {
 func TestWatchShowsAResolvedPhaseWholeAndTheCurrentOneBare(t *testing.T) {
 	g := watchTestGame(t)
 
-	// Spring 1901: two real orders, and one power that never finalizes.
+	// Spring 1901: two real orders, and one power that never locks.
 	if err := g.setOrder(godip.Province("bud"), []string{"Move", "ser"}); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestWatchShowsAResolvedPhaseWholeAndTheCurrentOneBare(t *testing.T) {
 		if power == "Austria" {
 			continue // the NMR
 		}
-		g.flow.seats[power].finalized = true
+		g.flow.seats[power].locked = true
 	}
 	if err := g.adjudicate("game", true); err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestWatchShowsAResolvedPhaseWholeAndTheCurrentOneBare(t *testing.T) {
 	// On to a movement phase, where an ordinary unit has an order to give.
 	for g.state.Phase().Type() != godip.Movement {
 		for _, power := range g.flow.powers {
-			g.flow.seats[power].finalized = true
+			g.flow.seats[power].locked = true
 		}
 		if err := g.adjudicate("game", false); err != nil {
 			t.Fatal(err)
@@ -111,8 +111,8 @@ func TestWatchShowsAResolvedPhaseWholeAndTheCurrentOneBare(t *testing.T) {
 	if len(now.Units) == 0 || len(now.SupplyCenters) == 0 {
 		t.Error("the current phase must still show the board")
 	}
-	if now.Finalized == nil {
-		t.Error("the current phase must show who has finalized")
+	if now.Locked == nil {
+		t.Error("the current phase must show who has locked")
 	}
 	if now.PhaseCount != g.flow.phaseIndex+1 {
 		t.Errorf("phaseCount %v, want %v", now.PhaseCount, g.flow.phaseIndex+1)

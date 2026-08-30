@@ -94,9 +94,9 @@ func TestIllegalOrderIsKeptAndStruck(t *testing.T) {
 		t.Errorf("England was told which provinces Austria misordered: %v", got)
 	}
 
-	// Adjudicate with everybody finalized, so the NMR list stays empty.
+	// Adjudicate with everybody locked, so the NMR list stays empty.
 	for _, power := range g.flow.powers {
-		g.flow.seats[power].finalized = true
+		g.flow.seats[power].locked = true
 	}
 	if err := g.adjudicate(id, true); err != nil {
 		t.Fatal(err)
@@ -176,7 +176,7 @@ func TestIllegalOrderSurvivesARestart(t *testing.T) {
 
 	// Adjudicating after the restart must produce the same review.
 	for _, power := range restored.flow.powers {
-		restored.flow.seats[power].finalized = true
+		restored.flow.seats[power].locked = true
 	}
 	if err := restored.adjudicate(id, true); err != nil {
 		t.Fatal(err)

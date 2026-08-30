@@ -35,21 +35,31 @@ plus retreat and build orders). "Move" names only the order type, never
 the collection.
 _Avoid_: move (as the generic word), command
 
-**Finalize**:
-The player-facing act of locking in this phase's orders. UI word only:
-"Finalize orders", "England has finalized". Re-finalizing before the
-reveal replaces the earlier commit (D-011).
+**Lock**:
+The act of declaring this phase's orders done. One word front and back:
+the button says "Lock in my orders", the seat list says "Locked in", the
+JSON field is `locked`, the route is `POST .../lock`, the column is
+`seat.locked`.
+
+Locking again before the reveal replaces the earlier commit (D-011), and
+that is why the word is Lock and not Finalize. Nothing is final here. The
+button's own subtitle says the orders can still change, and a lock is a
+thing you can open again.
+
+The word was Finalize until 2026-08-30. Old commits, `D-008`, `D-011`,
+`D-034` and the rest of DESIGN.md still say it, and they were true when
+they were written. Read "finalize" there as "lock".
 _Avoid_: submit (banned — ambiguous between draft, commit, and reveal),
-lock in, ready up
+finalize, ready up
 
 **Commit**:
-The mechanism behind Finalize: the hash of `orders || nonce` the client
+The mechanism behind Lock: the hash of `orders || nonce` the client
 sends, stored server-side (D-004). Backstage term — code, docs, protocol,
 `commit` table.
 
 **Reveal**:
 The client releasing the actual `orders || nonce` for verification once
-every power has finalized or the GM forces resolution. Backstage term.
+every power has locked or the GM forces resolution. Backstage term.
 
 ### Views
 
@@ -91,7 +101,7 @@ The per-order outcome of an adjudication (`OK`, `ErrBounce:tri`).
 > Austria.
 > **Dev:** And what does the new device's screen say?
 > **Domain expert:** "You are Austria." Never "your seat" or "your nation".
-> **Dev:** England taps Finalize but their phone dies before the reveal.
+> **Dev:** England locks in but their phone dies before the reveal.
 > **Domain expert:** Their commit is on the server, their orders are not.
 > The GM waits, extends, or forces adjudication — then England is an NMR:
 > no orders, units hold, one line in the event log.

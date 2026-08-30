@@ -98,7 +98,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       is put on screen.
       */
       setProvinceNames(next.provinceNames);
-      setPowerPalette(Object.keys(next.finalized || {}));
+      setPowerPalette(Object.keys(next.locked || {}));
       // Every countdown on this page is measured against the server's clock,
       // never this device's.
       noteServerTime(next.now);
@@ -138,7 +138,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         summary.joinedCount,
         summary.settingsVersion,
         summary.phase,
-        summary.finalized,
+        summary.locked,
         summary.deadlineAt,
       ]);
       if (mark === fingerprint.current) return;
@@ -275,20 +275,20 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     setState((current) => (current ? ({ ...current, ...next } as SeatState) : (next as SeatState)));
   }, []);
 
-  const toggleFinalize = async () => {
+  const toggleLock = async () => {
     if (!state) return;
-    const wanted = !state.youFinalized;
+    const wanted = !state.youLocked;
     try {
-      const next = await client.finalize(wanted);
+      const next = await client.lock(wanted);
       setState(next);
       /*
-      Finalizing last resolves the phase at once (D-008), and that clears every
-      flag — so a false flag after asking to finalize means "it adjudicated",
+      Locking last resolves the phase at once (D-008), and that clears every
+      flag — so a false flag after asking to lock means "it adjudicated",
       not "it did not take".
       */
-      if (wanted && !next.youFinalized) {
+      if (wanted && !next.youLocked) {
         setStatus("Every power locked in. The phase was adjudicated.");
-      } else if (next.youFinalized) {
+      } else if (next.youLocked) {
         setStatus("Orders locked in. You can still change them until the phase resolves.");
       } else {
         setStatus("Orders unlocked. Lock them in again before the deadline.");
@@ -452,22 +452,22 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         ) : null}
 
         {state?.started && state.nothingToOrder ? (
-          <section className="finalize">
+          <section className="lock">
             {/*
             No button, because there is no choice being declined: the phase
             asks this power for nothing, and the table is already past it.
             */}
             <div className="lock-btn locked auto">
               <span className="lock-main">
-                Nothing to order — {state.finalizedCount} of {state.totalSeats} players in
+                Nothing to order — {state.lockedCount} of {state.totalSeats} players in
               </span>
               <span className="lock-sub">
-                {power} has no order to give this phase, so this seat is finalized for you.
+                {power} has no order to give this phase, so this seat is locked for you.
               </span>
             </div>
           </section>
         ) : state?.started ? (
-          <section className="finalize">
+          <section className="lock">
             {/*
             The one control on this page that commits this power to the phase.
             It is the loudest thing in the panel on purpose: a first-time
@@ -475,14 +475,14 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             */}
             <button
               type="button"
-              className={state.youFinalized ? "lock-btn locked" : "lock-btn"}
-              aria-pressed={state.youFinalized}
-              onClick={toggleFinalize}
+              className={state.youLocked ? "lock-btn locked" : "lock-btn"}
+              aria-pressed={state.youLocked}
+              onClick={toggleLock}
             >
               <span className="lock-main">
-                {state.youFinalized
+                {state.youLocked
                   ? "Orders locked — " +
-                    state.finalizedCount +
+                    state.lockedCount +
                     " of " +
                     state.totalSeats +
                     " players in"
@@ -491,14 +491,14 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
                     : "Lock in my orders"}
               </span>
               <span className="lock-sub">
-                {state.youFinalized
-                  ? "Tap to unlock · finalized"
-                  : "Finalize this phase · you can still change them"}
+                {state.youLocked
+                  ? "Tap to unlock · locked in"
+                  : "Lock this phase · you can still change them"}
               </span>
             </button>
-            {state.youFinalized ? null : (
+            {state.youLocked ? null : (
               <p className="muted">
-                {state.finalizedCount} of {state.totalSeats} players locked in
+                {state.lockedCount} of {state.totalSeats} players locked in
               </p>
             )}
           </section>

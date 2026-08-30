@@ -1015,43 +1015,43 @@
     },
     "seats": [
         {
-            "finalized": false,
+            "locked": false,
             "isGm": false,
             "joined": true,
             "power": "Austria"
         },
         {
-            "finalized": false,
+            "locked": false,
             "isGm": false,
             "joined": true,
             "power": "England"
         },
         {
-            "finalized": false,
+            "locked": false,
             "isGm": false,
             "joined": true,
             "power": "France"
         },
         {
-            "finalized": false,
+            "locked": false,
             "isGm": false,
             "joined": true,
             "power": "Germany"
         },
         {
-            "finalized": false,
+            "locked": false,
             "isGm": false,
             "joined": true,
             "power": "Italy"
         },
         {
-            "finalized": false,
+            "locked": false,
             "isGm": false,
             "joined": true,
             "power": "Russia"
         },
         {
-            "finalized": false,
+            "locked": false,
             "isGm": false,
             "joined": true,
             "power": "Turkey"

@@ -17,7 +17,7 @@ import { dismiss, isDismissed, reviewKey, reviewPlan } from "../review";
 
 /*
 The game master's screen: the rules, the invite, who has joined, who has
-finalized, and the two gated actions — start, and force adjudication. It holds
+locked, and the two gated actions — start, and force adjudication. It holds
 no orders and never can: the GM state carries booleans only.
 
 Before the start it is the waiting room. The joined count is the largest thing
@@ -113,7 +113,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
     );
   }
 
-  const finalizedCount = game.seats.filter((seat) => seat.finalized).length;
+  const lockedCount = game.seats.filter((seat) => seat.locked).length;
   const allJoined = game.joinedCount >= game.totalSeats;
 
   // The review and the guide are read, not acted on. While one is open the
@@ -224,8 +224,8 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
                 {seat.joined ? "Joined" : "Waiting"}
               </span>
               {game.started ? (
-                <span className={seat.finalized ? "badge done" : "badge out"}>
-                  {seat.finalized ? "Locked in" : "Still ordering"}
+                <span className={seat.locked ? "badge done" : "badge out"}>
+                  {seat.locked ? "Locked in" : "Still ordering"}
                 </span>
               ) : null}
             </li>
@@ -236,7 +236,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         {game.started ? (
           <p className="muted">
             {game.seats.filter((seat) => seat.joined).length} powers in play ·{" "}
-            {finalizedCount} players locked in
+            {lockedCount} players locked in
           </p>
         ) : null}
       </section>

@@ -15,6 +15,11 @@ have answered, and nothing else in the file is touched. `joinedCount` and
 `seatsOnOffer` arrived that way — every game behind these captures had all its
 powers claimed, so both are the power count.
 
+A rename is migrated the same way. On 2026-08-30 `finalized`, `youFinalized`
+and `finalizedCount` became `locked`, `youLocked` and `lockedCount`, and the
+event lines these captures carry were rewritten to the words the server now
+writes. No value changed.
+
 ## The game behind them
 
 Seven players, no game master seat, a 30-minute deadline, the classical
@@ -42,11 +47,11 @@ variant.
 | `seat-not-started.json` | France, all seven claimed, the game master has not started it |
 | `seat-waiting-partial.json` | Austria, four of seven claimed — a table still filling up. Its own game: the one above cannot be half-claimed and full at the same time |
 | `seat-movement.json` | France mid-Spring-1901, three drafted orders drawn on the map |
-| `seat-locked.json` | England with its orders finalized |
+| `seat-locked.json` | England with its orders locked |
 | `seat-retreat.json` | Austria in the Fall 1901 retreat, its Trieste fleet dislodged. Its `previousPhase` is the Fall 1901 movement — the bounce, the dislodge and the NMR in one review |
 | `seat-adjustment-build.json` | France owing two builds, Brest and Marseilles open |
 | `seat-adjustment-disband.json` | Austria owing one disband |
-| `seat-idle.json` | Germany in the Spring 1901 retreat, asked for nothing and finalized by the server (D-034) |
+| `seat-idle.json` | Germany in the Spring 1901 retreat, asked for nothing and locked by the server (D-034) |
 
 ### Option trees — `Record<string, OptionTree>`
 
@@ -101,7 +106,7 @@ fails the test run rather than the gallery.
 
 ## What the gallery does not do
 
-The stub answers writes with the state as captured: an order, a finalize or a
+The stub answers writes with the state as captured: an order, a lock or a
 forced adjudication comes back unchanged. The gallery is for looking at states,
 not for playing one. Maps are the exception — they are fetched from the real
 server, so the map style control shows real art.

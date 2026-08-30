@@ -3,7 +3,7 @@
  "current": true,
  "deadlineAt": null,
  "dislodged": {},
- "finalized": {
+ "locked": {
   "Austria": false,
   "England": false,
   "France": false,
@@ -12,7 +12,7 @@
   "Russia": false,
   "Turkey": false
  },
- "finalizedCount": 0,
+ "lockedCount": 0,
  "gameId": "7j8pnc3iam",
  "graceUntil": null,
  "illegal": null,

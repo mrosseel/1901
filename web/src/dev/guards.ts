@@ -117,15 +117,15 @@ export function isSeatState(value: unknown): value is SeatState {
       isSettings(state.settings) &&
       isNumber(state.settingsVersion) &&
       isBool(state.started) &&
-      isBool(state.youFinalized) &&
+      isBool(state.youLocked) &&
       optional(state.nothingToOrder, isBool) &&
       isBool(state.canForce) &&
-      isNumber(state.finalizedCount) &&
+      isNumber(state.lockedCount) &&
       isNumber(state.totalSeats) &&
       isNumber(state.joinedCount) &&
       isNumber(state.seatsOnOffer) &&
       optional(state.deadlineAt, isString) &&
-      mapOf(state.finalized, isBool) &&
+      mapOf(state.locked, isBool) &&
       mapOf(state.phaseResolutions, isString) &&
       optional(state.refereeUrl, isString),
   );
@@ -138,7 +138,7 @@ export function isGmState(value: unknown): value is GmState {
   const seatOk = (one: unknown) => {
     const seat = bag(one);
     return Boolean(
-      seat && isString(seat.power) && isBool(seat.joined) && isBool(seat.finalized) &&
+      seat && isString(seat.power) && isBool(seat.joined) && isBool(seat.locked) &&
         optional(seat.isGm, isBool),
     );
   };
@@ -176,8 +176,8 @@ export function isWatchState(value: unknown): value is WatchState {
       mapOf(state.powers, isString) &&
       mapOf(state.resolutions, isString) &&
       optional(state.nmr, isStrings) &&
-      mapOf(state.finalized, isBool) &&
-      optional(state.finalizedCount, isNumber) &&
+      mapOf(state.locked, isBool) &&
+      optional(state.lockedCount, isNumber) &&
       optional(state.totalSeats, isNumber) &&
       optional(state.deadlineAt, isString),
   );
@@ -192,7 +192,7 @@ export function isPublicState(value: unknown): value is PublicState {
       isBool(state.started) &&
       isNumber(state.joinedCount) &&
       isNumber(state.totalSeats) &&
-      mapOf(state.finalized, isBool) &&
+      mapOf(state.locked, isBool) &&
       isSettings(state.settings) &&
       isNumber(state.settingsVersion),
   );
