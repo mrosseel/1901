@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, GmClient, type GmState } from "../api";
+import { ApiError, GmClient, watchPath, type GmState } from "../api";
 import { LinkShare } from "../components/LinkShare";
 import { powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
@@ -19,6 +19,12 @@ import { dismiss, isDismissed, reviewKey, reviewPlan } from "../review";
 The game master's screen: the rules, the invite, who has joined, who has
 finalized, and the two gated actions — start, and force adjudication. It holds
 no orders and never can: the GM state carries booleans only.
+
+Before the start it is the waiting room. The joined count is the largest thing
+on it, because that is what a game master watches across a table while the
+phones come in, and the invite stands open beside it with its QR, because
+filling the seats is then the whole job. The count is live: the poll below runs
+on arrival and every three seconds after it.
 */
 export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string }) {
   const client = useMemo(() => new GmClient(gameId, gmToken), [gameId, gmToken]);
@@ -114,6 +120,8 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   // controls behind it — the start, the extend, the forced adjudication — are
   // inert, so the only button on screen is the one that closes what is open.
   const reading = (refereeing && Boolean(guide)) || (reviewing && Boolean(review));
+  const inviteUrl = new URL(game.inviteUrl, location.href).toString();
+  const spectatorUrl = new URL(watchPath(gameId, null), location.origin).toString();
 
   return (
     <>
@@ -147,6 +155,21 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         ) : null}
       </header>
 
+      {/*
+      The screen for the rest of the room. This page names who holds which
+      power, so it is the game master's alone; the spectator view is the same
+      board with no seats in it and no token of any kind (D-013), which is
+      what may go on a shared screen.
+      */}
+      <p className="head-links">
+        <a className="link" href={spectatorUrl} target="_blank" rel="noreferrer">
+          Open the spectator view
+        </a>
+        <span className="note">
+          The board alone, for a shared screen. It names no player and gives no orders.
+        </span>
+      </p>
+
       {error ? <p className="error">{error}</p> : null}
       {notice ? <p className="notice">{notice}</p> : null}
 
@@ -161,6 +184,32 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
             </button>
           ) : null}
         </p>
+      ) : null}
+
+      {/*
+      The waiting room. The count is the headline, in the size a table reads
+      it at, and the invite sits under it with its QR: before the start there
+      is nothing else on this screen worth as much room.
+      */}
+      {!game.started ? (
+        <section className="card lobby">
+          <p className="joined-big">
+            <strong>{game.joinedCount}</strong> of {game.totalSeats} players joined
+          </p>
+          <button
+            type="button"
+            className="primary"
+            disabled={!allJoined}
+            onClick={() => act("The game has started.", () => client.start())}
+          >
+            {allJoined ? "Start the game" : "Waiting for every power"}
+          </button>
+          <LinkShare
+            title="Invite link"
+            url={inviteUrl}
+            note="Pass the phone around, or let the players scan this. Each one gets a power."
+          />
+        </section>
       ) : null}
 
       <section className="card">
@@ -182,42 +231,32 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
             </li>
           ))}
         </ul>
-        {/* Before the start the count that matters is the one the invite
-            fills; after it, every power in play, the GM's included. */}
-        <p className="muted">
-          {game.started
-            ? game.seats.filter((seat) => seat.joined).length +
-              " powers in play · " +
-              finalizedCount +
-              " players locked in"
-            : game.joinedCount + " of " + game.totalSeats + " joined"}
-        </p>
-        {!game.started ? (
-          <button
-            type="button"
-            className="primary"
-            disabled={!allJoined}
-            onClick={() => act("The game has started.", () => client.start())}
-          >
-            {allJoined ? "Start the game" : "Waiting for every power"}
-          </button>
+        {/* Before the start the count is the headline above; here only the
+            running game needs a line, and it counts every power in play. */}
+        {game.started ? (
+          <p className="muted">
+            {game.seats.filter((seat) => seat.joined).length} powers in play ·{" "}
+            {finalizedCount} players locked in
+          </p>
         ) : null}
       </section>
 
       {/*
-      The invite, folded away once the game runs. It is needed exactly when
-      someone has left their seat page: opened again on their own phone, the
-      join hands them their own power back. Before the start it stands open,
-      because filling the seats is then the whole job.
+      The invite, folded away once the game runs — before the start it is open
+      in the waiting room above. It is needed again exactly when someone has
+      left their seat page: opened on their own phone, the join hands them
+      their own power back.
       */}
-      <details className="card" open={!game.started}>
-        <summary>Invite link and QR code</summary>
-        <LinkShare
-          title="Invite link"
-          url={new URL(game.inviteUrl, location.href).toString()}
-          note="A player who opens this on their own phone lands back on their power. On a new device it takes the next free one."
-        />
-      </details>
+      {game.started ? (
+        <details className="card">
+          <summary>Invite link and QR code</summary>
+          <LinkShare
+            title="Invite link"
+            url={inviteUrl}
+            note="A player who opens this on their own phone lands back on their power. On a new device it takes the next free one."
+          />
+        </details>
+      ) : null}
 
       <SettingsCard
         settings={game.settings}

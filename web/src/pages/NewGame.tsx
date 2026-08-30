@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { createGame, fetchVariants, type CreatedGame } from "../api";
-import { LinkShare } from "../components/LinkShare";
+import { createGame, fetchVariants, refereePath } from "../api";
 import { VariantGallery } from "../components/VariantGallery";
 import { useMapStyle } from "../components/StylePicker";
 import {
@@ -12,10 +11,16 @@ import {
 } from "../variants";
 
 /*
-The first screen: the GM picks the map, sets the rules, and gets back the
-one link the table needs. The GM secret never appears here: creating marks
-this browser as the game master's, and the referee view opens from the
-cookie, so there is nothing on this screen for a player to read.
+The first screen: the GM picks the map, sets the rules, and is handed
+straight to the game master page, which is the waiting room the table fills
+up. The GM secret never appears here: creating marks this browser as the
+game master's, and the referee entry redirects from the cookie, so there is
+nothing on this screen for a player to read.
+
+The hand-off is location.replace, not a push. A created game has an address
+of its own, and this form is not a place to come back to: pressing back from
+the game master page must not land on a blank New game form while a game is
+running. Replace leaves the game list behind the game master page instead.
 
 The gallery is the page's weight, so it is fetched as metadata only and the
 maps are left to the cards (see VariantGallery). A server that does not answer
@@ -30,7 +35,6 @@ export function NewGame() {
   const [illegalMoves, setIllegalMoves] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [game, setGame] = useState<CreatedGame | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [chosen, setChosen] = useState(DEFAULT_VARIANT);
   const [style, setStyle] = useMapStyle();
@@ -68,44 +72,14 @@ export function NewGame() {
         illegalMoves: illegalMoves,
         variant: chosen,
       });
-      setGame(created);
+      // The cookie the create set is the credential; the entry redirects
+      // this browser on to the game master page and its own address.
+      location.replace(new URL(refereePath(created.gameId), location.origin).toString());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-    } finally {
       setBusy(false);
     }
   };
-
-  if (game) {
-    const inviteUrl = new URL(game.inviteUrl, location.href).toString();
-    const refereeUrl = new URL("/game/" + game.gameId + "/referee/", location.origin).toString();
-    return (
-      <main className="page">
-        <h1>The game is ready</h1>
-        <p className="lead">
-          Game {game.gameId}
-          {picked ? " · " + picked.name : ""}.
-        </p>
-
-        <LinkShare
-          title="Invite link"
-          url={inviteUrl}
-          note="Pass the phone around, or let the players scan this. Each one gets a power."
-        />
-
-        <p>
-          <a className="cta" href={refereeUrl}>
-            Open the game master view
-          </a>
-        </p>
-        <p className="muted">
-          This browser is the game master's now. The controls open here, and from
-          your board there is a switch back. Bookmark the game list, it links the
-          referee view for you.
-        </p>
-      </main>
-    );
-  }
 
   return (
     <main className="page gallery">

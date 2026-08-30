@@ -114,10 +114,18 @@ type watchJSON struct {
 	NMR     []string `json:"nmr"`
 
 	// Set on the phase being played. No order of any kind appears here.
-	Started    bool            `json:"started"`
-	Finalized  map[string]bool `json:"finalized"`
-	DeadlineAt interface{}     `json:"deadlineAt"`
-	GraceUntil interface{}     `json:"graceUntil"`
+	Started bool `json:"started"`
+	// The seats, as counts only. A game that has not started yet is the
+	// state a spectator link is most often opened in, and "3 of 7 joined"
+	// is the whole of what there is to watch then. It names nobody: the
+	// same two numbers the join page shows anyone with the invite.
+	JoinedCount    int             `json:"joinedCount"`
+	SeatsToFill    int             `json:"seatsToFill"`
+	FinalizedCount int             `json:"finalizedCount"`
+	TotalSeats     int             `json:"totalSeats"`
+	Finalized      map[string]bool `json:"finalized"`
+	DeadlineAt     interface{}     `json:"deadlineAt"`
+	GraceUntil     interface{}     `json:"graceUntil"`
 
 	Variant       variantRefJSON    `json:"variant"`
 	ProvinceNames map[string]string `json:"provinceNames"`
@@ -157,6 +165,10 @@ func (self *game) watchState(id string, phaseIndex int) (watchJSON, bool) {
 		out.Dislodged = position.dislodged
 		out.SupplyCenters = position.supplyCenters
 		out.Started = f.started
+		out.JoinedCount = f.joinedCount()
+		out.SeatsToFill = f.joinerSeats()
+		out.FinalizedCount = f.finalizedCount()
+		out.TotalSeats = f.activeSeats()
 		out.Finalized = f.finalizedMap()
 		out.DeadlineAt = rfc3339(f.deadlineAt)
 		out.GraceUntil = rfc3339(f.graceEndsAt())

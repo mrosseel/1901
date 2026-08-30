@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchGames, type GameSummary } from "../api";
+import { fetchGames, refereePath, watchPath, type GameSummary } from "../api";
 import { phaseLabel } from "../board/provinces";
 import { usePoll } from "../hooks";
 import { SupportedMark } from "../components/SupportedMark";
@@ -93,11 +93,11 @@ function GameRow({ game }: { game: GameSummary }) {
         </span>
       </div>
       <span className="row-actions">
-        <a className="link" href={"/watch/" + game.gameId + "/"}>
+        <a className="link" href={watchPath(game.gameId, null)}>
           Watch
         </a>
         {game.referee ? (
-          <a className="link" href={"/game/" + game.gameId + "/referee/"}>
+          <a className="link" href={refereePath(game.gameId)}>
             Game master view
           </a>
         ) : null}

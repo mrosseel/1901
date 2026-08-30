@@ -119,6 +119,38 @@ func TestWatchShowsAResolvedPhaseWholeAndTheCurrentOneBare(t *testing.T) {
 	}
 }
 
+// A spectator link is most often opened before the game runs, so the answer
+// has to say so and carry the count the table is watching — and nothing more.
+func TestWatchCountsTheSeatsBeforeTheGameStarts(t *testing.T) {
+	g := watchTestGame(t)
+	g.flow.started = false
+	joined := 0
+	for i, power := range g.flow.powers {
+		if i < 2 {
+			joined++
+			continue
+		}
+		s := g.flow.seats[power]
+		delete(g.flow.bySeatToken, s.token)
+		s.token = ""
+	}
+
+	now, found := g.watchState("game", 0)
+	if !found {
+		t.Fatal("the phase being played is not watchable")
+	}
+	if now.Started {
+		t.Error("started must be false before the game runs")
+	}
+	if now.JoinedCount != joined || now.SeatsToFill != g.flow.joinerSeats() {
+		t.Errorf("joined %v of %v, want %v of %v",
+			now.JoinedCount, now.SeatsToFill, joined, g.flow.joinerSeats())
+	}
+	if len(now.Orders) != 0 || len(now.Powers) != 0 {
+		t.Error("the phase being played must carry no orders")
+	}
+}
+
 func TestWatchRefusesAPhaseThatHasNotHappened(t *testing.T) {
 	g := watchTestGame(t)
 	for _, index := range []int{-1, 1, 99} {

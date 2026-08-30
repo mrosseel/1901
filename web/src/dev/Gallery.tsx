@@ -93,6 +93,7 @@ function gmEntry(state: string, title: string, note: string, fixture: string): E
 
 function buildCatalogue(): Entry[] {
   const live = fx.watch("watch-live");
+  const waiting = fx.watch("watch-prestart");
   const phases = watchPhases();
   const retreat = fx.seat("seat-retreat");
   const guide = refereeGuide(retreat.previousPhase);
@@ -209,6 +210,14 @@ function buildCatalogue(): Entry[] {
       "After Fall 1901, with the event log filled in.",
       "gm-adjustment",
     ),
+    {
+      screen: "watch",
+      state: "waiting",
+      title: "Waiting to start",
+      note: "The spectator link opened before the game runs: the joined count and the opening position.",
+      scenario: { variantKey: VARIANT, watch: waiting, phases: {} },
+      render: () => <WatchPage gameId={waiting.gameId} phaseIndex={null} />,
+    },
     {
       screen: "watch",
       state: "live",
