@@ -76,6 +76,13 @@ possible move arrow, a highlight), as in chess commentary. Never touches
 game state and is never an Order.
 _Avoid_: suggestion, ghost order
 
+**Sandbox**:
+A game with no seats (D-047). One person holds the link, orders every
+power, adjudicates, and may edit the position. Public to read at the
+same addresses as any other game. Game-facing word, kept because the
+community already says "sandbox link" and means this.
+_Avoid_: scratch game, practice game, private board
+
 ### Outcomes
 
 **NMR**:

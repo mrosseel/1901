@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r45 — 2026-08-30
+**Document revision:** r49 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1587,6 +1587,282 @@ This is also why the epoch belongs on the command path rather than on the
 orders. There is no draft living on a device to rescue or discard: a device
 holds a token, and the orders are already here.
 
+### D-048 — A key the game master holds, and twelve words to recover it
+**Status:** accepted, r49 (owner decision, closes Q-009). Extends D-004, D-041.
+Built for the game master, with alternative 1 built beside it.
+
+Today the game master role is a URL and a cookie. Both live on one device and
+neither can be recovered: the create response carries no secret on purpose
+(D-041), the referee door answers only the browser that made the game, and a
+lost cookie plus a lost bookmark is a game nobody can run any more. The
+handover link is not the answer either. It is single use, so a copy kept as a
+backup dies the moment anyone redeems it, and minting one needs the role you
+have already lost.
+
+The second problem is larger and is the reason this is worth more than a
+recovery code. D-004's commit-reveal hides orders from other players. It does
+not hide them from whoever runs the server, and a game master who also plays
+is a player with the box in their lap. The design says that is what
+commit-reveal is for; the mechanism as written still asks the table to trust
+the process rather than letting them check it.
+
+**The proposal.** The game master holds a keypair. The browser makes it at
+creation, the server is given the public half and never sees the private one,
+and the private half is written down as twelve words from a standard wordlist.
+The role stops being a link somebody has and becomes a key somebody holds.
+
+- **Recovery is typing.** Any device, any time: enter the words, derive the
+  key, sign what the server asks, get a fresh token. No cookie, no bookmark,
+  no expiry.
+- **The URL becomes a convenience.** It still works and is still the fast
+  path. It is no longer the only copy of the role.
+- **Handover keeps its shape (D-041).** The epoch and the one-use link stay.
+  What changes is that the incoming game master arrives with their own key
+  rather than inheriting a token, and the outgoing one signs the change, so
+  the record says who handed it over and not merely that it happened.
+
+**What it buys for full press.** D-023 leaves a full-press mode open. Press
+without keys means the server can read every message and could write one, and
+"the app does not show your messages to the game master" is a promise about
+the screens rather than a fact about the system. With a key per player:
+
+- A message carries a signature. A game master cannot forge one from another
+  player, and a player cannot disown one they sent. At a table where the whole
+  game is lying to each other, the one thing that must not be forgeable is who
+  said it.
+- Commit-reveal becomes checkable. The commit is signed by a key the server
+  never held, so anybody can verify after the phase that the orders revealed
+  are the orders committed, including against a game master who plays.
+
+That is the case for doing this properly rather than shipping a recovery code:
+the recovery is the small half, and the signature is the half that changes
+what the app can honestly claim.
+
+**What it costs.**
+
+- **It adds the one thing this app does not have: something to keep.** D-012
+  and D-020 sell no accounts, no names, no passwords, and a seat you get by
+  scanning a code. Twelve words is a credential with all the failure modes of
+  a password and some of its own — mistyped, photographed, left on the table,
+  screenshotted into a phone gallery. Any version of this that reaches the
+  players trades away the promise the project is built on.
+- **So the first version is the game master only.** One person per game, the
+  person who already carries the game, and the person for whom being locked
+  out is fatal rather than annoying. A player's seat stays a link and a
+  handover, unchanged.
+- **Twelve words at a tournament is friction** in exactly the minutes that are
+  most crowded. It has to be skippable: make the key, show the words once,
+  and let the game master carry on without writing them down if they choose.
+- **Browser crypto is not free.** Ed25519 is not in every WebCrypto
+  implementation, which means either P-256 or a small vendored library, and
+  the offline requirement rules out fetching one. A wordlist is 2048 entries
+  of dictionary that ships in the bundle.
+- **The words are for recovery, not for every visit.** Something still has to
+  hold the key between page loads, which is the same storage question the
+  cookie already answers, with a worse answer available (a private key in
+  localStorage) if it is done carelessly.
+
+**Alternatives, cheapest first.**
+
+1. **Show the game master link on the game master page**, guarded like every
+   other secret there. Photograph it once and any device is a key. Solves the
+   lockout, costs an afternoon, buys nothing cryptographic. This should be
+   done whatever is decided here.
+2. **A one-time recovery code**, shown at creation and stored hashed. Solves
+   the lockout for somebody who kept it, and is a password by another name.
+3. **This entry, game master only.** Solves the lockout properly and lays the
+   foundation the press mode needs.
+4. **Keys for every seat.** Solves the most and costs D-020.
+
+**Recommendation.** Take 1 now regardless. Take this only if full press is
+actually on the road: the seed phrase earns its keep where signatures do, and
+as a recovery mechanism alone it is a heavy answer to a light question.
+
+**Answered at r49, as built.**
+
+- **Ed25519**, from a vendored library rather than WebCrypto, and SHA-512 is
+  handed to it explicitly. `crypto.subtle` needs a secure context and run.sh
+  serves plain http on a LAN, so nothing here may depend on it.
+  `crypto.getRandomValues` carries no such rule and is the one platform call
+  the browser half makes.
+- **The words are HKDF-SHA256 of the entropy under a named salt**, not BIP-39's
+  own PBKDF2 seed. There is no wallet on the other end, no passphrase, and 128
+  bits of real entropy needs no stretching. The salt is what stops the key
+  being reused anywhere else.
+- **On demand, never at creation.** The card sits on the game master's own
+  screen, folded and guarded like every other secret there, and the words are
+  drawn on a button press. A game master who never opens it plays the game
+  they always played, with no way back.
+- **The server stores nothing when it is declined.** No key means no recovery
+  and the page says so.
+- **A recovery rotates.** Fresh token, referee cookie dropped, role epoch past
+  every link minted under the old one — exactly what a role handover does.
+  Two game masters is a worse failure than one locked out.
+- **Write-once.** A second, different key is refused. The token is not the
+  credential the key protects: somebody holding a stolen token already has the
+  role, and overwriting the key would lock the real game master out of their
+  own recovery.
+- **In one line, to a table that has never met a seed phrase:** *there is no
+  password here, so these twelve words are the only way back into this game.*
+
+**Still open.** Keys for the seats, which is alternative 4 and costs D-020. The
+signature half — a signed commit under D-004, signed press under D-023 — is
+what this was built for and is not built.
+
+### D-047 — The sandbox: a board with no players
+**Status:** accepted, r48 (owner decision, closes Q-008). Extends D-028.
+Not built.
+
+A sandbox is a game with no seats. Nobody joins it, no deadline runs, and one
+person drives every power and presses adjudicate. It is Backstabbr's most
+copied object and the reason its links are the community's citation format: a
+tournament publishes one sandbox per board, dipvis scrapes those URLs, and an
+analysis post cites one. We are building the addresses anyway (D-028), so the
+missing half is a board somebody may drive.
+
+This is not a revival of the M0 spike that r13 deleted. That was the whole app
+in one screen. This is the ordinary game with the seat layer taken off.
+
+**It is a flag on a game, not a second kind of object.** `settings.sandbox`,
+set at creation and immutable after it. Zero seats, no invite, no lock, no
+deadline, no press. Everything else stays: the same variants, the same map and
+styles, the same adjudication, the same review, and the same watch addresses
+under D-028. Reusing the game is the point; a parallel object would give us a
+second adjudication path to keep correct.
+
+**Who may drive it.** One `sandboxToken` in the URL, minted at creation. The
+holder of the link may order any power, adjudicate, and edit. The bare game id
+stays read-only for everybody, exactly as a real game's watch address is. A
+link and not a cookie, because a tournament hands the laptop to the next
+round's operator, and a director wants to give the job away without giving
+away their browser.
+
+**There are no secrets in a sandbox, and that is deliberate.** D-004's
+commit-reveal and the no-leak discipline exist to stop one player reading
+another's orders. A sandbox has one driver and no other player, so there is
+nobody to hide from. Nothing here weakens a real game: sandbox routes reject a
+game whose flag is off, and the seat routes reject a sandbox, so the two
+authorization paths never meet. Write that as a test, not as a comment.
+
+**Editing the position is the part that costs.** Backstabbr's editable
+sandbox, Patreon-only since about 2023, places or removes units and reassigns
+supply centres, then commits an arbitrary board. That is what makes it useful
+for the case we care about, which is typing in a board that is already halfway
+through a round.
+
+It breaks replay. D-028's history is a function of the stored orders: a game
+rebuilds by replaying them from the start, which is why a watch URL survives a
+`kill -9`. An edit is not an order and cannot be replayed. So an edit writes a
+**position checkpoint** and replay starts at the last one. The checkpoint is
+the whole position, units, dislodged units and centre ownership, because a
+partial one is a merge and a merge is a bug waiting for a variant with coasts.
+
+An edited phase is marked as edited in the watch JSON and on the page. A board
+somebody typed in is not a board that was played, and a reader citing the link
+is entitled to know which one they are looking at.
+
+**What still applies.** D-029, so an illegal order is stored and struck rather
+than refused; the sandbox is where a player checks a move, and refusing to
+draw the bad one defeats it. D-044, so a sandbox declares a solo like any
+other board, which is what a director replaying a finished round wants to see.
+
+**What does not.** D-023 press, D-027 deadlines, D-020 anonymity, D-041
+handover. None of them has a second person to be about.
+
+**Where it sits.** After D-044, because a board that cannot end is not worth
+publishing. Independent of M3: with no secrets to keep, commit-reveal has
+nothing to say here.
+
+### D-044 — A game ends: a solo, an agreed draw, or the end year
+**Status:** accepted, r47 (research/platforms.md §1.3, §3.6). Not built.
+Extends D-007, D-022, D-028.
+
+Today the flow never asks who won. It adjudicates, starts the next phase, and
+does that forever. A tournament board plays to a result, and the result is the
+thing the room came for, so this is the largest hole left in the flow. It goes
+before M3.
+
+**A solo comes from godip.** Each variant carries `SoloWinner(*state.State)`.
+The classical one is `SCCountWinner(18)`: it reads supply-centre ownership,
+finds the clear leader, and returns that power when the leader holds the
+variant's number and nobody ties them. Otherwise it returns the empty nation.
+So the check is one call after every adjudication, and the number it uses is
+already on the variant card as `soloSCCount`.
+
+**A draw is an act, not a computation.** The table agrees out loud, and the
+game master records what was agreed by naming the surviving powers. It is an
+enumerated, logged game master power (D-007), like forcing adjudication and
+for the same reason: nothing prevents a game master ending a game early, and
+the log is what makes it visible.
+
+Backstabbr's design is better and we cannot have it yet. There, every player
+sets a victory condition of their own and may lie about it, so a draw is
+negotiated inside the game rather than announced above it. That needs press
+(D-023 `fullpress`), which does not exist.
+
+**`settings.endYear`** (default 0, meaning none) ends the game after the last
+phase of that year. Backstabbr has it, and a tournament round with a hard stop
+at 17:00 needs it.
+
+**What ending does.** The game freezes. No phase follows, no seat may order, no
+deadline arms, and `canForce` is false forever. Seat, game master, public and
+watch state gain
+
+    result: {kind: "solo" | "draw" | "endYear", powers: [...],
+             centres: {power: count}, year: 1908}
+
+with `result` null while the game runs. The last phase keeps an ordinary watch
+index, so a finished game is shareable at the same address as every other
+phase (D-028), which is the whole point of having those addresses.
+
+The result is public, because it is what the spectator screen shows and what
+the tournament pipeline reads (D-046). We publish centre counts and declare
+nothing else. Scoring stays a non-goal (§1); dipvis owns that job.
+
+**Not decided here:** what happens to a game after it ends. A frozen game
+sitting in the list is enough for a first tournament. Rematch, archive and
+delete can wait for somebody to want them.
+
+### D-045 — The DATC pass rate is a generated page
+**Status:** accepted, r47 (research/platforms.md, steal 10). Not built.
+`datc_test.go` runs godip's DATC corpus in CI already, and then throws the
+number away. Every serious adjudicator publishes its pass rate, and it is the
+first thing the community asks: jDip and webDiplomacy both have a table, and
+mylootcave puts "167/167" in its own meta tags.
+
+So the test writes a JSON result, and the server serves a page listing each
+case with its verdict. It is about a day of work and it is the cheapest
+credibility this project can buy.
+
+Two rules go with it. The page states what was **not** run, because
+webDiplomacy's table is honest about skipping the retreat and build cases and
+ours can beat it by being honest in the same place. And the number is
+generated, never typed. A hand-written claim goes stale the first time godip
+moves, and a stale claim about correctness is worse than no claim.
+
+### D-046 — Emit what the tournament pipeline already eats
+**Status:** accepted, r47 (research/platforms.md, steal 9 and §1.12). Not
+built. Extends D-028.
+dipvis (GPL-3, running publicly as DipTV) already runs the face-to-face
+tournament: registration, roll call, seeding, scoring, standings, and the
+Classification CSV and Boards CSV the World Diplomacy Database ingests. It
+gets its supply-centre counts by scraping Backstabbr's HTML, through an
+"Import SC Counts from Backstabbr" action written against `game/` and
+`sandbox/` URLs.
+
+That scraper is the seam to attack. 1901 already publishes the whole position
+at a stable address with no token (D-028), so a director's pipeline works the
+day somebody points it here, and a scraper is replaced by an answer. This is
+the cheapest route onto a real tournament table, and it costs us no scoring
+code.
+
+What to emit: supply-centre counts per power per year at
+`/game/{id}/results.json`, the same as CSV, and the columns dipvis reads where
+they have names already. Where they do not, keep ours and write them down.
+
+We implement none of the 25 scoring systems in dipvis's catalogue. Somebody
+else wrote them, with tests, and §1 says scoring is not our job.
+
 ### D-043 — The root is a landing page; the game list moves to /games
 **Status:** accepted, r46 (owner request).
 The root address held the list of games this server happens to hold. That is
@@ -1818,6 +2094,19 @@ that surface mid-game at a table.
   complaint about mylootcave was exactly this. Decide whether (and how)
   a player can enter an order the engine will fail. Evidence in
   research/platforms.md.
+- **Q-009 — A key for the game master, and twelve words to recover it (r48).**
+  *resolved → D-048.*
+- **Q-008 — A board with no players (r47).** *resolved → D-047.*
+  Backstabbr's sandbox is a
+  private adjudicating board with no seats, no deadline and no clock. One
+  person drives all seven powers and presses adjudicate; since 2023 they can
+  also edit it to any position. It is public at a permanent URL, its developer
+  built it for face-to-face adjudication, and the tournament scene turned it
+  into the community's citation format. Our M0 spike was one of these and r13
+  deleted it. D-028 gives us half of it back, a permanent public board, and
+  the missing half is a board anybody may drive. That is a second product
+  mode, not a feature, which is why this was a question. It was going to the
+  playtest; the owner answered it first, at r48, and it is D-047.
 
 ---
 
@@ -1930,6 +2219,17 @@ Q-006 should be answered by that playtest, not before it. Timing
 acceptance (r17, from tournament reality): seven seats finalize a
 movement phase in under 3 minutes.
 
+**Build order, restated r47.** D-044 moves ahead of M3: a table cannot finish
+a game that has no ending, and the playtest is meant to end in a result. After
+it, the two unbuilt decisions that block a real tournament board are D-004
+(commit-reveal, M3) and D-041 (handover), in that order, because a dead phone
+is the commoner failure but a playing game master is the claim. D-045 and
+D-046 are a day each and belong beside the playtest, since they are what a
+tournament director is shown. D-047, the sandbox, sits with them and not
+ahead of D-044; it needs no part of M3, having no secrets to keep. Q-008 was
+going to the playtest and the owner answered it at r48 instead. No acceptance
+criterion above changes.
+
 ---
 
 ## 8. Licensing and trademark summary
@@ -2028,3 +2328,6 @@ Recorded so nobody re-derives them.
 | r44 | 2026-08-30 | D-041: the game master can mint a handover link for any power. A dead phone takes its own menu with it, which is the case this exists for. It is an enumerated, logged game master power (D-007), because a game master who can mint a link for any seat can take any seat; the record is what makes that visible rather than prevented. |
 | r45 | 2026-08-30 | The game master's waiting room shows the joined count only until every power is claimed, then the list of powers appears. The old per-power list published the join order on a screen the whole table reads (D-013), against D-020's anonymous seats, and the player waiting screen already showed a count for that reason. That list is where D-041's per-power actions will live. D-042: a game may be named. The New game screen puts the name, the rules and the create button above the map gallery, which was a screenful of scrolling between the choice and the act. |
 | r46 | 2026-08-30 | D-043: the root is a landing page and the game list moves to /games. The list was the right screen for the game master who had just created a game and the wrong one for a stranger, who met somebody else's table or an empty page and was never told what this is. The page borrows the app's own power card, phase words and lock button, and washes the Classical map behind the words, so nothing on it is a drawing of the product. GET /games is the page, POST /games still creates, and the JSON list moved to /games/list. |
+| r47 | 2026-08-30 | Read back against research/platforms.md, most of the survey's steal list is built and the gaps are elsewhere. D-044: a game ends, by a solo read from godip's `SoloWinner`, by a draw the game master records, or at an end year, and an ended game freezes and publishes a result; the flow never asked who won. D-045: the DATC pass rate the CI already computes becomes a generated page that also states what was not run. D-046: publish supply-centre counts as JSON and CSV, because dipvis scrapes Backstabbr's HTML for exactly that and a stable address replaces a scraper. Q-008 opened: whether to bring back a board with no players, which is Backstabbr's sandbox and the reason its links are the community's citation format. Build order in §7 restated: D-044 before M3, then D-004 and D-041. |
+| r48 | 2026-08-30 | D-047: the sandbox, a game with no seats, one `sandboxToken` link that may drive every power and adjudicate, and the ordinary watch addresses for everybody else. It closes Q-008 ahead of the playtest, on the owner's call. It is a flag on a game rather than a second object, so there is one adjudication path; a sandbox route refuses a real game and a seat route refuses a sandbox, which is a test and not a comment. Editing the position breaks D-028's replay-from-orders, so an edit writes a whole-position checkpoint and replay starts there, and an edited phase says so on the page. D-029 and D-044 apply; press, deadlines, anonymity and handover have no second person to be about. CONTEXT.md gains Sandbox. |
+| r49 | 2026-08-30 | D-048 accepted and built, closing Q-009. The game master's browser makes an Ed25519 key, the server keeps the public half, and twelve BIP-39 words are the copy that outlives the device: typing them at /recover signs a challenge and buys a fresh game master address, which rotates the token and drops the referee cookie exactly as a role handover does. The key is write-once, because the token is not the credential it protects. Alternative 1 shipped beside it: the game master page shows its own address, folded and guarded like every other secret there. HKDF-SHA256 and not BIP-39's PBKDF2 seed, a vendored curve and not crypto.subtle, because run.sh serves plain http on a LAN. Nothing changes for a player, and no seat has a key. |
