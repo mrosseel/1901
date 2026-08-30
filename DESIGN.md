@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r42 — 2026-08-30
+**Document revision:** r43 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1556,10 +1556,20 @@ the rights and keeps their power becomes an ordinary player.
 between devices and the game stays anonymous (D-020). The menu shows the
 holder nothing about who the other players are.
 
-Open: whether an epoch raise mid-phase keeps or drops the orders the previous
-holder had drafted. Keeping them is friendlier and is probably right, since a
-handover is usually a dead phone rather than a hostile takeover, but it means a
-person can hand over a seat whose orders they wrote.
+**Orders written before the handover stand, and there is nothing to decide.**
+The signed value is what authenticates a command to the server, so an order the
+server accepted was accepted under an epoch that was valid at the time. It is
+server state from that moment. Raising the epoch stops the old holder sending
+anything further; it does not reach back into what the server already holds.
+
+So the new holder inherits the seat exactly as it stands, orders included, and
+may change them like any other holder while the phase is open (D-011). A
+handover is usually a dead phone, and the person taking over wants the seat as
+it was, not an empty one.
+
+This is also why the epoch belongs on the command path rather than on the
+orders. There is no draft living on a device to rescue or discard: a device
+holds a token, and the orders are already here.
 
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
@@ -1951,3 +1961,4 @@ Recorded so nobody re-derives them.
 | r40 | 2026-08-30 | Lock is the word for the act D-008, D-011 and D-034 call finalize. It runs front and back: the button, the JSON, the routes and `seat.locked`. Finalize was never true, because D-011 makes the commit replaceable until the phase resolves, and a lock is a thing you can open again. Commit and Reveal keep their names. The decision entries above are left as they were written; CONTEXT.md carries the retired word. |
 | r41 | 2026-08-30 | The invite link reaches the table. Without BASE_URL the server swaps a loopback host for its own LAN address, keeping the port and the scheme, because a QR code that says localhost opens on no phone. It asks the kernel for the address with a UDP dial that sends nothing, so a laptop running docker gets the right one of its several addresses, and it declines rather than guesses when there is no default route. |
 | r42 | 2026-08-30 | D-041: a power can be handed to another person by a signed link, `HMAC(salt, power, game id, epoch)`, with the epoch raised on use so the previous holder's access dies with it. Every seat gets an icon and a menu carrying the power, the turns played, the time elapsed, and the handover. The game master has two entries, one for the rights and one for the power, because they fail differently. Designed, not built. |
+| r43 | 2026-08-30 | D-041's open question is closed and was malformed. The signed value authenticates commands, so an order the server accepted was accepted under a valid epoch and is server state from that moment. Raising the epoch stops the old holder sending anything further and reaches back into nothing. The new holder inherits the seat as it stands, orders included. |
