@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+
+import { copyText } from "../clipboard";
 import { fetchGames, refereePath, watchPath, type GameSummary } from "../api";
 import { phaseLabel } from "../board/provinces";
 import { usePoll } from "../hooks";
@@ -77,15 +79,35 @@ export function GamesPage() {
   );
 }
 
+/*
+One game on the list.
+
+The id never appears. It is a ten-character token nobody reads off a screen
+and nobody types twice, and printing it beside a name only makes the row
+harder to scan. It is still what a game master needs when something has to be
+looked up, so the row carries it in two quiet places: the title, for a hover,
+and the clipboard, for a click on the name.
+*/
 function GameRow({ game }: { game: GameSummary }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyId = async () => {
+    setCopied(await copyText(game.gameId));
+    setTimeout(() => setCopied(false), 1200);
+  };
+
   return (
     <li>
       <div className="row-main">
-        {/* The name is what a game master reads first when two tables are
-            running. An unnamed game falls back to its id, because it has
-            nothing else; a named one does not repeat it. The id is an
-            address, and the links on the row already carry it. */}
-        <strong>{game.name || game.gameId}</strong>
+        <button
+          type="button"
+          className="game-id-copy"
+          title={"Game " + game.gameId + " — click to copy the id"}
+          onClick={copyId}
+        >
+          <strong>{game.name || "Unnamed game"}</strong>
+        </button>
+        {copied ? <span className="note">Id copied</span> : null}
         <span className="muted">
           {game.variant ? game.variant.name : ""}
           {game.variant ? <SupportedMark supported={game.variant.supported} /> : null}
