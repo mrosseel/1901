@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r31 — 2026-08-30
+**Document revision:** r32 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1341,10 +1341,16 @@ the two-kinds rule needs.
 ### D-039 — There will be no jDip maps, only 1901 maps
 **Status:** accepted, r31 (owner decision). Sets the end state for D-016,
 D-024, D-033 and D-038.
-The jDip importer is a one-time migration, not a supported input. Every map it
-converts becomes an ordinary 1901 map, and when the last one has crossed, jDip
-is gone from this project: no jDip art, no jDip code path, no jDip shaped
-plan.
+The jDip importer is a migration, not a supported input. Every map it converts
+becomes an ordinary 1901 map, and when the last one has crossed, jDip is gone
+from this project: no jDip art, no jDip code path, no jDip shaped plan.
+
+The tool itself may outlive the migration. It lives in dipmap, and keeping it
+there costs 1901 nothing, because what it produces is an ordinary 1901 map. If
+a jDip map nobody knew about turns up in a year, it is imported and it arrives
+in data mode like any other. That is the point of the distinction: the format
+dies here, the tool need not die there. Nothing in this repository should be
+kept alive on the theory that another jDip map might appear.
 
 This is what D-016 was always for. It called the translator a way to add
 variants, and the variants it added kept jDip's shape for as long as they
@@ -1707,3 +1713,4 @@ Recorded so nobody re-derives them.
 | r29 | 2026-08-30 | D-038 corrected after review by the map exporter: `at` is stated as the ink box centre and the record gains `height`, because a reader that took it for the baseline would draw every name half a cap height high; the centre glyph gains a radius, since it is an obstacle the name search fits around; `found` is not the mode flag; name styling moves to the board with the verdict, the typography and the halo travelling with the board state, so the two restyle paths do not collapse; the saving is restated gzipped and net of the records, about 1.8 KB a board load. |
 | r30 | 2026-08-30 | D-038 corrected again after scoping. The record gains `rot`: classical rotates 73 of 90 names and a flat Portugal runs across Spain. `?style=original` keeps its layers. The land-or-sea verdict is derived from the variant graph, not stored. The layers are 27.3% of the art, not 10.4%, but only 14.5% gzipped and almost all of that is in the four maps whose names are outlined shapes and cannot be migrated automatically. 1800 Empires and Coalitions has no long names at all and blocks its own migration. Multi-line names and the gallery card have no answer yet. |
 | r31 | 2026-08-30 | D-039: the jDip importer is a one-time migration and the end state has no jDip maps, only 1901 maps. Once the last jDip art is gone, the second style applier and everything only it reads is deleted, and a style plan stops having two shapes. The hybrid in D-038 is a stage, not a resting place. Four maps whose names are outlined shapes need re-authoring by a person, not a recovery pass. |
+| r32 | 2026-08-30 | D-039 refined: the importer may outlive the migration, in dipmap, because what it produces is an ordinary 1901 map. The jDip format still ends in this repository, and no code here is kept alive against the chance of another jDip map appearing. |
