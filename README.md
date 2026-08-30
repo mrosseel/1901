@@ -35,7 +35,18 @@ and why.
 You need Go 1.26+ and Node 24+. With nix, `nix develop` provides both, or
 build the whole thing with `nix build`.
 
-Build the frontend once, then start the server:
+Start it with the script in the repository root:
+
+```
+./run.sh
+PORT=8001 ./run.sh
+```
+
+It builds the frontend, builds the server, and serves on port 8000. It
+refuses to start when the port is taken and names what holds it, because the
+server prints "listening" before it learns the bind failed.
+
+Or do the same by hand:
 
 ```
 cd web && npm install && npm run build && cd ..
@@ -47,7 +58,9 @@ scan the invite QR from the phones. Useful environment variables:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `ADDR` | `:8190` | Listen address |
+| `PORT` | `8000` | Port `run.sh` serves on |
+| `HOST` | every interface | Interface `run.sh` binds to |
+| `ADDR` | `:8190` | Listen address, when running the binary directly |
 | `DB` | `1901.db` | SQLite file; delete it for a clean slate |
 | `BASE_URL` | derived from the request | Pin the origin used in invite links (set this behind a proxy) |
 
