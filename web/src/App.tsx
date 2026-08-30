@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react";
 import { parseRoute } from "./api";
 import { GamesPage } from "./pages/GamesPage";
 import { GmPage } from "./pages/GmPage";
+import { HandoverPage } from "./pages/HandoverPage";
 import { JoinPage } from "./pages/JoinPage";
 import { LandingPage } from "./pages/LandingPage";
 import { NewGame } from "./pages/NewGame";
@@ -67,6 +68,15 @@ export function App() {
       return <LandingPage />;
     case "games":
       return <GamesPage />;
+    case "handover":
+      return (
+        <HandoverPage
+          gameId={route.gameId}
+          power={route.power}
+          epoch={route.epoch}
+          signature={route.signature}
+        />
+      );
     case "new":
       return <NewGame />;
     case "join":

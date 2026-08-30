@@ -1752,3 +1752,46 @@ the margins come in. The phone mock stays: it is the picture of the thing.
   .lp-foot .note { margin-left: 0; text-align: left; }
   .lp-actions .lp-primary, .lp-actions .lp-secondary { flex: 1 1 100%; text-align: center; }
 }
+
+/* --- the seat's own menu (D-041) -----------------------------------------
+The icon beside the power, and the sheet behind it. The icon has to be small
+enough to sit inside a heading and still be hittable with a thumb, so it takes
+the 44px floor as padding rather than as size: the drawing stays 18px and the
+target around it is the size a finger needs.
+*/
+
+.seat-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin: -6px 2px -6px -8px;
+  min-height: 34px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  vertical-align: middle;
+}
+
+.seat-menu-button:hover:not(:disabled) { border-color: var(--line); background: var(--panel-2); }
+
+.seat-menu-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.seat-menu-button:hover .seat-menu-icon { stroke: var(--text); }
+
+.seat-menu { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
+.seat-menu header { display: flex; flex-direction: column; gap: 2px; }
+
+/* The power is the answer to "which seat is this", read at arm's length in a
+   noisy room, so it takes the size the seat page gives it. */
+.seat-menu-power { margin: 0; font-size: 30px; font-weight: 800; line-height: 1.05; }
+
+.seat-menu .share { background: var(--panel); }
+.seat-menu > .primary { min-height: 48px; }
