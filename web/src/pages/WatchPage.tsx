@@ -299,9 +299,13 @@ export function WatchPage({
             {waiting ? "Waiting to start" : <PhaseName phase={phase} />}
           </h1>
           {name ? <p className="game-name">{name}</p> : null}
+          {/* A named game does not print its id: this screen is read across
+              a room, where a ten-character token says nothing anybody can
+              use. The address carries it, and an unnamed game still needs
+              it, because it has nothing else to be called. */}
           <p className="muted">
-            Game {gameId}
-            {variant ? " · " + variant.name : ""}{" "}
+            {name ? "" : "Game " + gameId + " · "}
+            {variant ? variant.name : ""}{" "}
             {variant ? <SupportedMark supported={variant.supported} /> : null}
           </p>
           {historical ? (
