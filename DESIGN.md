@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r41 — 2026-08-30
+**Document revision:** r42 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1516,6 +1516,51 @@ the same file, so a check that renders the art inside a page cannot see it.
 `TestAStyledMapIsWellFormedXML` parses the served bytes of every styleable map
 in every style, and is the only thing here that catches it.
 
+### D-041 — A power can be handed to another person, by link
+**Status:** accepted, r42 (owner design). Not built. Extends D-012 and D-020.
+
+Every seat carries a player icon. Tapping it opens that seat's own menu, which
+holds what the seat is and what can be done with it.
+
+What it says: the power, how many turns have been played, how long the game
+has run.
+
+What it does: hand this power to somebody else. The menu shows a QR code and
+the link behind it. The next person scans it or opens it and the power is
+theirs.
+
+**The link is signed, not stored.** The server holds one salt. A handover link
+carries `HMAC(salt, power, game id, epoch)`. Nothing about a handover needs a
+row in a table, and a link cannot be forged without the salt.
+
+**A handover invalidates the seat it came from.** The epoch is a counter per
+seat. When the new person opens the link the server raises it, and every link
+and every token minted under the old epoch stops working, including the phone
+that just gave the power away. That is the point: a power belongs to one person
+at a time, and the previous holder must not keep a live seat.
+
+This is the mechanism D-012's hard claim was missing. A seat could be claimed
+and never released, so a phone that died took a power with it.
+
+**The game master has two entries, and they are different acts.**
+1. Hand over the game master rights. The taker may be somebody new, or a
+   person already holding a power. The rights travel; a power does not.
+2. Hand over the power the game master plays, if they play one (D-021). That is
+   an ordinary handover and behaves exactly like any other seat's.
+
+Keeping them apart matters because they fail differently: a game master who
+gives away their power still runs the game, and a game master who gives away
+the rights and keeps their power becomes an ordinary player.
+
+**What this does not do.** It does not name anybody. A handover moves a seat
+between devices and the game stays anonymous (D-020). The menu shows the
+holder nothing about who the other players are.
+
+Open: whether an epoch raise mid-phase keeps or drops the orders the previous
+holder had drafted. Keeping them is friendlier and is probably right, since a
+handover is usually a dead phone rather than a hostile takeover, but it means a
+person can hand over a seat whose orders they wrote.
+
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
 The GM shares ONE invite link/QR. Claiming it assigns a random
@@ -1905,3 +1950,4 @@ Recorded so nobody re-derives them.
 | r39 | 2026-08-30 | The server reads a version-2 style plan. The gate is a range, 1 to 2, because every checked-in plan is version 1 until its map is re-authored. `kinds` is a list in one version and a map in the other, and neither is converted into the other: a list is keyed by position and a map has no document order. `names.typography` answers `?style=original` on a map with no original names layer. D-038 corrected: the sentence saying the mode is the presence of a label record is struck, having been overturned at r36. With no plan in data mode, 130 of 130 served SVGs are byte-identical. |
 | r40 | 2026-08-30 | Lock is the word for the act D-008, D-011 and D-034 call finalize. It runs front and back: the button, the JSON, the routes and `seat.locked`. Finalize was never true, because D-011 makes the commit replaceable until the phase resolves, and a lock is a thing you can open again. Commit and Reveal keep their names. The decision entries above are left as they were written; CONTEXT.md carries the retired word. |
 | r41 | 2026-08-30 | The invite link reaches the table. Without BASE_URL the server swaps a loopback host for its own LAN address, keeping the port and the scheme, because a QR code that says localhost opens on no phone. It asks the kernel for the address with a UDP dial that sends nothing, so a laptop running docker gets the right one of its several addresses, and it declines rather than guesses when there is no default route. |
+| r42 | 2026-08-30 | D-041: a power can be handed to another person by a signed link, `HMAC(salt, power, game id, epoch)`, with the epoch raised on use so the previous holder's access dies with it. Every seat gets an icon and a menu carrying the power, the turns played, the time elapsed, and the handover. The game master has two entries, one for the rights and one for the power, because they fail differently. Designed, not built. |
