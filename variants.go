@@ -158,7 +158,7 @@ func handleVariants(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, variantCatalogue())
 }
 
-// STYLED MAP SERVING (D-023, D-024, D-026)
+// STYLED MAP SERVING (D-033, D-024, D-026)
 //
 // A converted jDip map is correct and unlovely: flat blue water, flat yellow
 // land, a black backdrop. godip's own maps are handsome but come in one

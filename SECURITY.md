@@ -196,6 +196,10 @@ head -c 100000 /dev/zero | tr '\0' a | \
 
 - `BASE_URL` pins the origin for every generated link. Set it behind a
   proxy, or anywhere the host can differ from what clients send.
+- Without `BASE_URL`, a loopback host in the request becomes the server's
+  own LAN address, so the QR code opens on a phone. The address comes from
+  the kernel's routing table, never from the request, so this trusts nothing
+  new. Every other host is passed through as before.
 - `MAX_GAMES` caps live games. Default 100.
 - `ADDR` and `DB` set the listen address and the database path.
 - `SPADIR` and `PLACEMENTS` point at the frontend build and the placement

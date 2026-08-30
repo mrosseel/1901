@@ -204,3 +204,59 @@ func TestRefereeCookieSurvivesARestart(t *testing.T) {
 		t.Fatal("a created flow carries no referee secret")
 	}
 }
+
+func TestALoopbackLinkBecomesTheLanAddress(t *testing.T) {
+	// The GM opens the app on localhost, and the QR code must still open
+	// on a phone. Only the host changes; the port is the one the GM used.
+	old, oldFixed := lanHost, baseURLFixed
+	defer func() { lanHost, baseURLFixed = old, oldFixed }()
+	lanHost, baseURLFixed = "192.168.1.23", ""
+
+	for _, c := range []struct{ host, want string }{
+		{"localhost:8190", "192.168.1.23:8190"},
+		{"LOCALHOST:8190", "192.168.1.23:8190"},
+		{"127.0.0.1:8190", "192.168.1.23:8190"},
+		{"[::1]:8190", "192.168.1.23:8190"},
+		{"localhost", "192.168.1.23"},
+		{"192.168.1.23:8190", "192.168.1.23:8190"},
+		{"table.local:8190", "table.local:8190"},
+	} {
+		if got := reachableHost(c.host); got != c.want {
+			t.Errorf("reachableHost(%q) = %q, want %q", c.host, got, c.want)
+		}
+	}
+}
+
+func TestWithoutALanAddressTheHostIsLeftAlone(t *testing.T) {
+	// No address, or several: the server must not guess.
+	old, oldFixed := lanHost, baseURLFixed
+	defer func() { lanHost, baseURLFixed = old, oldFixed }()
+	lanHost, baseURLFixed = "", ""
+
+	if got := reachableHost("localhost:8190"); got != "localhost:8190" {
+		t.Errorf("reachableHost with no LAN address = %q", got)
+	}
+}
+
+func TestBaseURLPinnedWins(t *testing.T) {
+	// BASE_URL is the operator's answer, and it beats the swap.
+	old, oldFixed := lanHost, baseURLFixed
+	defer func() { lanHost, baseURLFixed = old, oldFixed }()
+	lanHost, baseURLFixed = "192.168.1.23", "https://table.example"
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost:8190/games", nil)
+	if got := baseURL(req); got != "https://table.example" {
+		t.Errorf("baseURL = %q, want the pinned origin", got)
+	}
+}
+
+func TestPinLANHostLeavesAPinnedOriginAlone(t *testing.T) {
+	old, oldFixed := lanHost, baseURLFixed
+	defer func() { lanHost, baseURLFixed = old, oldFixed }()
+	lanHost, baseURLFixed = "", "https://table.example"
+
+	pinLANHost()
+	if lanHost != "" {
+		t.Errorf("pinLANHost looked for an address behind BASE_URL: %q", lanHost)
+	}
+}

@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r40 — 2026-08-30
+**Document revision:** r41 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -321,8 +321,9 @@ made by hand and the codes are a later question than the markers were. It
 writes the codes as a replacement rather than a merge, so a province the tool
 declines loses any code an earlier run left there.
 
-### D-016 — Converted jDip maps are restyled into godip's classical style
-**Status:** accepted, r3
+### D-032 — Converted jDip maps are restyled into godip's classical style
+**Status:** accepted, r3. Renumbered in r25: this decision and the jDip
+translator both carried the id D-016.
 A jDip map converted by `tools/jdip-import` is correct and unlovely: flat
 `#B5DEF8` water, flat `#F7DB94` land, a black backdrop, and labels written
 `font-size:150` — valid in jDip's own renderer, invalid CSS, so every browser
@@ -333,7 +334,7 @@ whose map is 7300 units wide, that is a two-pixel smudge.
 tones, a hairline border, a diagonal hatch, a paper grain, and Libre
 Baskerville set bold for land and italic for water — and applies it to a jDip
 map through that map's own semantic classes. It writes `map-<style>.svg`
-beside `map.svg` (D-023 made the style itself data); the server serves the
+beside `map.svg` (D-033 made the style itself data); the server serves the
 default style, parchment, and the faithful original at `?style=original`.
 
 The restyle may change fills, strokes and text presentation. It may not move a
@@ -348,8 +349,9 @@ of the unit and dislodged markers in `placements/<key>.json` by the RULE B
 margin, and falls back to jDip's own three-letter brief label where a name
 cannot fit at any size. sailho is the pilot; classical's labels wait.
 
-### D-023 — Map styles are named data, chosen per device
-**Status:** accepted, r16
+### D-033 — Map styles are named data, chosen per device
+**Status:** accepted, r16. Renumbered in r25: this decision and the press
+mode both carried the id D-023.
 A style is a JSON file in `mapstyles/`, which is where they moved in r18
 (D-026) once the server read them too. It says what the two terrain tones are,
 what a border looks like, whether there is a grain, how the two kinds of name
@@ -370,7 +372,7 @@ saturated ground is paid for without touching a label's size, which the
 placement tables were measured against.
 
 `restyle --style <name> --variant <key>` writes `map-<style>.svg` beside
-`map.svg`, and the structural-equality check of D-016 runs on every
+`map.svg`, and the structural-equality check of D-032 runs on every
 style × map pair. The server loads them all and serves
 `?style=<name>`; unknown answers 404 rather than falling back, because a
 silent fallback makes a typo in a saved preference look like a style.
@@ -390,7 +392,7 @@ along every inland border too.
 
 ### D-024 — godip's own maps are styled by palette substitution
 **Status:** accepted, r17
-A jDip conversion is restyled through its classes (D-016). godip's twenty-three
+A jDip conversion is restyled through its classes (D-032). godip's twenty-three
 own maps have no classes at all: classical paints its landmass as one path
 with `style="fill:#f4d7b5"` over a sea-coloured rect, and the rest do the same
 with more paths. `tools/restyle/restyle-godip.ts` styles them by substituting
@@ -417,7 +419,7 @@ made visible rather than hidden:
   strokes than the map has provinces is decoration — North Sea Wars draws a
   celtic knot — and is left exactly as drawn.
 - Sizes and positions are not touched, and the applier adds no element, so it
-  is held to a stricter lock than the jDip one: the layer lock of D-016 widened
+  is held to a stricter lock than the jDip one: the layer lock of D-032 widened
   to godip's layer names, and then every drawing element in the document
   compared for tag, id and geometry.
 
@@ -452,7 +454,7 @@ typed — classical's own land, twelve per cent darker, by
 `extract-parchment.ts` — so the house style stays the file's own.
 
 ### D-026 — A styled map is composed at serve time from a style plan
-**Status:** accepted, r18. Supersedes the storage half of D-024 and D-016.
+**Status:** accepted, r18. Supersedes the storage half of D-024 and D-032.
 Every map in every style used to be generated ahead of time and kept as a
 file. That was 156 MB under `styledmaps/` plus 3.3 MB checked in under
 `variants1901/`, regenerated in full whenever a style changed one colour. The
@@ -734,7 +736,8 @@ accordingly ("Finalize orders — the turn resolves when all powers have
 finalized"), because the last committer ends editing for the whole table.
 
 ### D-012 — Hard seat claim in v1
-**Status:** accepted, r2
+**Status:** accepted, r2. Amended r27 by D-034: a handoff no longer needs
+the GM.
 Upgrades D-005's "optional" claim to mandatory. The first device to open a
 seat link claims the seat: the server issues a random device secret that
 the client stores and presents thereafter. Any other device opening the
@@ -1532,6 +1535,56 @@ GM only then. The GM never draws from the pool, so there is nothing to
 re-roll by refreshing. A `gmPlays` game setting covers the GM-only case
 (all powers go to joiners).
 
+### D-034 — A seat moves by handoff, and its holder may start one
+**Status:** accepted, r27. Amends D-012. Not implemented.
+D-012 sends every device change through the GM. A table does not work that
+way. A phone dies, a player leaves at midnight and hands their power to
+somebody else, two people share one handset. The seat has to move without
+the GM being the bottleneck.
+
+**Who may start a handoff.** The seat's own holder, from the game view, and
+the GM for any power. The player case is the common one and it costs the GM
+nothing. The GM case is for a power that cannot act: the phone is off, the
+player is gone, the seat was never claimed. That is D-007's player
+replacement, kept and widened.
+
+Giving a seat away is not a privilege the app can protect. Whoever holds the
+phone can already play the power. The handoff only makes the transfer
+survive the phone.
+
+**Where it lives.** A person icon in the game view opens what the server
+knows about this seat: the power name, the finalize state, the phase count.
+It also holds "Show replacement URL", which draws a QR another phone scans.
+The power name is the only identity shown, so D-020 is untouched. The server
+still never learns who is who.
+
+**One-shot.** Scanning the replacement URL clears the old device claim,
+issues a new seat token, and binds the scanning device. The old phone is
+logged out at that moment, and the old URL is dead. This is the point of the
+mechanism: two devices holding one seat with divergent local state is what
+commit-reveal cannot tolerate (D-012's rationale, unchanged). Showing the QR
+does not yet move anything, so a GM who displays one and thinks better of it
+can cancel.
+
+**Tokens.** A seat token is `HMAC(serverSalt, gameID | power | role | epoch)`,
+with `role` separating the seat from the GM rights and `epoch` a counter the
+seat carries. Bump the epoch and every URL issued before it stops verifying,
+which is what makes a handoff one-shot and a rotation cheap. The server
+stores a small integer per seat rather than a list of live tokens.
+
+Public and private keys were considered and rejected. The phone verifies
+nothing; it presents a bearer string and the server checks it. That is D-005,
+and HMAC is the whole of what it needs. A derivation without the epoch was
+rejected for the same reason it looked attractive: it is deterministic, so
+the same URL comes back forever and nothing can be revoked.
+
+**The GM has two URLs.** The GM's power and the GM rights are separate
+handoffs, because they are separate things to give away. The GM can hand the
+referee role to somebody else and keep playing, hand the power away and keep
+refereeing, or move either to a second device. This also answers the laptop
+and phone case: the GM creates the game on a laptop and moves the power to a
+phone, with the referee view left where it is.
+
 ### D-022 — Game settings before invite; changes after join are broadcast
 **Status:** accepted, r11
 The GM fixes settings (deadline length, gmPlays, future: variant,
@@ -1851,3 +1904,4 @@ Recorded so nobody re-derives them.
 | r38 | 2026-08-30 | The demo7 fixture carries `centreStroke`, verified independently: 31 records against 31 stroked circles, worst deviation 0.0500, every stroke 1.10. D-038 gains the rule that a record is compared to the art with a tolerance of half the art's rounding step, and never looked up by formatted string, because the two roundings do not commute. |
 | r39 | 2026-08-30 | The server reads a version-2 style plan. The gate is a range, 1 to 2, because every checked-in plan is version 1 until its map is re-authored. `kinds` is a list in one version and a map in the other, and neither is converted into the other: a list is keyed by position and a map has no document order. `names.typography` answers `?style=original` on a map with no original names layer. D-038 corrected: the sentence saying the mode is the presence of a label record is struck, having been overturned at r36. With no plan in data mode, 130 of 130 served SVGs are byte-identical. |
 | r40 | 2026-08-30 | Lock is the word for the act D-008, D-011 and D-034 call finalize. It runs front and back: the button, the JSON, the routes and `seat.locked`. Finalize was never true, because D-011 makes the commit replaceable until the phase resolves, and a lock is a thing you can open again. Commit and Reveal keep their names. The decision entries above are left as they were written; CONTEXT.md carries the retired word. |
+| r41 | 2026-08-30 | The invite link reaches the table. Without BASE_URL the server swaps a loopback host for its own LAN address, keeping the port and the scheme, because a QR code that says localhost opens on no phone. It asks the kernel for the address with a UDP dial that sends nothing, so a laptop running docker gets the right one of its several addresses, and it declines rather than guesses when there is no default route. |
