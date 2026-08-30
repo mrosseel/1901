@@ -69,11 +69,11 @@ export function LandingPage() {
           <div className="lp-hero-words">
             <p className="lp-eyebrow">Free and open source</p>
             <h1 className="lp-title">
-              Wage Diplomacy
+              Wage diplomacy
               <br />
               face-to-face.
             </h1>
-            <p className="lp-tagline">Gunboat or full press.</p>
+            <p className="lp-tagline">FTF, gunboat or full press.</p>
             <p className="lp-lead">
               Everyone at the table enters orders on their own phone, at the same time.
               The server resolves the turn and prints the list of pieces to push.
