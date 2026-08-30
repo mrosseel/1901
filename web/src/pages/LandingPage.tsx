@@ -226,7 +226,7 @@ export function LandingPage() {
       </section>
 
       <section className="lp-section lp-band">
-        <h2 className="lp-head small">Built for the room</h2>
+        <h2 className="lp-head small">Built for any room</h2>
         <div className="lp-cards two">
           <article className="lp-card">
             <p className="lp-card-head">Illegal orders are allowed</p>
