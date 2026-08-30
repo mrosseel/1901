@@ -44,6 +44,18 @@ func Validate(d Descriptor) error {
 			d.Rules.Profile, strings.Join(sortedKeys(profiles), ", "))
 	}
 
+	// A map reference selects a sibling directory, so it has to be a bare key.
+	// Anything else is refused here rather than sanitised, because a reference
+	// that has to be cleaned up before it is safe is a reference nobody can
+	// read and be sure of.
+	if d.Map != "" && !IsVariantKey(d.Map) {
+		report("map %q is not a variant key; a variant is drawn on another "+
+			"variant by key, never by path", d.Map)
+	}
+	if d.Map != "" && d.Map == d.Key {
+		report("map %q names this variant, so its art has no source", d.Map)
+	}
+
 	// The opening phase has to be one the profile's cycle can reach. A season
 	// the phase generator never produces would leave the game in a phase it
 	// could never return to.
@@ -364,3 +376,23 @@ func Warnings(d Descriptor) []string {
 // ErrNoProfile is returned when a descriptor names a rules profile that this
 // build does not carry.
 var ErrNoProfile = errors.New("unknown rules profile")
+
+// IsVariantKey reports whether s is a bare variant key: lower-case letters and
+// digits, nothing else.
+//
+// This is the path-traversal boundary for the map reference. A key joined to
+// the variants directory can only ever name a child of it, because a key holds
+// no separator, no dot and no drive letter. Callers refuse whatever this
+// rejects; none of them repair it.
+func IsVariantKey(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
+}

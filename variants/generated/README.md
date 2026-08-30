@@ -25,11 +25,45 @@ match the `key` field in the descriptor.
 The server stops when a file is malformed. A half-parsed variant would put games
 on a board nobody described.
 
+## Sharing art
+
+A directory that holds its own `map.svg` is self-contained, and a single
+directory is all a variant needs to be served. That is what makes an export of
+one variant a complete thing: dipmap writes three files and nothing else has to
+be there.
+
+A directory may instead say which other variant it is drawn on:
+
+    "map": "classical"
+
+and ship no `map.svg` at all. Five of godip's variants are played on the
+classical board, and each carried a byte-identical 2.2 MB copy of it. The
+reference says out loud what five identical files only implied.
+
+Use a reference when a variant is drawn on art another variant in this
+directory already holds, byte for byte. Write your own `map.svg` in every other
+case, including every export of a single variant: an exporter that writes one
+is doing the right thing, and `tools/variant-export` always does.
+
+The value is a KEY, never a path. `../`, a slash, a dot, an absolute path and an
+upper-case letter are all refused at load, because a descriptor may not name a
+file outside this directory. A key nothing loaded, or a chain of references that
+comes back to where it started, is refused too, and the error names the chain.
+Nothing falls back to a blank board.
+
+`map` is not part of the variant's hash. The hash covers what decides play, and
+art does not, so a variant that stops carrying its own copy of a picture keeps
+its identity and every game on it keeps loading.
+
+Two directories holding byte-identical art is a mistake the tests catch: one of
+them should name the other instead.
+
 ## The descriptor
 
     schema             1
     key                the directory name
     name               what a player sees
+    map                another variant's key, when this one is drawn on its art
     rules.profile      the compiled rule set, by name
     rules.text         the variant's own rules prose
     soloSupplyCenters  centres needed for a solo
@@ -77,6 +111,11 @@ anything it cannot state faithfully, rather than rounding it to the nearest
 thing the format can say:
 
     go run ./tools/variant-export --out variants/generated
+
+It writes every variant self-contained, so re-running it puts the five copies of
+the classical board back. Which variant owns a shared picture is a judgement no
+tool can make, so it stays a person's: restore the `map` lines by hand. The
+duplicate-art test fails until you do.
 
 dipmap writes a generated map's three files:
 

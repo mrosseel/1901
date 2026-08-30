@@ -43,14 +43,26 @@ const SchemaVersion = 1
 // The table-shaped fields are arrays rather than objects: a large map is mostly
 // border rows, and a row reads as a row.
 type Descriptor struct {
-	Schema            int    `json:"schema"`
-	Key               string `json:"key"`
-	Name              string `json:"name"`
-	CreatedBy         string `json:"createdBy"`
-	Version           string `json:"version"`
-	Description       string `json:"description"`
-	Rules             Rules  `json:"rules"`
-	SoloSupplyCenters int    `json:"soloSupplyCenters"`
+	Schema      int    `json:"schema"`
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	CreatedBy   string `json:"createdBy"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	// Map names another variant this one is drawn on, by key. Empty means the
+	// variant's own directory holds the art.
+	//
+	// It is a key and never a path. A descriptor may not reach outside the
+	// directory the variants live in, so anything that is not a bare key is
+	// refused rather than cleaned up.
+	//
+	// Art is not part of the board, so this field is absent from GameHash: a
+	// variant that stops carrying its own copy of a picture it shared byte for
+	// byte is the same variant, and its games still load.
+	Map string `json:"map,omitempty"`
+
+	Rules             Rules `json:"rules"`
+	SoloSupplyCenters int   `json:"soloSupplyCenters"`
 
 	Nations []string `json:"nations"`
 

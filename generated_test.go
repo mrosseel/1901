@@ -4,7 +4,10 @@ package main
 // generated (testdata/generated/demo7).
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -812,5 +815,197 @@ func TestLoadStateRestoresAGameOnAGeneratedVariant(t *testing.T) {
 	}
 	if _, ok := games.games["gen-1"]; !ok {
 		t.Error("the game did not come back after a cold start")
+	}
+}
+
+// A variant may be drawn on another variant's art instead of carrying its own
+// copy. Five of godip's variants are played on the classical board, and shipped
+// five byte-identical copies of it.
+//
+// The reference is a KEY, so it can only ever name a sibling directory. These
+// tests hold that boundary, and hold the two ways a chain of references can
+// fail: a key nothing loaded, and a chain that comes back to where it started.
+
+// plantVariant writes one copy of the sample variant under key, optionally
+// drawn on another variant's art rather than its own.
+func plantVariant(t *testing.T, root, key, drawnOn string) {
+	t.Helper()
+	target := filepath.Join(root, key)
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join("testdata", "generated", "demo7", "variant.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d map[string]any
+	if err := json.Unmarshal(raw, &d); err != nil {
+		t.Fatal(err)
+	}
+	d["key"] = key
+	d["name"] = key
+	if drawnOn != "" {
+		d["map"] = drawnOn
+	}
+	out, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "variant.json"), out, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A variant drawn on another one has no map.svg of its own. That absence is
+	// the whole point of the field.
+	if drawnOn != "" {
+		return
+	}
+	art, err := os.ReadFile(filepath.Join("testdata", "generated", "demo7", "map.svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "map.svg"), art, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAVariantDrawnOnAnotherServesTheSameBytes(t *testing.T) {
+	root := t.TempDir()
+	plantVariant(t, root, "owner", "")
+	plantVariant(t, root, "borrower", "owner")
+
+	withGeneratedDir(t, root)
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatalf("loadGeneratedVariants: %v", err)
+	}
+
+	owner, err := generatedVariants["owner"].Variant.SVGMap()
+	if err != nil {
+		t.Fatalf("owner art: %v", err)
+	}
+	borrower, err := generatedVariants["borrower"].Variant.SVGMap()
+	if err != nil {
+		t.Fatalf("borrower art: %v", err)
+	}
+	if !bytes.Equal(owner, borrower) {
+		t.Errorf("borrower was served %d bytes, owner %d; they must be the same art",
+			len(borrower), len(owner))
+	}
+}
+
+func TestAMapReferenceMayNotLeaveTheVariantsDirectory(t *testing.T) {
+	for _, reference := range []string{
+		"../classical",
+		"../../etc",
+		"/etc/passwd",
+		"owner/../owner",
+		"owner/map.svg",
+		"./owner",
+		"OWNER",
+		"own er",
+		"own.er",
+	} {
+		t.Run(reference, func(t *testing.T) {
+			root := t.TempDir()
+			plantVariant(t, root, "owner", "")
+			plantVariant(t, root, "borrower", reference)
+
+			withGeneratedDir(t, root)
+			err := loadGeneratedVariants()
+			if err == nil {
+				t.Fatalf("map %q was accepted; it is not a variant key", reference)
+			}
+			if !strings.Contains(err.Error(), reference) {
+				t.Errorf("the error does not name the reference it refused: %v", err)
+			}
+		})
+	}
+}
+
+func TestAMapReferenceToNothingIsRefused(t *testing.T) {
+	root := t.TempDir()
+	plantVariant(t, root, "borrower", "nosuchvariant")
+
+	withGeneratedDir(t, root)
+	err := loadGeneratedVariants()
+	if err == nil {
+		t.Fatal("a variant drawn on a key nothing loaded was accepted")
+	}
+	if !strings.Contains(err.Error(), "nosuchvariant") {
+		t.Errorf("the error does not name the missing variant: %v", err)
+	}
+}
+
+func TestACycleOfMapReferencesIsRefused(t *testing.T) {
+	root := t.TempDir()
+	plantVariant(t, root, "first", "second")
+	plantVariant(t, root, "second", "first")
+
+	withGeneratedDir(t, root)
+	err := loadGeneratedVariants()
+	if err == nil {
+		t.Fatal("two variants drawn on each other were accepted")
+	}
+	if !strings.Contains(err.Error(), "cycle") {
+		t.Errorf("the error does not say the references form a cycle: %v", err)
+	}
+}
+
+func TestAVariantMayNotBeDrawnOnItself(t *testing.T) {
+	root := t.TempDir()
+	plantVariant(t, root, "loner", "loner")
+
+	withGeneratedDir(t, root)
+	if err := loadGeneratedVariants(); err == nil {
+		t.Fatal("a variant drawn on itself was accepted")
+	}
+}
+
+func TestNoTwoCheckedInVariantsCarryTheSameArt(t *testing.T) {
+	dir := filepath.Join("variants", "generated")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read %v: %v", dir, err)
+	}
+	owners := map[string]string{}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		art, err := os.ReadFile(filepath.Join(dir, entry.Name(), "map.svg"))
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := fmt.Sprintf("%x", sha256.Sum256(art))
+		if first, dup := owners[sum]; dup {
+			t.Errorf("%v and %v carry byte-identical map.svg files; one of them "+
+				"should say \"map\": %q in its descriptor instead",
+				first, entry.Name(), first)
+			continue
+		}
+		owners[sum] = entry.Name()
+	}
+}
+
+func TestTheClassicalBoardIsDrawnOnce(t *testing.T) {
+	withGeneratedDir(t, filepath.Join("variants", "generated"))
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatalf("loadGeneratedVariants: %v", err)
+	}
+	classical, err := generatedVariants["classical"].Variant.SVGMap()
+	if err != nil {
+		t.Fatalf("classical art: %v", err)
+	}
+	for _, key := range []string{"chaos", "fleetrome", "francevsaustria", "italyvsgermany"} {
+		art, err := generatedVariants[key].Variant.SVGMap()
+		if err != nil {
+			t.Fatalf("%v art: %v", key, err)
+		}
+		if !bytes.Equal(art, classical) {
+			t.Errorf("%v is played on the classical board but is served %d bytes "+
+				"where classical is served %d", key, len(art), len(classical))
+		}
 	}
 }

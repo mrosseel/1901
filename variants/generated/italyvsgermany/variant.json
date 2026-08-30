@@ -5,6 +5,7 @@
   "createdBy": "",
   "version": "",
   "description": "A two player variant on the classical map.",
+  "map": "classical",
   "rules": {"profile":"classical","orders":null,"text":"The first to 18 supply centers is the winner. \nThe game only has two nations: Italy and Germany."},
   "soloSupplyCenters": 18,
   "nations": ["Germany","Italy"],

@@ -5,6 +5,7 @@
   "createdBy": "Unknown",
   "version": "",
   "description": "Standard map. 34 players. 1 unit each. Chaos.",
+  "map": "classical",
   "rules": {"profile":"chaos","orders":null,"text":"First to 18 Supply Centers (SC) is the winner. \nUnits may be built at any owned SC. \nThe game starts with an adjustment phase where it is decided what unit to build. In this phase, all SC without orders build an army (to mitigate absent players)."},
   "soloSupplyCenters": 18,
   "nations": ["Ankara","Belgium","Berlin","Brest","Budapest","Bulgaria","Constantinople","Denmark","Edinburgh","Greece","Holland","Kiel","Liverpool","London","Marseilles","Moscow","Munich","Naples","Norway","Paris","Portugal","Rome","Rumania","Serbia","Sevastopol","Smyrna","Spain","StPetersburg","Sweden","Trieste","Tunis","Venice","Vienna","Warsaw"],

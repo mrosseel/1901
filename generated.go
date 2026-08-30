@@ -11,6 +11,12 @@
 //	variants/generated/<key>/map.svg          the board art
 //	variants/generated/<key>/placements.json  marker positions, optional
 //
+// The art may instead be another variant's, named by the descriptor's `map`
+// field. Five of godip's variants are played on the classical board and shipped
+// five byte-identical copies of it. A reference is a key, never a path, and it
+// is resolved here because this is the only place that knows which variants
+// exist.
+//
 // Two things separate a file on disk from a package in the binary, and both
 // are handled here rather than assumed away.
 //
@@ -30,6 +36,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -79,7 +86,11 @@ func loadGeneratedVariants() error {
 		return fmt.Errorf("read %v: %w", dir, err)
 	}
 
-	loaded := []string{}
+	// Descriptors first, art second. A variant may be drawn on another
+	// variant's art, and which variants exist is only known once every
+	// directory has been read.
+	pending := []pendingVariant{}
+	drawnOn := map[string]string{}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -89,13 +100,40 @@ func loadGeneratedVariants() error {
 			return fmt.Errorf(
 				"generated variant directory %q is not a URL-safe key", key)
 		}
-		gen, err := loadGeneratedVariant(filepath.Join(dir, key), key)
+		one, err := loadGeneratedVariant(filepath.Join(dir, key), key)
 		if err != nil {
 			return err
 		}
-		generatedVariants[key] = gen
-		loaded = append(loaded, fmt.Sprintf("%v (%d provinces, %v)",
-			key, len(gen.Variant.Graph().Provinces()), gen.Hash[:12]))
+		pending = append(pending, one)
+		drawnOn[key] = one.drawnOn
+	}
+
+	loaded := []string{}
+	art := map[string][]byte{}
+	for _, one := range pending {
+		owner, err := resolveArtKey(one.key, drawnOn)
+		if err != nil {
+			return err
+		}
+		if _, done := art[owner]; !done {
+			b, err := loadVariantArt(filepath.Join(dir, owner), owner)
+			if err != nil {
+				return err
+			}
+			art[owner] = b
+		}
+		drawn := art[owner]
+		gen := one.gen
+		gen.SVG = drawn
+		gen.Variant.SVGMap = func() ([]byte, error) { return drawn, nil }
+		generatedVariants[one.key] = gen
+
+		where := ""
+		if owner != one.key {
+			where = ", drawn on " + owner
+		}
+		loaded = append(loaded, fmt.Sprintf("%v (%d provinces, %v%v)",
+			one.key, len(gen.Variant.Graph().Provinces()), gen.Hash[:12], where))
 	}
 
 	// The index every game load consults must now include these.
@@ -108,29 +146,75 @@ func loadGeneratedVariants() error {
 	return nil
 }
 
-// loadGeneratedVariant reads one variant directory.
-func loadGeneratedVariant(dir, key string) (generatedVariant, error) {
+// pendingVariant is a variant read from disk but not yet given its art,
+// because the art may belong to a variant that has not been read yet.
+type pendingVariant struct {
+	key string
+	gen generatedVariant
+	// drawnOn is the key of the variant holding this one's art, or "" when
+	// this directory holds its own.
+	drawnOn string
+}
+
+// resolveArtKey follows a chain of map references to the variant that actually
+// holds the art.
+//
+// Both ways a chain can fail are errors, never a fallback: a variant served
+// with the wrong board, or with no board, is worse than a server that will not
+// start and says which descriptor is wrong.
+func resolveArtKey(key string, drawnOn map[string]string) (string, error) {
+	seen := []string{key}
+	at := key
+	for {
+		ref, loaded := drawnOn[at]
+		if !loaded {
+			return "", fmt.Errorf(
+				"generated variant %v is drawn on %q, which is not a loaded variant "+
+					"(chain: %v)", key, at, strings.Join(seen, " -> "))
+		}
+		if ref == "" {
+			return at, nil
+		}
+		if slices.Contains(seen, ref) {
+			return "", fmt.Errorf(
+				"generated variant %v is drawn on itself through a cycle: %v",
+				key, strings.Join(append(seen, ref), " -> "))
+		}
+		seen = append(seen, ref)
+		at = ref
+	}
+}
+
+// loadGeneratedVariant reads one variant directory, except its art.
+func loadGeneratedVariant(dir, key string) (pendingVariant, error) {
 	descriptorPath := filepath.Join(dir, "variant.json")
 	raw, err := os.ReadFile(descriptorPath)
 	if err != nil {
-		return generatedVariant{}, fmt.Errorf("read %v: %w", descriptorPath, err)
+		return pendingVariant{}, fmt.Errorf("read %v: %w", descriptorPath, err)
 	}
 
 	var descriptor variantjson.Descriptor
 	if err := json.Unmarshal(raw, &descriptor); err != nil {
-		return generatedVariant{}, fmt.Errorf("parse %v: %w", descriptorPath, err)
+		return pendingVariant{}, fmt.Errorf("parse %v: %w", descriptorPath, err)
 	}
 	// The directory name is the key a game stores, so the descriptor may not
 	// disagree with it.
 	if descriptor.Key != "" && descriptor.Key != key {
-		return generatedVariant{}, fmt.Errorf(
+		return pendingVariant{}, fmt.Errorf(
 			"%v: descriptor key %q does not match directory %q",
 			descriptorPath, descriptor.Key, key)
+	}
+	// Validate refuses a map reference that is not a bare key, so by here the
+	// value can only ever name a sibling directory. Checked again because this
+	// is the function that joins it to a path.
+	if descriptor.Map != "" && !variantjson.IsVariantKey(descriptor.Map) {
+		return pendingVariant{}, fmt.Errorf(
+			"%v: map %q is not a variant key", descriptorPath, descriptor.Map)
 	}
 
 	variant, err := variantjson.Build(descriptor)
 	if err != nil {
-		return generatedVariant{}, fmt.Errorf("%v: %w", descriptorPath, err)
+		return pendingVariant{}, fmt.Errorf("%v: %w", descriptorPath, err)
 	}
 	// Legal but usually a mistake. Real variants do all of these on purpose,
 	// so they are said out loud rather than refused.
@@ -143,29 +227,8 @@ func loadGeneratedVariant(dir, key string) (generatedVariant, error) {
 		variant.Name = key
 	}
 
-	svgPath := filepath.Join(dir, "map.svg")
-	rawSVG, err := os.ReadFile(svgPath)
-	if err != nil {
-		return generatedVariant{}, fmt.Errorf("read %v: %w", svgPath, err)
-	}
-	sanitized, err := sanitizeSVG(rawSVG)
-	if err != nil {
-		return generatedVariant{}, fmt.Errorf("%v: %w", svgPath, err)
-	}
-	if sanitized.Dropped() {
-		log.Printf("generated variant %v: removed unsafe svg %v",
-			key, sanitized.Summary())
-	}
-	if err := requireBoardLayers(sanitized.Clean); err != nil {
-		return generatedVariant{}, fmt.Errorf("%v: %w", svgPath, err)
-	}
-	if missingCenterAnchors(sanitized.Clean) {
-		log.Printf("generated variant %v: art has no province-centers layer, so "+
-			"markers fall back to the placement table alone", key)
-	}
-
-	art := sanitized.Clean
-	variant.SVGMap = func() ([]byte, error) { return art, nil }
+	// SVGMap is attached once the art has been resolved, which cannot happen
+	// until every descriptor has been read.
 	variant.SVGVersion = "1"
 
 	// Marker positions are optional, exactly as they are for a compiled
@@ -174,7 +237,7 @@ func loadGeneratedVariant(dir, key string) (generatedVariant, error) {
 	if b, err := os.ReadFile(placementPath); err == nil {
 		var table placementTable
 		if err := json.Unmarshal(b, &table); err != nil {
-			return generatedVariant{}, fmt.Errorf("parse %v: %w", placementPath, err)
+			return pendingVariant{}, fmt.Errorf("parse %v: %w", placementPath, err)
 		}
 		for prov, spot := range table {
 			if spot.Scale <= 0 {
@@ -184,15 +247,47 @@ func loadGeneratedVariant(dir, key string) (generatedVariant, error) {
 		}
 		placements[key] = table
 	} else if !os.IsNotExist(err) {
-		return generatedVariant{}, fmt.Errorf("read %v: %w", placementPath, err)
+		return pendingVariant{}, fmt.Errorf("read %v: %w", placementPath, err)
 	}
 
-	return generatedVariant{
-		Key:     key,
-		Variant: variant,
-		SVG:     art,
-		Hash:    variantjson.GameHash(descriptor),
+	return pendingVariant{
+		key:     key,
+		drawnOn: descriptor.Map,
+		gen: generatedVariant{
+			Key:     key,
+			Variant: variant,
+			Hash:    variantjson.GameHash(descriptor),
+		},
 	}, nil
+}
+
+// loadVariantArt reads and sanitises one variant's map.svg.
+//
+// It is called once per picture, not once per variant: several variants may be
+// drawn on the same art, and they must be served the same bytes rather than
+// two sanitiser runs that happen to agree.
+func loadVariantArt(dir, key string) ([]byte, error) {
+	svgPath := filepath.Join(dir, "map.svg")
+	rawSVG, err := os.ReadFile(svgPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %v: %w", svgPath, err)
+	}
+	sanitized, err := sanitizeSVG(rawSVG)
+	if err != nil {
+		return nil, fmt.Errorf("%v: %w", svgPath, err)
+	}
+	if sanitized.Dropped() {
+		log.Printf("generated variant %v: removed unsafe svg %v",
+			key, sanitized.Summary())
+	}
+	if err := requireBoardLayers(sanitized.Clean); err != nil {
+		return nil, fmt.Errorf("%v: %w", svgPath, err)
+	}
+	if missingCenterAnchors(sanitized.Clean) {
+		log.Printf("generated variant %v: art has no province-centers layer, so "+
+			"markers fall back to the placement table alone", key)
+	}
+	return sanitized.Clean, nil
 }
 
 // generatedVariantList returns the loaded variants in key order, for the

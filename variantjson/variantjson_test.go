@@ -224,3 +224,54 @@ func TestAnUnknownProfileIsRefusedAndTheKnownOnesNamed(t *testing.T) {
 		t.Errorf("expected several rule profiles, got %v", Profiles())
 	}
 }
+
+// A variant may be drawn on another variant's art, named by key. The key is
+// the whole of what a descriptor may say about where its art lives: a path
+// would let a descriptor read a file outside the directory variants live in.
+
+func TestAMapReferenceMustBeABareKey(t *testing.T) {
+	for _, reference := range []string{
+		"../classical", "../../etc/passwd", "/etc/passwd", "classical/map.svg",
+		"./classical", "classical/../classical", "Classical", "class ical",
+		"class.ical", "class-ical", "class_ical",
+	} {
+		d := sampleDescriptor(t)
+		d.Map = reference
+		err := Validate(d)
+		if err == nil {
+			t.Errorf("map %q was accepted; it is not a variant key", reference)
+			continue
+		}
+		if !strings.Contains(err.Error(), reference) {
+			t.Errorf("map %q: the error does not name what it refused: %v",
+				reference, err)
+		}
+	}
+}
+
+func TestAMapReferenceToAPlainKeyIsAccepted(t *testing.T) {
+	for _, reference := range []string{"classical", "1900", "westernworld901"} {
+		d := sampleDescriptor(t)
+		d.Map = reference
+		if err := Validate(d); err != nil {
+			t.Errorf("map %q was refused: %v", reference, err)
+		}
+	}
+}
+
+func TestAVariantMayNotBeDrawnOnItself(t *testing.T) {
+	d := sampleDescriptor(t)
+	d.Map = d.Key
+	if err := Validate(d); err == nil {
+		t.Error("a variant naming itself as its own art was accepted")
+	}
+}
+
+func TestBeingDrawnOnAnotherVariantDoesNotChangeTheHash(t *testing.T) {
+	d := sampleDescriptor(t)
+	before := GameHash(d)
+	d.Map = "classical"
+	if after := GameHash(d); after != before {
+		t.Errorf("the hash moved when the art moved: %v -> %v", before, after)
+	}
+}
