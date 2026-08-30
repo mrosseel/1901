@@ -12,10 +12,10 @@
     "Turkey": false
   },
   "finalizedCount": 0,
-  "gameId": "n5f6yq8qd2",
+  "gameId": "xjc2md9zv5",
   "graceUntil": null,
   "illegal": [],
-  "joinedCount": 7,
+  "joinedCount": 4,
   "nations": [
     "Austria",
     "England",
@@ -26,7 +26,7 @@
     "Turkey"
   ],
   "nothingToOrder": false,
-  "now": "2026-08-30T12:36:40Z",
+  "now": "2026-08-30T12:36:46Z",
   "orderParts": {},
   "orders": {},
   "phase": {
@@ -1319,7 +1319,7 @@
     "vie": "Austria",
     "war": "Russia"
   },
-  "totalSeats": 7,
+  "totalSeats": 4,
   "units": {
     "ank": {
       "nation": "Turkey",
@@ -1416,7 +1416,7 @@
     "supported": true
   },
   "you": {
-    "power": "France"
+    "power": "Austria"
   },
   "youFinalized": false
 }

@@ -14,6 +14,7 @@
     "finalizedCount": 0,
     "gameId": "jtq9tg9s52",
     "graceUntil": "2026-08-29T08:41:52Z",
+    "joinedCount": 7,
     "nations": [
         "Austria",
         "England",
@@ -1038,6 +1039,7 @@
         "yor": "Yorkshire"
     },
     "resolutions": {},
+    "seatsOnOffer": 7,
     "settings": {
         "deadlineMinutes": 30,
         "firstTurnExtraMinutes": 0,

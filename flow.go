@@ -1212,9 +1212,17 @@ type seatStateJSON struct {
 	// NothingToOrder says this seat was finalized by the server because its
 	// power has no legal order this phase (D-034). The screen must say so;
 	// a seat that finds itself finalized with no explanation reads as a bug.
-	NothingToOrder   bool              `json:"nothingToOrder"`
-	FinalizedCount   int               `json:"finalizedCount"`
-	TotalSeats       int               `json:"totalSeats"`
+	NothingToOrder bool `json:"nothingToOrder"`
+	FinalizedCount int  `json:"finalizedCount"`
+	TotalSeats     int  `json:"totalSeats"`
+	// JoinedCount and SeatsOnOffer are the table filling up, for the screen a
+	// player sits on before the start. TotalSeats cannot say it: it counts the
+	// seats that must finalize, which is the wrong denominator before a phase
+	// exists and, when the GM plays, excludes a seat that is not handed out.
+	// Both numbers are already public on /public, and neither says WHICH
+	// powers are taken — that stays unsaid (D-020, D-021).
+	JoinedCount      int               `json:"joinedCount"`
+	SeatsOnOffer     int               `json:"seatsOnOffer"`
 	PhaseResolutions map[string]string `json:"phaseResolutions"`
 	CanForce         bool              `json:"canForce"`
 	Variant          variantRefJSON    `json:"variant"`
@@ -1278,6 +1286,8 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 		NothingToOrder:   f.seats[power].autoLocked,
 		FinalizedCount:   f.finalizedCount(),
 		TotalSeats:       f.activeSeats(),
+		JoinedCount:      f.joinedCount(),
+		SeatsOnOffer:     f.joinerSeats(),
 		PhaseResolutions: base.Resolutions,
 		CanForce:         f.canForce(),
 		Variant:          self.variantRef(),

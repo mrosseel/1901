@@ -19,6 +19,7 @@
     "finalizedCount": 0,
     "gameId": "jtq9tg9s52",
     "graceUntil": "2026-08-29T08:26:52Z",
+    "joinedCount": 7,
     "nations": [
         "Austria",
         "England",
@@ -1216,6 +1217,7 @@
         "war": "OK",
         "yor": "OK"
     },
+    "seatsOnOffer": 7,
     "settings": {
         "deadlineMinutes": 30,
         "firstTurnExtraMinutes": 0,

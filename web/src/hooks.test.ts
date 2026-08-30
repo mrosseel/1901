@@ -29,12 +29,30 @@ describe("the rules, in words", () => {
       "Deadline: 15 minutes for each phase.",
       "The game master plays a power as well.",
       "Illegal orders may be written; they resolve as holds.",
+      "Negotiate out loud, at the table.",
     ]);
     expect(settingsLines({ deadlineMinutes: 0, gmPlays: false })).toEqual([
       "No deadline.",
       "The game master does not play a power.",
       "Illegal orders may be written; they resolve as holds.",
+      "Negotiate out loud, at the table.",
     ]);
+  });
+
+  /* The press mode is a rule the table declared and the app never enforces,
+     so its line says what the people do (D-023). */
+  it("says how the table negotiates", () => {
+    const press = (mode: string) =>
+      settingsLines({ deadlineMinutes: 0, gmPlays: false, pressMode: mode })[3];
+    expect(press("gunboat")).toBe("Gunboat: no negotiation at all.");
+    expect(press("rulebook")).toBe("Negotiate in movement phases only.");
+    expect(press("fullpress")).toBe("Full press: negotiate however the table agrees.");
+  });
+
+  it("says nothing about a mode this build does not know", () => {
+    expect(
+      settingsLines({ deadlineMinutes: 0, gmPlays: false, pressMode: "telepathy" }),
+    ).toHaveLength(3);
   });
 
   /* A server that predates the setting accepted whatever it was sent, so an

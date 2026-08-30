@@ -9,6 +9,12 @@ the same time.
 Nothing here is hand-written. If a fixture looks wrong, it is because the
 server answered that way.
 
+When the server grows a field, the captures that predate it are migrated
+rather than replayed: the new key is filled with what that game's server would
+have answered, and nothing else in the file is touched. `joinedCount` and
+`seatsOnOffer` arrived that way — every game behind these captures had all its
+powers claimed, so both are the power count.
+
 ## The game behind them
 
 Seven players, no game master seat, a 30-minute deadline, the classical
@@ -33,7 +39,8 @@ variant.
 
 | File | The moment |
 | --- | --- |
-| `seat-not-started.json` | France, all seven joined, the game master has not started it |
+| `seat-not-started.json` | France, all seven claimed, the game master has not started it |
+| `seat-waiting-partial.json` | Austria, four of seven claimed — a table still filling up. Its own game: the one above cannot be half-claimed and full at the same time |
 | `seat-movement.json` | France mid-Spring-1901, three drafted orders drawn on the map |
 | `seat-locked.json` | England with its orders finalized |
 | `seat-retreat.json` | Austria in the Fall 1901 retreat, its Trieste fleet dislodged. Its `previousPhase` is the Fall 1901 movement — the bounce, the dislodge and the NMR in one review |

@@ -39,6 +39,7 @@ import { styledMapUrl } from "../style";
 import { ReviewOverlay } from "../components/ReviewOverlay";
 import { ModalLayer } from "../components/ModalLayer";
 import { RefereeGuide } from "../components/RefereeGuide";
+import { SeatWaiting } from "../components/SeatWaiting";
 import { useBriefLabels, useBriefMoves, useHideOrders } from "../prefs";
 import { refereeGuide } from "../referee";
 import {
@@ -68,6 +69,9 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const [plan, setPlan] = useState<PhasePlan>(emptyPlan(""));
   const [reviewing, setReviewing] = useState(false);
   const [refereeing, setRefereeing] = useState(false);
+  /* One count per answer the public summary gives, and only before the start:
+     it is what the waiting screen's live mark is drawn from. */
+  const [beat, setBeat] = useState(0);
   const [style, setStyle] = useMapStyle();
   const [hideOrders, setHideOrders] = useHideOrders();
   const [briefLabels, setBriefLabels] = useBriefLabels();
@@ -127,8 +131,11 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     async () => {
       const summary = await fetchPublic(gameId);
       noteServerTime(summary.now);
+      if (!summary.started) setBeat((n) => n + 1);
       const mark = JSON.stringify([
         summary.started,
+        // A power claimed is a change the waiting screen must show.
+        summary.joinedCount,
         summary.settingsVersion,
         summary.phase,
         summary.finalized,
@@ -380,53 +387,55 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       </main>
 
       <aside className="side" inert={reading || undefined}>
-        <header className="seat-head">
-          {/* The phase is what the whole table is playing. It is read across a
-              room, so it is the largest thing on the page. */}
-          <p className="phase-now">
-            {state?.started ? <PhaseName phase={state.phase} /> : "The game has not started"}
-          </p>
-          <h1>
-            <span className="dot" style={{ background: powerColor(power) }} />
-            You are {power || "…"}
-          </h1>
-          <p className="muted">
-            {state?.variant ? state.variant.name : ""}{" "}
-            {state?.variant ? <SupportedMark supported={state.variant.supported} /> : null}
-          </p>
-          {/* The deadline is the one thing on this page that must never be
-              hunted for, so it gets its own line and its own size. */}
-          <Clock deadlineAt={state?.deadlineAt} />
-          {review && !reviewing ? (
-            <span className="head-links">
-              <button type="button" className="link" onClick={() => setReviewing(true)}>
-                Review last turn
-              </button>
-              {guide ? (
-                <button type="button" className="link" onClick={() => setRefereeing(true)}>
-                  Move the pieces
-                </button>
-              ) : null}
-            </span>
-          ) : null}
-          {/* Only the game master's own seat carries this: the switch from
-              the board to the controls, and back from there. */}
-          {state?.refereeUrl ? (
-            <span className="head-links">
-              <a className="link" href={state.refereeUrl}>
-                Game master view
-              </a>
-            </span>
-          ) : null}
-          {/* What this phase asks of this power: the units that must retreat,
-              or the builds and disbands owed. */}
-          {duty ? (
-            <p className={idle ? "duty idle" : "duty"}>
-              {duty}
-              {plan.duty && !idle ? " (" + done + " of " + plan.duty.count + " in)" : ""}
+        {!started ? <SeatWaiting state={state} beat={beat} /> : (
+          <header className="seat-head">
+            {/* The phase is what the whole table is playing. It is read across a
+                room, so it is the largest thing on the page. */}
+            <p className="phase-now">
+              <PhaseName phase={state?.phase} />
             </p>
-          ) : null}
-        </header>
+            <h1>
+              <span className="dot" style={{ background: powerColor(power) }} />
+              You are {power || "…"}
+            </h1>
+            <p className="muted">
+              {state?.variant ? state.variant.name : ""}{" "}
+              {state?.variant ? <SupportedMark supported={state.variant.supported} /> : null}
+            </p>
+            {/* The deadline is the one thing on this page that must never be
+                hunted for, so it gets its own line and its own size. */}
+            <Clock deadlineAt={state?.deadlineAt} />
+            {review && !reviewing ? (
+              <span className="head-links">
+                <button type="button" className="link" onClick={() => setReviewing(true)}>
+                  Review last turn
+                </button>
+                {guide ? (
+                  <button type="button" className="link" onClick={() => setRefereeing(true)}>
+                    Move the pieces
+                  </button>
+                ) : null}
+              </span>
+            ) : null}
+            {/* Only the game master's own seat carries this: the switch from
+                the board to the controls, and back from there. */}
+            {state?.refereeUrl ? (
+              <span className="head-links">
+                <a className="link" href={state.refereeUrl}>
+                  Game master view
+                </a>
+              </span>
+            ) : null}
+            {/* What this phase asks of this power: the units that must retreat,
+                or the builds and disbands owed. */}
+            {duty ? (
+              <p className={idle ? "duty idle" : "duty"}>
+                {duty}
+                {plan.duty && !idle ? " (" + done + " of " + plan.duty.count + " in)" : ""}
+              </p>
+            ) : null}
+          </header>
+        )}
 
         {rulesChanged ? (
           <div className="banner">
@@ -493,85 +502,88 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
               </p>
             )}
           </section>
-        ) : (
-          <p className="muted">Waiting for the game master to start the game.</p>
-        )}
+        ) : null}
 
         <p className={isError ? "status error" : "status"} role="status">
           {status}
         </p>
 
-        <section>
-          {/* The switch belongs to the list it rewrites, not to the map. */}
-          <div className="list-head">
-            <h2>Your orders</h2>
-            <OrderNotationToggle value={briefMoves} onChange={setBriefMoves} />
-          </div>
-          {orderRows.length === 0 ? (
-            <p className="muted">
-              {idle
-                ? "Nothing to order this phase."
-                : kind === "retreat"
-                  ? "No orders yet. Tap the dislodged unit, ringed in red."
-                  : kind === "adjustment"
-                    ? "No orders yet. Tap a highlighted province."
-                    : "No orders yet. Tap one of your units on the map."}
-            </p>
-          ) : (
-            <ul className="list">
-              {orderRows.map((province) => (
-                <li
-                  key={province}
-                  className={
-                    "pickable" +
-                    (selected === province ? " picked" : "") +
-                    (illegalHere.has(province) ? " illegal" : "")
-                  }
-                  tabIndex={0}
-                  onClick={() => handle.current?.selectOrder(province)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      handle.current?.selectOrder(province);
+        {/* No orders before the start: no phase has asked for one and the
+            server refuses one. So the list, its heading and the switch that
+            rewrites it are not on the screen at all. */}
+        {started ? (
+          <section>
+            {/* The switch belongs to the list it rewrites, not to the map. */}
+            <div className="list-head">
+              <h2>Your orders</h2>
+              <OrderNotationToggle value={briefMoves} onChange={setBriefMoves} />
+            </div>
+            {orderRows.length === 0 ? (
+              <p className="muted">
+                {idle
+                  ? "Nothing to order this phase."
+                  : kind === "retreat"
+                    ? "No orders yet. Tap the dislodged unit, ringed in red."
+                    : kind === "adjustment"
+                      ? "No orders yet. Tap a highlighted province."
+                      : "No orders yet. Tap one of your units on the map."}
+              </p>
+            ) : (
+              <ul className="list">
+                {orderRows.map((province) => (
+                  <li
+                    key={province}
+                    className={
+                      "pickable" +
+                      (selected === province ? " picked" : "") +
+                      (illegalHere.has(province) ? " illegal" : "")
                     }
-                  }}
-                >
-                  <span className="order-text">
-                    {orders[province]}
-                    {/* Said, not only coloured: the player is bluffing on
-                        purpose and is owed both halves of what that costs. */}
-                    {illegalHere.has(province) ? (
-                      <span className="illegal-note">{ILLEGAL_DRAFT_NOTE}</span>
-                    ) : null}
-                  </span>
-                  <span className="row-actions">
-                    <button
-                      type="button"
-                      title={"Change the order for " + provinceName(province)}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handle.current?.changeOrder(province);
-                      }}
-                    >
-                      Change
-                    </button>
-                    <button
-                      type="button"
-                      className="row-cancel"
-                      title={"Remove the order for " + provinceName(province)}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handle.current?.cancelOrder(province);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                    tabIndex={0}
+                    onClick={() => handle.current?.selectOrder(province)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handle.current?.selectOrder(province);
+                      }
+                    }}
+                  >
+                    <span className="order-text">
+                      {orders[province]}
+                      {/* Said, not only coloured: the player is bluffing on
+                          purpose and is owed both halves of what that costs. */}
+                      {illegalHere.has(province) ? (
+                        <span className="illegal-note">{ILLEGAL_DRAFT_NOTE}</span>
+                      ) : null}
+                    </span>
+                    <span className="row-actions">
+                      <button
+                        type="button"
+                        title={"Change the order for " + provinceName(province)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handle.current?.changeOrder(province);
+                        }}
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        className="row-cancel"
+                        title={"Remove the order for " + provinceName(province)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handle.current?.cancelOrder(province);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
 
         {resolutionRows.length ? (
           <section>
