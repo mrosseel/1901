@@ -28,7 +28,7 @@ func TestSeaVerdictMatchesTheArtsOwnMeasurement(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
-	art, err := os.ReadFile(filepath.Join("testdata", "generated", "demo7", "map.svg"))
+	art, err := os.ReadFile(filepath.Join("testdata", "frozen", "demo7-drawn", "map.svg"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestSeaVerdictMatchesTheArtsOwnMeasurement(t *testing.T) {
 		order = append(order, m[1])
 	}
 
-	b, err := os.ReadFile(filepath.Join("testdata", "generated", "demo7", "styleplan.json"))
+	b, err := os.ReadFile(filepath.Join("testdata", "frozen", "demo7-drawn", "styleplan.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

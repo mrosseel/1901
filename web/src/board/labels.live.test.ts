@@ -13,11 +13,9 @@ needed. There is no helper in this file. The bytes that go into the board are
 the bytes on disk, and if the board still has to have layers removed to draw a
 name, the exporter has not made the change this is waiting for.
 
-PENDING: testdata/generated/demo7 has not been regenerated in data mode yet, so
-every assertion below is false today and the test is marked `it.fails`. That
-marker is the whole notice. When the fixture lands, this turns RED with
-"expected test to fail" — delete the `.fails` and it is an ordinary test. Do
-not weaken the assertions to make it green sooner.
+The fixture landed in data mode on 2026-08-30 and this became an ordinary
+test. It was written before that, marked `it.fails`, so it would turn red on
+the day the fixture arrived rather than sit green and prove nothing.
 */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount } from "./board";
@@ -102,7 +100,7 @@ function centreRecords(): number {
 }
 
 describe("the exporter's own map, in data mode", () => {
-  it.fails("draws every name and glyph from the records with nothing stripped", async () => {
+  it("draws every name and glyph from the records with nothing stripped", async () => {
     const doc = new DOMParser().parseFromString(ART, "image/svg+xml");
     // What the art must no longer carry. A name, a supply-centre glyph and a
     // unit anchor are records now (D-038), and the anchors go with the other
