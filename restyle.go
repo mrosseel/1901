@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -706,7 +707,7 @@ func liftLabelSize(declarations string, floor float64) string {
 // A length is carried onto the scale of the LAYER it lands in, not the map's:
 // the art layer and the name layers are drawn at different scales, so the two
 // carries below are not interchangeable.
-func buildStylesheet(plan *jdipPlan, style *loadedStyle, width, labelScale float64) string {
+func buildStylesheet(plan *jdipPlan, style *loadedStyle, width, labelScale float64, rings bool) string {
 	carry := func(value float64) string {
 		return num(carryLength(value, style.ReferenceWidth, width, plan.ArtScale))
 	}
@@ -833,6 +834,23 @@ func buildStylesheet(plan *jdipPlan, style *loadedStyle, width, labelScale float
 			"; opacity:"+num(style.SupplyCentre.Opacity)+"; }",
 		"")
 
+	// The rings laid into a layer that ships empty (D-032). The selector is
+	// one class more specific than the rule above, which would otherwise fill
+	// them from the style's token and swallow the name a ring is drawn around.
+	//
+	// The paint is godip's own and not the style's, the same paint the board
+	// uses when it draws a glyph from a record (D-038). A ring says only that
+	// a province is a supply centre; who owns it is the board's to draw, and
+	// it draws that in the style's colours over the top.
+	if rings {
+		lines = append(lines,
+			"/* rings drawn into a converted map's empty supply-centre layer */",
+			"#SupplyCenterLayer circle."+supplyCentreRingClass+" { fill:none; stroke:"+
+				supplyCentreInk+"; stroke-opacity:"+supplyCentreOpacity+
+				"; stroke-width:"+supplyCentreLength(supplyCentreStrokeFraction, width)+"; opacity:1; }",
+			"")
+	}
+
 	if style.Grain != nil {
 		lines = append(lines,
 			"/* the style's grain, laid over the finished map */",
@@ -845,6 +863,95 @@ func buildStylesheet(plan *jdipPlan, style *loadedStyle, width, labelScale float
 		"/* kept from jDip: these are the board's business, not the map's */",
 		".invisible { stroke:#000000; fill:#000000; fill-opacity:0.0; opacity:0.0; }")
 	return strings.Join(lines, "\n")
+}
+
+// --- supply-centre rings -----------------------------------------------------
+
+// A converted jDip map ships SupplyCenterLayer empty. jDip marks no supply
+// centre at all, and nothing downstream draws one, so a player cannot see
+// which provinces are worth taking. The ring is drawn here at serve time
+// rather than baked into the art, because ?style=original serves the art's
+// own bytes and D-032 promises those stay a faithful copy of jDip's.
+//
+// The glyph and the paint are godip's, quoted against its own 1524-unit
+// classical: a stroked circle of radius 10 in a stroke of 2.25273, black at
+// 0.470588. Both lengths are fractions of the map's width, because a converted
+// map is drawn at whatever width jDip chose and the glyph has to read the same
+// on all of them. The stroke is stated rather than taken as a fraction of the
+// radius: it is a line weight, so deriving it makes a small map's ring a
+// smudge and a large one's a doughnut.
+const (
+	supplyCentreRadiusFraction = 10.0 / 1524.0
+	supplyCentreStrokeFraction = 2.25273 / 1524.0
+	supplyCentreInk            = "#000000"
+	supplyCentreOpacity        = "0.470588"
+	supplyCentreRingClass      = "sc-ring"
+)
+
+// supplyCentreLength quotes one of the glyph's two lengths on a map of the
+// given width, rounded as carryLength rounds: three decimals is finer than
+// any of this art is drawn to, and an exact binary fraction printed in full
+// is noise in the served bytes.
+func supplyCentreLength(fraction, width float64) string {
+	return num(jsRound(fraction*width*1000) / 1000)
+}
+
+var (
+	// Both spellings of the empty layer: the art ships <g/>, and a document
+	// that has been through an XML round trip carries <g></g>.
+	emptyCentreLayerRe = regexp.MustCompile(
+		`<g\b[^>]*\bid="SupplyCenterLayer"[^>]*?(?:/>|>\s*</g>)`)
+	// A unit anchor, which the converted art keeps in a hidden layer of its
+	// own, as a path whose whole geometry is one moveto.
+	unitAnchorRe = regexp.MustCompile(
+		`<path\b[^>]*\bid="([^"]+)Center"[^>]*\bd="[Mm]\s*(-?[\d.]+)[\s,]+(-?[\d.]+)\s*"`)
+)
+
+// drawSupplyCentreRings fills a converted map's empty supply-centre layer with
+// one ring per supply centre, and reports how many it drew.
+//
+// The position is the province's unit anchor, which is jDip's own coordinate
+// for the province and the only one that survives the conversion. Anchors are
+// in the root viewport space, which is the space this layer draws in, so no
+// length is carried onto a layer scale here.
+//
+// A ring is `sc-<key>` and never `<key>Center`: the board matches
+// [id$="Center"] to find unit anchors, and a ring answering that selector
+// would be read as one.
+func drawSupplyCentreRings(svg string, centres []string) (string, int) {
+	layer := emptyCentreLayerRe.FindStringIndex(svg)
+	if layer == nil || len(centres) == 0 {
+		return svg, 0
+	}
+	width, err := viewBoxWidth(svg)
+	if err != nil || width <= 0 {
+		return svg, 0
+	}
+	anchors := map[string][2]string{}
+	for _, hit := range unitAnchorRe.FindAllStringSubmatch(svg, -1) {
+		anchors[hit[1]] = [2]string{hit[2], hit[3]}
+	}
+	wanted := append([]string{}, centres...)
+	sort.Strings(wanted)
+
+	rings := strings.Builder{}
+	rings.WriteString(`<g id="SupplyCenterLayer">`)
+	drawn := 0
+	for _, province := range wanted {
+		at, found := anchors[province]
+		if !found {
+			continue
+		}
+		rings.WriteString("\n\t\t" + `<circle class="` + supplyCentreRingClass +
+			`" id="sc-` + escapeAttr(province) + `" cx="` + at[0] + `" cy="` + at[1] +
+			`" r="` + supplyCentreLength(supplyCentreRadiusFraction, width) + `"/>`)
+		drawn++
+	}
+	if drawn == 0 {
+		return svg, 0
+	}
+	rings.WriteString("\n\t</g>")
+	return svg[:layer[0]] + rings.String() + svg[layer[1]:], drawn
 }
 
 var (
@@ -872,18 +979,23 @@ func replaceFirst(s string, re *regexp.Regexp, with string) string {
 //
 // Almost all of the work is replacing the stylesheet, and not one drawing
 // element is touched by it. The exceptions are few and each is deliberate:
-// patterns and font faces are added to <defs>, the grain overlay goes into a
-// layer that ships empty, the black backdrop rect has its fill attribute
-// rewritten because it carries it inline where no stylesheet can reach, and
-// each label <text> gains a class saying whether it names land or water.
-func applyJDipStyle(original string, plan *jdipPlan, style *loadedStyle) (string, error) {
+// patterns and font faces are added to <defs>, the grain overlay and the
+// supply-centre rings go into layers that ship empty, the black backdrop rect
+// has its fill attribute rewritten because it carries it inline where no
+// stylesheet can reach, and each label <text> gains a class saying whether it
+// names land or water.
+func applyJDipStyle(original string, plan *jdipPlan, style *loadedStyle, centres []string) (string, error) {
 	width, err := viewBoxWidth(original)
 	if err != nil {
 		return "", err
 	}
 	svg := original
 
-	// 1. The stylesheet. jDip wraps it in CDATA, which is kept.
+	// 1. The supply-centre rings, into a drawing layer that ships empty. They
+	// go in before the stylesheet so it can say whether it has any to paint.
+	svg, rings := drawSupplyCentreRings(svg, centres)
+
+	// 2. The stylesheet. jDip wraps it in CDATA, which is kept.
 	block := styleBlockRe.FindStringSubmatchIndex(svg)
 	if block == nil {
 		return "", fmt.Errorf("this map has no <style> block to replace")
@@ -892,7 +1004,7 @@ func applyJDipStyle(original string, plan *jdipPlan, style *loadedStyle) (string
 	if labelScale <= 0 {
 		labelScale = labelLayerScale(original)
 	}
-	sheet := buildStylesheet(plan, style, width, labelScale)
+	sheet := buildStylesheet(plan, style, width, labelScale, rings > 0)
 	replaced := svg[block[0]:block[2]] + "\n<![CDATA[\n" + sheet + "\n]]>\n" + svg[block[3]:block[1]]
 	// The map's own CDATA wrapper, where it had one, would otherwise be
 	// nested inside the new one.
@@ -900,7 +1012,7 @@ func applyJDipStyle(original string, plan *jdipPlan, style *loadedStyle) (string
 	replaced = replaceFirst(replaced, cdataCloseRe, "]]>")
 	svg = svg[:block[0]] + replaced + svg[block[1]:]
 
-	// 2. Patterns and faces into <defs>. Nothing outside defs is added here.
+	// 3. Patterns and faces into <defs>. Nothing outside defs is added here.
 	defs := defsOpenRe.FindStringIndex(svg)
 	if defs == nil {
 		return "", fmt.Errorf("this map has no <defs> to put patterns in")
@@ -914,12 +1026,12 @@ func applyJDipStyle(original string, plan *jdipPlan, style *loadedStyle) (string
 		strings.Join(additions, "\n") + "\n" +
 		svg[defs[1]:]
 
-	// 3. The backdrop rect, which carries its fill inline.
+	// 4. The backdrop rect, which carries its fill inline.
 	if m := backdropRe.FindStringSubmatchIndex(svg); m != nil {
 		svg = svg[:m[0]] + svg[m[2]:m[3]] + style.Terrain.GroundInland + svg[m[4]:m[5]] + svg[m[1]:]
 	}
 
-	// 4. Label classes. A <text> is told whether it names land or water so
+	// 5. Label classes. A <text> is told whether it names land or water so
 	// the stylesheet can set it accordingly; it keeps its own class, which is
 	// what carries its size.
 	out := strings.Builder{}
@@ -945,7 +1057,7 @@ func applyJDipStyle(original string, plan *jdipPlan, style *loadedStyle) (string
 	out.WriteString(svg[last:])
 	svg = out.String()
 
-	// 5. The grain overlay, into a drawing layer that ships empty.
+	// 6. The grain overlay, into a drawing layer that ships empty.
 	if style.Grain != nil {
 		if m := emptyGrainRe.FindStringIndex(svg); m != nil {
 			box := viewBoxRe.FindStringSubmatch(svg)
@@ -963,12 +1075,12 @@ func applyJDipStyle(original string, plan *jdipPlan, style *loadedStyle) (string
 
 // applyStyle composes one styled map out of the original art, the plan
 // measured from it, and the style's tokens.
-func applyStyle(original string, plan *stylePlan, style *loadedStyle) (string, error) {
+func applyStyle(original string, plan *stylePlan, style *loadedStyle, centres []string) (string, error) {
 	switch plan.Kind {
 	case "godip":
 		return applyGodipStyle(original, plan.Godip, style)
 	case "jdip":
-		return applyJDipStyle(original, plan.JDip, style)
+		return applyJDipStyle(original, plan.JDip, style, centres)
 	}
 	return "", fmt.Errorf("style plan for %v names no applier kind", plan.Key)
 }
