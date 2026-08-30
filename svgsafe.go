@@ -161,7 +161,8 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 					result.noteAttr(attrName(attr))
 					continue
 				}
-				out.WriteString(fmt.Sprintf(" %s=%q", attrName(attr), attr.Value))
+				out.WriteString(" " + attrName(attr) + `="` +
+					escapeAttr(attr.Value) + `"`)
 			}
 			out.WriteString(">")
 
@@ -213,6 +214,21 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 func escapeText(text string) string {
 	replacer := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 	return replacer.Replace(text)
+}
+
+// escapeAttr escapes an attribute value: escapeText plus the quote that would
+// close the value early.
+//
+// It is spelled out rather than taken from fmt's %q, which writes a Go string
+// literal. %q spells a newline inside a jDip path's `d` as the two characters
+// backslash and n, and an SVG path parser stops dead at the backslash. %q also
+// leaves `&` and `<` alone and spells `"` as \", so a value carrying either
+// makes the document unparseable. Whitespace and non-ASCII pass through: the
+// document is UTF-8, and an accented id has to keep matching its url(#id).
+func escapeAttr(value string) string {
+	replacer := strings.NewReplacer(
+		"&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
+	return replacer.Replace(value)
 }
 
 // attrName renders an attribute name including its namespace prefix, so a

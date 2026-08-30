@@ -300,3 +300,52 @@ func TestTextIsStillEscaped(t *testing.T) {
 		t.Errorf("escaping broke the document: %v", err)
 	}
 }
+
+// jDip wraps a long path's `d` over several lines. A newline inside an
+// attribute value is legal XML and a path parser reads it as whitespace, but a
+// Go string literal spells it backslash-n, and a path parser stops at the
+// backslash. That left 1900 drawing bare ground.
+func TestAttributeNewlineSurvives(t *testing.T) {
+	clean := sanitize(t, "<svg><g id=\"provinces\"><path d=\"M 0 0\nL 1 1\"/></g></svg>")
+	if strings.Contains(clean, `\n`) {
+		t.Errorf("a newline in an attribute must not become a backslash:\n%s", clean)
+	}
+	if !strings.Contains(clean, "M 0 0\nL 1 1") {
+		t.Errorf("path data lost its newline:\n%s", clean)
+	}
+	if err := parses(t, clean); err != nil {
+		t.Errorf("the document stopped parsing: %v", err)
+	}
+}
+
+func TestAttributeQuoteIsEscaped(t *testing.T) {
+	clean := sanitize(t, `<svg><g id="provinces"><text aria-label="a &quot;b&quot; c">x</text></g></svg>`)
+	if !strings.Contains(clean, "&quot;") {
+		t.Errorf("a quote must not be able to close its own value:\n%s", clean)
+	}
+	if err := parses(t, clean); err != nil {
+		t.Errorf("the document stopped parsing: %v", err)
+	}
+}
+
+// coldwar and vietnamwar carry accented ids, and url(#id) has to keep matching
+// them. %q spelled those as \uXXXX, which matches nothing.
+func TestAttributeNonASCIISurvives(t *testing.T) {
+	clean := sanitize(t, `<svg><g id="provinces"><text id="Kyūshū" aria-label="Süd-Ost">x</text></g></svg>`)
+	if strings.Contains(clean, `\u`) {
+		t.Errorf("non-ASCII must not be escaped:\n%s", clean)
+	}
+	if !strings.Contains(clean, `id="Kyūshū"`) || !strings.Contains(clean, `aria-label="Süd-Ost"`) {
+		t.Errorf("non-ASCII attribute values must survive:\n%s", clean)
+	}
+}
+
+func TestAttributeMarkupIsEscaped(t *testing.T) {
+	clean := sanitize(t, `<svg><g id="provinces"><text aria-label="a &lt;b&gt; &amp; c">x</text></g></svg>`)
+	if !strings.Contains(clean, "&lt;b&gt; &amp; c") {
+		t.Errorf("markup characters must stay escaped:\n%s", clean)
+	}
+	if err := parses(t, clean); err != nil {
+		t.Errorf("the document stopped parsing: %v", err)
+	}
+}
