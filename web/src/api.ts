@@ -168,6 +168,11 @@ export interface GmState extends VariantAware {
   canForce: boolean;
   gmSeatUrl?: string | null;
   events?: string[];
+  /**
+   * Whether this game has a recovery key (D-048). Absent from a server that
+   * predates keys, which is the same thing as not having one.
+   */
+  hasGmKey?: boolean;
 }
 
 export interface PublicState extends VariantAware {
@@ -292,6 +297,9 @@ export type Route =
   /* The same, for the game master role. It is a separate address because it
      is a separate act: the rights travel and a power does not. */
   | { kind: "handover-gm"; gameId: string; epoch: string; signature: string }
+  /* Where a game master types their twelve words (D-048). The game id may be
+     in the address or typed in, so it is optional. */
+  | { kind: "recover"; gameId: string | null }
   /* The list of games this server holds, which used to stand at the root. */
   | { kind: "games" }
   /* The questions a first table asks. One page, no game behind it. */
@@ -314,6 +322,9 @@ export function parseRoute(pathname: string): Route {
   if (parts.length === 1 && parts[0] === "new") return { kind: "new" };
   if (parts.length === 1 && parts[0] === "games") return { kind: "games" };
   if (parts.length === 1 && parts[0] === "faq") return { kind: "faq" };
+  if (parts[0] === "recover" && parts.length <= 2) {
+    return { kind: "recover", gameId: parts.length === 2 ? parts[1] : null };
+  }
   if (parts.length === 4 && parts[0] === "handover-gm") {
     return { kind: "handover-gm", gameId: parts[1], epoch: parts[2], signature: parts[3] };
   }
@@ -469,6 +480,51 @@ export class GmClient {
   roleHandover(): Promise<Handover> {
     return getJSON<Handover>(this.base + "handover-role");
   }
+
+  /** The public half the server holds, empty when this game has no key. */
+  key(): Promise<GmKey> {
+    return getJSON<GmKey>(this.base + "key");
+  }
+
+  /** Register the public half, once (D-048). */
+  setKey(publicKey: string): Promise<GmKey> {
+    return postJSON<GmKey>(this.base + "key", { publicKey: publicKey });
+  }
+}
+
+export interface GmKey {
+  /** Base64url, 32 bytes. Empty means this game has no recovery key. */
+  publicKey: string;
+}
+
+/*
+Recovering the game master role with its twelve words (D-048).
+
+Two steps, and neither carries a token: the person asking has lost every token
+they had, which is the case this exists for. The server hands out a sentence to
+sign, the browser signs it with the key the words rebuild, and a signature the
+stored public half accepts is what buys a fresh game master address.
+*/
+export interface RecoverChallenge {
+  gameId: string;
+  nonce: string;
+  /** Exactly what to sign. Never built on this side. */
+  message: string;
+}
+
+export function recoverChallenge(gameId: string): Promise<RecoverChallenge> {
+  return getJSON<RecoverChallenge>(absolute("/game/" + encodeURIComponent(gameId) + "/recover"));
+}
+
+export function recoverClaim(
+  gameId: string,
+  nonce: string,
+  signature: string,
+): Promise<{ gmUrl: string }> {
+  return postJSON<{ gmUrl: string }>(
+    absolute("/game/" + encodeURIComponent(gameId) + "/recover"),
+    { nonce: nonce, signature: signature },
+  );
 }
 
 // --- seat -----------------------------------------------------------------

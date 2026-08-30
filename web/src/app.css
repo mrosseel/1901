@@ -1873,3 +1873,30 @@ height; the seat's links live in its own menu instead.
   font-size: 13px;
   color: var(--muted);
 }
+
+/* --- the twelve words (D-048) --------------------------------------------
+Numbered, because the order is half the secret and somebody is copying them
+onto paper. Wide enough to read across a desk, monospaced so a typed word can
+be checked against a written one, and wrapping into as many columns as the
+screen has room for.
+*/
+.seed-words {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px 16px;
+  margin: 10px 0 0;
+  padding-left: 28px;
+}
+
+.seed-words li {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.seed-words li::marker {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--muted);
+}

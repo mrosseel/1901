@@ -7,6 +7,7 @@ import {
   type GmState,
   type Handover,
 } from "../api";
+import { GmKeyCard } from "../components/GmKeyCard";
 import { LinkShare } from "../components/LinkShare";
 import { writeRecentGame } from "../recent";
 import { powerColor, setPowerPalette, setProvinceNames } from "../board/provinces";
@@ -188,6 +189,9 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   // inert, so the only button on screen is the one that closes what is open.
   const reading = (refereeing && Boolean(guide)) || (reviewing && Boolean(review));
   const inviteUrl = new URL(game.inviteUrl, location.href).toString();
+  // This page's own address, which is the role itself. It is read from the
+  // browser rather than built, because the token is only ever here.
+  const selfUrl = window.location.href;
   const spectatorUrl = new URL(watchPath(gameId, null), location.origin).toString();
 
   return (
@@ -432,6 +436,41 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
             </p>
           )}
         </div>
+      </details>
+
+      {/*
+      The two ways this game survives losing this screen (D-048).
+
+      The role is a URL and a cookie, and both live here. Nothing else in the
+      app is like that: a player who loses their seat asks the game master for
+      a link, and the game master has nobody to ask. So this card holds the
+      cheap answer and the real one — the address itself, which any second
+      device can keep, and a key whose twelve words work from any device at
+      all, including one that has never seen this game.
+
+      Folded and guarded like everything else on this screen. Both halves are
+      credentials and this laptop is often the one on the beamer.
+      */}
+      <details className="card">
+        <summary>If you lose this screen</summary>
+        <p className="note">
+          There is no account here and no password to reset. This address is the game
+          master role, and a browser that forgets it is a game nobody can run.
+        </p>
+        <LinkShare
+          private
+          title="This page"
+          url={selfUrl}
+          note="Keep it on a second device. It does not hand the role away: every device that has it runs the game."
+        />
+        <GmKeyCard
+          gameId={gameId}
+          client={client}
+          hasKey={Boolean(game.hasGmKey)}
+          onMade={() => {
+            refresh().catch(() => setError("The key was made, but the page could not reload."));
+          }}
+        />
       </details>
 
       {/*

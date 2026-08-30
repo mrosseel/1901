@@ -188,6 +188,10 @@ var gameColumns = []struct{ name, definition string }{
 	// The handover counter for the game master role (D-041). A game from
 	// before role handovers starts at zero, which is what its links carry.
 	{"gm_epoch", `INTEGER NOT NULL DEFAULT 0`},
+	// The public half of the game master's key (D-048), base64url. Empty
+	// for every game made before keys existed and every one whose game
+	// master declined to make one; such a game has no recovery.
+	{"gm_public_key", `TEXT NOT NULL DEFAULT ''`},
 }
 
 // orderColumns are the columns a game_order row has grown, in the same shape
@@ -321,8 +325,8 @@ func (self *game) persistErr(id string) error {
                           phase_index, created_at, variant,
                           retreat_build_percent, grace_minutes,
                           first_turn_extra_minutes, press_mode, illegal_moves,
-                          variant_hash, name, gm_epoch)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          variant_hash, name, gm_epoch, gm_public_key)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             -- The role can be handed on (D-041), which rotates the token, so
             -- unlike the invite it is not write-once.
@@ -342,13 +346,16 @@ func (self *game) persistErr(id string) error {
             press_mode               = excluded.press_mode,
             illegal_moves            = excluded.illegal_moves,
             variant_hash             = excluded.variant_hash,
-            name                     = excluded.name`,
+            name                     = excluded.name,
+            -- Write-once in the handler (D-048), so this only ever writes
+            -- the key the game already had or the first one it is given.
+            gm_public_key            = excluded.gm_public_key`,
 		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
 		f.settings.RetreatBuildPercent, f.settings.GraceMinutes,
 		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves,
-		variantHash(self.variantKey), f.settings.Name, f.gmEpoch)
+		variantHash(self.variantKey), f.settings.Name, f.gmEpoch, f.gmPublicKey)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
@@ -451,7 +458,7 @@ func loadAll() error {
                created_at, COALESCE(variant, ?),
                retreat_build_percent, grace_minutes, first_turn_extra_minutes,
                COALESCE(press_mode, ?), illegal_moves, COALESCE(variant_hash, ''),
-               COALESCE(name, ''), COALESCE(gm_epoch, 0)
+               COALESCE(name, ''), COALESCE(gm_epoch, 0), COALESCE(gm_public_key, '')
         FROM game`, defaultVariant, defaultPressMode)
 	if err != nil {
 		return err
@@ -477,7 +484,7 @@ func loadAll() error {
 			&phaseIndex, &createdAt, &key, &f.settings.RetreatBuildPercent,
 			&f.settings.GraceMinutes, &f.settings.FirstTurnExtraMinutes,
 			&f.settings.PressMode, &f.settings.IllegalMoves, &recordedHash,
-			&f.settings.Name, &f.gmEpoch); err != nil {
+			&f.settings.Name, &f.gmEpoch, &f.gmPublicKey); err != nil {
 			rows.Close()
 			return err
 		}
