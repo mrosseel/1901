@@ -127,7 +127,7 @@ function VariantCardView({
   /** The card's map, in this device's style. */
   mapUrl: string;
   picked: boolean;
-  /** True for the picked card the chip does not match. */
+  /** True for the picked card the filter does not match. */
   aside: boolean;
   onPick: () => void;
 }) {
@@ -260,21 +260,23 @@ export function VariantGallery({
       belong above it and nothing else does.
       */}
       <div className="gallery-bar">
-        <div className="band-chips" role="group" aria-label="Filter by number of powers">
-          {POWER_BANDS.map((one) => (
-            <button
-              key={one.id}
-              type="button"
-              className={one.id === band ? "chip on" : "chip"}
-              aria-pressed={one.id === band}
-              disabled={counts[one.id] === 0}
-              onClick={() => setBand(one.id)}
-            >
-              {one.label}
-              <span className="chip-count">{counts[one.id]}</span>
-            </button>
-          ))}
-        </div>
+        {/* The count rides in the option text. A select shows one option at a
+            time, so a count kept outside it would be invisible while closed —
+            and the count is the reason the filter is worth opening. */}
+        <label className="band-picker">
+          <span className="band-picker-label">Players</span>
+          <select
+            value={band}
+            title="Show only the variants for a table this size"
+            onChange={(event) => setBand(event.target.value)}
+          >
+            {POWER_BANDS.map((one) => (
+              <option key={one.id} value={one.id} disabled={counts[one.id] === 0}>
+                {one.label} ({counts[one.id]})
+              </option>
+            ))}
+          </select>
+        </label>
         <StylePicker value={style || ""} onChange={onStyle} />
       </div>
 

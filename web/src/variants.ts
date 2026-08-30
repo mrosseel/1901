@@ -99,17 +99,17 @@ export function findVariant(list: Variant[], key: string): Variant | null {
 /*
 Twenty-six cards, and the first question anyone at a real table asks is "how
 many of us are there". At a table that has an exact answer — five people are
-sitting down, not five to seven — so each chip is one power count. Everything
-from eight up shares a chip, because past a certain size the difference between
+sitting down, not five to seven — so each band is one power count. Everything
+from eight up shares a band, because past a certain size the difference between
 nine and thirty-four stops being a table you can seat.
 
-The chips are fixed rather than computed from the data, because a filter whose
+The bands are fixed rather than computed from the data, because a filter whose
 choices move when a variant is added is a filter nobody can learn.
 */
 
 export interface PowerBand {
   id: string;
-  /** What the chip says. */
+  /** What the option says, before its count. */
   label: string;
   min: number;
   /** 0 means no ceiling. */
@@ -135,7 +135,7 @@ export function inBand(powerCount: number, band: string): boolean {
   return found.max === 0 || powerCount <= found.max;
 }
 
-/** How many cards each chip would show, so a chip can say so or be disabled. */
+/** How many cards each band would show, so an option can say so or be disabled. */
 export function bandCounts(list: Variant[]): Record<string, number> {
   const out: Record<string, number> = {};
   POWER_BANDS.forEach((band) => {
@@ -149,7 +149,7 @@ The picked card is never filtered away.
 
 A filter that hid the variant the game is about to be created on would either
 lie about the choice or silently change it, and both are worse than one card
-that does not match the chip. When it does not match it goes first, where a
+that does not match the filter. When it does not match it goes first, where a
 card that is there for a different reason than the rest can be marked as one;
 buried in catalogue order it only looks like the filter is broken.
 */
@@ -160,7 +160,7 @@ export function filterByBand(list: Variant[], band: string, keep: string): Varia
   return [picked, ...matching];
 }
 
-/** True for the picked card the chip does not match: it is shown as an exception. */
+/** True for the picked card the filter does not match: it is shown as an exception. */
 export function offBand(list: Variant[], band: string, keep: string): boolean {
   const picked = list.find((one) => one.key === keep);
   return !!picked && !inBand(picked.powerCount, band);
