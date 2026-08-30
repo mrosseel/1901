@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r34 — 2026-08-30
+**Document revision:** r35 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1274,13 +1274,27 @@ maps, and loses only the name pass for data-mode ones. The paths do collapse
 eventually, but for a different reason: D-039 ends jDip art altogether, and
 one of the two kinds stops existing.
 
-**Two things the record cannot express yet.** A name broken across lines is
-one of them: Sail Ho sets "Village of / Aeolus" as two elements at explicit
-offsets, 105 elements for 60 provinces, and Europe 1939, Twenty Twenty,
-Western World 901 and Youngstown Redux put several lines on every label. One
-anchor and one width collapse those to a single line wider than the province.
-If line breaks matter, `at` becomes a list of anchors, and that is cheaper to
-decide now than after the exporter ships. The other is hand-kerning: classical
+**A name broken across lines gets a sibling, not a list.** Sail Ho sets
+"Village of / Aeolus" as two elements, 105 elements for 60 provinces, and
+Europe 1939, Twenty Twenty, Western World 901 and Youngstown Redux put several
+lines on most labels. The exporter never wraps: it shrinks a name until one
+line fits and drops it below seven map units in favour of the code. So this is
+an imported-map problem only.
+
+`at` does not become a list. That would make every reader handle a list to
+serve one case in twenty, and it would confuse two different things: the box
+markers were kept clear of, and the runs the text is drawn in. Instead an
+optional `labelRuns` sits beside `label`, each run carrying its own anchor,
+size, width, height and text. `label` keeps one meaning on every map: the box
+the search reserved, which on an imported map is the union of the runs.
+
+A run carries its own text, and that is the one place a name is stored twice.
+There is no way round it: the descriptor holds "Village of Aeolus" as one
+string and nothing in it says where the break falls, and a line-breaking rule
+in the reader would be a second author of the map. So a run's text wins for
+DRAWING only. The descriptor still wins for hints, order prose and search.
+
+The other thing the record cannot express is hand-kerning: classical
 carries per-label letter-spacing on 30 names, italic on 49 and bold on 28. A
 drawn label with one style rule will be legible and flatter.
 
@@ -1320,10 +1334,17 @@ most of that is one map. Measured on three of different kinds: classical loses
 12.0% raw and 1.8% gzipped, because a names layer is text that gzip already
 crushes while the file's weight is a noise texture that will not compress;
 Vietnam War loses 51.4% raw and 40.8% gzipped, because an outlined name is
-thousands of unique digits gzip cannot help; Sail Ho gets 2.0% smaller raw and
-7.7% smaller gzipped only because recovering its brief positions costs more
-JSON than the art it removes. So the compressed win sits almost entirely in
-the four maps that cannot be migrated automatically.
+thousands of unique digits gzip cannot help; Sail Ho barely moves either way. So the
+compressed win sits almost entirely in the four maps that cannot be migrated
+automatically.
+
+An earlier draft of this entry said moving a short label out of jDip art makes
+the payload bigger. That was a formatting artefact, not a property of the
+format. Both sides wrote JSON with every array element on its own line, so a
+coordinate pair cost four lines. Collapsed, a label pair is 30 bytes against
+the jDip element's 38. The tables keep one line per field, so a moved marker
+is still a one-line diff, but an array and an innermost object go on one line.
+That takes 30.1% off our own placement tables raw, and 4.3% gzipped.
 
 The reasons to do it are that a name in a record can be translated, restyled,
 searched and read aloud, and that 61.5% is the figure for every map made from
@@ -1769,3 +1790,4 @@ Recorded so nobody re-derives them.
 | r32 | 2026-08-30 | D-039 refined: the importer may outlive the migration, in dipmap, because what it produces is an ordinary 1901 map. The jDip format still ends in this repository, and no code here is kept alive against the chance of another jDip map appearing. |
 | r33 | 2026-08-30 | D-040: a style with no grain drops the overlay's fill instead of dimming it, so the paper pattern is orphaned and the existing prune takes the 29 KB bitmap with it. 20 of 130 map and style pairs get 22.4 KB smaller gzipped, 447 KB over the set, with no pixel changed and `?style=original` byte-identical. The overlay element stays: on seven of the ten maps it carries the board's hairline frame. Styled art is now checked to parse as XML, which is how a board's `<img>` reads it. |
 | r34 | 2026-08-30 | D-038: the supply-centre glyph follows the same rule as the name. Where the art draws the layer, the art wins. Where it does not, the board draws from the record. A drawn ring keeps the id from D-032 and never `<key>Center`, which the board matches to find anchors. |
+| r35 | 2026-08-30 | D-038: a wrapped name gets an optional `labelRuns` beside `label` rather than turning `at` into a list, and a run's text wins for drawing only. The claim that moving a short label makes the payload bigger is withdrawn: it was JSON pretty-printing, not the format. Tables collapse arrays and innermost objects onto one line, 30.1% off raw and 4.3% gzipped, keeping one line per field so a moved marker stays a one-line diff. |
