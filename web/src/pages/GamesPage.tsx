@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { TopBar } from "../components/TopBar";
 
 import { copyText } from "../clipboard";
 import { fetchGames, refereePath, watchPath, type GameSummary } from "../api";
@@ -19,7 +20,9 @@ export function GamesPage() {
   useEffect(() => {
     fetchGames()
       .then(setGames)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      );
   }, []);
 
   usePoll(5000, () => {
@@ -37,45 +40,48 @@ export function GamesPage() {
   const waiting = (games || []).filter((game) => !game.started);
 
   return (
-    <main className="page">
-      <h1>1901</h1>
-      <p className="lead">
-        The games on this server. Players join with the invite link a game master
-        hands out.
-      </p>
-      <p>
-        <a className="cta" href="/new">
-          New game
-        </a>
-      </p>
+    <>
+      <TopBar here="games" />
+      <main className="page">
+        <h1>1901</h1>
+        <p className="lead">
+          The games on this server. Players join with the invite link a game
+          master hands out.
+        </p>
+        <p>
+          <a className="cta" href="/new">
+            New game
+          </a>
+        </p>
 
-      {error ? <p className="error">{error}</p> : null}
-      {games && games.length === 0 && !error ? (
-        <p className="muted">No games yet. Create the first one.</p>
-      ) : null}
+        {error ? <p className="error">{error}</p> : null}
+        {games && games.length === 0 && !error ? (
+          <p className="muted">No games yet. Create the first one.</p>
+        ) : null}
 
-      {playing.length ? (
-        <section className="card">
-          <h2>In progress</h2>
-          <ul className="list">
-            {playing.map((game) => (
-              <GameRow key={game.gameId} game={game} />
-            ))}
-          </ul>
-        </section>
-      ) : null}
+        {playing.length ? (
+          <section className="card">
+            <h2>In progress</h2>
+            <ul className="list">
+              {playing.map((game) => (
+                <GameRow key={game.gameId} game={game} />
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
-      {waiting.length ? (
-        <section className="card">
-          <h2>Setting up</h2>
-          <ul className="list">
-            {waiting.map((game) => (
-              <GameRow key={game.gameId} game={game} />
-            ))}
-          </ul>
-        </section>
-      ) : null}
-    </main>
+        {waiting.length ? (
+          <section className="card">
+            <h2>Setting up</h2>
+            <ul className="list">
+              {waiting.map((game) => (
+                <GameRow key={game.gameId} game={game} />
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </main>
+    </>
   );
 }
 
@@ -110,12 +116,16 @@ function GameRow({ game }: { game: GameSummary }) {
         {copied ? <span className="note">Id copied</span> : null}
         <span className="muted">
           {game.variant ? game.variant.name : ""}
-          {game.variant ? <SupportedMark supported={game.variant.supported} /> : null}
+          {game.variant ? (
+            <SupportedMark supported={game.variant.supported} />
+          ) : null}
           {" · "}
           {game.started ? phaseLabel(game.phase) : "waiting to start"}
           {" · "}
           {game.joinedCount} of {game.totalSeats} seated
-          {game.started && game.turns ? " · " + game.turns + " turn(s) played" : ""}
+          {game.started && game.turns
+            ? " · " + game.turns + " turn(s) played"
+            : ""}
         </span>
       </div>
       <span className="row-actions">

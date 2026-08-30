@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TopBar } from "../components/TopBar";
 
 import { claimGmHandover, claimHandover } from "../api";
 
@@ -51,48 +52,64 @@ export function HandoverPage({
 
   if (power === null) {
     return (
-      <main className="page">
-        <h1>Take the game master role</h1>
-        <section className="card">
-          <p>
-            This link makes you the game master of game {gameId}. You set the deadline,
-            start the game, force a phase when the room is waiting on one person, and hand
-            out seats.
-          </p>
-          <p className="note">
-            The rights travel; a power does not. Whoever runs the game now stops being able
-            to, and keeps whatever power they play.
-          </p>
-          {error ? <p className="error">{error}</p> : null}
-          <p>
-            <button type="button" className="primary" onClick={take} disabled={taking}>
-              {taking ? "Taking the role…" : "Take the game master role"}
-            </button>
-          </p>
-        </section>
-      </main>
+      <>
+        <TopBar />
+        <main className="page">
+          <h1>Take the game master role</h1>
+          <section className="card">
+            <p>
+              This link makes you the game master of game {gameId}. You set the
+              deadline, start the game, force a phase when the room is waiting
+              on one person, and hand out seats.
+            </p>
+            <p className="note">
+              The rights travel; a power does not. Whoever runs the game now
+              stops being able to, and keeps whatever power they play.
+            </p>
+            {error ? <p className="error">{error}</p> : null}
+            <p>
+              <button
+                type="button"
+                className="primary"
+                onClick={take}
+                disabled={taking}
+              >
+                {taking ? "Taking the role…" : "Take the game master role"}
+              </button>
+            </p>
+          </section>
+        </main>
+      </>
     );
   }
 
   return (
-    <main className="page">
-      <h1>Take the {power} seat</h1>
-      <section className="card">
-        <p>
-          This link hands you {power} in game {gameId}. The orders already given stand, and
-          you may change them while the phase is open.
-        </p>
-        <p className="note">
-          The phone that holds {power} now loses it the moment you take it. A power belongs
-          to one person at a time.
-        </p>
-        {error ? <p className="error">{error}</p> : null}
-        <p>
-          <button type="button" className="primary" onClick={take} disabled={taking}>
-            {taking ? "Taking the seat…" : "Take " + power}
-          </button>
-        </p>
-      </section>
-    </main>
+    <>
+      <TopBar />
+      <main className="page">
+        <h1>Take the {power} seat</h1>
+        <section className="card">
+          <p>
+            This link hands you {power} in game {gameId}. The orders already
+            given stand, and you may change them while the phase is open.
+          </p>
+          <p className="note">
+            The phone that holds {power} now loses it the moment you take it. A
+            power belongs to one person at a time.
+          </p>
+          {error ? <p className="error">{error}</p> : null}
+          <p>
+            <button
+              type="button"
+              className="primary"
+              onClick={take}
+              disabled={taking}
+            >
+              {taking ? "Taking the seat…" : "Take " + power}
+            </button>
+          </p>
+        </section>
+      </main>
+    </>
   );
 }

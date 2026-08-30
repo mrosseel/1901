@@ -24,25 +24,31 @@ export function SeatMenu({
   power,
   turns,
   createdAt,
+  isGameMaster,
   seat,
 }: {
   power: string;
   turns?: number;
   createdAt?: string;
+  /* A game master who plays holds two things at once, and they are handed on
+     separately (D-041). Their menu shows both codes; everybody else's shows
+     the one they have. */
+  isGameMaster?: boolean;
   seat: SeatClient;
 }) {
   const [open, setOpen] = useState(false);
   const [link, setLink] = useState<Handover | null>(null);
+  const [role, setRole] = useState<Handover | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const show = () => {
     setOpen(true);
     setLink(null);
+    setRole(null);
     setError(null);
-    seat
-      .handover()
-      .then(setLink)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+    const fail = (err: unknown) => setError(err instanceof Error ? err.message : String(err));
+    seat.handover().then(setLink).catch(fail);
+    if (isGameMaster) seat.roleHandover().then(setRole).catch(fail);
   };
 
   return (
@@ -72,20 +78,43 @@ export function SeatMenu({
             </header>
 
             {error ? <p className="error">{error}</p> : null}
-            {link ? (
-              <LinkShare
-                title="Hand this power to somebody else"
-                url={link.url}
-                note={
-                  <>
-                    The next person scans this and {power} is theirs. This phone loses the
-                    seat the moment they do, so do not scan it yourself.
-                  </>
-                }
-              />
-            ) : error ? null : (
-              <p className="muted">Making a link…</p>
-            )}
+            <div className="handovers">
+              {link ? (
+                <LinkShare
+                  title={isGameMaster ? "Your power · " + power : "Hand this power to somebody else"}
+                  url={link.url}
+                  note={
+                    <>
+                      The next person scans this and {power} is theirs. This phone loses the
+                      seat the moment they do, so do not scan it yourself.
+                    </>
+                  }
+                />
+              ) : error ? null : (
+                <p className="muted">Making a link…</p>
+              )}
+              {isGameMaster && role ? (
+                <LinkShare
+                  title="The game master role"
+                  url={role.url}
+                  note={
+                    <>
+                      Whoever opens this runs the game: the deadline, the start, forcing a
+                      phase. You keep {power} and stop being the game master.
+                    </>
+                  }
+                />
+              ) : null}
+            </div>
+
+            {/* The way out, and back. The seat page has no bar of its own —
+                the map wants every pixel — so the links live here, one tap
+                from the board (D-043). */}
+            <nav className="seat-menu-links">
+              <a href="/games">All games</a>
+              <a href="/faq">Questions</a>
+              <a href="/">About 1901</a>
+            </nav>
 
             <button type="button" className="primary" onClick={() => setOpen(false)}>
               Close

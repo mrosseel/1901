@@ -1403,6 +1403,10 @@ type seatStateJSON struct {
 	PhaseMinutes    int             `json:"phaseMinutes"`
 	Locked          map[string]bool `json:"locked"`
 	YouLocked       bool            `json:"youLocked"`
+	// YouAreGM says this seat is the game master's own (D-021). The seat
+	// menu shows two handovers rather than one when it is: the role and the
+	// power are different acts and this device holds both.
+	YouAreGM bool `json:"youAreGm"`
 	// What the seat menu says about the game it belongs to (D-041): how
 	// many turns have been played, and when the game was made.
 	Turns     int    `json:"turns"`
@@ -1481,6 +1485,7 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 		PhaseMinutes:     f.phaseMinutes(self.state.Phase()),
 		Locked:           f.lockedMap(),
 		YouLocked:        f.seats[power].locked,
+		YouAreGM:         f.seats[power].isGM,
 		Turns:            f.phaseIndex,
 		CreatedAt:        f.createdAt.UTC().Format(time.RFC3339),
 		NothingToOrder:   f.seats[power].autoLocked,
@@ -1723,12 +1728,13 @@ var gmRoutes = map[string]gameHandler{
 }
 
 var seatRoutes = map[string]seatHandler{
-	"state":    handleSeatState,
-	"handover": handleSeatHandover,
-	"options":  handleSeatOptions,
-	"order":    handleSeatOrder,
-	"lock":     handleSeatLock,
-	"unlock":   handleSeatUnlock,
+	"state":         handleSeatState,
+	"handover":      handleSeatHandover,
+	"handover-role": handleSeatRoleHandover,
+	"options":       handleSeatOptions,
+	"order":         handleSeatOrder,
+	"lock":          handleSeatLock,
+	"unlock":        handleSeatUnlock,
 
 	// The names these two carried until 2026-08-30. A phone that loaded the
 	// seat page before the rename shipped still posts to them, and a game at

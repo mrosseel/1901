@@ -1,5 +1,6 @@
 import { Suspense, lazy } from "react";
 import { parseRoute } from "./api";
+import { FaqPage } from "./pages/FaqPage";
 import { GamesPage } from "./pages/GamesPage";
 import { GmPage } from "./pages/GmPage";
 import { HandoverPage } from "./pages/HandoverPage";
@@ -68,6 +69,8 @@ export function App() {
       return <LandingPage />;
     case "games":
       return <GamesPage />;
+    case "faq":
+      return <FaqPage />;
     case "handover":
       return (
         <HandoverPage
