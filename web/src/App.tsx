@@ -77,6 +77,15 @@ export function App() {
           signature={route.signature}
         />
       );
+    case "handover-gm":
+      return (
+        <HandoverPage
+          gameId={route.gameId}
+          power={null}
+          epoch={route.epoch}
+          signature={route.signature}
+        />
+      );
     case "new":
       return <NewGame />;
     case "join":

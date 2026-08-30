@@ -1795,3 +1795,20 @@ target around it is the size a finger needs.
 
 .seat-menu .share { background: var(--panel); }
 .seat-menu > .primary { min-height: 48px; }
+
+/* The game name on the list, which is also how the id is reached (D-043).
+   It has to read as the row's heading and not as a button: no chrome until a
+   pointer is on it, and the cursor plus the title say what a click does. */
+.game-id-copy {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 1px 5px;
+  margin-left: -5px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.game-id-copy:hover:not(:disabled) { border-color: var(--line); background: var(--panel-2); }
+.game-id-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

@@ -157,7 +157,11 @@ type seat struct {
 // flow holds the M1 state that sits on top of the godip board.
 // Every field is guarded by the enclosing game's mutex.
 type flow struct {
-	gmToken     string
+	gmToken string
+	// gmEpoch is the handover counter for the role (D-041). The role and a
+	// power are separate acts and fail differently, so they count
+	// separately: a game master who gives the role away still plays.
+	gmEpoch     int
 	inviteToken string
 	// gmDevice is the referee cookie secret: the browser that created the
 	// game holds it, and it is what /game/{id}/referee/ answers to. It
@@ -1708,13 +1712,14 @@ func (self *game) advance(id string, dropUnlocked bool) error {
 // ------------------------------------------------------------------ routing
 
 var gmRoutes = map[string]gameHandler{
-	"state":      handleGMState,
-	"handover":   handleGMHandover,
-	"settings":   handleGMSettings,
-	"start":      handleGMStart,
-	"adjudicate": handleGMForce,
-	"extend":     handleGMExtend,
-	"map.svg":    handleMap,
+	"state":         handleGMState,
+	"handover":      handleGMHandover,
+	"handover-role": handleGMRoleHandover,
+	"settings":      handleGMSettings,
+	"start":         handleGMStart,
+	"adjudicate":    handleGMForce,
+	"extend":        handleGMExtend,
+	"map.svg":       handleMap,
 }
 
 var seatRoutes = map[string]seatHandler{
@@ -1770,6 +1775,8 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 		// The signature in the path is the whole credential (D-041), so
 		// this sits beside join rather than inside a token scope.
 		handleHandoverClaim(g, id, segments[2:], w, r)
+	case "handover-gm":
+		handleGMRoleClaim(g, id, segments[2:], w, r)
 	case "gm", "seat":
 		self.serveTokenScope(g, id, segments, w, r)
 	default:

@@ -164,3 +164,43 @@ func TestGMMintsForAnyPowerAndLogsIt(t *testing.T) {
 		t.Error("minting a handover link was not logged (D-007)")
 	}
 }
+
+// TestGMRoleHandoverRotatesTheTokenAndTheRefereeDoor: the role travels and a
+// power does not, and both doors into the old game master's screen close.
+func TestGMRoleHandoverRotatesTheTokenAndTheRefereeDoor(t *testing.T) {
+	id := makeGame(t)
+	g, _ := games.lookup(id)
+	before, device, epoch := g.flow.gmToken, g.flow.gmDevice, g.flow.gmEpoch
+	if device == "" {
+		t.Fatal("the created game has no referee cookie secret to lose")
+	}
+	power := g.flow.gmPower
+	sig := gmHandoverSig(id, epoch)
+
+	rec := httptest.NewRecorder()
+	handleGMRoleClaim(g, id, []string{strconv.Itoa(epoch), sig}, rec,
+		httptest.NewRequest(http.MethodPost, "/game/"+id+"/handover-gm/0/"+sig, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("claim: got %v: %v", rec.Code, rec.Body.String())
+	}
+
+	if g.flow.gmToken == before {
+		t.Error("the previous game master's token still runs the game")
+	}
+	if g.flow.gmDevice != "" {
+		t.Error("the referee cookie still opens the game master view")
+	}
+	if g.flow.gmEpoch != epoch+1 {
+		t.Errorf("gm epoch %v, want %v", g.flow.gmEpoch, epoch+1)
+	}
+	if g.flow.gmPower != power {
+		t.Error("handing over the role moved a power with it")
+	}
+
+	replay := httptest.NewRecorder()
+	handleGMRoleClaim(g, id, []string{strconv.Itoa(epoch), sig}, replay,
+		httptest.NewRequest(http.MethodPost, "/game/"+id+"/handover-gm/0/"+sig, nil))
+	if replay.Code != http.StatusConflict {
+		t.Errorf("replayed role link: got %v, want a refusal", replay.Code)
+	}
+}
