@@ -126,6 +126,9 @@ export interface WatchState extends VariantAware {
   finalized?: Record<string, boolean>;
   finalizedCount?: number;
   totalSeats?: number;
+  /** Seats filled, and how many the invite still may hand out. Counts only. */
+  joinedCount?: number;
+  seatsToFill?: number;
   deadlineAt: string | null;
 }
 
@@ -310,6 +313,16 @@ export function publicUrl(gameId: string): string {
 
 export function fetchPublic(gameId: string): Promise<PublicState> {
   return getJSON<PublicState>(publicUrl(gameId));
+}
+
+/*
+The game master's own door, which carries no secret. The browser that created
+the game holds a cookie for it; the server answers this address by redirecting
+that browser to the GM view and answers everybody else with a 404. So it is
+safe on the game list, and it is the address a create hands off to.
+*/
+export function refereePath(gameId: string): string {
+  return "/game/" + encodeURIComponent(gameId) + "/referee/";
 }
 
 // --- spectator ------------------------------------------------------------

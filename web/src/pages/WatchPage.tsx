@@ -200,9 +200,22 @@ export function WatchPage({
     [gameId, style],
   );
 
-  const prevTo = at === null ? (phaseCount ? phaseCount - 1 : null) : at > 0 ? at - 1 : null;
-  const nextTo =
-    at === null ? null : phaseCount !== undefined && at + 1 >= phaseCount ? null : at + 1;
+  /*
+  The phases, walked. The live phase is the last of the count, so the resolved
+  ones are 0 … phaseCount - 2: stepping back from Live lands on the last of
+  those, and stepping forward past it returns to Live rather than asking for
+  the live phase by number, which would draw it as a phase that had resolved.
+  */
+  const liveIndex = phaseCount === undefined ? null : phaseCount - 1;
+  const prevTo =
+    at === null
+      ? liveIndex !== null && liveIndex > 0
+        ? liveIndex - 1
+        : null
+      : at > 0
+        ? at - 1
+        : null;
+  const nextTo = at === null || (liveIndex !== null && at + 1 >= liveIndex) ? null : at + 1;
   const canPrev = prevTo !== null;
   const canNext = at !== null;
 
@@ -226,6 +239,17 @@ export function WatchPage({
     Object.values(summary?.finalized || {}).filter(Boolean).length;
   const totalSeats = watch?.totalSeats ?? summary?.totalSeats;
   const variant = watch?.variant || summary?.variant;
+
+  /*
+  The game that has not begun. A spectator link is opened at the table before
+  anything else, so the live phase must not be dressed up as one being played:
+  there is no clock, nobody can be locked in, and the only number worth the
+  screen is the one the invite is filling. The board underneath is the opening
+  position, which is exactly what a projector should be showing then.
+  */
+  const waiting = !historical && (watch ? !watch.started : summary ? !summary.started : false);
+  const joinedCount = watch?.joinedCount ?? summary?.joinedCount;
+  const seatsToFill = watch?.seatsToFill ?? summary?.totalSeats;
 
   // The guide is read, not acted on: while it is open the board and the panel
   // behind it answer nothing, here as on every other page.
@@ -269,7 +293,7 @@ export function WatchPage({
       <aside className="side" inert={reading || undefined}>
         <header className="seat-head">
           <h1 className="phase-now">
-            <PhaseName phase={phase} />
+            {waiting ? "Waiting to start" : <PhaseName phase={phase} />}
           </h1>
           <p className="muted">
             Game {gameId}
@@ -278,28 +302,49 @@ export function WatchPage({
           </p>
           {historical ? (
             <p className="muted">This phase has resolved.</p>
-          ) : (
+          ) : waiting ? null : (
             <Clock deadlineAt={deadlineAt} />
           )}
-          {!historical && totalSeats !== undefined ? (
+          {waiting ? (
+            <>
+              {joinedCount !== undefined && seatsToFill !== undefined ? (
+                <p className="joined-big">
+                  <strong>{joinedCount}</strong> of {seatsToFill} players joined
+                </p>
+              ) : null}
+              <p className="muted">
+                The game master starts the game once every power is taken. The board
+                is the opening position.
+              </p>
+            </>
+          ) : totalSeats !== undefined ? (
             <p className="muted">
               {finalizedCount} of {totalSeats} players locked in
             </p>
           ) : null}
         </header>
 
-        <nav className="watch-nav">
-          <button type="button" disabled={!canPrev} onClick={() => go(prevTo)}>
-            ← Earlier phase
-          </button>
-          <span className="muted">
-            {at === null ? "Live" : phaseCount ? "Phase " + (at + 1) + " of " + phaseCount : "Phase " + (at + 1)}
-          </span>
-          <button type="button" disabled={!canNext} onClick={() => go(nextTo)}>
-            Later phase →
-          </button>
-        </nav>
-        <p className="note">The arrow keys walk the phases.</p>
+        {/* Nothing to walk before the first phase has resolved. */}
+        {waiting ? null : (
+          <>
+            <nav className="watch-nav">
+              <button type="button" disabled={!canPrev} onClick={() => go(prevTo)}>
+                ← Earlier phase
+              </button>
+              <span className="muted">
+                {at === null
+                  ? "Live"
+                  : phaseCount
+                    ? "Phase " + (at + 1) + " of " + phaseCount
+                    : "Phase " + (at + 1)}
+              </span>
+              <button type="button" disabled={!canNext} onClick={() => go(nextTo)}>
+                Later phase →
+              </button>
+            </nav>
+            <p className="note">The arrow keys walk the phases.</p>
+          </>
+        )}
 
         {error ? <p className="status error">{error}</p> : null}
         {feedMissing ? (

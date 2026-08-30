@@ -75,6 +75,7 @@ beside their state.
 
 | File | The moment |
 | --- | --- |
+| `watch-prestart.json` | A game that has not started: two of six seats filled, no clock, the opening position on the board |
 | `watch-live.json` | The live Spring 1901 movement: a board and a clock, no orders public yet |
 | `watch-phase-0.json` … `watch-phase-4.json` | The five resolved phases, so the page's earlier and later buttons really walk them |
 

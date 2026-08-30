@@ -207,6 +207,35 @@ details.card > summary::marker { color: var(--muted); }
 
 .you-are { margin: 0; font-size: 16px; }
 
+/* --- the waiting room ---------------------------------------------------- */
+
+/* The game master's pre-start screen. The count is read across a table, so it
+   is the biggest thing on the page; the invite shares the card under it and
+   drops its own panel to stay one block. */
+.lobby { gap: 14px; }
+
+.joined-big {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.joined-big strong { color: var(--text); font-size: 52px; font-weight: 800; }
+
+.lobby .share { background: none; border: 0; padding: 0; }
+
+/* The same count on the spectator screen, where it shares a side panel with
+   the board and cannot take the whole width. */
+.side .joined-big { font-size: 19px; margin: 6px 0 0; }
+.side .joined-big strong { font-size: 32px; }
+
+@media (min-width: 700px) {
+  .joined-big { font-size: 38px; }
+  .joined-big strong { font-size: 68px; }
+}
+
 /* --- shared links -------------------------------------------------------- */
 
 .share {
