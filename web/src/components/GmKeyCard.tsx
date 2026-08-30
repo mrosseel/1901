@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { GmClient } from "../api";
 import { copyText } from "../clipboard";
-import { makeEntropy, publicKeyOf, readStoredKey, wordsFor, writeStoredKey } from "../gmkey";
+import { gmPublicKey, makeEntropy, readStoredKey, wordsFor, writeStoredKey } from "../gmkey";
 
 /*
 The twelve words, on the game master's own screen (D-048).
@@ -48,7 +48,7 @@ export function GmKeyCard({
       const fresh = makeEntropy();
       // The server first. If it refuses, this device must not be left
       // holding a key the game does not know about.
-      await client.setKey(publicKeyOf(fresh));
+      await client.setKey(gmPublicKey(fresh));
       writeStoredKey(gameId, fresh);
       setEntropy(fresh);
       setShown(true);

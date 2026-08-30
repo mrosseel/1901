@@ -209,6 +209,10 @@ var seatColumns = []struct{ name, definition string }{
 	// The handover counter (D-041). A game from before handovers existed
 	// starts every seat at zero, which is the epoch its links would carry.
 	{"epoch", `INTEGER NOT NULL DEFAULT 0`},
+	// The public half of the seat's key (D-049). Empty on every seat that
+	// holds a token instead, which is every seat of every game made before
+	// keys existed.
+	{"sign_pub", `TEXT NOT NULL DEFAULT ''`},
 }
 
 // renamedColumns are columns that changed name. The rename must run before
@@ -363,15 +367,16 @@ func (self *game) persistErr(id string) error {
 	for _, p := range f.powers {
 		s := f.seats[p]
 		_, err = tx.Exec(`
-            INSERT INTO seat (game_id, power, seat_token, device, is_gm, locked, epoch)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO seat (game_id, power, seat_token, device, is_gm, locked, epoch, sign_pub)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(game_id, power) DO UPDATE SET
                 seat_token = excluded.seat_token,
                 device     = excluded.device,
                 is_gm      = excluded.is_gm,
                 locked  = excluded.locked,
-                epoch      = excluded.epoch`,
-			id, string(p), s.token, s.device, s.isGM, s.locked, s.epoch)
+                epoch      = excluded.epoch,
+                sign_pub   = excluded.sign_pub`,
+			id, string(p), s.token, s.device, s.isGM, s.locked, s.epoch, s.signPub)
 		if err != nil {
 			return fmt.Errorf("seat %v: %v", p, err)
 		}
@@ -474,7 +479,9 @@ func loadAll() error {
 		f := &flow{
 			seats:       map[godip.Nation]*seat{},
 			bySeatToken: map[string]godip.Nation{},
+			bySignPub:   map[string]godip.Nation{},
 			byDevice:    map[string]godip.Nation{},
+			sessions:    map[string]godip.Nation{},
 		}
 		var id, gmPower, createdAt, key, recordedHash string
 		var deadline sql.NullString
@@ -550,15 +557,16 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 		f.seats[p] = &seat{power: p}
 	}
 	rows, err := db.Query(
-		`SELECT power, seat_token, device, is_gm, locked, epoch FROM seat WHERE game_id = ?`, id)
+		`SELECT power, seat_token, device, is_gm, locked, epoch,
+                COALESCE(sign_pub, '') FROM seat WHERE game_id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
-		var power, token, device string
+		var power, token, device, signPub string
 		var isGM, locked bool
 		var epoch int
-		if err := rows.Scan(&power, &token, &device, &isGM, &locked, &epoch); err != nil {
+		if err := rows.Scan(&power, &token, &device, &isGM, &locked, &epoch, &signPub); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -567,8 +575,12 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 			continue
 		}
 		s.token, s.device, s.isGM, s.locked, s.epoch = token, device, isGM, locked, epoch
+		s.signPub = signPub
 		if token != "" {
 			f.bySeatToken[token] = s.power
+		}
+		if signPub != "" {
+			f.bySignPub[signPub] = s.power
 		}
 		if device != "" {
 			f.byDevice[device] = s.power

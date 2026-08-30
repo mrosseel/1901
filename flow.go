@@ -137,9 +137,15 @@ func defaultSettings() settings {
 // seat is one power in one game together with its claim state.
 // It deliberately carries no player name (D-020).
 type seat struct {
-	power  godip.Nation
-	token  string // seatToken, empty until claimed
-	device string // device secret, empty until claimed
+	power godip.Nation
+	// token is the old credential: the secret in the address, which is
+	// also the secret in the database. A seat has this or a key, never
+	// both (D-049), and no game is migrated from one to the other.
+	token string // seatToken, empty until claimed
+	// signPub is the public half of the key the joining phone made
+	// (D-049), base64url. The server can open nothing with it.
+	signPub string
+	device  string // device secret, empty until claimed
 	isGM   bool
 	locked bool
 
@@ -152,6 +158,13 @@ type seat struct {
 	// legal order this phase (D-034). It is derived from the resolved
 	// position, so it is recomputed on restore rather than stored.
 	autoLocked bool
+}
+
+// claimed says whether somebody holds this seat. A seat is held by a token
+// or by a key, never both (D-049), so no count anywhere may look at one of
+// them alone.
+func (s *seat) claimed() bool {
+	return s.token != "" || s.signPub != ""
 }
 
 // flow holds the M1 state that sits on top of the godip board.
@@ -181,7 +194,13 @@ type flow struct {
 
 	seats       map[godip.Nation]*seat
 	bySeatToken map[string]godip.Nation
+	bySignPub   map[string]godip.Nation
 	byDevice    map[string]godip.Nation
+	// sessions are open seat sessions, cookie value to power (D-049).
+	// They live in memory on purpose: a restart signs every phone back in
+	// without asking, because the seed is on the device, and nothing that
+	// opens a seat is left in a file that could be copied.
+	sessions map[string]godip.Nation
 	gmPower     godip.Nation // empty until start, and always empty when !gmPlays
 
 	// powers are this variant's powers, in a stable order. The seat count
@@ -220,7 +239,9 @@ func newFlow(s settings, v common.Variant) (*flow, error) {
 		powers:      sortedNations(v),
 		seats:       map[godip.Nation]*seat{},
 		bySeatToken: map[string]godip.Nation{},
+		bySignPub:   map[string]godip.Nation{},
 		byDevice:    map[string]godip.Nation{},
+		sessions:    map[string]godip.Nation{},
 	}
 	for _, power := range f.powers {
 		f.seats[power] = &seat{power: power}
@@ -247,7 +268,7 @@ func (self *flow) joinerSeats() int {
 func (self *flow) joinedCount() int {
 	n := 0
 	for _, s := range self.seats {
-		if s.token != "" && !s.isGM {
+		if s.claimed() && !s.isGM {
 			n++
 		}
 	}
@@ -268,7 +289,7 @@ func (self *flow) lockedCount() int {
 func (self *flow) activeSeats() int {
 	n := 0
 	for _, s := range self.seats {
-		if s.token != "" {
+		if s.claimed() {
 			n++
 		}
 	}
@@ -287,7 +308,7 @@ func (self *flow) lockedMap() map[string]bool {
 // for, and how many of those have locked.
 func (self *flow) pendingCounts() (asked, in int) {
 	for _, s := range self.seats {
-		if s.token == "" || s.autoLocked {
+		if !s.claimed() || s.autoLocked {
 			continue
 		}
 		asked++
@@ -345,7 +366,7 @@ func (self *game) nothingToOrder(power godip.Nation) bool {
 // players did play (D-034). The public per-phase history keeps it either way.
 func (self *game) anyoneCouldOrder() bool {
 	for _, s := range self.flow.seats {
-		if s.token != "" && !self.nothingToOrder(s.power) {
+		if s.claimed() && !self.nothingToOrder(s.power) {
 			return true
 		}
 	}
@@ -360,7 +381,7 @@ func (self *game) autoLock() []godip.Nation {
 	locked := []godip.Nation{}
 	for _, p := range f.powers {
 		s := f.seats[p]
-		if s.token == "" || s.autoLocked || !self.nothingToOrder(p) {
+		if !s.claimed() || s.autoLocked || !self.nothingToOrder(p) {
 			continue
 		}
 		s.locked = true
@@ -407,7 +428,7 @@ func (self *game) enterPhase(id string) error {
 func (self *flow) unassignedPowers() []godip.Nation {
 	out := []godip.Nation{}
 	for _, p := range self.powers {
-		if self.seats[p].token == "" {
+		if !self.seats[p].claimed() {
 			out = append(out, p)
 		}
 	}
@@ -988,6 +1009,10 @@ func handleListGames(w http.ResponseWriter, r *http.Request) {
 
 type joinResponse struct {
 	SeatURL string `json:"seatUrl"`
+	// Whether this seat is held by a key rather than by a token in its
+	// address (D-049). The page needs to know: a keyed seat's seed has to
+	// be written to this device's storage before the board is opened.
+	Keyed bool `json:"keyed,omitempty"`
 }
 
 func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Request) {
@@ -1004,6 +1029,18 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// The joining phone made a key and sends its public half (D-049). A
+	// body without one still claims a seat the old way, so a link opened
+	// by something that is not this app is not left with a dead page.
+	var body struct {
+		SignPub string `json:"signPub"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+	if body.SignPub != "" && !checkSignPub(body.SignPub) {
+		writeErr(w, http.StatusBadRequest, "signPub must be 32 base64url bytes")
+		return
+	}
+
 	// Everything below runs under the game lock, so two simultaneous
 	// scans can never draw the same power (D-020).
 	device := ""
@@ -1012,7 +1049,19 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	}
 	if device != "" {
 		if power, found := f.byDevice[device]; found {
-			writeJSON(w, http.StatusOK, joinResponse{SeatURL: seatURL(r, id, f.seats[power].token)})
+			// This phone already holds a power. A keyed seat is handed
+			// back its own address and nothing else: the seed is on the
+			// device and the session is opened by signing, never by a
+			// cookie that merely says which phone this is.
+			s := f.seats[power]
+			if s.signPub != "" {
+				writeJSON(w, http.StatusOK, joinResponse{
+					SeatURL: keyedSeatURL(r, id),
+					Keyed:   true,
+				})
+				return
+			}
+			writeJSON(w, http.StatusOK, joinResponse{SeatURL: seatURL(r, id, s.token)})
 			return
 		}
 	}
@@ -1036,11 +1085,6 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	}
 	power := free[pick.Int64()]
 
-	seatToken, err := newToken()
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
-		return
-	}
 	if device == "" {
 		device, err = newToken()
 		if err != nil {
@@ -1050,10 +1094,27 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	}
 
 	s := f.seats[power]
-	s.token = seatToken
 	s.device = device
-	f.bySeatToken[seatToken] = power
 	f.byDevice[device] = power
+
+	// One or the other, never both (D-049).
+	session := ""
+	if body.SignPub != "" {
+		f.bindSeatKey(s, body.SignPub)
+		session, err = f.openSession(power)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+			return
+		}
+	} else {
+		seatToken, err := newToken()
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+			return
+		}
+		s.token = seatToken
+		f.bySeatToken[seatToken] = power
+	}
 	f.logEvent(id, "seat claimed (%v of %v)", f.joinedCount(), f.joinerSeats())
 	g.persist(id)
 
@@ -1065,7 +1126,12 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   60 * 60 * 24 * 30,
 	})
-	writeJSON(w, http.StatusOK, joinResponse{SeatURL: seatURL(r, id, seatToken)})
+	if session != "" {
+		setSessionCookie(w, id, session)
+		writeJSON(w, http.StatusOK, joinResponse{SeatURL: keyedSeatURL(r, id), Keyed: true})
+		return
+	}
+	writeJSON(w, http.StatusOK, joinResponse{SeatURL: seatURL(r, id, s.token)})
 }
 
 // ---------------------------------------------------------------------- GM
@@ -1142,7 +1208,7 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		s := f.seats[p]
 		out.Seats = append(out.Seats, gmSeatJSON{
 			Power:  string(p),
-			Joined: s.token != "",
+			Joined: s.claimed(),
 			Locked: s.locked,
 			IsGM:   s.isGM,
 		})
@@ -1672,7 +1738,7 @@ func (self *game) advance(id string, dropUnlocked bool) error {
 	if dropUnlocked {
 		for _, p := range f.powers {
 			s := f.seats[p]
-			if s.token == "" || s.locked {
+			if !s.claimed() || s.locked {
 				continue
 			}
 			dropped := 0
@@ -1794,6 +1860,10 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 		handleHandoverClaim(g, id, segments[2:], w, r)
 	case "handover-gm":
 		handleGMRoleClaim(g, id, segments[2:], w, r)
+	case "session":
+		// Token-free: a keyed seat has none (D-049). The signature the
+		// phone sends back is the credential.
+		handleSeatSession(g, id, w, r)
 	case "recover":
 		// Token-free for the reason it exists (D-048): the person asking
 		// has lost every token they had. The signature they send back is
@@ -1831,6 +1901,10 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 	authorized := false
 	if kind == "gm" {
 		authorized = subtleEqual(token, f.gmToken)
+	} else if token == "me" {
+		// A keyed seat (D-049). The address carries no secret, so the
+		// session cookie is what says which power this is.
+		power, authorized = f.sessionPower(id, r)
 	} else {
 		if p, ok := f.bySeatToken[token]; ok {
 			power = p

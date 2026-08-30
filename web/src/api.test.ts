@@ -120,7 +120,7 @@ describe("requests", () => {
 
   it("claims a power under the game, not under the join page", async () => {
     const calls = stubFetch({ ok: true, status: 200, body: '{"seatUrl":"/game/7/seat/s/"}' });
-    const answer = await claimSeat("7", "invite");
+    const answer = await claimSeat("7", "invite", "pub");
     expect(calls[0].url).toBe("http://localhost:3000/game/7/join/invite");
     expect(answer.seatUrl).toBe("/game/7/seat/s/");
   });
@@ -146,7 +146,7 @@ describe("requests", () => {
       status: 409,
       body: '{"error":"every power is taken — ask the GM for a seat"}',
     });
-    const failure = await claimSeat("7", "invite").catch((err: unknown) => err);
+    const failure = await claimSeat("7", "invite", "pub").catch((err: unknown) => err);
     expect(failure).toBeInstanceOf(ApiError);
     expect((failure as ApiError).status).toBe(409);
     expect((failure as ApiError).message).toBe("every power is taken — ask the GM for a seat");

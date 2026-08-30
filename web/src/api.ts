@@ -7,6 +7,7 @@ Nothing here holds a token in module state — the route object does.
 */
 
 import type { BoardState, LabelPlan, OptionTree, Placement, Unit } from "./board/types";
+import { readSeatSeed, seatPublicKey, signAsSeat } from "./seatkey";
 import { readVariants, type Variant } from "./variants";
 
 // --- shapes ---------------------------------------------------------------
@@ -437,11 +438,51 @@ export function fetchGames(): Promise<GameSummary[]> {
 
 // --- join -----------------------------------------------------------------
 
-export function claimSeat(gameId: string, inviteToken: string): Promise<{ seatUrl: string }> {
+/*
+Claiming a power (D-012), with the key this device just made (D-049).
+
+The public half goes with the claim, so the seat is bound to a key the server
+never held. The answer says `keyed`, which is the page's cue to write the seed
+into this device's storage before it opens the board.
+*/
+export function claimSeat(
+  gameId: string,
+  inviteToken: string,
+  signPub: string,
+): Promise<SeatClaim> {
   const url = absolute(
     "/game/" + encodeURIComponent(gameId) + "/join/" + encodeURIComponent(inviteToken),
   );
-  return postJSON<{ seatUrl: string }>(url, {});
+  return postJSON<SeatClaim>(url, { signPub: signPub });
+}
+
+export interface SeatClaim {
+  seatUrl: string;
+  /** True when the seat is held by a key rather than by a token. */
+  keyed?: boolean;
+  /** Set when a handover answered: the power that was taken. */
+  power?: string;
+}
+
+/*
+Signing in to a keyed seat (D-049).
+
+Two steps and no token: the server hands out a sentence, this device signs it
+with the seed it holds, and the server answers with an HttpOnly cookie. The
+cookie reads the board and writes a draft. It is not the key: the key stays
+here, and what it will sign one day is the sealed order itself.
+*/
+export async function openSeatSession(gameId: string): Promise<string> {
+  const seed = readSeatSeed(gameId);
+  if (!seed) throw new ApiError("This device does not hold a seat in this game.", 404);
+  const base = absolute("/game/" + encodeURIComponent(gameId) + "/session");
+  const challenge = await getJSON<{ nonce: string; message: string }>(base);
+  const { power } = await postJSON<{ power: string }>(base, {
+    signPub: seatPublicKey(seed),
+    nonce: challenge.nonce,
+    signature: signAsSeat(seed, challenge.message),
+  });
+  return power;
 }
 
 // --- GM -------------------------------------------------------------------
@@ -531,8 +572,18 @@ export function recoverClaim(
 
 export class SeatClient {
   readonly base: string;
+  /*
+  A keyed seat carries no token: `me` in the address, a session cookie for
+  authority, and the seed on the device (D-049). Sessions live in the
+  server's memory, so a restart ends them — and this device can open a new
+  one on its own, which is what `keyed` turns on below.
+  */
+  private readonly gameId: string;
+  readonly keyed: boolean;
 
   constructor(gameId: string, seatToken: string) {
+    this.gameId = gameId;
+    this.keyed = seatToken === "me";
     this.base = absolute(
       "/game/" + encodeURIComponent(gameId) + "/seat/" + encodeURIComponent(seatToken) + "/",
     );
@@ -542,20 +593,40 @@ export class SeatClient {
     return this.base + "map.svg";
   }
 
+  /*
+  Every call goes through here. A keyed seat whose session has gone answers
+  404, exactly as a wrong address does, so the first one is met by signing in
+  again and trying once more. Twice would be a loop: if the second attempt
+  fails the seat really is gone.
+  */
+  private async withSession<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (err) {
+      if (!this.keyed || !(err instanceof ApiError) || err.status !== 404) throw err;
+      await openSeatSession(this.gameId);
+      return run();
+    }
+  }
+
   state(): Promise<SeatState> {
-    return getJSON<SeatState>(this.base + "state");
+    return this.withSession(() => getJSON<SeatState>(this.base + "state"));
   }
 
   options(province: string): Promise<OptionTree> {
-    return getJSON<OptionTree>(this.base + "options?province=" + encodeURIComponent(province));
+    return this.withSession(() =>
+      getJSON<OptionTree>(this.base + "options?province=" + encodeURIComponent(province)),
+    );
   }
 
   order(province: string, parts: string[]): Promise<SeatState> {
-    return postJSON<SeatState>(this.base + "order", { province: province, parts: parts });
+    return this.withSession(() =>
+      postJSON<SeatState>(this.base + "order", { province: province, parts: parts }),
+    );
   }
 
   lock(on: boolean): Promise<SeatState> {
-    return postJSON<SeatState>(this.base + (on ? "lock" : "unlock"));
+    return this.withSession(() => postJSON<SeatState>(this.base + (on ? "lock" : "unlock")));
   }
 
   /** The link that hands this power to another phone (D-041). */
@@ -587,8 +658,9 @@ export function claimHandover(
   power: string,
   epoch: string,
   signature: string,
-): Promise<{ power: string; seatUrl: string }> {
-  return postJSON<{ power: string; seatUrl: string }>(
+  signPub: string,
+): Promise<SeatClaim> {
+  return postJSON<SeatClaim>(
     absolute(
       "/game/" +
         encodeURIComponent(gameId) +
@@ -599,6 +671,7 @@ export function claimHandover(
         "/" +
         encodeURIComponent(signature),
     ),
+    { signPub: signPub },
   );
 }
 

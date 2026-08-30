@@ -32,6 +32,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -179,6 +180,17 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 	}
 	signature := rest[2]
 
+	// The phone taking the seat sends the public half of the key it just
+	// made (D-049). Absent, the seat is taken the old way, with a token.
+	var body struct {
+		SignPub string `json:"signPub"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+	if body.SignPub != "" && !checkSignPub(body.SignPub) {
+		writeErr(w, http.StatusBadRequest, "signPub must be 32 base64url bytes")
+		return
+	}
+
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	f := g.flow
@@ -202,34 +214,68 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 		return
 	}
 
+	// Everything the old holder had stops working here: the token or the
+	// key leaves its index, every session on the power is closed, the
+	// device claim is dropped so the next phone may take the seat, and the
+	// epoch moves past every link that was signed for it.
+	delete(f.bySeatToken, s.token)
+	f.dropSessions(power)
+	if s.device != "" {
+		delete(f.byDevice, s.device)
+	}
+	s.device = ""
+	s.epoch++
+
+	// The phone taking the seat made its own key (D-049) and sends the
+	// public half. It is a new key and not the old one: a handover moves a
+	// power to somebody else, and the person giving it away must not keep
+	// anything that opens the seat.
+	if body.SignPub != "" {
+		f.bindSeatKey(s, body.SignPub)
+		session, err := f.openSession(power)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+			return
+		}
+		f.logEvent(id, "%v was handed to another device", power)
+		g.persist(id)
+		setSessionCookie(w, id, session)
+		writeJSON(w, http.StatusOK, claimResponse{
+			Power:   string(power),
+			SeatURL: keyedSeatURL(r, id),
+			Keyed:   true,
+		})
+		return
+	}
+
 	token, err := newToken()
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
 		return
 	}
-
-	// Everything the old holder had stops working here: the token leaves the
-	// index, the device claim is dropped so the next phone may take the seat,
-	// and the epoch moves past every link that was signed for it.
-	delete(f.bySeatToken, s.token)
-	if s.device != "" {
-		delete(f.byDevice, s.device)
+	if s.signPub != "" {
+		delete(f.bySignPub, s.signPub)
+		s.signPub = ""
 	}
 	s.token = token
-	s.device = ""
-	s.epoch++
 	f.bySeatToken[token] = power
 
 	f.logEvent(id, "%v was handed to another device", power)
 	g.persist(id)
 
-	writeJSON(w, http.StatusOK, struct {
-		Power   string `json:"power"`
-		SeatURL string `json:"seatUrl"`
-	}{
+	writeJSON(w, http.StatusOK, claimResponse{
 		Power:   string(power),
 		SeatURL: seatURL(r, id, token),
 	})
+}
+
+// claimResponse is what taking a seat answers with. `keyed` tells the page
+// which kind of seat it just took: a keyed one has to write its seed to this
+// device's storage before the board is any use (D-049).
+type claimResponse struct {
+	Power   string `json:"power"`
+	SeatURL string `json:"seatUrl"`
+	Keyed   bool   `json:"keyed,omitempty"`
 }
 
 /*

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { makeSeatSeed, seatPublicKey, writeSeatSeed } from "../seatkey";
 import { TopBar } from "../components/TopBar";
 
 import { claimGmHandover, claimHandover } from "../api";
@@ -41,7 +42,12 @@ export function HandoverPage({
         const gm = await claimGmHandover(gameId, epoch, signature);
         window.location.href = gm.gmUrl;
       } else {
-        const seat = await claimHandover(gameId, power, epoch, signature);
+        // The phone taking the seat makes its own key (D-049). It is a new
+        // one and not the old holder's: a handover moves the power, and the
+        // person giving it away must keep nothing that opens the seat.
+        const seed = makeSeatSeed();
+        const seat = await claimHandover(gameId, power, epoch, signature, seatPublicKey(seed));
+        if (seat.keyed) writeSeatSeed(gameId, seed);
         window.location.href = seat.seatUrl;
       }
     } catch (err: unknown) {

@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { type Handover, type SeatClient } from "../api";
 import { powerColor } from "../board/provinces";
+import { readSeatSeed, seatLink } from "../seatkey";
 import { LinkShare } from "./LinkShare";
 import { ModalLayer } from "./ModalLayer";
 
@@ -21,12 +22,14 @@ The link is minted on opening rather than held on the page, so a menu left open
 never shows a code that has already been used.
 */
 export function SeatMenu({
+  gameId,
   power,
   turns,
   createdAt,
   isGameMaster,
   seat,
 }: {
+  gameId: string;
   power: string;
   turns?: number;
   createdAt?: string;
@@ -37,6 +40,10 @@ export function SeatMenu({
   seat: SeatClient;
 }) {
   const [open, setOpen] = useState(false);
+  /* The seat's own address, rebuilt from the seed this device holds (D-049).
+     It is the portable copy: a second device, or a phone passed round the
+     table, opens the same seat rather than taking it from anybody. */
+  const [portable, setPortable] = useState<string | null>(null);
   const [link, setLink] = useState<Handover | null>(null);
   const [role, setRole] = useState<Handover | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +54,8 @@ export function SeatMenu({
     setRole(null);
     setError(null);
     const fail = (err: unknown) => setError(err instanceof Error ? err.message : String(err));
+    const seed = seat.keyed ? readSeatSeed(gameId) : null;
+    setPortable(seed ? seatLink(gameId, seed) : null);
     seat.handover().then(setLink).catch(fail);
     if (isGameMaster) seat.roleHandover().then(setRole).catch(fail);
   };
@@ -106,6 +115,20 @@ export function SeatMenu({
                 />
               ) : null}
             </div>
+
+            {portable ? (
+              <LinkShare
+                private
+                title="This seat, on another device"
+                url={portable}
+                note={
+                  <>
+                    The same seat, not a handover: both devices play {power}. The key is
+                    after the # and no server ever sees it.
+                  </>
+                }
+              />
+            ) : null}
 
             {/* The way out, and back. The seat page has no bar of its own —
                 the map wants every pixel — so the links live here, one tap

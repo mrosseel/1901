@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r49 — 2026-08-30
+**Document revision:** r50 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1587,6 +1587,68 @@ This is also why the epoch belongs on the command path rather than on the
 orders. There is no draft living on a device to rescue or discard: a device
 holds a token, and the orders are already here.
 
+### D-049 — A seat is a key the device holds, not a token in the address
+**Status:** accepted, r50 (owner request). Extends D-012, D-020, D-041, D-048.
+Built for access; the signature half is not.
+
+A seat was a secret in an address. Whoever read `/game/{id}/seat/{token}` was
+that power, and the same string sat in the `seat` table. So a copied `1901.db`,
+a laptop backup, or a server somebody kept after the tournament was a set of
+working seats — for as long as the game ran, and afterwards for anybody
+replaying it.
+
+**The change.** The joining device makes 32 random bytes, derives an Ed25519
+key from them, and sends the public half with its claim. The server stores 32
+public bytes and can open nothing with them. The seed stays on the phone.
+
+Three questions ran together in the first draft and are answered apart:
+
+- **Who makes it.** The device, at the moment of claiming. The server never
+  makes one and never sees one.
+- **Where it lives.** The device's own storage, one entry per game, so a closed
+  tab does not lose the seat.
+- **How it travels.** The fragment of a URL, and only when somebody asks for
+  the seat's link. A browser never puts the part after `#` in a request, so the
+  seed reaches no server, no log and no `Referer` header. It is read once at
+  start-up and taken out of the address.
+
+Storage alone would be tidier and would break what this app is for: a second
+device, passing the phone round the table, a bookmark, a scanned code. The
+address is the seat (D-012), so the address has to be able to carry it.
+
+**Access and authorship are two different jobs.** Signing every request is slow
+and buys little. Signing in once — a challenge the server mints, a signature,
+an HttpOnly session cookie — is enough to read the board and write a draft. The
+signature that will matter is the one over a sealed order (D-004), and that is
+not built. So a stolen cookie reads a screen and dies at the next handover; it
+is not the key, and it cannot produce a signed order.
+
+Sessions live in memory and not in the database. A restart ends them and every
+device signs back in without being asked, because the seed is on the device.
+What a restart must never do is leave a credential in a file that can be
+copied, which is the whole point.
+
+**No migration.** A seat row holds a token or a public key, never both. Games
+made before this keep their tokens and keep working; games made after it get
+keys. A game lasts an evening, so the token path can be deleted when the last
+game that uses it is over rather than migrated. One rule holds it together:
+nothing anywhere may ask whether a seat has a token to decide whether it is
+claimed — `seat.claimed()` is the only predicate, and it reads both.
+
+**What is not keyed.** The game master's own seat. It is dealt at the start
+from the game master's page, which already holds a stronger credential
+(D-048), and giving it a key would mean minting one on a screen that is often
+on a beamer. It keeps a token, and the exception is written here so nobody
+reads the mixed state as a bug.
+
+**What this buys before any sealed order.** A stolen database stops being a set
+of seats. That is worth having on its own.
+
+**What it does not buy.** The server still ships the JavaScript. A game master
+who wants the orders can serve a page that posts them twice. The claim this
+earns is *the server does not need your orders, and no copy of the database
+gives them up later* — not "nobody can read them".
+
 ### D-048 — A key the game master holds, and twelve words to recover it
 **Status:** accepted, r49 (owner decision, closes Q-009). Extends D-004, D-041.
 Built for the game master, with alternative 1 built beside it.
@@ -2331,3 +2393,4 @@ Recorded so nobody re-derives them.
 | r47 | 2026-08-30 | Read back against research/platforms.md, most of the survey's steal list is built and the gaps are elsewhere. D-044: a game ends, by a solo read from godip's `SoloWinner`, by a draw the game master records, or at an end year, and an ended game freezes and publishes a result; the flow never asked who won. D-045: the DATC pass rate the CI already computes becomes a generated page that also states what was not run. D-046: publish supply-centre counts as JSON and CSV, because dipvis scrapes Backstabbr's HTML for exactly that and a stable address replaces a scraper. Q-008 opened: whether to bring back a board with no players, which is Backstabbr's sandbox and the reason its links are the community's citation format. Build order in §7 restated: D-044 before M3, then D-004 and D-041. |
 | r48 | 2026-08-30 | D-047: the sandbox, a game with no seats, one `sandboxToken` link that may drive every power and adjudicate, and the ordinary watch addresses for everybody else. It closes Q-008 ahead of the playtest, on the owner's call. It is a flag on a game rather than a second object, so there is one adjudication path; a sandbox route refuses a real game and a seat route refuses a sandbox, which is a test and not a comment. Editing the position breaks D-028's replay-from-orders, so an edit writes a whole-position checkpoint and replay starts there, and an edited phase says so on the page. D-029 and D-044 apply; press, deadlines, anonymity and handover have no second person to be about. CONTEXT.md gains Sandbox. |
 | r49 | 2026-08-30 | D-048 accepted and built, closing Q-009. The game master's browser makes an Ed25519 key, the server keeps the public half, and twelve BIP-39 words are the copy that outlives the device: typing them at /recover signs a challenge and buys a fresh game master address, which rotates the token and drops the referee cookie exactly as a role handover does. The key is write-once, because the token is not the credential it protects. Alternative 1 shipped beside it: the game master page shows its own address, folded and guarded like every other secret there. HKDF-SHA256 and not BIP-39's PBKDF2 seed, a vendored curve and not crypto.subtle, because run.sh serves plain http on a LAN. Nothing changes for a player, and no seat has a key. |
+| r50 | 2026-08-30 | D-049: a seat is a key the joining device makes, not a token in its address. The device sends the public half, keeps the seed in its own storage, and moves it between devices in a URL fragment, which no browser ever sends. Access and authorship are split: a signature buys an HttpOnly session cookie once, and the signature over a sealed order (D-004) is the half that is not built. Sessions live in memory, so a restart signs every device back in and leaves no credential in a file. No migration — a seat row holds a token or a key, old games keep tokens, and `seat.claimed()` is the only predicate allowed to ask whether a seat is taken. The game master's own seat keeps its token, because the game master page already holds a stronger credential and is often the screen on the beamer. CONTEXT.md gains Seat key and rewrites Seat. |

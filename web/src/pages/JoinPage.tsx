@@ -2,6 +2,7 @@ import { useState } from "react";
 import { TopBar } from "../components/TopBar";
 import { claimSeat, fetchPublic, type PublicState } from "../api";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
+import { makeSeatSeed, seatPublicKey, writeSeatSeed } from "../seatkey";
 import { SupportedMark } from "../components/SupportedMark";
 import { noteServerTime } from "../clock";
 
@@ -32,10 +33,16 @@ export function JoinPage({
     setBusy(true);
     setError(null);
     try {
-      const { seatUrl } = await claimSeat(gameId, inviteToken);
+      // This device makes the seat's key before it asks for a power, and
+      // sends only the public half (D-049). The seed is written here, one
+      // step before the board opens, so a refused claim leaves nothing
+      // behind.
+      const seed = makeSeatSeed();
+      const seat = await claimSeat(gameId, inviteToken, seatPublicKey(seed));
+      if (seat.keyed) writeSeatSeed(gameId, seed);
       // The board replaces this page: the back button must not lead to a
       // second claim.
-      location.replace(new URL(seatUrl, location.href).toString());
+      location.replace(new URL(seat.seatUrl, location.href).toString());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
