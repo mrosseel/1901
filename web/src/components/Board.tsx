@@ -61,10 +61,43 @@ export function Board({
       window.matchMedia("(hover: hover) and (pointer: fine)").matches,
   );
 
-  // The callbacks change with every render; the board keeps this one box and
-  // reads the current ones out of it, so it never has to be remounted.
-  const live = useRef({ canOrder, refusal, onState, onStatus, onSelect, onIllegal });
-  live.current = { canOrder, refusal, onState, onStatus, onSelect, onIllegal };
+  /*
+  The callbacks change with every render; the board keeps this one box and
+  reads the current ones out of it, so it never has to be remounted.
+
+  What the board is showing rides along in the same box, because a board that
+  IS remounted — a style change is the only cause — starts empty. Everything
+  it was showing is handed back to it below, in one place, at the moment it is
+  made. Leaving that to the effects that watch each piece does not work: they
+  fire on their own value changing, and a style change changes none of them,
+  so the new board stood there with no units on it until something else moved.
+  */
+  const live = useRef({
+    canOrder,
+    refusal,
+    onState,
+    onStatus,
+    onSelect,
+    onIllegal,
+    state,
+    plan,
+    review,
+    hideOrders,
+    briefLabels,
+  });
+  live.current = {
+    canOrder,
+    refusal,
+    onState,
+    onStatus,
+    onSelect,
+    onIllegal,
+    state,
+    plan,
+    review,
+    hideOrders,
+    briefLabels,
+  };
 
   useEffect(() => {
     if (!host.current) return;
@@ -81,6 +114,14 @@ export function Board({
     });
     handle.current = board;
     if (onHandle) onHandle(board);
+
+    // Everything this board was already showing, handed to the one that
+    // replaced it. Safe before the map has arrived: each of these is kept and
+    // drawn when it lands.
+    if (live.current.state) board.update(live.current.state, live.current.plan);
+    board.showReview(live.current.review || null);
+    board.setHideOrders(Boolean(live.current.hideOrders));
+    board.setBriefLabels(Boolean(live.current.briefLabels));
     board.ready.catch((err: unknown) => {
       live.current.onStatus(err instanceof Error ? err.message : String(err), true);
     });
