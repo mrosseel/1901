@@ -504,20 +504,17 @@ func writeErr(w http.ResponseWriter, code int, format string, args ...interface{
 //
 // This is the route the board actually loads its map from, so it has to make
 // the same styled-or-original choice /variants/{key}/map.svg makes — sharing
-// variantMapBytes is what stops a restyle from reaching the gallery and never
+// serveMapArt is what stops a restyle from reaching the gallery and never
 // reaching a board.
 func handleMap(g *game, id string, w http.ResponseWriter, r *http.Request) {
-	b, err := variantMapBytes(g.variantKey, g.variant, r)
+	err := serveMapArt(w, r, g.variantKey, g.variant)
 	if errors.Is(err, errUnknownStyle) {
 		http.NotFound(w, r)
 		return
 	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "svg map: %v", err)
-		return
 	}
-	w.Header().Set("Content-Type", "image/svg+xml")
-	w.Write(b)
 }
 
 // nationFor finds the nation that may order the given province. During a
@@ -725,7 +722,7 @@ func main() {
 	// most, so these bounds are generous.
 	httpSrv := &http.Server{
 		Addr:              addr,
-		Handler:           limitBody(mux),
+		Handler:           compress(limitBody(mux)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
