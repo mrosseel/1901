@@ -19,9 +19,9 @@ import { mount } from "./board";
 import { emptyPlan } from "./phases";
 import { resetProvinceNames, setProvinceNames } from "./provinces";
 import type { BoardApi, BoardState, LabelPlan, Placement } from "./types";
-import ART from "../../../testdata/generated/demo7/map.svg?raw";
-import placementsFile from "../../../testdata/generated/demo7/placements.json?raw";
-import descriptorFile from "../../../testdata/generated/demo7/variant.json?raw";
+import ART from "../../../testdata/generated/demo7-drawn/map.svg?raw";
+import placementsFile from "../../../testdata/generated/demo7-drawn/placements.json?raw";
+import descriptorFile from "../../../testdata/generated/demo7-drawn/variant.json?raw";
 
 if (!(globalThis as { CSS?: unknown }).CSS) {
   (globalThis as { CSS?: unknown }).CSS = {
