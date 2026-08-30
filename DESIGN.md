@@ -1587,6 +1587,32 @@ This is also why the epoch belongs on the command path rather than on the
 orders. There is no draft living on a device to rescue or discard: a device
 holds a token, and the orders are already here.
 
+### D-043 — The root is a landing page; the game list moves to /games
+**Status:** accepted, r46 (owner request).
+The root address held the list of games this server happens to hold. That is
+the right screen for the game master who just created one and the wrong screen
+for everybody else: it opens on somebody else's Thursday table, or on nothing
+at all, and it never says what this is.
+
+So `/` is a landing page and `/games` is the list. The landing page states what
+the app does in one sentence, shows the seat screen on the phone it is played
+on, and carries one action, "Create a game", three times down the page. It is
+the only screen written for a reader who has never seen a board.
+
+It draws the app's own parts rather than lookalikes: the power card, the phase
+words, the tick dots, the badge and the lock button are the rules the seat page
+and the review already use, and the art is the Classical map served from the
+address every other screen asks for. What a visitor sees here is what they get
+when they press the button. The one thing that is not the app's is a serif for
+the headings, because a page that has to say what this is gets a voice; Georgia
+is on every machine and the app must run with no internet at all, which is why
+there is no webfont.
+
+**The list keeps the collection's address for a create.** `GET /games` is the
+page, `POST /games` still creates a game, and only the JSON list moved, to
+`/games/list`. A page and its data cannot share one address and answer the same
+method, and a create was always a post to the collection.
+
 ### D-042 — A game may be named, and the name is public
 **Status:** accepted, r45 (owner request). Extends D-022.
 A game master running two tables needs to tell them apart, and a
@@ -2001,3 +2027,4 @@ Recorded so nobody re-derives them.
 | r43 | 2026-08-30 | D-041's open question is closed and was malformed. The signed value authenticates commands, so an order the server accepted was accepted under a valid epoch and is server state from that moment. Raising the epoch stops the old holder sending anything further and reaches back into nothing. The new holder inherits the seat as it stands, orders included. |
 | r44 | 2026-08-30 | D-041: the game master can mint a handover link for any power. A dead phone takes its own menu with it, which is the case this exists for. It is an enumerated, logged game master power (D-007), because a game master who can mint a link for any seat can take any seat; the record is what makes that visible rather than prevented. |
 | r45 | 2026-08-30 | The game master's waiting room shows the joined count only until every power is claimed, then the list of powers appears. The old per-power list published the join order on a screen the whole table reads (D-013), against D-020's anonymous seats, and the player waiting screen already showed a count for that reason. That list is where D-041's per-power actions will live. D-042: a game may be named. The New game screen puts the name, the rules and the create button above the map gallery, which was a screenful of scrolling between the choice and the act. |
+| r46 | 2026-08-30 | D-043: the root is a landing page and the game list moves to /games. The list was the right screen for the game master who had just created a game and the wrong one for a stranger, who met somebody else's table or an empty page and was never told what this is. The page borrows the app's own power card, phase words and lock button, and washes the Classical map behind the words, so nothing on it is a drawing of the product. GET /games is the page, POST /games still creates, and the JSON list moved to /games/list. |
