@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r35 — 2026-08-30
+**Document revision:** r36 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1173,8 +1173,16 @@ would sit on a name.
 
 **Two kinds of map, chosen per map.** A map whose names are data draws them
 from the records. A map whose names must stay in the art keeps its names
-layer. The reader chooses on the presence of ANY `label` record: one record
-means the whole map is in data mode.
+layer. The choice is a flag the exporter sets when it stops drawing the
+layers, carried in the style plan as `dataMode`, and it is never inferred from
+the records: through the transition a map has records and still draws them.
+
+The flag belongs to the plan because it is a fact about the art, and the plan
+is the document that already describes the art. It is not in the descriptor,
+because five variants are drawn on classical's art and their descriptors could
+then disagree about one file. It is not `names.found` either: that says
+whether the art draws names, and six maps have it false while none of them can
+be drawn from records.
 
 It cannot choose per province. A province may legitimately carry no label,
 because a name whose fitted size falls under the exporter's floor is dropped
@@ -1254,6 +1262,19 @@ the board asks the variant, not a second copy that can drift.
 exporter writes records and still draws the layers, a server that inferred
 "has records, therefore hide the layer" would change the picture on a
 data-only release. The flag is set when the exporter stops drawing them.
+
+**Four things the entry did not settle, found while building the reader.**
+A run carries no rotation, and nothing said whether run anchors are written in
+unrotated space: the whole block turns about the label's `at`, and no fixture
+exercises it yet. The glyph's stroke width is not in the record, so it is
+derived from the radius at godip's ratio, 2.25273 units of stroke on a radius
+of 10; a map whose glyphs are not drawn at that ratio needs a fourth number.
+The typography cannot be resolved to one face on the server, because the style
+is a device preference carried in the map URL and not a property of the game,
+so all four styles travel together at about a kilobyte. And `?style=original`
+keeps its layers only while a map has them: once a map is authored without
+them there is no original to be faithful to, and the default style's faces are
+used.
 
 **Name styling moves to the board, and the two style paths do not collapse.**
 Today the server rewrites each `<text>` in the art before sending it, choosing
@@ -1791,3 +1812,4 @@ Recorded so nobody re-derives them.
 | r33 | 2026-08-30 | D-040: a style with no grain drops the overlay's fill instead of dimming it, so the paper pattern is orphaned and the existing prune takes the 29 KB bitmap with it. 20 of 130 map and style pairs get 22.4 KB smaller gzipped, 447 KB over the set, with no pixel changed and `?style=original` byte-identical. The overlay element stays: on seven of the ten maps it carries the board's hairline frame. Styled art is now checked to parse as XML, which is how a board's `<img>` reads it. |
 | r34 | 2026-08-30 | D-038: the supply-centre glyph follows the same rule as the name. Where the art draws the layer, the art wins. Where it does not, the board draws from the record. A drawn ring keeps the id from D-032 and never `<key>Center`, which the board matches to find anchors. |
 | r35 | 2026-08-30 | D-038: a wrapped name gets an optional `labelRuns` beside `label` rather than turning `at` into a list, and a run's text wins for drawing only. The claim that moving a short label makes the payload bigger is withdrawn: it was JSON pretty-printing, not the format. Tables collapse arrays and innermost objects onto one line, 30.1% off raw and 4.3% gzipped, keeping one line per field so a moved marker stays a one-line diff. |
+| r36 | 2026-08-30 | The reader lands, inert. The board can draw a name, a code and a supply-centre glyph from records, and does not, because every map still draws its own and the art wins. D-038 corrected: it said the mode was inferred from the presence of a record and also that it was an explicit flag. It is the flag, `dataMode` in the style plan. The land-or-sea verdict is derived from godip's graph and agrees with the art's own measurement on 73 of 73. With the flag off, 130 renders are byte-identical to master. |
