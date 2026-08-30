@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
+
+	"github.com/zond/godip"
 )
 
 var nameTextRe = regexp.MustCompile(`<text id="(\w+)Name"`)
@@ -142,5 +144,72 @@ func TestAnArtModeStateCarriesNoLabelField(t *testing.T) {
 	}
 	if !bytes.Contains(b, []byte(`"labels":{"mode":"records"`)) {
 		t.Errorf("the plan did not reach the wire: %v", string(b))
+	}
+}
+
+/*
+The board's land-or-sea verdict comes from the variant graph, never from the
+plan's kinds (D-038). The two normally agree, which is why nothing would
+notice the day one started answering for the other: the exporter writes kinds
+for a styling pass, and a reader that quietly promoted it to the source of
+truth would keep passing every test that only checks the answer.
+
+So this contradicts them on purpose. It states the wrong verdict for every
+province in the plan and asserts the board is unmoved.
+*/
+func TestTheSeaVerdictIgnoresThePlansKinds(t *testing.T) {
+	withGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatalf("loadGeneratedVariants: %v", err)
+	}
+	state, err := generatedVariants["demo7"].Variant.Start()
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	graph := state.Graph()
+
+	want := seaNames(graph)
+	if len(want) == 0 {
+		t.Fatal("no sea provinces derived, so this proves nothing")
+	}
+
+	held := plans["demo7"]
+	t.Cleanup(func() {
+		if held == nil {
+			delete(plans, "demo7")
+			return
+		}
+		plans["demo7"] = held
+	})
+
+	lying := map[string]string{}
+	for _, prov := range graph.Provinces() {
+		if prov.Super() != prov {
+			continue
+		}
+		flags := graph.Flags(prov)
+		if flags[godip.Sea] && !flags[godip.Land] {
+			lying[string(prov)] = "land"
+		} else {
+			lying[string(prov)] = "sea"
+		}
+	}
+	art := &stylePlan{Key: "demo7", Kind: "godip", DataMode: true}
+	art.Map.ViewBoxWidth = 1000
+	art.Godip = &godipPlan{}
+	art.Godip.Names.Kinds = nameKinds{ByProvince: lying}
+	plans["demo7"] = art
+
+	got := labelPlanFor("demo7", graph)
+	if got == nil {
+		t.Fatal("no label plan")
+	}
+	if len(got.Sea) != len(want) {
+		t.Fatalf("the plan's kinds moved the verdict: %d sea names, want %d", len(got.Sea), len(want))
+	}
+	for i, name := range want {
+		if got.Sea[i] != name {
+			t.Fatalf("the plan's kinds moved the verdict at %d: %q, want %q", i, got.Sea[i], name)
+		}
 	}
 }
