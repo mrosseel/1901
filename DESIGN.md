@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r37 — 2026-08-30
+**Document revision:** r38 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1311,6 +1311,19 @@ maps, and loses only the name pass for data-mode ones. The paths do collapse
 eventually, but for a different reason: D-039 ends jDip art altogether, and
 one of the two kinds stops existing.
 
+**Comparing a record to the art needs a tolerance, and a comparison.** The art
+writes one decimal and a record two, so the two disagree by up to half the
+art's step. An exact check reports almost every row as broken: 72 of 73
+labels, on the first attempt made here.
+
+The tolerance is half the art's rounding step, and it must be applied to a
+comparison of two numbers, never to a lookup by formatted string. The two
+roundings do not commute. A true 66.6549 becomes 66.7 in the art and 66.65 in
+the record, and 66.65 printed to one decimal is 66.6, so a string lookup
+misses. That cost a fifth of the rows on the second attempt made here, and it
+reads as a missing element rather than as rounding, which is why it is written
+down.
+
 **A name broken across lines gets a sibling, not a list.** Sail Ho sets
 "Village of / Aeolus" as two elements, 105 elements for 60 provinces, and
 Europe 1939, Twenty Twenty, Western World 901 and Youngstown Redux put several
@@ -1830,3 +1843,4 @@ Recorded so nobody re-derives them.
 | r35 | 2026-08-30 | D-038: a wrapped name gets an optional `labelRuns` beside `label` rather than turning `at` into a list, and a run's text wins for drawing only. The claim that moving a short label makes the payload bigger is withdrawn: it was JSON pretty-printing, not the format. Tables collapse arrays and innermost objects onto one line, 30.1% off raw and 4.3% gzipped, keeping one line per field so a moved marker stays a one-line diff. |
 | r36 | 2026-08-30 | The reader lands, inert. The board can draw a name, a code and a supply-centre glyph from records, and does not, because every map still draws its own and the art wins. D-038 corrected: it said the mode was inferred from the presence of a record and also that it was an explicit flag. It is the flag, `dataMode` in the style plan. The land-or-sea verdict is derived from godip's graph and agrees with the art's own measurement on 73 of 73. With the flag off, 130 renders are byte-identical to master. |
 | r37 | 2026-08-30 | D-038: the supply-centre record gains `centreStroke`. Asking what stroke width a glyph uses found that it is a line weight in map units and not a fraction of the radius, so the reader's derivation from godip's ratio was wrong by more than a factor of two, and that the exporter reserved `2 * radius` when the ink reaches `radius + stroke / 2`. A `labelRuns` anchor is in unrotated space and a run carries no rotation of its own. |
+| r38 | 2026-08-30 | The demo7 fixture carries `centreStroke`, verified independently: 31 records against 31 stroked circles, worst deviation 0.0500, every stroke 1.10. D-038 gains the rule that a record is compared to the art with a tolerance of half the art's rounding step, and never looked up by formatted string, because the two roundings do not commute. |
