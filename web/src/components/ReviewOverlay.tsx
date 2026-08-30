@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { powerColor } from "../board/provinces";
 import { nmrLine, type ReviewPlan } from "../review";
 import { Clock } from "./Clock";
@@ -24,12 +25,19 @@ export function ReviewOverlay({
   deadlineAt,
   onClose,
   onReferee,
+  onMap,
 }: {
   plan: ReviewPlan;
   deadlineAt: string | null | undefined;
   onClose: () => void;
   /** Opens the piece pusher's list. Absent on a screen that has no board. */
   onReferee?: () => void;
+  /*
+  Puts the sheet away and leaves the map, which is drawing this same phase.
+  Absent on a screen with no board behind the sheet — the game master's
+  page has none.
+  */
+  onMap?: () => void;
 }) {
   /* The same switch as the seat's own order list, reading the same preference:
      a player who writes their orders in notation reads them back in it. */
@@ -85,6 +93,18 @@ export function ReviewOverlay({
       </ul>
 
       <div className="review-actions">
+        {/*
+        Two ways to read one turn, and the same turn either way: the sheet
+        names the orders, the map draws them. The pair sit side by side and
+        the same size, because neither is the answer — a player checking
+        whether their support landed wants the map, and one counting builds
+        wants the list.
+        */}
+        {onMap ? (
+          <button type="button" className="primary review-flip" onClick={onMap}>
+            See it on the map
+          </button>
+        ) : null}
         <button type="button" className="primary" onClick={onClose}>
           Close review
         </button>
@@ -102,5 +122,53 @@ export function ReviewOverlay({
         their own pace.
       </p>
     </section>
+  );
+}
+
+/*
+The review, with the map showing instead of the list.
+
+The board behind is already drawing this phase — every power's orders, the
+failed ones crossed — so reading it needs no sheet at all. What it needs is
+the way back and the way out, and nothing else on screen.
+
+The map may be panned and zoomed while this stands. It cannot be ordered on:
+the board refuses every tap while a review is up, and the order panel beside
+it stays inert, so the one thing a player must not do half-read — lock in this
+phase — is still out of reach.
+*/
+export function ReviewPeekBar({
+  title,
+  onMoves,
+  onClose,
+}: {
+  title: string;
+  onMoves: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="review-bar" role="dialog" aria-label="What happened last turn">
+      <p className="review-bar-title">
+        <PhaseName label={title} />
+      </p>
+      <div className="review-actions">
+        <button type="button" className="primary review-flip" onClick={onMoves}>
+          Read the orders
+        </button>
+        <button type="button" className="primary" onClick={onClose}>
+          Close review
+        </button>
+      </div>
+    </div>
   );
 }

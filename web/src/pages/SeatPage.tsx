@@ -39,7 +39,7 @@ import { ILLEGAL_DRAFT_NOTE, illegalAllowed } from "../illegal";
 import { PhaseName } from "../components/PhaseName";
 import { SupportedMark } from "../components/SupportedMark";
 import { styledMapUrl } from "../style";
-import { ReviewOverlay } from "../components/ReviewOverlay";
+import { ReviewOverlay, ReviewPeekBar } from "../components/ReviewOverlay";
 import { ModalLayer } from "../components/ModalLayer";
 import { RefereeGuide } from "../components/RefereeGuide";
 import { SeatWaiting } from "../components/SeatWaiting";
@@ -83,6 +83,10 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const [gone, setGone] = useState(false);
   const [plan, setPlan] = useState<PhasePlan>(emptyPlan(""));
   const [reviewing, setReviewing] = useState(false);
+  /* The review with the sheet put away, so the map behind it can be read and
+     panned. It is still the review: the board takes no orders and the panel
+     stays inert. */
+  const [peeking, setPeeking] = useState(false);
   const [refereeing, setRefereeing] = useState(false);
   /* One count per answer the public summary gives, and only before the start:
      it is what the waiting screen's live mark is drawn from. */
@@ -397,11 +401,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   same moment, at any size.
   */
   const reading = (refereeing && Boolean(guide)) || (reviewing && Boolean(review));
+  /* While the map is being read the map itself answers: pan and zoom are the
+     point of looking at it. Only the order panel stays out of reach, because
+     locking in this phase half-read is the thing that must not happen. */
+  const mapFrozen = reading && !peeking;
 
   return (
     <>
     <SplitLayout className="seat-layout" frozen={reading}>
-      <main className="map-pane" inert={reading || undefined}>
+      <main className="map-pane" inert={mapFrozen || undefined}>
         <Board
           api={api}
           state={state}
@@ -674,14 +682,23 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         <RefereeGuide guide={guide} onClose={() => setRefereeing(false)} />
       </ModalLayer>
     ) : reviewing && review ? (
-      <ModalLayer onClose={closeReview}>
-        <ReviewOverlay
-          plan={review}
-          deadlineAt={state?.deadlineAt}
+      peeking ? (
+        <ReviewPeekBar
+          title={review.title}
+          onMoves={() => setPeeking(false)}
           onClose={closeReview}
-          onReferee={guide ? () => setRefereeing(true) : undefined}
         />
-      </ModalLayer>
+      ) : (
+        <ModalLayer onClose={closeReview}>
+          <ReviewOverlay
+            plan={review}
+            deadlineAt={state?.deadlineAt}
+            onClose={closeReview}
+            onReferee={guide ? () => setRefereeing(true) : undefined}
+            onMap={() => setPeeking(true)}
+          />
+        </ModalLayer>
+      )
     ) : null}
     </>
   );
