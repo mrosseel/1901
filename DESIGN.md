@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r44 — 2026-08-30
+**Document revision:** r45 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1587,6 +1587,27 @@ This is also why the epoch belongs on the command path rather than on the
 orders. There is no draft living on a device to rescue or discard: a device
 holds a token, and the orders are already here.
 
+### D-042 — A game may be named, and the name is public
+**Status:** accepted, r45 (owner request). Extends D-022.
+A game master running two tables needs to tell them apart, and a
+ten-character id does not do it. `settings.name` is an optional line set when
+the game is created, persisted in `game.name`, and returned on every state
+answer. A game with no name is known by its id, which is what every game was
+until now.
+
+The name is public. It is on the game list, the game master page, the join
+page and the seat waiting panel. It names a table, not a person, and nothing
+binds it to a seat, so D-020's anonymity is untouched: no screen draws the name
+beside a power. A game master who types a player's name into it has done
+something social the app cannot prevent, and the same is true of the invite
+link.
+
+It is not a rule. Renaming does not bump the settings version and no seat sees
+"the rules changed" over it, unlike every other setting under D-022. It is
+still an enumerated, logged act (D-007). The server folds whitespace, drops
+control characters and cuts the name to 60 runes, because it is drawn as one
+line in a list beside other names.
+
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
 The GM shares ONE invite link/QR. Claiming it assigns a random
@@ -1979,3 +2000,4 @@ Recorded so nobody re-derives them.
 | r42 | 2026-08-30 | D-041: a power can be handed to another person by a signed link, `HMAC(salt, power, game id, epoch)`, with the epoch raised on use so the previous holder's access dies with it. Every seat gets an icon and a menu carrying the power, the turns played, the time elapsed, and the handover. The game master has two entries, one for the rights and one for the power, because they fail differently. Designed, not built. |
 | r43 | 2026-08-30 | D-041's open question is closed and was malformed. The signed value authenticates commands, so an order the server accepted was accepted under a valid epoch and is server state from that moment. Raising the epoch stops the old holder sending anything further and reaches back into nothing. The new holder inherits the seat as it stands, orders included. |
 | r44 | 2026-08-30 | D-041: the game master can mint a handover link for any power. A dead phone takes its own menu with it, which is the case this exists for. It is an enumerated, logged game master power (D-007), because a game master who can mint a link for any seat can take any seat; the record is what makes that visible rather than prevented. |
+| r45 | 2026-08-30 | The game master's waiting room shows the joined count only until every power is claimed, then the list of powers appears. The old per-power list published the join order on a screen the whole table reads (D-013), against D-020's anonymous seats, and the player waiting screen already showed a count for that reason. That list is where D-041's per-power actions will live. D-042: a game may be named. The New game screen puts the name, the rules and the create button above the map gallery, which was a screenful of scrolling between the choice and the act. |
