@@ -48,10 +48,27 @@ export function useTicker(enabled = true): void {
 
 export { countdown } from "./clock";
 
-/** The rules, as two plain sentences. */
+/*
+How each press mode reads to a player (D-023). The app carries no messages in
+any of them, so every line says what the people at the table do, never what
+the screen offers.
+*/
+const PRESS_LINES: Record<string, string> = {
+  ftf: "Negotiate out loud, at the table.",
+  gunboat: "Gunboat: no negotiation at all.",
+  rulebook: "Negotiate in movement phases only.",
+  fullpress: "Full press: negotiate however the table agrees.",
+};
+
+/** The rules, one plain sentence each. */
 export function settingsLines(
   settings:
-    | { deadlineMinutes: number; gmPlays: boolean; illegalMoves?: boolean }
+    | {
+        deadlineMinutes: number;
+        gmPlays: boolean;
+        illegalMoves?: boolean;
+        pressMode?: string;
+      }
     | undefined,
 ): string[] {
   const rules = settings || { deadlineMinutes: 0, gmPlays: false };
@@ -68,5 +85,8 @@ export function settingsLines(
     illegalAllowed(rules)
       ? "Illegal orders may be written; they resolve as holds."
       : "Only legal orders are accepted.",
-  ];
+    // A mode the server does not know is a mode this build cannot describe,
+    // so it says nothing rather than guessing (filtered below).
+    PRESS_LINES[rules.pressMode || "ftf"] || "",
+  ].filter((line) => line !== "");
 }

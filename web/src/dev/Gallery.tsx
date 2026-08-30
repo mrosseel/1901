@@ -100,9 +100,15 @@ function buildCatalogue(): Entry[] {
   const list: Entry[] = [
     seatEntry(
       "not-started",
-      "Waiting to start",
-      "Seven joined, the game master has not started it. No orders are possible.",
+      "Waiting to start, table full",
+      "France, all seven claimed, the game master has not started it.",
       "seat-not-started",
+    ),
+    seatEntry(
+      "waiting-partial",
+      "Waiting to start, table filling",
+      "Austria, four of seven claimed: the screen a player lands on from the code.",
+      "seat-waiting-partial",
     ),
     seatEntry(
       "movement",

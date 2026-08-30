@@ -677,6 +677,97 @@ and a flex row would either overflow it or shrink the type it is drawn at.
 
 .duty.idle { border-left-color: var(--line); color: var(--muted); }
 
+/* --- before the game starts ----------------------------------------------
+   The screen a player lands on from the QR code, and may sit on for several
+   minutes. There is no phase yet, so the size the phase line holds during a
+   game goes to the power the player was just dealt — which is the whole of
+   what this moment is about. */
+.you-are {
+  background: var(--panel-2);
+  /* Set inline to the power's own colour. The colour is on the edge and not
+     on the letters: it was picked to be told apart on a map, not read as
+     text at any size. */
+  border-left: 5px solid var(--line);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 14px;
+}
+
+.seat-head .you-are-label {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.seat-head .you-are-power {
+  margin: 2px 0 0;
+  font-size: 34px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 900px) {
+  .seat-head .you-are-power { font-size: 40px; }
+}
+
+.seat-head .variant-line { margin: 10px 0 0; }
+
+.waiting-table .seat-count { margin: 0 0 6px; font-size: 15px; }
+
+/* How full the table is, at a glance and without a count to read. */
+.seat-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.seat-bar span {
+  display: block;
+  height: 100%;
+  background: var(--good);
+  transition: width 300ms ease;
+}
+
+.waiting-table .next { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+
+.rule { margin: 0 0 4px; font-size: 13px; }
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/* One beat per answer the server gives: the element is replaced on each poll,
+   which is what starts this over. It must not loop — a dot that keeps beating
+   on a dead connection is the lie this mark exists to avoid. */
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+  animation: live-beat 2.6s ease-out 1;
+}
+
+@keyframes live-beat {
+  0% { transform: scale(1.6); opacity: 1; }
+  15% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+}
+
 .finalize { display: flex; flex-direction: column; gap: 6px; }
 .finalize .muted { margin: 0; }
 

@@ -23,6 +23,12 @@ export interface Settings {
   server that predates the setting accepted whatever it was sent (illegal.ts).
   */
   illegalMoves?: boolean;
+  /*
+  How negotiation happens (D-023). The app carries no messages in any mode;
+  the setting is a rule the table has declared, and the join and waiting
+  screens say it. Absent means the server's default, ftf.
+  */
+  pressMode?: "ftf" | "gunboat" | "fullpress" | "rulebook";
 }
 
 /** What a running game says about the variant it was created with. */
@@ -181,6 +187,10 @@ export interface SeatState extends BoardState, VariantAware {
   finalizedCount: number;
   /** Powers that must finalize before the phase resolves. */
   totalSeats: number;
+  /** Powers the invite has handed out so far. */
+  joinedCount: number;
+  /** Powers the invite may hand out: six when the game master plays. */
+  seatsOnOffer: number;
   phaseResolutions: Record<string, string>;
   canForce: boolean;
   /**

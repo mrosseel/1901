@@ -122,6 +122,8 @@ export function isSeatState(value: unknown): value is SeatState {
       isBool(state.canForce) &&
       isNumber(state.finalizedCount) &&
       isNumber(state.totalSeats) &&
+      isNumber(state.joinedCount) &&
+      isNumber(state.seatsOnOffer) &&
       optional(state.deadlineAt, isString) &&
       mapOf(state.finalized, isBool) &&
       mapOf(state.phaseResolutions, isString) &&
