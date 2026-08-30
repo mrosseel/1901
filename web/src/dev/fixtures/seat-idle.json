@@ -4,14 +4,14 @@
     "dislodged": {},
     "finalized": {
         "Austria": false,
-        "England": false,
-        "France": false,
-        "Germany": false,
-        "Italy": false,
-        "Russia": false,
-        "Turkey": false
+        "England": true,
+        "France": true,
+        "Germany": true,
+        "Italy": true,
+        "Russia": true,
+        "Turkey": true
     },
-    "finalizedCount": 0,
+    "finalizedCount": 6,
     "gameId": "jtq9tg9s52",
     "graceUntil": "2026-08-29T08:26:52Z",
     "nations": [
@@ -23,6 +23,7 @@
         "Russia",
         "Turkey"
     ],
+    "nothingToOrder": true,
     "now": "2026-08-29T08:11:52Z",
     "orderParts": {},
     "orders": {},
@@ -1353,5 +1354,5 @@
     "you": {
         "power": "Germany"
     },
-    "youFinalized": false
+    "youFinalized": true
 }

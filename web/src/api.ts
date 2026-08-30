@@ -167,6 +167,11 @@ export interface SeatState extends BoardState, VariantAware {
   deadlineAt: string | null;
   finalized: Record<string, boolean>;
   youFinalized: boolean;
+  /**
+   * This seat was finalized by the server because its power has no legal
+   * order this phase. The seat cannot be unlocked while it is set.
+   */
+  nothingToOrder?: boolean;
   finalizedCount: number;
   /** Powers that must finalize before the phase resolves. */
   totalSeats: number;

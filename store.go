@@ -486,6 +486,10 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 	if err := g.replay(history, nmr, f.phaseIndex); err != nil {
 		return nil, err
 	}
+	// Recomputed rather than read back: autoLocked follows from the position
+	// replay just rebuilt, and the event log already carries the lines from
+	// when the phase began.
+	g.autoLock()
 	return g, nil
 }
 
@@ -542,12 +546,15 @@ func (self *game) replay(history map[int][]storedOrder, nmr map[int][]string, cu
 		// what makes a historical link survive a hard kill: it is derived
 		// from the order rows, not stored beside them.
 		position := self.positionNow()
+		asked := self.anyoneCouldOrder()
 		review := self.beginReview(nmr[phase])
 		if err := self.state.Next(); err != nil {
 			return fmt.Errorf("phase %v adjudication: %v", phase, err)
 		}
 		self.endReview(review)
-		self.previousPhase = review
+		if asked {
+			self.previousPhase = review
+		}
 		self.recordWatch(phase, position, review)
 		self.parts = map[godip.Province][]string{}
 		self.owner = map[godip.Province]godip.Nation{}

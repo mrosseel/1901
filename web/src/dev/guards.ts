@@ -118,6 +118,7 @@ export function isSeatState(value: unknown): value is SeatState {
       isNumber(state.settingsVersion) &&
       isBool(state.started) &&
       isBool(state.youFinalized) &&
+      optional(state.nothingToOrder, isBool) &&
       isBool(state.canForce) &&
       isNumber(state.finalizedCount) &&
       isNumber(state.totalSeats) &&

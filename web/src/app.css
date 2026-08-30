@@ -713,6 +713,16 @@ only closes a view, without reading either one.
   border-color: #6ede8a;
 }
 
+/* Locked by the server, not by the player: no order exists to give, so
+   nothing here is tappable and it must not invite a tap. */
+.lock-btn.auto {
+  background: linear-gradient(180deg, #2c3a4e, #222d3c);
+  border-color: var(--line);
+  color: var(--muted);
+  box-shadow: none;
+  cursor: default;
+}
+
 .banner {
   display: flex;
   gap: 10px;

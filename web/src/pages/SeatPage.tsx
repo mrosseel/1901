@@ -442,7 +442,22 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           </div>
         ) : null}
 
-        {state?.started ? (
+        {state?.started && state.nothingToOrder ? (
+          <section className="finalize">
+            {/*
+            No button, because there is no choice being declined: the phase
+            asks this power for nothing, and the table is already past it.
+            */}
+            <div className="lock-btn locked auto">
+              <span className="lock-main">
+                Nothing to order — {state.finalizedCount} of {state.totalSeats} players in
+              </span>
+              <span className="lock-sub">
+                {power} has no order to give this phase, so this seat is finalized for you.
+              </span>
+            </div>
+          </section>
+        ) : state?.started ? (
           <section className="finalize">
             {/*
             The one control on this page that commits this power to the phase.

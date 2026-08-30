@@ -134,6 +134,11 @@ type seat struct {
 	device    string // device secret, empty until claimed
 	isGM      bool
 	finalized bool
+
+	// autoLocked marks a seat the server finalized because its power has no
+	// legal order this phase (D-034). It is derived from the resolved
+	// position, so it is recomputed on restore rather than stored.
+	autoLocked bool
 }
 
 // flow holds the M1 state that sits on top of the godip board.
@@ -256,6 +261,21 @@ func (self *flow) finalizedMap() map[string]bool {
 	return out
 }
 
+// pendingCounts is how many claimed seats this phase actually asked a player
+// for, and how many of those have finalized.
+func (self *flow) pendingCounts() (asked, in int) {
+	for _, s := range self.seats {
+		if s.token == "" || s.autoLocked {
+			continue
+		}
+		asked++
+		if s.finalized {
+			in++
+		}
+	}
+	return asked, in
+}
+
 // canForce reports whether the GM may force adjudication (D-007, D-010).
 func (self *flow) canForce() bool {
 	if !self.started {
@@ -270,13 +290,95 @@ func (self *flow) canForce() bool {
 		// Auto-adjudication already covers this case (D-008).
 		return false
 	}
-	if done >= active-1 {
+	// All but one player is in and the table is waiting on the straggler.
+	// A seat the server locked was never something the table waited for, so
+	// it is left out of both counts here (D-034) — otherwise a retreat phase
+	// with a single dislodged unit would arm the button the instant it
+	// opened, before its one player had read the screen.
+	asked, in := self.pendingCounts()
+	if in > 0 && in >= asked-1 {
 		return true
 	}
 	// The grace period, where the settings allow one: orders are still taken
 	// after the deadline, so the GM may not force the phase until it ends.
 	until := self.graceEndsAt()
 	return until != nil && time.Now().After(*until)
+}
+
+// maxAutoPhases bounds the run of phases the auto-lock may resolve on its
+// own. Only a table where every remaining power is eliminated can produce an
+// unbroken run, and that table would otherwise spin forever.
+const maxAutoPhases = 8
+
+// nothingToOrder reports whether a power has no legal order at all this
+// phase. godip's option tree is nation-scoped, and it is fixed the moment
+// the position resolved: an empty tree cannot fill in later in the phase.
+func (self *game) nothingToOrder(power godip.Nation) bool {
+	return len(self.state.Phase().Options(self.state, power)) == 0
+}
+
+// anyoneCouldOrder reports whether the phase now on the board asks any
+// claimed seat for an order. A phase that asks nobody is one the table never
+// saw, so its empty review must not displace the review of the phase the
+// players did play (D-034). The public per-phase history keeps it either way.
+func (self *game) anyoneCouldOrder() bool {
+	for _, s := range self.flow.seats {
+		if s.token != "" && !self.nothingToOrder(s.power) {
+			return true
+		}
+	}
+	return false
+}
+
+// autoLock finalizes every claimed seat whose power has no legal order in
+// the phase now on the board, and returns the powers it locked (D-034).
+// The caller must hold g.mu.
+func (self *game) autoLock() []godip.Nation {
+	f := self.flow
+	locked := []godip.Nation{}
+	for _, p := range f.powers {
+		s := f.seats[p]
+		if s.token == "" || s.autoLocked || !self.nothingToOrder(p) {
+			continue
+		}
+		s.finalized = true
+		s.autoLocked = true
+		locked = append(locked, p)
+	}
+	return locked
+}
+
+/*
+enterPhase settles the phase now on the board: it auto-locks the seats with
+nothing to order and, when that leaves the whole table in, adjudicates on.
+
+The cascade is what keeps auto-lock inside the two existing resolution paths
+(D-008, D-010) instead of adding a third. A phase nobody can order is not a
+phase the GM should be asked to force — canForce reads the table as complete,
+so without this the game would sit on a screen with no button that does
+anything. The caller must hold g.mu.
+*/
+func (self *game) enterPhase(id string) error {
+	f := self.flow
+	for i := 0; i < maxAutoPhases; i++ {
+		locked := self.autoLock()
+		for _, p := range locked {
+			f.logEvent(id, "%v has no order to give this phase — finalized automatically", p)
+		}
+		active := f.activeSeats()
+		if active == 0 || f.finalizedCount() < active {
+			if len(locked) > 0 {
+				self.persist(id)
+			}
+			return nil
+		}
+		f.logEvent(id, "no power has an order to give this phase — adjudicating")
+		if err := self.advance(id, false); err != nil {
+			return err
+		}
+	}
+	f.logEvent(id, "auto-lock stopped after %v phases with nothing to order", maxAutoPhases)
+	return nil
 }
 
 // unassignedPowers lists the powers the invite may still hand out.
@@ -969,6 +1071,10 @@ func handleGMStart(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	f.resetDeadline(g.state.Phase(), 0)
 	f.logEvent(id, "game started, %v has %v minute(s) until %v",
 		g.state.Phase().Type(), f.phaseMinutes(g.state.Phase()), rfc3339(f.deadlineAt))
+	if err := g.enterPhase(id); err != nil {
+		writeErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
+		return
+	}
 	g.persist(id)
 	writeJSON(w, http.StatusOK, g.gmState(id, r))
 }
@@ -1090,15 +1196,19 @@ type youJSON struct {
 
 type seatStateJSON struct {
 	stateJSON
-	You              youJSON           `json:"you"`
-	Settings         settings          `json:"settings"`
-	SettingsVersion  int               `json:"settingsVersion"`
-	Started          bool              `json:"started"`
-	DeadlineAt       interface{}       `json:"deadlineAt"`
-	GraceUntil       interface{}       `json:"graceUntil"`
-	PhaseMinutes     int               `json:"phaseMinutes"`
-	Finalized        map[string]bool   `json:"finalized"`
-	YouFinalized     bool              `json:"youFinalized"`
+	You             youJSON         `json:"you"`
+	Settings        settings        `json:"settings"`
+	SettingsVersion int             `json:"settingsVersion"`
+	Started         bool            `json:"started"`
+	DeadlineAt      interface{}     `json:"deadlineAt"`
+	GraceUntil      interface{}     `json:"graceUntil"`
+	PhaseMinutes    int             `json:"phaseMinutes"`
+	Finalized       map[string]bool `json:"finalized"`
+	YouFinalized    bool            `json:"youFinalized"`
+	// NothingToOrder says this seat was finalized by the server because its
+	// power has no legal order this phase (D-034). The screen must say so;
+	// a seat that finds itself finalized with no explanation reads as a bug.
+	NothingToOrder   bool              `json:"nothingToOrder"`
 	FinalizedCount   int               `json:"finalizedCount"`
 	TotalSeats       int               `json:"totalSeats"`
 	PhaseResolutions map[string]string `json:"phaseResolutions"`
@@ -1160,6 +1270,7 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 		PhaseMinutes:     f.phaseMinutes(self.state.Phase()),
 		Finalized:        f.finalizedMap(),
 		YouFinalized:     f.seats[power].finalized,
+		NothingToOrder:   f.seats[power].autoLocked,
 		FinalizedCount:   f.finalizedCount(),
 		TotalSeats:       f.activeSeats(),
 		PhaseResolutions: base.Resolutions,
@@ -1276,6 +1387,11 @@ func (self *game) seatFinalize(id string, power godip.Nation, want bool, w http.
 		writeErr(w, http.StatusConflict, "the game has not started")
 		return
 	}
+	if !want && f.seats[power].autoLocked {
+		writeErr(w, http.StatusConflict,
+			"%v has no order to give this phase, so this seat stays finalized", power)
+		return
+	}
 	f.seats[power].finalized = want
 	if want {
 		f.logEvent(id, "%v finalized", power)
@@ -1295,10 +1411,20 @@ func (self *game) seatFinalize(id string, power godip.Nation, want bool, w http.
 	writeJSON(w, http.StatusOK, self.seatState(id, power, r))
 }
 
-// adjudicate resolves the phase. With dropUnfinalized set, powers that
-// have not finalized lose their orders and their units hold — an NMR
-// (D-010). The caller must hold g.mu.
+// adjudicate resolves the phase and settles the one that follows it. With
+// dropUnfinalized set, powers that have not finalized lose their orders and
+// their units hold — an NMR (D-010). The caller must hold g.mu.
 func (self *game) adjudicate(id string, dropUnfinalized bool) error {
+	if err := self.advance(id, dropUnfinalized); err != nil {
+		return err
+	}
+	return self.enterPhase(id)
+}
+
+// advance resolves the phase and puts the next one on the board, without
+// auto-locking it. Only adjudicate and enterPhase may call it: every other
+// caller wants the auto-lock that goes with a new phase.
+func (self *game) advance(id string, dropUnfinalized bool) error {
 	f := self.flow
 
 	// What is still on the clock as this phase resolves. When every power
@@ -1341,17 +1467,21 @@ func (self *game) adjudicate(id string, dropUnfinalized bool) error {
 	// The position this phase was played from, for the public per-phase URL
 	// (D-013). It is read before the board moves.
 	position := self.positionNow()
+	asked := self.anyoneCouldOrder()
 	review := self.beginReview(nmr)
 	if err := self.state.Next(); err != nil {
 		return err
 	}
 	self.endReview(review)
-	self.previousPhase = review
+	if asked {
+		self.previousPhase = review
+	}
 	self.recordWatch(f.phaseIndex, position, review)
 	self.parts = map[godip.Province][]string{}
 	self.owner = map[godip.Province]godip.Nation{}
 	for _, s := range f.seats {
 		s.finalized = false
+		s.autoLocked = false
 	}
 	f.phaseIndex++
 	f.resetDeadline(self.state.Phase(), carry)
