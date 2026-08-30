@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r25 — 2026-08-29
+**Document revision:** r26 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1018,6 +1018,42 @@ missed and the detector wrote a well-formed plan calling all 181 names land,
 twenty-one seas among them. A plan writer must count the labels that land on
 nothing and refuse rather than write.
 
+### D-034 — A seat with nothing to order is finalized by the server
+**Status:** accepted, r26. Extends D-008 and D-011.
+When a phase opens, every claimed seat whose power has no legal order in it is
+finalized without the player being asked.
+
+The test is `Phase().Options(state, power)`, godip's nation-scoped legal-order
+tree. An empty tree means the power cannot legally do anything this phase, and
+the tree is fixed the moment the position resolved, so nothing can fill it in
+later. The check runs on every path into a new phase: game start, every
+adjudication, and the replay-based restore.
+
+Why: in a typical retreat phase one or two powers have a dislodged unit. The
+other five or six were tapping Finalize to confirm they had nothing to
+confirm, and the table waited on all of them. This is not a choice being
+declined, it is an empty option set. The same holds in an adjustment phase for
+a power whose centre count already equals its unit count, and in a movement
+phase for an eliminated power, which under the old rule could block the game
+forever.
+
+1. The rule applies in every phase type, not only retreats.
+2. An unclaimed seat is unaffected; D-020 already leaves it out of the count.
+3. A phase where every claimed seat locks resolves on through to the next one.
+   Adjudication keeps the two paths of D-008 and D-010 and gains no third.
+4. Force adjudication (D-007, D-010) counts only the seats the phase asked a
+   player for. Without that, a retreat with a single dislodged unit would arm
+   the GM's button the instant the phase opened.
+5. A phase that asked nobody for anything does not become the seat screen's
+   review of the last phase. Its empty review would push out the phase the
+   table actually played. The per-phase history under /watch keeps it either
+   way (D-013).
+6. The seat screen says why it is locked and offers nothing to tap. A seat
+   that finds itself finalized with no explanation reads as a bug, so the
+   server sends `nothingToOrder` and the screen writes it out.
+7. A seat the server locked cannot be unlocked. There is nothing to change,
+   and re-finalizing (D-011) has nothing to replace.
+
 ### D-020 — One shared invite; random seat assignment; anonymous seats
 **Status:** accepted, r11. Amends D-005's per-power QR model.
 The GM shares ONE invite link/QR. Claiming it assigns a random
@@ -1341,3 +1377,4 @@ Recorded so nobody re-derives them.
 | r23 | 2026-08-29 | D-031: Leaflet rejected after a working spike — 46 KB gz for ~460 replaceable lines, plus a zoomed-SVG layout-box risk on phones. Four gesture fixes adopted instead: wheel deltaMode normalisation (Firefox wheel zoom was dead), pan inertia, eased double-tap zoom, wheel debounce. |
 | r24 | 2026-08-29 | Placement optimizer terrain bug: the fill-colour probe measured a hidden map and called almost all land sea on every variant, so coast rules never fired. Terrain now comes from /variants/{key}/provinces.json in tool and editor alike; 22 tables re-derived (containment faults 93 to 10, dislodged-outside 71 to 1), classical patched on bul/ec and bul/sc only. |
 | r25 | 2026-08-29 | D-026 amended: a converted label class under 1.15% of the map's width is lifted to that floor, which is what made 1900's province names readable; classes already above it keep the size their placement was measured against. Also: a length is carried onto the scale of the layer it lands in, not the map's; `jdipPlan` gains `labelScale`, derived from the art when a plan omits it. Two dormant faults recorded: jDip label lengths are emitted unitless and inert, and the label layer's `stroke:none` outranks the halo rule. D-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay. D-030 superseded in ownership. D-032: converted maps are given supply-centre rings they never carried. D-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges. |
+| r26 | 2026-08-30 | D-034: a seat whose power has no legal order this phase is finalized by the server, in every phase type, so an empty retreat never reaches a screen. Force adjudication counts only the seats a phase asked a player for; the seat screen says why it is locked; an auto-locked seat cannot be unlocked. Move the pieces became a checklist. |
