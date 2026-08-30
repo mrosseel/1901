@@ -712,13 +712,33 @@ and a flex row would either overflow it or shrink the type it is drawn at.
    game goes to the power the player was just dealt — which is the whole of
    what this moment is about. */
 .you-are {
-  background: var(--panel-2);
-  /* Set inline to the power's own colour. The colour is on the edge and not
-     on the letters: it was picked to be told apart on a map, not read as
-     text at any size. */
+  /* --power is set inline to the power's own colour. The card is washed in it
+     rather than lettered in it: the colour was picked to be told apart on a
+     map, and several of them cannot carry text at any size. The wash is weak
+     enough that --text keeps its contrast over every power in the palette. */
+  background: color-mix(in srgb, var(--power, var(--line)) 22%, var(--panel-2));
   border-left: 5px solid var(--line);
   border-radius: 0 8px 8px 0;
   padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The colour at full strength, the size and shape the board draws a unit, so
+   the match to the pieces on the table is exact and not approximate. */
+.you-are-piece {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--power, var(--line));
+  border: 2px solid #14161a;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+}
+
+@media (min-width: 900px) {
+  .you-are-piece { width: 40px; height: 40px; }
 }
 
 .seat-head .you-are-label {

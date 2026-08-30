@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { SeatState } from "../api";
 import { powerColor } from "../board/provinces";
 import { settingsLines } from "../hooks";
@@ -30,11 +31,30 @@ export function SeatWaiting({ state, beat }: { state: SeatState | null; beat: nu
   return (
     <>
       <header className="seat-head">
-        {/* The border, not the letters, carries the colour: a power's colour
-            is chosen to be told apart on the map, not to be read as text. */}
-        <div className="you-are" style={{ borderLeftColor: powerColor(power) }}>
-          <p className="you-are-label">You are</p>
-          <p className="you-are-power">{power || "…"}</p>
+        {/*
+        The card is washed in the power's own colour so a player can match it
+        to their pieces across the table. The wash and not the letters, because
+        a power's colour is chosen to be told apart on a map and several of
+        them cannot carry text at any size.
+
+        The disc beside it is the colour at full strength, drawn the size and
+        shape of a unit marker, so the match to the board is exact rather than
+        approximate.
+        */}
+        <div
+          className="you-are"
+          style={
+            {
+              borderLeftColor: powerColor(power),
+              "--power": powerColor(power),
+            } as CSSProperties
+          }
+        >
+          <span className="you-are-piece" aria-hidden="true" />
+          <div>
+            <p className="you-are-label">You are</p>
+            <p className="you-are-power">{power || "…"}</p>
+          </div>
         </div>
         {state?.variant ? (
           <p className="muted variant-line">
