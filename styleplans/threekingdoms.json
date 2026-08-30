@@ -4,8 +4,8 @@
   "name": "Three Kingdoms",
   "kind": "godip",
   "map": {
-    "bytes": 420862,
-    "sha256": "831ed0d668a30504569355c568b986efdf5318c0155491f9a720aeb8eb33065e",
+    "bytes": 305968,
+    "sha256": "da94f771bcec3cbb615cdb65039e10d5488cdc1d4e93af5c25fe0fec21c7ce40",
     "viewBoxWidth": 1582.3133
   },
   "godip": {

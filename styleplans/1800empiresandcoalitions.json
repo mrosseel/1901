@@ -4,8 +4,8 @@
   "name": "1800: Empires And Coalitions",
   "kind": "godip",
   "map": {
-    "bytes": 573950,
-    "sha256": "d8a260d53407c4f2c35c40d46b139241a9d067869858562b30e7d924f0721d36",
+    "bytes": 452241,
+    "sha256": "84645d4f0912ba991c711f5e7367b842bed32725d53a74f0895908bd4e324282",
     "viewBoxWidth": 1671.9332
   },
   "godip": {

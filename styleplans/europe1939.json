@@ -4,8 +4,8 @@
   "name": "Europe 1939",
   "kind": "godip",
   "map": {
-    "bytes": 641057,
-    "sha256": "482f8a40eb5f75eeb39ee505fb926cfdaab19e085a5b2ac02a229f92bf9b92ca",
+    "bytes": 529617,
+    "sha256": "55bf71ec9cac9b8078dbe4521453bf9bf7e8e2172b5c222ed46b85864f1a6f2f",
     "viewBoxWidth": 1892
   },
   "godip": {

@@ -4,8 +4,8 @@
   "name": "Youngstown Redux",
   "kind": "godip",
   "map": {
-    "bytes": 1076374,
-    "sha256": "6e26d7144458c14e3057164e4b6c27d64af7bf3b96885f030086367e28090d82",
+    "bytes": 873427,
+    "sha256": "bbb5d066861a6f13866c4de6bafb50f4a3a34eec2e3cb176d4f58db91d89e72b",
     "viewBoxWidth": 4320
   },
   "godip": {

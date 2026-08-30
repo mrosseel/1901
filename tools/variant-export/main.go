@@ -28,6 +28,7 @@ import (
 	"github.com/zond/godip/variants"
 	"github.com/zond/godip/variants/common"
 
+	"spring1901/spike/svground"
 	"spring1901/spike/variantjson"
 )
 
@@ -136,6 +137,9 @@ func export(v common.Variant, key, out, placementDir string) error {
 	if err != nil {
 		return fmt.Errorf("reading map art: %w", err)
 	}
+	// Two decimals, so a re-export does not put the eight-decimal coordinates
+	// the drawing programs write back into the repository. See svground.
+	art = svground.Art(art)
 	if err := os.WriteFile(filepath.Join(dir, "map.svg"), art, 0o644); err != nil {
 		return err
 	}
