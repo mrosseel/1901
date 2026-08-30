@@ -588,9 +588,16 @@ func applyGodipStyle(original string, plan *godipPlan, style *loadedStyle) (stri
 
 var textOrTspanRe = regexp.MustCompile(`<(text|tspan)\b([^>]*)>`)
 
+var nameIDRe = regexp.MustCompile(`\bid="([^"]*)Name"`)
+
 // setNames sets one names layer in the style's typography. A tspan inherits
 // the kind of the text it belongs to, and the two are walked in document
 // order, so the last verdict is carried.
+//
+// The position in the layer keys a version-1 plan's verdicts; a version-2 plan
+// keys them by province, which is read off the `<key>Name` id godip's exporter
+// writes. A version-2 map draws no names layer, so that second path is only
+// reached by a map caught mid-migration.
 func setNames(text string, plan *godipPlan, style *loadedStyle, carry func(float64) string) string {
 	out := strings.Builder{}
 	last := 0
@@ -599,9 +606,13 @@ func setNames(text string, plan *godipPlan, style *loadedStyle, carry func(float
 	for _, m := range textOrTspanRe.FindAllStringSubmatchIndex(text, -1) {
 		kind := lastKind
 		if text[m[2]:m[3]] == "text" {
+			province := ""
+			if id := nameIDRe.FindStringSubmatch(text[m[0]:m[1]]); id != nil {
+				province = id[1]
+			}
 			kind = "land"
-			if index < len(plan.Names.Kinds) && plan.Names.Kinds[index] != "" {
-				kind = plan.Names.Kinds[index]
+			if stated := plan.Names.Kinds.kindOf(province, index); stated != "" {
+				kind = stated
 			}
 			index++
 			lastKind = kind

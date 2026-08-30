@@ -137,6 +137,11 @@ export interface LabelPlan {
      URL rather than in the game, so the server resolves every style it serves
      and the board takes the one it is showing. */
   typography?: Record<string, LabelFaces>;
+  /* The typography the art drew its own names in, for ?style=original. That
+     route serves the art's own bytes, and a map authored without a names layer
+     has no original names to be faithful to. Absent when the map's plan states
+     none, and then the default style's faces are used. */
+  original?: LabelFaces | null;
   /** The entry to use for a map asked for in no style. */
   defaultStyle?: string;
 }

@@ -32,8 +32,62 @@ import (
 //go:embed styleplans
 var planFS embed.FS
 
-// planVersion is the schema this server understands. plans.ts writes it.
-const planVersion = 1
+// The plan schema versions this server reads. plans.ts writes the number.
+//
+// Version 1 draws the names in the art and records one land-or-sea verdict per
+// drawn name, as a list in document order. Version 2 draws no names layer, so
+// the verdicts become a map keyed by province and the plan carries `dataMode`
+// and the typography the art was drawn in (D-038). Both shapes load: every
+// plan checked in here is version 1 and stays version 1 until its map is
+// re-authored, one map at a time (D-039).
+const (
+	minPlanVersion = 1
+	maxPlanVersion = 2
+)
+
+// nameKinds is the plan's land-or-sea verdict for each province name.
+//
+// The two versions state it in two shapes and both are read. A version-1 plan
+// writes a LIST, one entry per <text> in the names layer in document order, so
+// position in the list is the key and only the art can supply it. A version-2
+// plan has no names layer to align a list to, so it writes a MAP from province
+// key to verdict.
+//
+// Neither shape is converted into the other. A list cannot be keyed without
+// the art it was measured against, and a map cannot be put in document order
+// without it either. Each reader takes the shape it can use: the styling pass
+// walks the art and wants the list, and anything asking about one province
+// wants the map.
+type nameKinds struct {
+	InOrder    []string
+	ByProvince map[string]string
+}
+
+func (self *nameKinds) UnmarshalJSON(b []byte) error {
+	self.InOrder = nil
+	self.ByProvince = nil
+	trimmed := strings.TrimSpace(string(b))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	if trimmed[0] == '{' {
+		return json.Unmarshal(b, &self.ByProvince)
+	}
+	return json.Unmarshal(b, &self.InOrder)
+}
+
+// kindOf is the verdict for one province and one position in the names layer,
+// or "" when the plan states none. Only one of the two shapes can answer, and
+// which one it is was decided by the plan's version.
+func (self *nameKinds) kindOf(province string, index int) string {
+	if self.ByProvince != nil {
+		return self.ByProvince[province]
+	}
+	if index >= 0 && index < len(self.InOrder) {
+		return self.InOrder[index]
+	}
+	return ""
+}
 
 // godipPlan is how a godip map is styled: by substituting fill VALUES.
 //
@@ -78,10 +132,21 @@ type godipPlan struct {
 		Decoration bool `json:"decoration"`
 	} `json:"borders"`
 	Names struct {
+		// Found says whether the art draws a names layer, and nothing more.
+		// It is not the mode flag: a data-mode map has it false and still has
+		// names, and six art-mode maps have it false with no records to draw
+		// from (D-038). DataMode on the plan is the flag.
 		Found bool `json:"found"`
-		// Kinds is one verdict per <text> in the names layer, in document
-		// order: the terrain the label was found standing on.
-		Kinds []string `json:"kinds"`
+		// Kinds is the terrain each name was found standing on.
+		Kinds nameKinds `json:"kinds"`
+		// Typography is the face and the inks the art drew its names in,
+		// measured before the layer was dropped. It lets ?style=original stay
+		// faithful on a map that no longer carries an original names layer to
+		// be faithful to. Lengths are in this map's own units, already: they
+		// were read off this art, not quoted against a style's reference
+		// width. Absent on a plan that carries none, and then the default
+		// style's faces are used.
+		Typography *labelFacesJSON `json:"typography"`
 	} `json:"names"`
 }
 
@@ -140,6 +205,12 @@ type stylePlan struct {
 	DataMode bool `json:"dataMode"`
 }
 
+// versionSupported reports whether this server reads the schema the plan was
+// written in.
+func (self *stylePlan) versionSupported() bool {
+	return self.Version >= minPlanVersion && self.Version <= maxPlanVersion
+}
+
 // styleable reports whether this plan can put its map into any style at all.
 func (self *stylePlan) styleable() bool {
 	switch {
@@ -180,9 +251,9 @@ func loadPlans() error {
 				plansErr = fmt.Errorf("parse styleplans/%v: %w", entry.Name(), err)
 				return
 			}
-			if plan.Version != planVersion {
-				plansErr = fmt.Errorf("styleplans/%v is version %v, this server reads %v",
-					entry.Name(), plan.Version, planVersion)
+			if !plan.versionSupported() {
+				plansErr = fmt.Errorf("styleplans/%v is version %v, this server reads %v to %v",
+					entry.Name(), plan.Version, minPlanVersion, maxPlanVersion)
 				return
 			}
 			plans[plan.Key] = plan
