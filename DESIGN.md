@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r28 — 2026-08-30
+**Document revision:** r29 — 2026-08-30
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -1130,9 +1130,24 @@ glyph and the unit anchor leave the art and become records in
       "scale": 1,
       "dislodged": [559.35, 196.85],
       "brief": [563.11, 209.76],
-      "label": { "at": [563.11, 171.85], "size": 19.93, "width": 71.4 },
-      "centre": [561.4, 180.2]
+      "label": { "at": [563.11, 171.85], "size": 19.93,
+                 "width": 71.4, "height": 14.35 },
+      "centre": [561.4, 180.2],
+      "centreRadius": 10.97
     }
+
+`at` is the CENTRE of the name's ink box, across and down. It is not the
+baseline. SVG text sits on its baseline, so the board computes
+`baseline = at.y + height / 2` and sets `text-anchor: middle`. A reader that
+treats `at` as the baseline draws every name half a cap height too high, which
+on the record above is 7.2 units, and it looks like a fault in the placement
+search rather than a fault in the reading.
+
+The height is in the record rather than derived, although it is the size times
+a cap-height fraction. That fraction lives in the exporter, in another
+language and another repository, and a constant copied across a boundary
+drifts. Six bytes buys the box being stated rather than reconstructed, and the
+box is what the whole guarantee is about.
 
 One file, one digest, one thing to keep in step. A name and a three-letter
 code are two labels for one province, and both come out of the same placement
@@ -1181,6 +1196,14 @@ the anchor both use the id `<key>Center`, and the board selects `[id$="Center"]`
 across both layers, so a document holding one of each would have the board
 read a glyph as an anchor.
 
+**The glyph carries a radius for the same reason a name carries a width.**
+The supply-centre glyph is not only drawn, it is an obstacle. The exporter
+places the glyphs first, fits every name around them, then places every marker
+around both. So the glyph's size is load-bearing, and a board that drew it at
+a size of its own choosing would draw an obstacle nobody measured, and a name
+could sit on it. The stroke, the fill and the opacity stay godip's. The radius
+comes from the record.
+
 **A centre record names the province, not the owner.** The art cannot do this.
 It is drawn once, so a home centre captured in 1905 still shows its first
 owner's mark. The board knows the true owner from the game state, so drawing
@@ -1192,18 +1215,47 @@ verdict per name as a LIST in document order, so position in the list is the
 key. With no names layer there is nothing to align to, and it becomes a map
 from province key to verdict. The exporter moves its plan version to 2 and
 1901 moves the version it refuses on, in one step. `found` keeps its meaning
-and now also tells the reader which mode a map is in.
+and nothing more: it says whether the art draws names. In data mode it is
+false while the map certainly has names, so it is not the mode flag. The mode
+is the presence of a label record, and only that.
 
 **The name string is not stored twice.** The descriptor already writes
 province rows as `[key, longName, supplyCenter]`, so a variant carries every
 long name. `names.json` stays as the per-variant override layer only, and the
 descriptor wins where both speak.
 
+**Name styling moves to the board, and the two style paths do not collapse.**
+Today the server rewrites each `<text>` in the art before sending it, choosing
+the face from the plan's land-or-sea verdict for that name. In data mode there
+is no names layer to rewrite, so that pass has nothing to work on and a name
+the board draws would arrive unstyled.
+
+So three things travel with the board state, and the server resolves them once
+rather than the board guessing: the per-province land-or-sea verdict, which is
+the plan's `kinds` after this change; the style's name typography, meaning the
+face and the two inks; and the halo, a pale stroke under the fill drawn with
+`paint-order="stroke"`, without which a name over a coastline cannot be read.
+The board already draws its brief codes with a halo through a CSS class, so
+the mechanism exists.
+
+This is a move, not a saving. `restyle.go` keeps its two paths for art-mode
+maps, and loses only the name pass for data-mode ones.
+
 **What it saves.** Across the 22 arts we hold, the three layers are 2,498,170
 bytes, 10.4%. On a map the exporter draws they are 61.5%: names 42.1%,
-centres 11.0%, anchors 8.4%. A 73-territory map falls from 36 KB to about
-14 KB. The saving is much larger for maps made from now on than for the ones
-we already have.
+centres 11.0%, anchors 8.4%.
+
+The raw figure overstates the win, because responses are gzipped (D-036) and
+the records are not free. Measured on one 73-territory map: art with every
+layer is 36,242 raw and 5,691 gzipped; art with geometry alone is 13,984 raw
+and 2,587 gzipped. That is 61.4% raw but 54.5% gzipped, and the label and
+centre records add about 6.7 KB raw, roughly 1.3 KB gzipped, to the placement
+table. So the net on the wire is about 1.8 KB a board load, not 3.1 KB. Still
+worth doing. The saving is much larger for maps made from now on than for the
+ones we already have.
+
+Positions in a record are rounded to two decimals, like every other position
+in the table, so the file stays diffable and consistent with D-037.
 
 **Order of work.** The exporter writes the records and keeps the layers, which
 breaks nothing. Then the server prefers the records where it finds them. Then
@@ -1537,3 +1589,4 @@ Recorded so nobody re-derives them.
 | r26 | 2026-08-30 | D-034: a seat whose power has no legal order this phase is finalized by the server, in every phase type, so an empty retreat never reaches a screen. Force adjudication counts only the seats a phase asked a player for; the seat screen says why it is locked; an auto-locked seat cannot be unlocked. Move the pieces became a checklist. |
 | r27 | 2026-08-30 | D-036: text responses are gzipped for clients that offer it, with `Vary: Accept-Encoding` on everything compressible; the map art is compressed once per style and cached beside the composed bytes, 64% off the wire. D-037: map art is stored at two decimals, 19% off disk and 24% off the gzipped bytes, touching only `d` and `points` so the viewBox and every placement table stay valid. Dead definitions are pruned from the art, which changes the bytes of `?style=original` but not its picture. |
 | r28 | 2026-08-30 | D-038: the province name, the supply-centre glyph and the unit anchor become records in `placements.json`; the art keeps geometry. A label record carries position, size and reserved width, so the drawn box is the measured box. A map is in data mode if it has any label record, and maps whose names are outlined shapes keep their art. D-033 widened: `tools/jdip-import/` moves to dipmap as well, so 1901 never writes a map. |
+| r29 | 2026-08-30 | D-038 corrected after review by the map exporter: `at` is stated as the ink box centre and the record gains `height`, because a reader that took it for the baseline would draw every name half a cap height high; the centre glyph gains a radius, since it is an obstacle the name search fits around; `found` is not the mode flag; name styling moves to the board with the verdict, the typography and the halo travelling with the board state, so the two restyle paths do not collapse; the saving is restated gzipped and net of the records, about 1.8 KB a board load. |
