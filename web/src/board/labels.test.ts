@@ -263,6 +263,45 @@ describe("names drawn from records", () => {
     board.destroy();
   });
 
+  it("sets a map asked for as original in the typography the art drew", async () => {
+    /*
+    ?style=original serves the art's own bytes, and a map authored without a
+    names layer has no original names in them. The plan says what the art drew
+    its names in, and that is nearer to faithful than the default style.
+    */
+    const art = {
+      land: { ...PLAN.typography!.flat.land, fill: "#3b2f14", halo: null },
+      sea: { ...PLAN.typography!.flat.sea, fill: "#2b5f80", halo: null },
+    };
+    const board = await boardFor(dataModeArt(), DATA_STATE, "original");
+    board.update({ ...DATA_STATE, labels: { ...PLAN, original: art } }, emptyPlan(""));
+    expect(drawnNames()[LONG_NAMES.att].getAttribute("fill")).toBe("#3b2f14");
+    expect(drawnNames()[LONG_NAMES.adr].getAttribute("fill")).toBe("#2b5f80");
+
+    // A plan that carries none falls back to the default style, as before.
+    board.update({ ...DATA_STATE, labels: { ...PLAN, defaultStyle: "flat" } }, emptyPlan(""));
+    expect(drawnNames()[LONG_NAMES.att].getAttribute("fill")).toBe("#1f2a33");
+    board.destroy();
+  });
+
+  it("lets a style that states its own typography win over the art's", async () => {
+    const board = await boardFor(dataModeArt(), DATA_STATE, "original");
+    const named = {
+      land: { ...PLAN.typography!.flat.land, fill: "#111111" },
+      sea: { ...PLAN.typography!.flat.sea, fill: "#222222" },
+    };
+    const art = {
+      land: { ...PLAN.typography!.flat.land, fill: "#3b2f14" },
+      sea: { ...PLAN.typography!.flat.sea, fill: "#2b5f80" },
+    };
+    board.update(
+      { ...DATA_STATE, labels: { ...PLAN, typography: { original: named }, original: art } },
+      emptyPlan(""),
+    );
+    expect(drawnNames()[LONG_NAMES.att].getAttribute("fill")).toBe("#111111");
+    board.destroy();
+  });
+
   it("turns a rotated name about its own box", async () => {
     const turned: Record<string, Placement> = {
       ...PLACEMENTS,

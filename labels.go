@@ -6,12 +6,13 @@
 // which face each name takes, what the two inks are, and how wide the halo is
 // under them. The board draws; it does not choose.
 //
-// The land-or-sea verdict is derived here, from godip's own graph. It is not
-// in the placement table and it is not in the style plan's list of verdicts:
-// the plan's list is one entry per <text> in document order, and a map with no
-// names layer has nothing to align that list to. A province is a sea name when
-// the graph says water and only water. A coast carries both flags and takes
-// the land face, which is what the layer it replaces did.
+// The land-or-sea verdict is derived here, from godip's own graph, and never
+// read out of the style plan. A version-1 plan states it as one entry per
+// <text> in document order, which a map with no names layer has nothing to
+// align to; a version-2 plan states it per province, which the graph already
+// knows and which would be a second copy free to drift. A province is a sea
+// name when the graph says water and only water. A coast carries both flags
+// and takes the land face, which is what the layer it replaces did.
 package main
 
 import (
@@ -62,8 +63,14 @@ type labelPlanJSON struct {
 	// it is chosen in the map URL, not in the game — so the server resolves
 	// every style it serves and the board takes the one it is showing.
 	Typography map[string]labelFacesJSON `json:"typography"`
-	// DefaultStyle names the entry to use for a map asked for in no style,
-	// which is what ?style=original is.
+	// Original is the typography the art itself drew its names in, from the
+	// plan, for ?style=original. That route serves the art's own bytes, and on
+	// a map authored without a names layer there is no original to be faithful
+	// to; this is the nearest thing there is. Absent when the plan states
+	// none, and then the default style's faces are used.
+	Original *labelFacesJSON `json:"original,omitempty"`
+	// DefaultStyle names the entry to use for a map asked for in no style, and
+	// for ?style=original on a plan carrying no typography of its own.
 	DefaultStyle string `json:"defaultStyle"`
 }
 
@@ -124,6 +131,9 @@ func labelPlanFor(key string, graph godip.Graph) *labelPlanJSON {
 		Sea:          seaNames(graph),
 		Typography:   map[string]labelFacesJSON{},
 		DefaultStyle: defaultMapStyle,
+	}
+	if plan.Godip != nil {
+		out.Original = plan.Godip.Names.Typography
 	}
 	for name, style := range styles {
 		carry := func(value float64) float64 {

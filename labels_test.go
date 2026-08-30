@@ -45,7 +45,7 @@ func TestSeaVerdictMatchesTheArtsOwnMeasurement(t *testing.T) {
 	if err := json.Unmarshal(b, measured); err != nil {
 		t.Fatal(err)
 	}
-	kinds := measured.Godip.Names.Kinds
+	kinds := measured.Godip.Names.Kinds.InOrder
 	if len(kinds) != len(order) || len(order) == 0 {
 		t.Fatalf("%d names drawn, %d verdicts measured", len(order), len(kinds))
 	}

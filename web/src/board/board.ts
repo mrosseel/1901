@@ -887,12 +887,20 @@ export function mount(
   }
 
   /* The style is a device preference and the plan carries every style the
-     server serves, so the board takes the one its map URL asked for. */
+     server serves, so the board takes the one its map URL asked for.
+
+     ?style=original asks for the art's own bytes, and no style resolves it, so
+     the plan's record of what the art drew its names in answers instead. A
+     style that states its own typography still wins: the lookup by name comes
+     first, and the fallback to the default style stays for a plan that carries
+     no typography of its own. */
   function labelFaces(): LabelFaces | null {
     const plan = labelPlan();
     if (!plan) return null;
     const styled = plan.typography || {};
-    return styled[styleOfUrl(api.mapUrl)] || styled[plan.defaultStyle || ""] || null;
+    const asked = styleOfUrl(api.mapUrl);
+    const art = asked === "original" ? plan.original : null;
+    return styled[asked] || art || styled[plan.defaultStyle || ""] || null;
   }
 
   function artDraws(selector: string): boolean {
