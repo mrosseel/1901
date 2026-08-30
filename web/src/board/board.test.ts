@@ -1175,3 +1175,60 @@ describe("province codes on the map", () => {
     seat.board.destroy();
   });
 });
+
+/*
+Everything the board draws on top of the map is scenery, and scenery must not
+take a tap.
+
+The click is resolved by asking what is under the finger and walking up to a
+child of #provinces. Anything drawn above it answers with itself, and the tap
+is lost. The arrow of an order covers the unit that gave it, so without this a
+unit with orders is the one unit on the board that cannot be told to do
+something else.
+*/
+describe("what the board draws on top of the map", () => {
+  it("lets a tap through to the province underneath", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update({ ...MOVEMENT_STATE, placements: PLACEMENTS }, emptyPlan("Austria"));
+
+    const drawn = Array.from(document.querySelectorAll("svg > g[id]")).filter(
+      (layer) => layer.id !== "provinces",
+    );
+    expect(drawn.length).toBeGreaterThan(0);
+    for (const layer of drawn) {
+      expect([layer.id, layer.getAttribute("pointer-events")]).toEqual([layer.id, "none"]);
+    }
+    seat.board.destroy();
+  });
+
+  it("orders a unit that already has orders somewhere else", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update({ ...MOVEMENT_STATE, placements: PLACEMENTS }, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    tap("gal");
+    await settle();
+    expect(seat.posted).toEqual([{ province: "vie", parts: ["Move", "gal"] }]);
+
+    // The same unit, now with an arrow across it, sent somewhere else. The
+    // second order replaces the first: one province, one order (D-011).
+    seat.board.update(
+      {
+        ...MOVEMENT_STATE,
+        placements: PLACEMENTS,
+        orders: { vie: "Vienna moves to Galicia" },
+        orderParts: { vie: ["Move", "gal"] },
+      },
+      emptyPlan("Austria"),
+    );
+    tap("vie");
+    await settle();
+    tap("tri");
+    await settle();
+    expect(seat.posted[1]).toEqual({ province: "vie", parts: ["Move", "tri"] });
+    seat.board.destroy();
+  });
+});
