@@ -9,7 +9,7 @@
 // Rather than patch godip or the translator, a variant may carry an overrides
 // file — names/<key>.json, `{"lyo": "Gulf of Lyon"}` — that is layered over
 // godip's table wherever it has an entry. The map editor at /mapeditor writes
-// these (D-030); the server reads them and every board that asks for names
+// these (ADR-030); the server reads them and every board that asks for names
 // gets the corrected set, so the correction lands in one place.
 //
 // A variant with no file is served godip's names unchanged, which is what

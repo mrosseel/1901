@@ -1,4 +1,4 @@
-// Name styling for a map that draws its names from records (D-038).
+// Name styling for a map that draws its names from records (ADR-038).
 //
 // An art-mode map has its names rewritten in the style's typography before
 // the SVG is sent (restyle.go, setNames). A data-mode map has no names layer

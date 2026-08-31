@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { classicalMapUrl } from "../variants";
 
 /*
-The front door (D-043).
+The front door (ADR-043).
 
 Everything else in this app is a working screen behind a token. This is the
 one page a stranger meets, so it answers the two questions a stranger has —

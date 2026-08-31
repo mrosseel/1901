@@ -1,5 +1,5 @@
 /*
-Puts one of godip's OWN maps into a named style (D-024).
+Puts one of godip's OWN maps into a named style (ADR-024).
 
 The other applier, restyle.ts, works on maps converted from jDip, and it has
 it easy: those maps paint every province through a semantic class — `nopower`,
@@ -744,7 +744,7 @@ The two decisions the rewrite below makes about the map rather than the style.
 They are pulled out because they are DETECTION: they depend on the map and not
 on which style is being applied, they are the expensive half, and they are
 what a style plan carries so that a second applier — the Go one that composes
-maps at serve time — can do the mechanical half without a browser (D-026).
+maps at serve time — can do the mechanical half without a browser (ADR-026).
 
 Both read the original map. Neither is disturbed by the fill substitution that
 runs before them in the rewrite: that pass changes `fill` values outside

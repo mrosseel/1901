@@ -14,7 +14,7 @@ func claimPath(id string, power string, epoch int, sig string) string {
 	return "/game/" + id + "/handover/" + power + "/" + strconv.Itoa(epoch) + "/" + sig
 }
 
-// TestHandoverMovesTheSeatAndKillsTheOldToken: the whole point of D-041. The
+// TestHandoverMovesTheSeatAndKillsTheOldToken: the whole point of ADR-041. The
 // new phone gets a working seat and the old one is not merely stale, it is
 // gone from the index.
 func TestHandoverMovesTheSeatAndKillsTheOldToken(t *testing.T) {
@@ -136,7 +136,7 @@ func TestHandoverRefusesAGet(t *testing.T) {
 }
 
 // TestGMMintsForAnyPowerAndLogsIt: the case this exists for is a phone that
-// cannot open its own menu, and the act is enumerated and logged (D-007).
+// cannot open its own menu, and the act is enumerated and logged (ADR-007).
 func TestGMMintsForAnyPowerAndLogsIt(t *testing.T) {
 	id := makeGame(t)
 	g, _ := games.lookup(id)
@@ -161,7 +161,7 @@ func TestGMMintsForAnyPowerAndLogsIt(t *testing.T) {
 		t.Error("the minted link does not carry this seat's signature")
 	}
 	if len(g.flow.events) == before {
-		t.Error("minting a handover link was not logged (D-007)")
+		t.Error("minting a handover link was not logged (ADR-007)")
 	}
 }
 

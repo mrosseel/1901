@@ -2,7 +2,7 @@
 The way back to the game you are in.
 
 Every screen here is reached by a link somebody handed you, and there is no
-account behind any of them (D-020). So leaving your seat to look at the game
+account behind any of them (ADR-020). So leaving your seat to look at the game
 list or read the rules used to be a one-way trip: the address bar was the only
 copy of your token, and a tab closed on it took the seat with it.
 

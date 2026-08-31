@@ -36,7 +36,7 @@ const LIGHT_INK = "#f2efe6";
 const FAILED_RED = "#d8382a";
 const RETREAT_ORANGE = "#e8820c";
 /*
-An order the rules never allowed (D-029). It stays in the red family, because
+An order the rules never allowed (ADR-029). It stays in the red family, because
 what happened to it is what happens to a failure — the unit held — but it is
 the deeper, duller red of the two, and the review says the word "illegal"
 beside it. Colour alone was never going to carry that difference: "bounced"

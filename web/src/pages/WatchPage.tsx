@@ -34,7 +34,7 @@ import { styledMapUrl } from "../style";
 The spectator screen: the projector at the table, and the permanent address of
 one phase of one game.
 
-It is read-only in the strong sense D-013 asks for — not "the buttons are
+It is read-only in the strong sense ADR-013 asks for — not "the buttons are
 hidden" but "there is no way from here to an Order". It holds no token, it
 reads an endpoint that answers with public board state only, and the board
 island is handed a review draw for every phase, which is the mode in which the
@@ -241,7 +241,7 @@ export function WatchPage({
     Object.values(summary?.locked || {}).filter(Boolean).length;
   const totalSeats = watch?.totalSeats ?? summary?.totalSeats;
   const variant = watch?.variant || summary?.variant;
-  /* What the table calls this game (D-042). The feed carries it; the public
+  /* What the table calls this game (ADR-042). The feed carries it; the public
      summary carries it under settings, which is the fallback's only source. */
   const name = watch?.name || summary?.settings?.name;
 
@@ -334,9 +334,9 @@ export function WatchPage({
           ) : null}
         </header>
 
-        {/* The centre count, which is what a room watching a board wants to
-            know and what the whole game is about. Public arithmetic on a
-            position this page is already drawing (D-013). */}
+        {/* The supply centre count, which is what a room watching a board
+            wants to know and what the whole game is about. Public arithmetic
+            on a position this page is already drawing (ADR-013). */}
         {waiting ? null : (
           <Standings state={boardState} powers={Object.keys(summary?.locked || {})} />
         )}

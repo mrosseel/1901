@@ -1,5 +1,5 @@
 /*
-Puts a converted jDip map into a named style (D-016, D-023).
+Puts a converted jDip map into a named style (ADR-016, ADR-023).
 
     node restyle.ts --variant sailho --style midnight
     node restyle.ts --all --all-styles
@@ -122,7 +122,7 @@ interface Options {
 
 function usage(): string {
   return [
-    "restyle — put a converted jDip map into a named style (D-016, D-023)",
+    "restyle — put a converted jDip map into a named style (ADR-016, ADR-023)",
     "",
     "  --variant <key>    a directory under variants1901/; repeatable",
     "  --all              every variant1901 directory holding a map.svg",
@@ -135,7 +135,7 @@ function usage(): string {
     "  --dry-run          report and check, but write nothing",
     "",
     "Writes renderings under tools/restyle/out/. The server styles maps itself,",
-    "from the plans tools/restyle/plans.ts writes (D-026).",
+    "from the plans tools/restyle/plans.ts writes (ADR-026).",
   ].join("\n");
 }
 
@@ -441,7 +441,7 @@ sea tracking; a short one is an abbreviation and is tracked out, as classical
 tracks NRG.
 
 It is a function rather than three lines inside the rewrite because a style
-plan carries its answer (D-026): the Go applier at serve time gets the class
+plan carries its answer (ADR-026): the Go applier at serve time gets the class
 already decided, and never has to open a browser to work out what a label
 stands on.
 */
@@ -481,7 +481,7 @@ export function buildStylesheet(
 
   lines.push("/* Style: " + style.name + " — " + style.title + ".");
   lines.push("   " + style.description);
-  lines.push("   Written by tools/restyle from styles/" + style.name + ".json (D-016, D-023).");
+  lines.push("   Written by tools/restyle from styles/" + style.name + ".json (ADR-016, ADR-023).");
   lines.push("   Terrain, borders and names follow the style; everything the board");
   lines.push("   draws for itself is left as jDip wrote it. */");
   if (style.fontFaces) lines.push(style.fontFaces);
@@ -1237,7 +1237,7 @@ async function run(): Promise<void> {
         if (options.write) {
           /* Into the tool's own output, for looking at. The server no longer
              reads styled files: it composes them from a style plan at serve
-             time (D-026), so a styled map written here is a rendering, not an
+             time (ADR-026), so a styled map written here is a rendering, not an
              asset, and nothing but a person ever opens it. */
           const file = "map-" + style.name + ".svg";
           await mkdir(join(OUT, "styled", key), { recursive: true });

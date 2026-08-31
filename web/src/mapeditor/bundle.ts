@@ -9,7 +9,7 @@ it — keys sorted, fields in one order, two decimals, two-space indent, one
 trailing newline — and a session that moved nothing produces a file identical
 to the one on disk, byte for byte.
 
-The other is the drag log, and it is the more interesting half (D-030). Every
+The other is the drag log, and it is the more interesting half (ADR-030). Every
 hand drag is a scoring bug: the optimizer put a marker somewhere and a person
 moved it, so there is a rule the optimizer does not know. The log records the
 move with the violation count either side of it, which is what separates the

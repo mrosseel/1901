@@ -18,7 +18,7 @@ export interface PhaseInfo {
 
 /*
 Where one province's marker goes, in map units, from the variant's approved
-placement table (the variant's placements.json on the server; DESIGN.md D-003).
+placement table (the variant's placements.json on the server; DESIGN.md ADR-003).
 
 A map's own "<abbr>Center" anchors are only a first guess: they put markers on
 province names, half outside their own province, and — on a coast — so close
@@ -50,7 +50,7 @@ export interface Placement {
   brief?: [number, number];
   /*
   The province's full name: the box the placement search reserved for it, and
-  which every marker near it was then kept clear of (D-038).
+  which every marker near it was then kept clear of (ADR-038).
 
   Absent where the map draws no name for this province — a name whose fitted
   size fell under the exporter's floor is dropped in favour of the code, which
@@ -116,7 +116,7 @@ export interface LabelFaces {
 }
 
 /*
-What the board needs to draw a map whose names left the art (D-038).
+What the board needs to draw a map whose names left the art (ADR-038).
 
 It is absent on every map that draws its own names, which is all of them
 today. Its presence is not what puts a map in data mode — the server decides
@@ -149,7 +149,7 @@ export interface LabelPlan {
 export interface BoardState {
   phase?: PhaseInfo;
   /* The rules this game runs under, of which the board needs one: whether an
-     order the variant refuses may be written anyway (D-029, illegal.ts). */
+     order the variant refuses may be written anyway (ADR-029, illegal.ts). */
   settings?: { illegalMoves?: boolean };
   units?: Record<string, Unit>;
   /** The variant's approved marker positions, when the server has a table. */
@@ -215,7 +215,7 @@ export interface BoardCallbacks {
   /** Which order is singled out on the map, so a list can match it. */
   select(province: string | null): void;
   /*
-  The provinces whose drafted order this page knows is illegal (D-029). It is
+  The provinces whose drafted order this page knows is illegal (ADR-029). It is
   this device's knowledge of its own draft and it goes no further: the panel
   marks the rows, and nothing about the mark is sent anywhere.
   */
@@ -240,7 +240,7 @@ export interface ReviewDraw {
   powers: Record<string, string>;
   /** The provinces whose order did not come off. */
   failed: string[];
-  /** Of those, the ones the rules never allowed (D-029). Absent means none. */
+  /** Of those, the ones the rules never allowed (ADR-029). Absent means none. */
   illegal?: string[];
   /** Units thrown out by this adjudication, ringed where they stood. */
   dislodged: Record<string, Unit>;

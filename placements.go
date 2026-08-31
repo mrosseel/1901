@@ -1,6 +1,6 @@
 // Approved placement tables: where a variant's unit markers actually go.
 //
-// A map's own `<abbr>Center` anchors are a starting point and no more (D-003).
+// A map's own `<abbr>Center` anchors are a starting point and no more (ADR-003).
 // They put markers on province names, on supply centre glyphs, and half
 // outside their own province, and on a coast they can put "stp/nc" three map
 // units from "stp", where neither reads as anything. tools/placement measures
@@ -58,7 +58,7 @@ type placementJSON struct {
 	Overhang *overhangJSON `json:"overhang,omitempty"`
 	// Label is the province's full name: the box the placement search
 	// reserved for it, which every marker near it was then kept clear of
-	// (D-038). Absent where the map draws no name for this province, which is
+	// (ADR-038). Absent where the map draws no name for this province, which is
 	// not the same as the map drawing its own names.
 	Label *labelJSON `json:"label,omitempty"`
 	// LabelRuns are the lines a name broken across several elements is drawn

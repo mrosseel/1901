@@ -4,13 +4,13 @@ import { TopBar } from "../components/TopBar";
 import { entropyFor, signMessage, writeStoredKey } from "../gmkey";
 
 /*
-Taking the game master role back with twelve words (D-048).
+Taking the game master role back with twelve words (ADR-048).
 
 This is the only screen in the app somebody types a secret into, and it exists
 because the role is the only thing here that cannot be handed back. Everything
 else has a person on the other side: a lost seat is one link from the game
 master, and a game master who is merely changing device hands the role over
-(D-041). This is for the case where there is nobody to ask.
+(ADR-041). This is for the case where there is nobody to ask.
 
 The words never leave the browser. They rebuild the key, the key signs a
 sentence the server made up, and the signature is what the server checks

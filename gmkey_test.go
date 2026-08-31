@@ -61,7 +61,7 @@ func claimRecovery(g *game, id, nonce string, signature []byte) *httptest.Respon
 	return rec
 }
 
-// TestRecoveryTakesTheRoleAndKillsTheOldToken is the whole of D-048: twelve
+// TestRecoveryTakesTheRoleAndKillsTheOldToken is the whole of ADR-048: twelve
 // words on any device buy a fresh game master address, and the one the last
 // device held stops working.
 func TestRecoveryTakesTheRoleAndKillsTheOldToken(t *testing.T) {

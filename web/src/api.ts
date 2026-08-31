@@ -18,20 +18,20 @@ export interface Settings {
   /*
   What the table calls this game. Optional, and empty is the ordinary case:
   an unnamed game is known by its id. It names the table, never a person, so
-  nothing here is bound to a seat and D-020's anonymity is untouched.
+  nothing here is bound to a seat and ADR-020's anonymity is untouched.
   */
   name?: string;
   /** The godip variant key. Absent means the server's default, classical. */
   variant?: string;
   /*
-  Whether a player may write an order the rules do not allow (D-029). The
+  Whether a player may write an order the rules do not allow (ADR-029). The
   server keeps it, the adjudicator throws it out, and the unit holds — which
   is what paper does and what makes a bluff possible. Absent means yes: a
   server that predates the setting accepted whatever it was sent (illegal.ts).
   */
   illegalMoves?: boolean;
   /*
-  How negotiation happens (D-023). The app carries no messages in any mode;
+  How negotiation happens (ADR-023). The app carries no messages in any mode;
   the setting is a rule the table has declared, and the join and waiting
   screens say it. Absent means the server's default, ftf.
   */
@@ -63,7 +63,7 @@ export interface VariantAware {
   placements?: Record<string, Placement> | null;
   /*
   How to draw the names and the supply centre glyphs of a map whose art no
-  longer carries them (D-038). Absent on every map that draws its own, which
+  longer carries them (ADR-038). Absent on every map that draws its own, which
   is what a map does until its exporter stops.
   */
   labels?: LabelPlan | null;
@@ -97,12 +97,12 @@ export interface PreviousPhase {
 }
 
 /*
-The spectator feed, for the shared screen (D-013).
+The spectator feed, for the shared screen (ADR-013).
 
 It is the public board and nothing else: units, centres, the phase, the clock
 and — for a phase that has already resolved — that phase's orders and their
 outcomes. There is no seat here, no token, and no endpoint that could carry an
-order back, which is what makes the page read-only in the sense D-013 means:
+order back, which is what makes the page read-only in the sense ADR-013 means:
 nothing on this view can create or change an Order.
 
 `phaseIndex` addresses one phase of the game's history; without it the feed
@@ -111,7 +111,7 @@ so the page can offer prev and next without guessing.
 */
 export interface WatchState extends VariantAware {
   gameId: string;
-  /** What the table calls this game (D-042). Absent when it has no name. */
+  /** What the table calls this game (ADR-042). Absent when it has no name. */
   name?: string;
   phase: BoardState["phase"];
   started: boolean;
@@ -170,7 +170,7 @@ export interface GmState extends VariantAware {
   gmSeatUrl?: string | null;
   events?: string[];
   /**
-   * Whether this game has a recovery key (D-048). Absent from a server that
+   * Whether this game has a recovery key (ADR-048). Absent from a server that
    * predates keys, which is the same thing as not having one.
    */
   hasGmKey?: boolean;
@@ -196,9 +196,9 @@ export interface SeatState extends BoardState, VariantAware {
   deadlineAt: string | null;
   locked: Record<string, boolean>;
   youLocked: boolean;
-  /** True when this seat is the game master's own (D-021). */
+  /** True when this seat is the game master's own (ADR-021). */
   youAreGm?: boolean;
-  /** How many turns the game has played, for the seat menu (D-041). */
+  /** How many turns the game has played, for the seat menu (ADR-041). */
   turns?: number;
   /** When the game was made, for the seat menu's elapsed line. */
   createdAt?: string;
@@ -290,15 +290,15 @@ export async function postJSON<T>(url: string, body?: unknown): Promise<T> {
 // --- routes ---------------------------------------------------------------
 
 export type Route =
-  /* The landing page (D-043): the one address with nothing behind it. */
+  /* The landing page (ADR-043): the one address with nothing behind it. */
   | { kind: "index" }
-  /* The page a handover QR code opens (D-041). Everything it needs to take
+  /* The page a handover QR code opens (ADR-041). Everything it needs to take
      the seat is in the address, and the signature is what authorises it. */
   | { kind: "handover"; gameId: string; power: string; epoch: string; signature: string }
   /* The same, for the game master role. It is a separate address because it
      is a separate act: the rights travel and a power does not. */
   | { kind: "handover-gm"; gameId: string; epoch: string; signature: string }
-  /* Where a game master types their twelve words (D-048). The game id may be
+  /* Where a game master types their twelve words (ADR-048). The game id may be
      in the address or typed in, so it is optional. */
   | { kind: "recover"; gameId: string | null }
   /* The list of games this server holds, which used to stand at the root. */
@@ -306,7 +306,7 @@ export type Route =
   /* The questions a first table asks. One page, no game behind it. */
   | { kind: "faq" }
   | { kind: "new" }
-  /* The map editor (D-030). It carries no game and no token: it edits a
+  /* The map editor (ADR-030). It carries no game and no token: it edits a
      variant's placement table, and a variant is all it needs. */
   | { kind: "mapeditor" }
   | { kind: "join"; gameId: string; inviteToken: string }
@@ -425,7 +425,7 @@ export function createGame(settings: Settings): Promise<CreatedGame> {
 
 /**
  * Every game the server holds, newest first. The list has its own address
- * because /games is a page now (D-043); a create is still a post to the
+ * because /games is a page now (ADR-043); a create is still a post to the
  * collection, which is what /games answers to POST.
  * The answer carries no token of
  * any kind: an id opens the public pages only. The one exception is the
@@ -439,7 +439,7 @@ export function fetchGames(): Promise<GameSummary[]> {
 // --- join -----------------------------------------------------------------
 
 /*
-Claiming a power (D-012), with the key this device just made (D-049).
+Claiming a power (ADR-012), with the key this device just made (ADR-049).
 
 The public half goes with the claim, so the seat is bound to a key the server
 never held. The answer says `keyed`, which is the page's cue to write the seed
@@ -465,7 +465,7 @@ export interface SeatClaim {
 }
 
 /*
-Signing in to a keyed seat (D-049).
+Signing in to a keyed seat (ADR-049).
 
 Two steps and no token: the server hands out a sentence, this device signs it
 with the seed it holds, and the server answers with an HttpOnly cookie. The
@@ -517,7 +517,7 @@ export class GmClient {
     return postJSON(this.base + "extend", { minutes: minutes });
   }
 
-  /** The link that hands the game master role to another device (D-041). */
+  /** The link that hands the game master role to another device (ADR-041). */
   roleHandover(): Promise<Handover> {
     return getJSON<Handover>(this.base + "handover-role");
   }
@@ -527,7 +527,7 @@ export class GmClient {
     return getJSON<GmKey>(this.base + "key");
   }
 
-  /** Register the public half, once (D-048). */
+  /** Register the public half, once (ADR-048). */
   setKey(publicKey: string): Promise<GmKey> {
     return postJSON<GmKey>(this.base + "key", { publicKey: publicKey });
   }
@@ -539,7 +539,7 @@ export interface GmKey {
 }
 
 /*
-Recovering the game master role with its twelve words (D-048).
+Recovering the game master role with its twelve words (ADR-048).
 
 Two steps, and neither carries a token: the person asking has lost every token
 they had, which is the case this exists for. The server hands out a sentence to
@@ -574,7 +574,7 @@ export class SeatClient {
   readonly base: string;
   /*
   A keyed seat carries no token: `me` in the address, a session cookie for
-  authority, and the seed on the device (D-049). Sessions live in the
+  authority, and the seed on the device (ADR-049). Sessions live in the
   server's memory, so a restart ends them — and this device can open a new
   one on its own, which is what `keyed` turns on below.
   */
@@ -629,7 +629,7 @@ export class SeatClient {
     return this.withSession(() => postJSON<SeatState>(this.base + (on ? "lock" : "unlock")));
   }
 
-  /** The link that hands this power to another phone (D-041). */
+  /** The link that hands this power to another phone (ADR-041). */
   handover(): Promise<Handover> {
     return getJSON<Handover>(this.base + "handover");
   }
@@ -647,7 +647,7 @@ export interface Handover {
 }
 
 /*
-Taking a power from a handover link (D-041).
+Taking a power from a handover link (ADR-041).
 
 The signature in the address is the whole credential, which is why this is a
 post and never a page load: a link preview or a scanner that fetches before it
@@ -676,7 +676,7 @@ export function claimHandover(
 }
 
 /*
-Taking the game master role (D-041).
+Taking the game master role (ADR-041).
 
 The rights travel and a power does not: whoever opens this runs the game, and
 the power the last game master played stays where it is.

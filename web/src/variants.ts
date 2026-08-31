@@ -7,7 +7,7 @@ nothing here trusts the shape. Every card line is built by a pure function and
 comes back as "" when there is nothing true to say, and the page simply leaves
 out the empty ones.
 
-Only classical is verified (D-014): it is the one card that carries a tick.
+Only classical is verified (ADR-014): it is the one card that carries a tick.
 Every other variant draws its map from godip and plays, and says nothing about
 itself either way.
 */
@@ -243,7 +243,7 @@ export function claimLine(powerCount: number, gmPlays: boolean): string {
 /*
 The Classical board, at the address every other screen asks for it at.
 
-The landing page (D-043) is the only screen with no game and no variant
+The landing page (ADR-043) is the only screen with no game and no variant
 behind it, so it names the one map by hand. Parchment is the style the
 classical art was drawn in, and asking for it by name keeps the page's
 picture steady when the device's own style preference changes.

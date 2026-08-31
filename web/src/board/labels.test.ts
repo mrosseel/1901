@@ -4,7 +4,7 @@ The reader against the writer, on one map.
 
 Nothing here can run on a map as it is served today: every map draws its own
 names and centres in its art, and where the art draws the layer the art wins
-(D-038). So this takes the fixture the exporter actually wrote, strips the two
+(ADR-038). So this takes the fixture the exporter actually wrote, strips the two
 layers out of the art to force the mode the exporter has not switched on yet,
 and checks the board redraws what it removed.
 
@@ -87,7 +87,7 @@ function artRings(): Array<{ x: number; y: number; r: number }> {
 
 /*
 The art with the two layers taken out, which is what the exporter will ship
-once it stops drawing them. The anchors layer goes with them (D-038): the
+once it stops drawing them. The anchors layer goes with them (ADR-038): the
 placement table already carries a unit position for every province, and an
 anchor and a centre glyph share the id the board matches for anchors.
 */

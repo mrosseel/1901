@@ -3,7 +3,7 @@ seed fills a running server with a few games worth looking at.
 
 A server with no games opens on an empty list, which tells a visitor nothing
 about what the app does. This makes a handful of Classical games, plays their
-first turn and leaves them at Fall 1901, so the spectator pages (D-028) have a
+first turn and leaves them at Fall 1901, so the spectator pages (ADR-028) have a
 real board on them.
 
 Each game is named after the opening it plays. An opening is a named idea, not
@@ -175,7 +175,7 @@ func seed(base string, o opening) (string, error) {
 		return "", err
 	}
 
-	// Seven scans of the one invite (D-020). Each gets its own client,
+	// Seven scans of the one invite (ADR-020). Each gets its own client,
 	// because a seat is claimed per device: the server hands the same power
 	// back to a browser that already holds one, which is the whole point of
 	// the device cookie and would give this one client one seat seven times.
@@ -199,7 +199,7 @@ func seed(base string, o opening) (string, error) {
 	}
 
 	// A claim answers with an address, not a power, and the powers are dealt
-	// at the start (D-021). So a seat says who it is only now.
+	// at the start (ADR-021). So a seat says who it is only now.
 	seats := map[string]string{}
 	for _, seat := range addresses {
 		var state struct {

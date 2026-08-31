@@ -1,12 +1,12 @@
 /*
-Handing a power to another person, by link (D-041).
+Handing a power to another person, by link (ADR-041).
 
 A seat is a token on a phone. Phones die, run flat and go home in a pocket
-halfway through a game, and until now that took a power with it: D-012's claim
+halfway through a game, and until now that took a power with it: ADR-012's claim
 was hard and had no release. This is the release.
 
 	GET  /game/{id}/seat/{token}/handover      the holder mints their own link
-	GET  /game/{id}/gm/{token}/handover?power= the game master mints any (D-007)
+	GET  /game/{id}/gm/{token}/handover?power= the game master mints any (ADR-007)
 	GET  /handover/{id}/{power}/{epoch}/{sig}  the page the next person opens
 	POST /game/{id}/handover/{power}/{epoch}/{sig}  taking the seat
 
@@ -24,7 +24,7 @@ Orders already given stand. The signed value authenticates a command, so an
 order the server took was taken under an epoch that was valid then; raising the
 epoch stops the old holder sending anything more and reaches back into nothing.
 The new holder inherits the seat as it stands, orders included, and may change
-them while the phase is open (D-011).
+them while the phase is open (ADR-011).
 */
 package main
 
@@ -58,7 +58,7 @@ func handoverSig(id string, power godip.Nation, epoch int) string {
 /*
 gmHandoverSig signs a handover of the role rather than of a seat.
 
-The two are kept apart all the way down, as D-041 asks, because they fail
+The two are kept apart all the way down, as ADR-041 asks, because they fail
 differently: a game master who gives away their power still runs the game, and
 one who gives away the role and keeps their power becomes an ordinary player.
 Two epochs, two signatures, two links.
@@ -108,12 +108,12 @@ func handleSeatHandover(g *game, id string, power godip.Nation, w http.ResponseW
 }
 
 /*
-handleGMHandover mints a link for any power (D-041, r44).
+handleGMHandover mints a link for any power (ADR-041, r44).
 
 A dead phone takes its own menu with it, so the holder cannot hand the seat
 over themselves. That is the case this exists for and it is the common one.
 
-It is an enumerated, logged game master power (D-007), because it is the one
+It is an enumerated, logged game master power (ADR-007), because it is the one
 that could be abused: a game master who can mint a link for any seat can take
 any seat. Nothing prevents that and nothing should pretend to. The record is
 what makes it visible afterwards.
@@ -135,7 +135,7 @@ func handleGMHandover(g *game, id string, w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusNotFound, "%v is not a power in this game", power)
 		return
 	}
-	// Minting for somebody else's seat is the enumerated, logged act (D-007):
+	// Minting for somebody else's seat is the enumerated, logged act (ADR-007):
 	// it is the one that could be abused, because a game master who can mint
 	// for any power can take any seat. Minting for the power they play
 	// themselves is their own menu and no more remarkable than a player
@@ -181,7 +181,7 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 	signature := rest[2]
 
 	// The phone taking the seat sends the public half of the key it just
-	// made (D-049). Absent, the seat is taken the old way, with a token.
+	// made (ADR-049). Absent, the seat is taken the old way, with a token.
 	var body struct {
 		SignPub string `json:"signPub"`
 	}
@@ -226,7 +226,7 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 	s.device = ""
 	s.epoch++
 
-	// The phone taking the seat made its own key (D-049) and sends the
+	// The phone taking the seat made its own key (ADR-049) and sends the
 	// public half. It is a new key and not the old one: a handover moves a
 	// power to somebody else, and the person giving it away must not keep
 	// anything that opens the seat.
@@ -271,7 +271,7 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 
 // claimResponse is what taking a seat answers with. `keyed` tells the page
 // which kind of seat it just took: a keyed one has to write its seed to this
-// device's storage before the board is any use (D-049).
+// device's storage before the board is any use (ADR-049).
 type claimResponse struct {
 	Power   string `json:"power"`
 	SeatURL string `json:"seatUrl"`
@@ -367,7 +367,7 @@ it.
 
 A game master who plays sits at their own board like everybody else, and the
 menu behind their player icon is where they reach both of the things they hold
-(D-041). The game master page can mint this too; this is the same link from the
+(ADR-041). The game master page can mint this too; this is the same link from the
 screen they are actually looking at.
 
 It answers only for the seat that is the game master's. Any other seat gets the

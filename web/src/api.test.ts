@@ -33,7 +33,7 @@ describe("routes", () => {
   it("reads the four page addresses", () => {
     expect(parseRoute("/")).toEqual({ kind: "index" });
     expect(parseRoute("/new")).toEqual({ kind: "new" });
-    // The root is the landing page and the list has its own address (D-043).
+    // The root is the landing page and the list has its own address (ADR-043).
     expect(parseRoute("/games")).toEqual({ kind: "games" });
     expect(parseRoute("/games/")).toEqual({ kind: "games" });
     expect(parseRoute("/join/7/abc")).toEqual({

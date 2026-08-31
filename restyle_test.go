@@ -279,7 +279,7 @@ func TestAStyledMapIsWellFormedXML(t *testing.T) {
 	}
 }
 
-// TestAConvertedMapIsGivenItsSupplyCentres covers D-032: jDip marks no supply
+// TestAConvertedMapIsGivenItsSupplyCentres covers ADR-032: jDip marks no supply
 // centre, so without these rings a player cannot see which provinces are worth
 // taking.
 func TestAConvertedMapIsGivenItsSupplyCentres(t *testing.T) {

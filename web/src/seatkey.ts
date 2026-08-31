@@ -1,5 +1,5 @@
 /*
-A seat is a key this device holds (D-049).
+A seat is a key this device holds (ADR-049).
 
 A seat used to be a secret in the address: whoever read
 /game/{id}/seat/{token} was that power, and the same string sat in the
@@ -23,7 +23,7 @@ Three questions are easy to run together, so they are answered apart:
 
 Storage alone would be tidier and would break the things this app is for: a
 second device, passing the phone round the table, a bookmark, a scanned code.
-The address is the seat (D-012), so the address must be able to carry it.
+The address is the seat (ADR-012), so the address must be able to carry it.
 */
 
 import {
@@ -36,7 +36,7 @@ import {
 } from "./keys";
 
 /* What this key is for. The seat will hold other keys one day — a sealing key
-   for D-004's orders — and naming this one keeps them apart. */
+   for ADR-004's orders — and naming this one keeps them apart. */
 const KEY_NAME = "1901 seat sign v1";
 
 const SEED_BYTES = 32;

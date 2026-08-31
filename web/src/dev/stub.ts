@@ -22,7 +22,7 @@ states, not for playing, and a half-simulated server would be a lie of a
 different kind. The README says so too.
 */
 
-import type { GmState, PublicState, SeatState, WatchState } from "../api";
+import type { GameSummary, GmState, PublicState, SeatState, WatchState } from "../api";
 import type { OptionTree } from "../board/types";
 import { gameIdOf } from "./fixtures";
 
@@ -37,6 +37,8 @@ export interface Scenario {
   phases?: Record<number, WatchState>;
   /** Province → the option tree the server answered with. */
   options?: Record<string, OptionTree>;
+  /** The rows the game list shows. Only the list screen needs them. */
+  games?: GameSummary[];
 }
 
 const SEAT = /^\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|lock|unlock)$/;
@@ -114,6 +116,10 @@ function answer(scene: Scenario, url: URL, method: string): Response | null {
       return one ? json(one) : missing("phase " + watch[1]);
     }
     return scene.watch ? json(scene.watch) : missing("a live phase on this screen");
+  }
+
+  if (path === "/games/list") {
+    return json(scene.games || []);
   }
 
   if (PUBLIC.test(path)) {

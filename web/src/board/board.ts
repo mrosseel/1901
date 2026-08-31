@@ -4,7 +4,7 @@ The map island.
 Everything that touches the SVG is here, in plain TypeScript with no React:
 map injection, pan and zoom, the unit and order overlays, province highlights,
 and the tap grammar that turns taps into orders. React mounts it once, feeds it
-state, and draws the panels around it (D-017).
+state, and draws the panels around it (ADR-017).
 
 The board is driven through a small interface — mount(), update(), destroy() —
 and reports back through callbacks: the hint line, the order builder to draw,
@@ -75,7 +75,7 @@ import {
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 /*
-The colour of an order this page knows is not legal (D-029). Amber, and only
+The colour of an order this page knows is not legal (ADR-029). Amber, and only
 ever on the live board: a review draws what everybody sees, and what everybody
 sees about an illegal order is a unit that held.
 */
@@ -154,7 +154,7 @@ export function mount(
   let briefLabels = false;
   /*
   Provinces whose drafted order this page KNOWS is not legal: the target was
-  not in the tree the server offered, and it was sent anyway (D-029).
+  not in the tree the server offered, and it was sent anyway (ADR-029).
 
   It is knowledge about this seat's own draft and it stays on this device. The
   server is not asked and no other seat is told — the whole point of writing an
@@ -883,7 +883,7 @@ export function mount(
   // --- Names and centres the art does not draw ----------------------------
   /*
   A map's names and supply centre glyphs are either drawn in its art or handed
-  over as records in the placement table (D-038). Where the art draws the
+  over as records in the placement table (ADR-038). Where the art draws the
   layer, the art wins and nothing here runs; a second set of names over the
   first is worse than none.
 
@@ -997,7 +997,7 @@ export function mount(
       const ring = document.createElementNS(SVG_NS, "circle");
       /* Never "<key>Center": the board matches [id$="Center"] to find unit
          anchors, and a ring answering that selector would be read as one
-         (D-032). */
+         (ADR-032). */
       ring.id = "sc-" + province;
       ring.setAttribute("cx", String(at[0]));
       ring.setAttribute("cy", String(at[1]));
@@ -1347,7 +1347,7 @@ export function mount(
       const color = powerColor(ordering || (unit ? unit.nation : plan.power));
       const missed = reviewFailed.has(province);
       /*
-      A draft this page knows the rules refuse (D-029). It is drawn in its own
+      A draft this page knows the rules refuse (ADR-029). It is drawn in its own
       amber with a dashed rim — the same arrow, visibly provisional — so the
       player who wrote it can see that the app knows. It is never drawn in a
       review, because a review is what everybody else sees.
@@ -1869,7 +1869,7 @@ export function mount(
   }
 
   /*
-  A tap the tree does not offer, taken as an order anyway (D-029).
+  A tap the tree does not offer, taken as an order anyway (ADR-029).
 
   This is the whole of "illegal orders are allowed" as the player meets it: the
   highlights still say what is legal, and they are still the guide, but they
@@ -2110,7 +2110,7 @@ export function mount(
         return;
       }
       /* Anywhere else is a support for a move that cannot happen. It is still
-         an order, and writing it is the point (D-029). */
+         an order, and writing it is the point (ADR-029). */
       if (offerIllegal(province, clientX, clientY)) return;
     } else if (mode === "pick") {
       const moveKey = matchingKey(builder!.moveNode, province);

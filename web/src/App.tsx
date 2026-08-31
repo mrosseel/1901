@@ -26,7 +26,7 @@ const DevGallery = import.meta.env.DEV
   : null;
 
 /*
-The map editor (D-030), which ships in every build but is only loaded when
+The map editor (ADR-030), which ships in every build but is only loaded when
 somebody asks for it.
 
 Unlike the gallery it is a real screen with a real job, so it is not behind

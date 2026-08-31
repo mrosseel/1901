@@ -1,8 +1,8 @@
 /*
 The one place this app does cryptography.
 
-Two things use it: the game master's key and its twelve words (D-048), and the
-seat key that replaces the token in the address (D-049). Both make random
+Two things use it: the game master's key and its twelve words (ADR-048), and the
+seat key that replaces the token in the address (ADR-049). Both make random
 bytes, derive a named key from them, and sign a sentence the server made up.
 Nothing here holds state and nothing here talks to the server.
 

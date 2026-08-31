@@ -8,7 +8,7 @@
 // the rule profiles a descriptor names; it is no longer a second way for a
 // board to reach a game.
 //
-// Only classical is supported (D-014). The rest are playable but their
+// Only classical is supported (ADR-014). The rest are playable but their
 // map placement anchors are unverified, so they are marked experimental.
 package main
 
@@ -35,7 +35,7 @@ func allVariants() []common.Variant {
 // defaultVariant is what a game gets when none is named.
 const defaultVariant = "classical"
 
-// supportedVariants are the ones whose board art is verified (D-014).
+// supportedVariants are the ones whose board art is verified (ADR-014).
 var supportedVariants = map[string]bool{defaultVariant: true}
 
 // variantKey turns a godip variant name into a URL-safe key:
@@ -158,7 +158,7 @@ func handleVariants(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, variantCatalogue())
 }
 
-// STYLED MAP SERVING (D-033, D-024, D-026)
+// STYLED MAP SERVING (ADR-033, ADR-024, ADR-026)
 //
 // A converted jDip map is correct and unlovely: flat blue water, flat yellow
 // land, a black backdrop. godip's own maps are handsome but come in one
@@ -178,7 +178,7 @@ func handleVariants(w http.ResponseWriter, r *http.Request) {
 // composed here, on demand, out of three things: the original art, the style
 // plan the browser tool measured from it (styleplans/<key>.json), and the
 // style's own tokens. Both are embedded in the binary; the composition is
-// string substitution and takes milliseconds. See restyle.go and D-026.
+// string substitution and takes milliseconds. See restyle.go and ADR-026.
 
 // defaultMapStyle is the style a map is served in when nobody asks for one.
 const defaultMapStyle = "parchment"
@@ -213,7 +213,7 @@ var stalePlans = struct {
 
 // supplyCentreKeys names every province that is a supply centre, from the
 // variant's own graph, which is the only place that knows: a converted jDip
-// map carries no mark of one (D-032). A variant with no graph reports none,
+// map carries no mark of one (ADR-032). A variant with no graph reports none,
 // so a map that would have been styled still is.
 func supplyCentreKeys(v common.Variant) []string {
 	if v.Graph == nil {
@@ -390,7 +390,7 @@ func serveMapArt(w http.ResponseWriter, r *http.Request, key string, v common.Va
 // the only thing that does. A godip map paints its terrain as bare fill
 // values with no class to read, so tools/restyle decides which colour is sea
 // by asking here which provinces are sea and then looking at what the map
-// paints under each one (D-024). Guessing from the tone would be a guess.
+// paints under each one (ADR-024). Guessing from the tone would be a guess.
 type provinceJSON struct {
 	Key  string `json:"key"`
 	Type string `json:"type"`
@@ -425,7 +425,7 @@ func variantProvinces(v common.Variant) ([]provinceJSON, error) {
 // handleVariantMap serves the four things a variant has that need no game:
 // /variants/{key}/map.svg, /provinces.json, /placement.json and /names.json.
 //
-// The last two are what the map editor loads (D-030). It edits a variant, not
+// The last two are what the map editor loads (ADR-030). It edits a variant, not
 // a game, so everything it reads has to be reachable without one.
 func handleVariantMap(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/variants/")
@@ -487,7 +487,7 @@ func (self *game) variantRef() variantRefJSON {
 
 // provinceNames is the abbreviation-to-long-name table for this variant.
 // The frontend labels the board from it. It is godip's own table with the
-// variant's name overrides layered on top (names.go, D-030), so a name
+// variant's name overrides layered on top (names.go, ADR-030), so a name
 // corrected in the map editor reaches every board.
 func (self *game) provinceNames() map[string]string {
 	return namesFor(self.variantKey)

@@ -152,7 +152,7 @@ func TestWatchCountsTheSeatsBeforeTheGameStarts(t *testing.T) {
 }
 
 // TestWatchCarriesTheGameName: the spectator screen is the one screen read
-// across a room, and an id names nothing there (D-042).
+// across a room, and an id names nothing there (ADR-042).
 func TestWatchCarriesTheGameName(t *testing.T) {
 	g := watchTestGame(t)
 	g.flow.settings.Name = "Thursday table"

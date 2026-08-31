@@ -1,11 +1,11 @@
-// Public, permanent, login-free per-phase URLs (D-013;
+// Public, permanent, login-free per-phase URLs (ADR-013;
 // research/platforms.md, steal 1).
 //
 // Backstabbr's single most valuable property is not a feature: it is that
 // /game/<id>/<year>/<season> renders the board, the orders and the results to
 // a signed-out visitor, forever. That is why it owns post-game analysis, why
 // its links are the community's citation format, and why the tournament
-// pipeline scrapes it. Our spectator view is already secret-free by D-013, so
+// pipeline scrapes it. Our spectator view is already secret-free by ADR-013, so
 // the data model was done; what was missing was the URL.
 //
 //	/watch/{gameId}/                the page, at the phase now being played
@@ -91,7 +91,7 @@ func (self *game) recordWatch(phaseIndex int, position watchPosition, review *ph
 // watchJSON is one phase, as anybody with the link may see it.
 type watchJSON struct {
 	GameID string `json:"gameId"`
-	// Name is what the table calls this game (D-042). The spectator screen
+	// Name is what the table calls this game (ADR-042). The spectator screen
 	// is read across a room, where an id identifies nothing; this feed was
 	// the only one of the three that did not carry the name.
 	Name       string `json:"name,omitempty"`
@@ -113,7 +113,7 @@ type watchJSON struct {
 	Powers      map[string]string   `json:"powers"`
 	Resolutions map[string]string   `json:"resolutions"`
 	// Illegal names the provinces whose order never reached the engine
-	// (D-029). Their resolution is "IllegalOrder" and their unit held.
+	// (ADR-029). Their resolution is "IllegalOrder" and their unit held.
 	Illegal []string `json:"illegal"`
 	NMR     []string `json:"nmr"`
 

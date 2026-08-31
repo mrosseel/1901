@@ -23,7 +23,7 @@ trusted; a review of its parsing and adjudication is separate work.
 
 1901 runs at a physical table. Players scan QR codes on a LAN. The server
 holds no accounts, no passwords, and no personal data. A seat's whole
-identity is one random token in one URL (D-020).
+identity is one random token in one URL (ADR-020).
 
 The design accepts these facts:
 
@@ -32,10 +32,10 @@ The design accepts these facts:
   because the server must run with zero setup on someone's laptop.
 - The SQLite file stores tokens in plaintext. Anyone who reads the file owns
   every seat in every game.
-- The spectator view and the watch URLs are public by design (D-013). No
+- The spectator view and the watch URLs are public by design (ADR-013). No
   draft order ever reaches them.
 - A player holds one token and acts for one power. The GM holds the GM token
-  and can force adjudication (D-010) and change settings.
+  and can force adjudication (ADR-010) and change settings.
 
 The review asked four questions. Can a stranger read another power's draft
 orders? Can a player act for another power? Can an anonymous client exhaust
@@ -132,7 +132,7 @@ without a reason.
 - `serveSPAAsset` cleans paths, rejects `..`, and Go's mux normalizes the
   URL before the handler runs.
 - The frontend uses no `dangerouslySetInnerHTML`. React escapes every
-  server string, including the event log (D-007).
+  server string, including the event log (ADR-007).
 - Seat and GM actions require the token in the URL path, which a cross-site
   attacker cannot know. The device cookie is SameSite Lax, so cross-site
   joins cannot ride it. The model needs no CSRF token.

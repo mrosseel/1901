@@ -1,5 +1,5 @@
 /*
-A seat is a key, not a token (D-049).
+A seat is a key, not a token (ADR-049).
 
 Until now a seat was a secret in an address: whoever read /game/{id}/seat/{tok}
 was that power, and the same string sat in the database. So a copied 1901.db, a

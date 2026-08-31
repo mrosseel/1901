@@ -13,7 +13,7 @@ import (
 	"github.com/zond/godip"
 )
 
-// joinWithKey claims a power the way a phone does (D-049): it makes a key and
+// joinWithKey claims a power the way a phone does (ADR-049): it makes a key and
 // sends the public half. It returns the private half and the answer.
 func joinWithKey(t *testing.T, g *game, id string) (ed25519.PrivateKey, joinResponse, *httptest.ResponseRecorder) {
 	t.Helper()
@@ -209,7 +209,7 @@ func TestHandoverRekeysAndClosesTheSession(t *testing.T) {
 	}
 }
 
-// TestAnOldGameKeepsItsTokens: no migration (D-049). A claim that sends no
+// TestAnOldGameKeepsItsTokens: no migration (ADR-049). A claim that sends no
 // key is answered with a token, and that seat's address still opens it.
 func TestAnOldGameKeepsItsTokens(t *testing.T) {
 	id := makeGame(t)
@@ -234,7 +234,7 @@ func TestAnOldGameKeepsItsTokens(t *testing.T) {
 }
 
 /*
-TestTheSeatPageOpensWithoutASession is the lockout D-049 nearly shipped.
+TestTheSeatPageOpensWithoutASession is the lockout ADR-049 nearly shipped.
 
 Sessions live in the server's memory, so a restart, a second device or a
 private tab arrives with no cookie. The thing that signs back in is the

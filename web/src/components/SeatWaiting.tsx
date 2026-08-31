@@ -58,7 +58,7 @@ export function SeatWaiting({ state, beat }: { state: SeatState | null; beat: nu
         </div>
         {/* What the table calls this game, when it was named. It answers "what
             game is this" — the name of a table, never of a person, so it says
-            nothing about who holds which power (D-020). */}
+            nothing about who holds which power (ADR-020). */}
         {state?.settings?.name ? <p className="game-name">{state.settings.name}</p> : null}
         {state?.variant ? (
           <p className="muted variant-line">
@@ -83,8 +83,8 @@ export function SeatWaiting({ state, beat }: { state: SeatState | null; beat: nu
           </span>
         </div>
         {/* Which powers are taken is not said, here or anywhere: the table
-            has no names in it (D-020), and before the start the powers still
-            free are the pool the game master's own is drawn from (D-021). */}
+            has no names in it (ADR-020), and before the start the powers still
+            free are the pool the game master's own is drawn from (ADR-021). */}
         <p className="seat-count">
           {claimed} of {onOffer} powers claimed
         </p>
@@ -104,7 +104,7 @@ export function SeatWaiting({ state, beat }: { state: SeatState | null; beat: nu
 
       {/* The same rules, in the same words, as the page that offered the
           power — a player who tapped through that one now has the minutes to
-          read them (D-022). */}
+          read them (ADR-022). */}
       <section>
         <h2>The rules of this game</h2>
         {settingsLines(state?.settings).map((line) => (

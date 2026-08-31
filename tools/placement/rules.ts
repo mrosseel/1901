@@ -5,7 +5,7 @@ audit.ts owns the measuring, and measuring needs a page: whether a marker is
 inside its province is a question only an SVG engine can answer. The SHAPES
 that question is asked and answered in — what a placement is, what a map's
 geometry looks like, what counts as a violation and how violations are
-summarised — need nothing of the sort, and the in-app editor (DESIGN.md D-030)
+summarised — need nothing of the sort, and the in-app editor (DESIGN.md ADR-030)
 needs exactly those and none of the playwright half.
 
 So they live here, and audit.ts and browser.ts re-export them: the tool's

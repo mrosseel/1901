@@ -1,5 +1,5 @@
 /*
-Writes one style PLAN per map (D-026).
+Writes one style PLAN per map (ADR-026).
 
     ADDR=:8196 go run .        # in another terminal
     node plans.ts --all --server http://localhost:8196
@@ -53,7 +53,7 @@ interface Options {
 
 function usage(): string {
   return [
-    "plans — write the style plan for each map (D-026)",
+    "plans — write the style plan for each map (ADR-026)",
     "",
     "  --server <url>     a running 1901 server (default http://localhost:8196)",
     "  --variant <key>    a variant key; repeatable",

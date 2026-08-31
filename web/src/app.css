@@ -32,7 +32,7 @@
   --phase-movement: #a98bff;
   --phase-retreat: #ff77c0;
   --phase-adjustment: #45c8ee;
-  /* An order the rules never allowed (D-029). The deeper of the two reds: it
+  /* An order the rules never allowed (ADR-029). The deeper of the two reds: it
      failed like any other failure, and the word beside it says how. */
   --illegal: #e5739f;
   /* A draft this device knows is illegal, before anything has resolved. Amber
@@ -557,7 +557,7 @@ button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
 .review-why { color: var(--bad); font-size: 12px; flex: 0 0 auto; }
 
 /*
-An order that was never legal (D-029). It is struck through like any other
+An order that was never legal (ADR-029). It is struck through like any other
 failure, because the unit held either way — and it says "illegal" in words,
 because "bounced" and "was never allowed" are two different stories and no
 shade of red tells them apart. The colour is the deeper of the two reds, so
@@ -1459,7 +1459,7 @@ only in colour.
 }
 
 /*
-Your own draft that the rules refuse (D-029), in the order list beside the
+Your own draft that the rules refuse (ADR-029), in the order list beside the
 board that draws it in the same amber. It is a thing you did on purpose, so it
 is not an error: no red, no icon, one line saying what it costs and what it
 buys.
@@ -1474,7 +1474,7 @@ buys.
 }
 
 /* --- the landing page ----------------------------------------------------
-The front door (D-043), and the only screen here written for somebody who has
+The front door (ADR-043), and the only screen here written for somebody who has
 never seen the app. It is wider than every other page and it is the one place
 that uses a serif, because a page that has to say what this is gets a voice;
 everything behind the button keeps the interface face.
@@ -1803,7 +1803,7 @@ the margins come in. The phone mock stays: it is the picture of the thing.
   .lp-actions .lp-primary, .lp-actions .lp-secondary { flex: 1 1 100%; text-align: center; }
 }
 
-/* --- the seat's own menu (D-041) -----------------------------------------
+/* --- the seat's own menu (ADR-041) -----------------------------------------
 The icon beside the power, and the sheet behind it. The icon has to be small
 enough to sit inside a heading and still be hittable with a thumb, so it takes
 the 44px floor as padding rather than as size: the drawing stays 18px and the
@@ -1846,7 +1846,7 @@ target around it is the size a finger needs.
 .seat-menu .share { background: var(--panel); }
 .seat-menu > .primary { min-height: 48px; }
 
-/* The game name on the list, which is also how the id is reached (D-043).
+/* The game name on the list, which is also how the id is reached (ADR-043).
    It has to read as the row's heading and not as a button: no chrome until a
    pointer is on it, and the cursor plus the title say what a click does. */
 .game-id-copy {
@@ -1863,13 +1863,13 @@ target around it is the size a finger needs.
 .game-id-copy:hover:not(:disabled) { border-color: var(--line); background: var(--panel-2); }
 .game-id-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-/* Two handovers side by side (D-041): the role and a power. They are the same
+/* Two handovers side by side (ADR-041): the role and a power. They are the same
    kind of object, so they are laid out as one row of equals and wrap to a
    column when there is no room for two. */
 .handovers { display: flex; flex-wrap: wrap; gap: 12px; }
 .handovers > * { flex: 1 1 300px; min-width: 0; }
 
-/* --- the bar every ordinary page wears (D-043) ---------------------------
+/* --- the bar every ordinary page wears (ADR-043) ---------------------------
 Without it each screen is an island: every address here was handed to you, so
 a player who leaves their seat has only the browser's history to get back. The
 bar is quiet — it is furniture, not a headline — and the one entry that is not
@@ -1924,7 +1924,7 @@ height; the seat's links live in its own menu instead.
   color: var(--muted);
 }
 
-/* --- the twelve words (D-048) --------------------------------------------
+/* --- the twelve words (ADR-048) --------------------------------------------
 Numbered, because the order is half the secret and somebody is copying them
 onto paper. Wide enough to read across a desk, monospaced so a typed word can
 be checked against a written one, and wrapping into as many columns as the
@@ -1990,7 +1990,7 @@ piece on the map.
 
 /* --- who is winning ------------------------------------------------------
 Public arithmetic on a board everybody can see: ownership and units are both
-drawn on the map and both published to the spectator screen (D-013).
+drawn on the map and both published to the spectator screen (ADR-013).
 */
 .standings ul { list-style: none; margin: 8px 0 0; padding: 0; }
 
@@ -2025,3 +2025,17 @@ drawn on the map and both published to the spectator screen (D-013).
    are two colours. Only ever drawn once the Fall has moved the ownership. */
 .standings-build { color: var(--good); font-size: 12px; min-width: 3ch; text-align: right; }
 .standings-build.off { color: var(--bad); }
+
+/* The two numbers are unlabelled otherwise, and "7  5 units" reads as a score
+   line rather than as supply centres and units. SC is the abbreviation, and a
+   two-character column is exactly where CONTEXT.md allows it. */
+.standings-legend {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.standings-legend .standings-centres { font-size: 11px; margin-left: auto; }

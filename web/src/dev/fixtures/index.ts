@@ -11,7 +11,7 @@ over. A file that has drifted from the server's shape throws where it is read,
 with its own name in the message, instead of rendering a page full of blanks.
 */
 
-import type { GmState, SeatState, WatchState } from "../../api";
+import type { GameSummary, GmState, SeatState, WatchState } from "../../api";
 import type { OptionTree } from "../../board/types";
 import { isGmState, isOptionBook, isSeatState, isWatchState } from "../guards";
 
@@ -53,3 +53,31 @@ export const gm = (name: string): GmState => checked(name, isGmState);
 export const watch = (name: string): WatchState => checked(name, isWatchState);
 export const options = (name: string): Record<string, OptionTree> =>
   checked(name, isOptionBook);
+
+/*
+The game list, derived from the spectator captures rather than captured on its
+own.
+
+There is no third capture to make: a row of that list is what a bare game id is
+already allowed to say about itself, and both of those fields are on the
+spectator answer. Deriving it also means the list and the boards behind it can
+never drift apart, which a hand-written fixture would do the first time either
+changed.
+*/
+export function gameList(...states: WatchState[]): GameSummary[] {
+  return states.map((state, index) => ({
+    gameId: state.gameId,
+    name: state.name,
+    variant: state.variant,
+    started: Boolean(state.started),
+    phase: state.phase,
+    joinedCount: state.joinedCount ?? state.totalSeats ?? 0,
+    totalSeats: state.totalSeats ?? 0,
+    turns: state.phaseCount ?? 0,
+    deadlineAt: state.deadlineAt ?? null,
+    createdAt: state.now || new Date(0).toISOString(),
+    // One of them is this browser's own, so the list draws both the row a
+    // stranger sees and the row with the way back into the controls.
+    referee: index === 0,
+  }));
+}

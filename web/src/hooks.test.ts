@@ -40,7 +40,7 @@ describe("the rules, in words", () => {
   });
 
   /* The press mode is a rule the table declared and the app never enforces,
-     so its line says what the people do (D-023). */
+     so its line says what the people do (ADR-023). */
   it("says how the table negotiates", () => {
     const press = (mode: string) =>
       settingsLines({ deadlineMinutes: 0, gmPlays: false, pressMode: mode })[3];
@@ -56,7 +56,7 @@ describe("the rules, in words", () => {
   });
 
   /* A server that predates the setting accepted whatever it was sent, so an
-     absent setting reads as the permissive one (D-029). */
+     absent setting reads as the permissive one (ADR-029). */
   it("says illegal orders are allowed when nothing says otherwise", () => {
     expect(settingsLines({ deadlineMinutes: 0, gmPlays: false })[2]).toBe(
       "Illegal orders may be written; they resolve as holds.",
