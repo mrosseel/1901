@@ -1,7 +1,10 @@
-# 1901, packaged: one binary, the built frontend beside it, and the
-# placements directory the server reads at startup. The wrapper wires the
-# three together; every env override (ADDR, DB, BASE_URL, MAX_GAMES,
-# SPADIR, PLACEMENTS) still works on top.
+# 1901, packaged: one binary with the built frontend beside it. The wrapper
+# wires the two together; every env override (ADDR, DB, BASE_URL, MAX_GAMES,
+# SPADIR, GENERATED_VARIANTS) still works on top.
+#
+# There is no placements directory any more. A variant's approved table travels
+# with its art, in variants/generated/<key>/placements.json, and a server with
+# no separate directory is a working server (placements.go).
 {
   lib,
   stdenv,
@@ -30,19 +33,6 @@ let
       && !lib.hasSuffix ".tsbuildinfo" name;
   };
 
-  # web/src/mapeditor imports ../../../tools/placement/*.ts — shared geometry
-  # and placement rules that live outside web/. The frontend does not typecheck
-  # without them, so they are unpacked beside webSrc at build time.
-  placementSrc = lib.cleanSourceWith {
-    src = ./tools/placement;
-    filter =
-      path: type:
-      !(lib.elem (baseNameOf path) [
-        "node_modules"
-        "out"
-      ]);
-  };
-
   webDeps = fetchNpmDeps {
     src = webSrc;
     hash = "sha256-966lKCI9FHDEoOBGnZ9dxrENejLzxrSdon2iGbwbpRw=";
@@ -58,14 +48,6 @@ let
       npmHooks.npmConfigHook
     ];
     npmDeps = webDeps;
-
-    # The relative imports resolve three levels above web/src/mapeditor, which
-    # is the build directory itself once webSrc is the source root.
-    postUnpack = ''
-      mkdir -p tools
-      cp -r ${placementSrc} tools/placement
-      chmod -R u+w tools
-    '';
 
     # SCREENS=1 builds the design gallery into the site (/dev/screens). It is
     # a lazy chunk, so a player's phone never downloads it; what the flag
@@ -148,8 +130,7 @@ symlinkJoin {
   postBuild = ''
     wrapProgram $out/bin/1901 \
       --set-default SPADIR ${web}/share/1901/web/dist \
-      --set-default GENERATED_VARIANTS ${goSrc}/variants/generated \
-      --set-default PLACEMENTS ${goSrc}/placements
+      --set-default GENERATED_VARIANTS ${goSrc}/variants/generated
   '';
 
   passthru = {

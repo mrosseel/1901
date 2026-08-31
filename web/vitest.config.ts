@@ -1,8 +1,9 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  /* The map editor's tests import tools/placement, which sits above web/.
-     Same reason as vite.config.ts: shared rules, one copy. */
+  /* The board's label tests read the frozen map, its placement table and its
+     descriptor straight off disk, from testdata/ above web/. Vitest serves
+     nothing above its own root unless it is told to. */
   server: { fs: { allow: [".."] } },
   test: {
     environment: "jsdom",

@@ -45,12 +45,10 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    /*
-    The map editor imports tools/placement's pure halves — the geometry and
-    the vocabulary the offline audit is written in — so that the editor and
-    the audit cannot drift apart (ADR-030). Those files sit above web/, and the
-    dev server refuses to serve above its own root unless told otherwise.
-    */
+    /* Nothing in the app imports from above web/ any more; the tests do, and
+       they run through vitest.config.ts. Kept because a dev server that
+       refuses what the test server allows is a difference nobody wants to
+       find out about at the wrong moment. */
     fs: { allow: [".."] },
     proxy: {
       [endpoints]: { target: API, changeOrigin: false },
