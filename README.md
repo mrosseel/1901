@@ -73,6 +73,25 @@ it declines when that leaves more than one candidate. The startup log states
 which address it will hand out. Set `BASE_URL` when it declines.
 | `MAX_GAMES` | `100` | Cap on live games |
 
+## One file for a table
+
+A release binary carries the frontend, the generated variants and the
+placement tables inside it, so a game master downloads one file and runs it
+with no toolchain and no internet (ADR-051):
+
+```
+cd web && npm run build && cd ..
+CGO_ENABLED=0 go build -tags standalone -o 1901 .
+```
+
+Without the tag the server reads `web/dist`, `variants/generated` and
+`placements` from the working directory, which is what a development session
+wants. `SPADIR`, `GENERATED_VARIANTS` and `PLACEMENTS` override either build.
+
+The published binaries come from the Release workflow: Actions, Release, Run
+workflow, type the version. It builds seven platforms from one runner and
+publishes them with their checksums.
+
 ## Developing
 
 Run the Go server and the vite dev server side by side:

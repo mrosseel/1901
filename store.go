@@ -22,7 +22,15 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// defaultDBPath can be overridden with the DB environment variable.
+// defaultDBPath is a file made in the working directory, and it stays that
+// way for a downloaded binary (ADR-051). Windows starts a double-clicked exe
+// in the folder that holds it, and the macOS 1901.command changes to its own
+// folder before it runs, so the game master finds 1901.db beside the file they
+// downloaded. Somebody starting the server from a terminal gets it where they
+// are, which is what a terminal makes you expect. Nothing ships a database:
+// the first run makes an empty one.
+//
+// The DB environment variable overrides it.
 const defaultDBPath = "1901.db"
 
 func dbPath() string {

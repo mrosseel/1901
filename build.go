@@ -19,8 +19,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"os"
-	"path/filepath"
+	"io/fs"
 	"strconv"
 	"sync"
 	"time"
@@ -32,15 +31,15 @@ var (
 )
 
 // buildStamp is read once. The shell cannot change under a running process:
-// spaDir is a nix store path in a deployed build and a directory nobody
+// the frontend is inside the binary in a release build and a directory nobody
 // rebuilds mid-run in development.
 func buildStamp() string {
-	buildOnce.Do(func() { buildValue = readBuildStamp(spaDirPath()) })
+	buildOnce.Do(func() { buildValue = readBuildStamp(spaFS()) })
 	return buildValue
 }
 
-func readBuildStamp(dir string) string {
-	shell, err := os.ReadFile(filepath.Join(dir, "index.html"))
+func readBuildStamp(fsys fs.FS) string {
+	shell, err := fs.ReadFile(fsys, "index.html")
 	if err != nil {
 		// No shell to hash — a server run without a frontend build. The
 		// start time is a stamp that at least changes per restart, which

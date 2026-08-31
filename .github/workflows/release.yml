@@ -1,0 +1,177 @@
+# A release is a button (ADR-051).
+#
+# Actions -> Release -> Run workflow, type the version, and this builds the
+# frontend once, compiles seven standalone binaries against it, and publishes
+# them with their checksums under a tag it creates itself.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version, without the v (for example 0.1.0)"
+        required: true
+        type: string
+      draft:
+        description: "Publish as a draft, to check before anyone can download it"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # One npm build for all seven platforms, so every binary carries identical
+  # assets and the build stamp they report is the same string.
+  web:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 1
+
+  build:
+    name: ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: web
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 } # a Raspberry Pi, 64-bit
+          - { goos: linux, goarch: arm } # a Raspberry Pi, 32-bit
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+          - { goos: windows, goarch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # The standalone build embeds web/dist, which is not in the repository.
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
+      # No cgo anywhere in the tree: modernc.org/sqlite is Go, so all seven
+      # targets cross-compile from this one runner.
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          name=1901
+          if [ "$GOOS" = windows ]; then name=1901.exe; fi
+          mkdir -p out
+          go build -tags standalone -trimpath \
+            -ldflags "-s -w -X main.version=${VERSION}" \
+            -o "out/${name}" .
+
+      - name: Package
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          base="1901_${VERSION}_${GOOS}_${GOARCH}"
+          cp README.md out/
+          # macOS will not start a bare executable from Finder, so the archive
+          # carries something double-clickable. Gatekeeper still asks; the
+          # release notes say to open this one with a right click the first time.
+          if [ "$GOOS" = darwin ]; then
+            cat > out/1901.command <<'SH'
+          #!/bin/sh
+          # Start 1901 from the folder this file is in.
+          cd "$(dirname "$0")" || exit 1
+          exec ./1901
+          SH
+            chmod +x out/1901.command
+          fi
+          mkdir -p dist
+          if [ "$GOOS" = windows ]; then
+            (cd out && zip -q -r "../dist/${base}.zip" .)
+          else
+            tar -czf "dist/${base}.tar.gz" -C out .
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          retention-days: 1
+
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: archive-*
+          merge-multiple: true
+          path: dist
+
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Notes
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          cat > notes.md <<'EOF'
+          One file. Download the one for your machine, run it, and the phones at
+          the table join over the local network. No install, no internet, no
+          account.
+
+          **Windows asks about the firewall on the first run. Allow private
+          networks, or no phone can reach the server.**
+
+          On macOS the file is not signed. Unpack it, then open `1901.command`
+          with a right click and choose Open. A double click is refused.
+
+          The server prints the address it is listening on. The game master
+          opens it, creates a game, and shows the QR code.
+
+          Check a download against `SHA256SUMS`:
+
+              sha256sum -c SHA256SUMS --ignore-missing
+          EOF
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          DRAFT: ${{ inputs.draft }}
+        run: |
+          set -euo pipefail
+          args=(--title "1901 ${VERSION}" --notes-file notes.md --target "${GITHUB_SHA}")
+          if [ "$DRAFT" = "true" ]; then args+=(--draft); fi
+          gh release create "v${VERSION}" "${args[@]}" dist/*

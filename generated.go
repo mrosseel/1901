@@ -32,10 +32,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log"
-	"os"
-	"path/filepath"
+	"path"
 	"slices"
 	"sort"
 	"strings"
@@ -61,15 +62,6 @@ type generatedVariant struct {
 // before any request is served and read-only afterwards, like placements.
 var generatedVariants = map[string]generatedVariant{}
 
-// generatedDir is where the variants live. The environment variable exists so
-// a test can point at a temporary directory.
-func generatedDir() string {
-	if p := os.Getenv("GENERATED_VARIANTS"); p != "" {
-		return p
-	}
-	return filepath.Join("variants", "generated")
-}
-
 // loadGeneratedVariants reads every subdirectory of the generated directory.
 //
 // A missing directory is not an error: a checkout with no generated maps is a
@@ -77,13 +69,13 @@ func generatedDir() string {
 // variant whose descriptor half-parsed would mean games played on a board
 // nobody described.
 func loadGeneratedVariants() error {
-	dir := generatedDir()
-	entries, err := os.ReadDir(dir)
+	fsys := generatedFS()
+	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
-		return fmt.Errorf("read %v: %w", dir, err)
+		return fmt.Errorf("read %v: %w", generatedDir(), err)
 	}
 
 	// Descriptors first, art second. A variant may be drawn on another
@@ -100,7 +92,7 @@ func loadGeneratedVariants() error {
 			return fmt.Errorf(
 				"generated variant directory %q is not a URL-safe key", key)
 		}
-		one, err := loadGeneratedVariant(filepath.Join(dir, key), key)
+		one, err := loadGeneratedVariant(fsys, key)
 		if err != nil {
 			return err
 		}
@@ -116,7 +108,7 @@ func loadGeneratedVariants() error {
 			return err
 		}
 		if _, done := art[owner]; !done {
-			b, err := loadVariantArt(filepath.Join(dir, owner), owner)
+			b, err := loadVariantArt(fsys, owner)
 			if err != nil {
 				return err
 			}
@@ -186,9 +178,9 @@ func resolveArtKey(key string, drawnOn map[string]string) (string, error) {
 }
 
 // loadGeneratedVariant reads one variant directory, except its art.
-func loadGeneratedVariant(dir, key string) (pendingVariant, error) {
-	descriptorPath := filepath.Join(dir, "variant.json")
-	raw, err := os.ReadFile(descriptorPath)
+func loadGeneratedVariant(fsys fs.FS, key string) (pendingVariant, error) {
+	descriptorPath := generatedPath(path.Join(key, "variant.json"))
+	raw, err := fs.ReadFile(fsys, path.Join(key, "variant.json"))
 	if err != nil {
 		return pendingVariant{}, fmt.Errorf("read %v: %w", descriptorPath, err)
 	}
@@ -233,8 +225,8 @@ func loadGeneratedVariant(dir, key string) (pendingVariant, error) {
 
 	// Marker positions are optional, exactly as they are for a compiled
 	// variant: without a table the board falls back to the map's own anchors.
-	placementPath := filepath.Join(dir, "placements.json")
-	if b, err := os.ReadFile(placementPath); err == nil {
+	placementPath := generatedPath(path.Join(key, "placements.json"))
+	if b, err := fs.ReadFile(fsys, path.Join(key, "placements.json")); err == nil {
 		var table placementTable
 		if err := json.Unmarshal(b, &table); err != nil {
 			return pendingVariant{}, fmt.Errorf("parse %v: %w", placementPath, err)
@@ -246,7 +238,7 @@ func loadGeneratedVariant(dir, key string) (pendingVariant, error) {
 			}
 		}
 		placements[key] = table
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return pendingVariant{}, fmt.Errorf("read %v: %w", placementPath, err)
 	}
 
@@ -266,9 +258,9 @@ func loadGeneratedVariant(dir, key string) (pendingVariant, error) {
 // It is called once per picture, not once per variant: several variants may be
 // drawn on the same art, and they must be served the same bytes rather than
 // two sanitiser runs that happen to agree.
-func loadVariantArt(dir, key string) ([]byte, error) {
-	svgPath := filepath.Join(dir, "map.svg")
-	rawSVG, err := os.ReadFile(svgPath)
+func loadVariantArt(fsys fs.FS, key string) ([]byte, error) {
+	svgPath := generatedPath(path.Join(key, "map.svg"))
+	rawSVG, err := fs.ReadFile(fsys, path.Join(key, "map.svg"))
 	if err != nil {
 		return nil, fmt.Errorf("read %v: %w", svgPath, err)
 	}

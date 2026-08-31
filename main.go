@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -25,6 +27,11 @@ import (
 	"github.com/zond/godip/state"
 	"github.com/zond/godip/variants/common"
 )
+
+// version is the release this binary was built from. A release sets it with
+// -ldflags "-X main.version=..." (ADR-051); a build from a checkout says so,
+// because a bug report from a table has to name the build it came from.
+var version = "dev"
 
 // defaultAddr can be overridden with the ADDR environment variable, e.g.
 // ADDR=:8000 to use a port the host firewall already allows.
@@ -545,21 +552,16 @@ type gameHandler func(g *game, id string, w http.ResponseWriter, r *http.Request
 
 // server holds what the request handlers need beyond the registry.
 type server struct {
-	// spaDir is the built frontend (web/dist), a vite build.
-	spaDir string
-}
-
-// isFile reports whether the path exists and is a regular file.
-func isFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
+	// spa is the built frontend (web/dist), a vite build. It is a directory
+	// on disk in a development build and the copy inside the binary in a
+	// release build (ADR-051), and nothing here can tell the difference.
+	spa fs.FS
 }
 
 // serveSPA serves the built single page application shell. The client
 // routes itself from location.pathname, so every page gets this file.
 func (self *server) serveSPA(w http.ResponseWriter, r *http.Request) {
-	index := filepath.Join(self.spaDir, "index.html")
-	if !isFile(index) {
+	if !isFileIn(self.spa, "index.html") {
 		http.Error(w,
 			"the frontend is not built yet — run `npm install && npm run build` in web/ to create web/dist",
 			http.StatusServiceUnavailable)
@@ -567,22 +569,21 @@ func (self *server) serveSPA(w http.ResponseWriter, r *http.Request) {
 	}
 	// The shell must not be cached; the hashed assets beside it may be.
 	w.Header().Set("Cache-Control", "no-store")
-	http.ServeFile(w, r, index)
+	http.ServeFileFS(w, r, self.spa, "index.html")
 }
 
 // serveSPAAsset serves one file from the build output, by URL path.
 func (self *server) serveSPAAsset(w http.ResponseWriter, r *http.Request) {
-	name := filepath.Clean(strings.TrimPrefix(r.URL.Path, "/"))
-	if name == "." || strings.HasPrefix(name, "..") {
+	name := path.Clean(strings.TrimPrefix(r.URL.Path, "/"))
+	if !fs.ValidPath(name) || name == "." {
 		http.NotFound(w, r)
 		return
 	}
-	path := filepath.Join(self.spaDir, name)
-	if !isFile(path) {
+	if !isFileIn(self.spa, name) {
 		http.NotFound(w, r)
 		return
 	}
-	http.ServeFile(w, r, path)
+	http.ServeFileFS(w, r, self.spa, name)
 }
 
 // serveRoot serves the game list at the bare root and resolves the files
@@ -602,16 +603,6 @@ func absPath(path string) string {
 		return abs
 	}
 	return path
-}
-
-// spaDirPath is where the built frontend lives. SPADIR overrides the
-// default, so a packaged binary can point at the directory its installer
-// chose.
-func spaDirPath() string {
-	if p := os.Getenv("SPADIR"); p != "" {
-		return p
-	}
-	return filepath.Join("web", "dist")
 }
 
 // maxBodyBytes caps every request body. The largest body the app expects
@@ -683,7 +674,11 @@ func main() {
 	games.limit = gameLimit()
 	handle, err := openDB(dbPath())
 	if err != nil {
-		log.Fatalf("open %v: %v", dbPath(), err)
+		// The usual cause on a downloaded binary is a folder the game master
+		// cannot write to, and the sqlite error alone does not say so.
+		log.Fatalf("open %v: %v\nThe database is made in the current directory. "+
+			"Start the server from a folder you can write to, or set DB to a file path.",
+			dbPath(), err)
 	}
 	defer handle.Close()
 	db = handle
@@ -691,8 +686,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	spaDir := absPath(spaDirPath())
-	srv := &server{spaDir: spaDir}
+	srv := &server{spa: spaFS()}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", srv.serveRoot)
@@ -740,8 +734,8 @@ func main() {
 	default:
 		origin = "each request — set BASE_URL to pin it"
 	}
-	log.Printf("listening on http://localhost%v (app from %v, database %v, links %v, cap %v game(s))",
-		addr, spaDir, dbPath(), origin, games.limit)
+	log.Printf("1901 %v listening on http://localhost%v (app from %v, database %v, links %v, cap %v game(s))",
+		version, addr, spaSource(), dbPath(), origin, games.limit)
 	// Timeouts, so a slow or stalled client holds one connection, not the
 	// server. Requests here are small JSON and a few megabytes of SVG at
 	// most, so these bounds are generous.

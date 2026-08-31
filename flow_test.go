@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -15,7 +16,7 @@ import (
 
 // testServer routes through the real mux, with no database behind it.
 func testServer() *server {
-	return &server{spaDir: "web/dist"}
+	return &server{spa: os.DirFS("web/dist")}
 }
 
 // makeGame creates a game through POST /games and returns the id.

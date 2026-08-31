@@ -23,10 +23,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -119,15 +119,6 @@ type overhangJSON struct {
 // placementTable is one variant's table: province abbreviation to marker.
 type placementTable map[string]placementJSON
 
-// placementDir can be pointed elsewhere with PLACEMENTS, which is what the
-// tests and a run from another working directory need.
-func placementDir() string {
-	if p := os.Getenv("PLACEMENTS"); p != "" {
-		return p
-	}
-	return "placements"
-}
-
 // placements holds every table found at startup, by variant key. It is
 // written once before any request is served and only read afterwards, so it
 // needs no lock.
@@ -144,13 +135,13 @@ var placements = map[string]placementTable{}
 // an error worth failing on, because serving half a table silently would put
 // markers in two different coordinate systems on the same board.
 func loadPlacements() error {
-	dir := placementDir()
-	entries, err := os.ReadDir(dir)
+	fsys := placementFS()
+	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
-		return fmt.Errorf("read %v: %w", dir, err)
+		return fmt.Errorf("read %v: %w", placementDir(), err)
 	}
 	loaded := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -163,7 +154,7 @@ func loadPlacements() error {
 		if strings.HasSuffix(key, ".hand") {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(dir, name))
+		b, err := fs.ReadFile(fsys, name)
 		if err != nil {
 			return fmt.Errorf("read %v: %w", name, err)
 		}

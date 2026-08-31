@@ -35,6 +35,14 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx vitest run
+      # A release compiles this dist into the binary (ADR-051). Nothing else
+      # builds with the tag, so without this a broken embed would first show
+      # up in a release, which is the worst place to find it.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - run: go build -tags standalone .
+        working-directory: ${{ github.workspace }}
 
   datc:
     name: DATC compliance

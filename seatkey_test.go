@@ -256,7 +256,7 @@ func TestTheSeatPageOpensWithoutASession(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html></html>"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	srv := &server{spaDir: dir}
+	srv := &server{spa: os.DirFS(dir)}
 
 	rec := httptest.NewRecorder()
 	srv.serveFlow(rec, httptest.NewRequest(http.MethodGet, "/game/"+id+"/seat/me/", nil))
