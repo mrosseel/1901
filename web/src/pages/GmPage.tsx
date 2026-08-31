@@ -431,7 +431,10 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
                 note={
                   <>
                     Whoever opens this takes {handover.power}. The phone holding it now
-                    loses the seat the moment they do.
+                    loses the seat the moment they do. This link carries no key
+                    (ADR-004), so orders that seat had already locked in this phase are
+                    lost and the power holds. A player handing their own seat on, from
+                    their own menu, keeps them.
                   </>
                 }
               />

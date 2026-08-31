@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { makeSeatSeed, seatPublicKey, writeSeatSeed } from "../seatkey";
+import { makeSeatSeed, seatPublicKey, seedInAddress, writeSeatSeed } from "../seatkey";
 import { TopBar } from "../components/TopBar";
 
 import { claimGmHandover, claimHandover } from "../api";
@@ -42,10 +42,21 @@ export function HandoverPage({
         const gm = await claimGmHandover(gameId, epoch, signature);
         window.location.href = gm.gmUrl;
       } else {
-        // The phone taking the seat makes its own key (ADR-049). It is a new
-        // one and not the old holder's: a handover moves the power, and the
-        // person giving it away must keep nothing that opens the seat.
-        const seed = makeSeatSeed();
+        /*
+        The seat's own key, where the link carries one (ADR-004).
+
+        A seat that has already locked in this phase has sealed its orders
+        under a key derived from that seed, so a taking phone that made a
+        fresh one could not open them and the power would take an NMR — which
+        contradicts ADR-041's rule that the new holder inherits the seat as it
+        stands, orders included. So the seed travels, and the epoch is what
+        stops the old device from ordering (ADR-041).
+
+        A link minted by the game master carries no seed, because the server
+        has none. Then this makes one, and whatever that seat had locked in is
+        beyond reach.
+        */
+        const seed = seedInAddress() || makeSeatSeed();
         const seat = await claimHandover(gameId, power, epoch, signature, seatPublicKey(seed));
         if (seat.keyed) writeSeatSeed(gameId, seed);
         window.location.href = seat.seatUrl;

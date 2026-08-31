@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { type Handover, type SeatClient } from "../api";
-import { readSeatSeed, seatLink } from "../seatkey";
+import { readSeatSeed, seatLink, withSeed } from "../seatkey";
 import { LinkShare } from "./LinkShare";
 import { PowerChip } from "./PowerChip";
 import { ModalLayer } from "./ModalLayer";
@@ -56,7 +56,21 @@ export function SeatMenu({
     const fail = (err: unknown) => setError(err instanceof Error ? err.message : String(err));
     const seed = seat.keyed ? readSeatSeed(gameId) : null;
     setPortable(seed ? seatLink(gameId, seed) : null);
-    seat.handover().then(setLink).catch(fail);
+    /*
+    The handover carries this seat's seed, appended here and never by the
+    server (ADR-004). Without it the taking phone makes a fresh key, and the
+    orders this seat has already locked in are sealed under a key nobody can
+    make again — so handing a power over mid-phase would turn it into an NMR,
+    against ADR-041's own rule that the new holder inherits the seat as it
+    stands, orders included.
+
+    A game master minting a link for a dead phone cannot do this. The server
+    has no seed, and that link still costs the locked orders.
+    */
+    seat
+      .handover()
+      .then((made) => setLink(seed ? { ...made, url: withSeed(made.url, seed) } : made))
+      .catch(fail);
     if (isGameMaster) seat.roleHandover().then(setRole).catch(fail);
   };
 
@@ -96,8 +110,9 @@ export function SeatMenu({
                   url={link.url}
                   note={
                     <>
-                      The next person scans this and {power} is theirs. This phone loses the
-                      seat the moment they do, so do not scan it yourself.
+                      The next person scans this and {power} is theirs, orders and all,
+                      including any you have already locked in. This phone loses the seat
+                      the moment they do, so do not scan it yourself.
                     </>
                   }
                 />
@@ -118,6 +133,15 @@ export function SeatMenu({
               ) : null}
             </div>
 
+            {/*
+            The spare copy, and the only way back from a dead phone (ADR-004).
+
+            Your orders are sealed on the server under a key this seat makes.
+            Scan this onto a second device and that device makes the same key,
+            so it can release orders this phone locked in and can no longer
+            send. A phone that dies without this taking its power with it is
+            what the note has to say, because nobody opens this menu twice.
+            */}
             {portable ? (
               <LinkShare
                 private
@@ -125,8 +149,10 @@ export function SeatMenu({
                 url={portable}
                 note={
                   <>
-                    The same seat, not a handover: both devices play {power}. The key is
-                    after the # and no server ever sees it.
+                    Scan this now, onto anything you can reach later. Both devices then
+                    play {power}, and if this phone dies your locked orders still count.
+                    Without it they do not. The key is after the # and no server ever
+                    sees it.
                   </>
                 }
               />

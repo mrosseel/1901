@@ -40,6 +40,7 @@ import { styledMapUrl } from "../style";
 import { ReviewOverlay, ReviewPeekBar } from "../components/ReviewOverlay";
 import { ModalLayer } from "../components/ModalLayer";
 import { GameOver } from "../components/GameOver";
+import { KeepYourSeat } from "../components/KeepYourSeat";
 import { RefereeGuide } from "../components/RefereeGuide";
 import { SeatWaiting } from "../components/SeatWaiting";
 import { useBriefLabels, useBriefMoves, useHideOrders } from "../prefs";
@@ -853,6 +854,11 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         {/* The result, above everything, on the one screen a player is
             certainly looking at when the game ends (ADR-044). */}
         <GameOver result={state?.result} />
+
+        {/* Asked once, at the start, and never again (ADR-004). A copy of
+            this seat on another device is what saves the orders of a phone
+            that dies after locking in. */}
+        {started && !state?.result ? <KeepYourSeat gameId={gameId} power={power} /> : null}
 
         {/* Last on the panel, because it is read between turns and never
             during one: the orders and the lock are what a player reaches for

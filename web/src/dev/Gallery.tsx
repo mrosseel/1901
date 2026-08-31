@@ -37,6 +37,8 @@ import { RefereeGuide } from "../components/RefereeGuide";
 import { refereeGuide } from "../referee";
 import { dismiss, reviewKey } from "../review";
 import { STYLE_KEY } from "../style";
+import { KeepYourSeat } from "../components/KeepYourSeat";
+import { makeSeatSeed, writeSeatSeed } from "../seatkey";
 import * as fx from "./fixtures";
 import { installCapture } from "./capture";
 import { installStub, type Scenario } from "./stub";
@@ -188,6 +190,17 @@ export function buildCatalogue(): Entry[] {
       "Austria wrote Army Budapest to the Adriatic Sea: amber, dashed, private (ADR-029).",
       "seat-illegal",
     ),
+    {
+      route: "seat",
+      screen: "seat",
+      state: "keep-seat",
+      title: "Keep this seat",
+      note: "Asked once, at the start of a sealed game (ADR-004). A copy of the seat on "
+        + "another device is what releases the orders of a phone that dies after "
+        + "locking in. It is invisible without a seat key, so this screen plants one.",
+      scenario: { variantKey: VARIANT, seat: fx.seat("seat-movement") },
+      render: () => <KeepSeatDemo />,
+    },
     seatEntry(
       "sealed-locked",
       "Locked in, sealed",
@@ -416,6 +429,35 @@ export function buildCatalogue(): Entry[] {
   );
 
   return list;
+}
+
+/*
+Keep this seat, with a seat key to keep.
+
+The card draws nothing without one, and a gallery has no game to have claimed
+a seat in. So this plants a throwaway key under a game id no real game uses,
+and clears the "already asked" mark so the card is always the one worth
+looking at. Both live in this browser's storage and belong to nothing.
+*/
+function KeepSeatDemo() {
+  const gameId = "gallery-seat";
+  /* Planted while this component renders and before the card does, because
+     the card reads the key once, at mount. An effect would run too late and
+     draw an empty screen. */
+  useState(() => {
+    writeSeatSeed(gameId, makeSeatSeed());
+    try {
+      window.localStorage.removeItem("1901.keep." + gameId);
+    } catch {
+      // No storage: the card will simply not draw, which the note explains.
+    }
+    return true;
+  });
+  return (
+    <main className="page">
+      <KeepYourSeat gameId={gameId} power="France" />
+    </main>
+  );
 }
 
 /*

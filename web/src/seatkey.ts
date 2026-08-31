@@ -108,6 +108,36 @@ export function takeSeedFromAddress(gameId: string): Uint8Array | null {
   return seed;
 }
 
+/*
+The seed a link is carrying, read without storing it.
+
+takeSeedFromAddress writes what it finds, which is right for a seat address and
+wrong for a handover: a handover is not this device's seat until the claim
+succeeds. So the read is split from the write.
+*/
+export function seedInAddress(): Uint8Array | null {
+  const match = /(?:^|[#&])k=([A-Za-z0-9_-]+)/.exec(window.location.hash);
+  if (!match) return null;
+  try {
+    const seed = fromBase64Url(match[1]);
+    return seed.length === SEED_BYTES ? seed : null;
+  } catch {
+    return null;
+  }
+}
+
+/*
+The seed appended to a link, so the next device inherits this seat's keys
+(ADR-004).
+
+Only a device that holds the seed can do this, which is why it happens here
+and never on the server: the server has the public half and nothing else
+(ADR-049), and a server that could write this could read every envelope.
+*/
+export function withSeed(url: string, seed: Uint8Array): string {
+  return url + "#k=" + toBase64Url(seed);
+}
+
 /** The portable copy of a seat, for a second device or a passed phone. */
 export function seatLink(gameId: string, seed: Uint8Array): string {
   return (

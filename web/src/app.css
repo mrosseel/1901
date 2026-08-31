@@ -2214,3 +2214,40 @@ colour, which is the point: it is the one screen a table will photograph.
 .reveal-wait {
   color: var(--warn);
 }
+
+/* Keep this seat (ADR-004). Asked once, at the start of the game: a copy of
+   the seat on another device is what releases the orders of a phone that dies
+   after locking in. Amber, like the other line about a phone nobody can
+   reach — it is a thing to do now, not a failure. */
+.keep-seat {
+  border-color: var(--warn);
+}
+
+.keep-seat h2 {
+  color: var(--warn);
+}
+
+.keep-seat-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+/* The seat's own address, drawn so it can be bookmarked. It wraps, because it
+   is long and a phone is narrow. */
+.keep-seat-url {
+  display: block;
+  margin-top: 10px;
+  word-break: break-all;
+  font-size: 12px;
+}
+
+/* The seat's own address, drawn so it can be bookmarked. It wraps, because it
+   is long and a phone is narrow. */
+.keep-seat-url {
+  display: block;
+  margin-top: 10px;
+  word-break: break-all;
+  font-size: 12px;
+}
