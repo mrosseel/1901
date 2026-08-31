@@ -49,7 +49,7 @@ export function useTicker(enabled = true): void {
 export { countdown } from "./clock";
 
 /*
-How each press mode reads to a player (D-023). The app carries no messages in
+How each press mode reads to a player (ADR-023). The app carries no messages in
 any of them, so every line says what the people at the table do, never what
 the screen offers.
 */
@@ -81,7 +81,7 @@ export function settingsLines(
       : "The game master does not play a power.",
     /* Only the change is worth a line. Allowing illegal orders is what paper
        does, so it is the quiet case; refusing them is the rule a table has
-       chosen and the one a player needs told (D-029). */
+       chosen and the one a player needs told (ADR-029). */
     illegalAllowed(rules)
       ? "Illegal orders may be written; they resolve as holds."
       : "Only legal orders are accepted.",

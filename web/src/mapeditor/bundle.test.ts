@@ -100,7 +100,7 @@ describe("dragsFile", () => {
     const written = JSON.parse(dragsFile(drags)) as DragRecord[];
     expect(written.map((one) => one.province)).toEqual(["bur", "par"]);
     // The drag that changed nothing is the interesting one: it is a fault the
-    // rules cannot see yet (D-030).
+    // rules cannot see yet (ADR-030).
     expect(written[1].violationsBefore).toBe(written[1].violationsAfter);
   });
 });

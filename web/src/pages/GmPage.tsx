@@ -17,6 +17,8 @@ import { StylePicker, useMapStyle } from "../components/StylePicker";
 import { PhaseName } from "../components/PhaseName";
 import { illegalAllowed } from "../illegal";
 import { SupportedMark } from "../components/SupportedMark";
+import { StaleBuild } from "../components/StaleBuild";
+import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
 import { ReviewOverlay } from "../components/ReviewOverlay";
@@ -38,7 +40,7 @@ on arrival and every three seconds after it.
 
 While seats are still open the count is all there is. A per-power list would
 say which powers are taken, and the order they were taken in, on a screen the
-whole table can read (D-013) — and seats are anonymous (D-020). The player
+whole table can read (ADR-013) — and seats are anonymous (ADR-020). The player
 waiting screen shows a count for that reason, so this one does too. The list
 appears when the last seat is claimed: from then on every power is in it and
 it names no order.
@@ -50,10 +52,10 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /* The link the game master last minted from a row of the Powers card, and
-     what went wrong if nothing came back (D-041). */
+     what went wrong if nothing came back (ADR-041). */
   const [handover, setHandover] = useState<Handover | null>(null);
   const [handoverError, setHandoverError] = useState<string | null>(null);
-  /* The two handover links the game master's own screen shows (D-041): the
+  /* The two handover links the game master's own screen shows (ADR-041): the
      role, and the power they play once the start has dealt them one. They are
      separate pieces of state because they are separate acts, and the wording
      beside each has to be able to differ. */
@@ -64,7 +66,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
      above and the row below never fight over one box. */
   const [rowRole, setRowRole] = useState<Handover | null>(null);
 
-  /* The way back to this screen, for the bar on every ordinary page (D-043).
+  /* The way back to this screen, for the bar on every ordinary page (ADR-043).
      A game master is the one person who cannot be handed their link again. */
   const gameLabel = game?.settings?.name || gameId;
   const loaded = Boolean(game);
@@ -76,12 +78,12 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
     writeRecentGame({ url: window.location.pathname, label: gameLabel });
   }, [loaded, gameId, gameLabel]);
   /*
-  The two codes the Hand over card shows (D-041).
+  The two codes the Hand over card shows (ADR-041).
 
   They are fetched once rather than on a press, because a card that has to be
   clicked twice to show two codes is a card that gets shown one at a time by
   mistake. The role's link is there from the start; the power's appears when
-  the start deals the game master one (D-021), which is what the second
+  the start deals the game master one (ADR-021), which is what the second
   dependency watches for.
   */
   const gmPower = game?.gmPower || "";
@@ -114,6 +116,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       setProvinceNames(next.provinceNames);
       setPowerPalette(next.seats.map((seat) => seat.power));
       noteServerTime(next.now);
+      noteBuild(next.build);
       setGame(next);
       setGone(false);
     } catch (err) {
@@ -134,7 +137,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   /*
   The same adjudication, as physical acts. The game master's laptop is the
   screen the piece pusher stands at, so this is the page the guide matters
-  most on — and it carries no order content the review does not, so D-013
+  most on — and it carries no order content the review does not, so ADR-013
   holds.
   */
   const guide = useMemo(() => refereeGuide(game?.previousPhase), [game?.previousPhase]);
@@ -197,6 +200,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
 
   return (
     <>
+    <StaleBuild beat={game} />
     <main className="page wide" inert={reading || undefined}>
       <header className="page-head">
         <div>
@@ -233,7 +237,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       {/*
       The screen for the rest of the room. This page names who holds which
       power, so it is the game master's alone; the spectator view is the same
-      board with no seats in it and no token of any kind (D-013), which is
+      board with no seats in it and no token of any kind (ADR-013), which is
       what may go on a shared screen.
       */}
       <p className="head-links">
@@ -296,7 +300,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       {/*
       The powers, once they are all claimed. One row is one power, and the row
       is where the game master reaches it: today that is the handover of
-      D-041, which is here rather than on the seat because the case it exists
+      ADR-041, which is here rather than on the seat because the case it exists
       for is a phone that cannot open its own menu any more.
       */}
       {allJoined ? (
@@ -323,7 +327,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
                       setHandoverError(err instanceof Error ? err.message : String(err));
                     mintHandover(gameId, gmToken, seat.power).then(setHandover).catch(fail);
                     // The game master's own row holds two things, not one: the
-                    // seat and the role are handed on separately (D-041), so
+                    // seat and the role are handed on separately (ADR-041), so
                     // that row answers with both codes.
                     if (seat.isGm) client.roleHandover().then(setRowRole).catch(fail);
                   }}
@@ -336,7 +340,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           {/*
           The link the game master just minted. It is one at a time on purpose:
           two codes on one screen is how the wrong seat gets handed over.
-          Minting is an enumerated, logged act (D-007) and appears in the log
+          Minting is an enumerated, logged act (ADR-007) and appears in the log
           below, because a game master who can mint for any power can take any
           seat and the record is what keeps that visible.
           */}
@@ -381,7 +385,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       ) : null}
 
       {/*
-      The two handovers, which are two acts and not one (D-041). The role and
+      The two handovers, which are two acts and not one (ADR-041). The role and
       the power fail differently: a game master who gives away their power
       still runs the game, and one who gives away the role and keeps their
       power becomes an ordinary player. So there are two codes, side by side,
@@ -389,7 +393,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
 
       Before the start there is only one, because there is no power yet: the
       game master plays the leftover and it is dealt when the game begins
-      (D-021). The card says so rather than showing an empty box.
+      (ADR-021). The card says so rather than showing an empty box.
       */}
       <details className="card">
         <summary>Hand over</summary>
@@ -439,7 +443,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       </details>
 
       {/*
-      The two ways this game survives losing this screen (D-048).
+      The two ways this game survives losing this screen (ADR-048).
 
       The role is a URL and a cookie, and both live here. Nothing else in the
       app is like that: a player who loses their seat asks the game master for

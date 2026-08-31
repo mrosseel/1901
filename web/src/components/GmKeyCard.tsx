@@ -4,7 +4,7 @@ import { copyText } from "../clipboard";
 import { gmPublicKey, makeEntropy, readStoredKey, wordsFor, writeStoredKey } from "../gmkey";
 
 /*
-The twelve words, on the game master's own screen (D-048).
+The twelve words, on the game master's own screen (ADR-048).
 
 The role is the one thing in this app that cannot be handed back to you. A
 player who loses their phone gets a new link from the game master; the game

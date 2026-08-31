@@ -1,4 +1,4 @@
-// Named map styles, as data the server can read (D-033, D-026).
+// Named map styles, as data the server can read (ADR-033, ADR-026).
 //
 // A style is a JSON file in mapstyles/, with its assets — pattern
 // definitions and @font-face rules — beside it, named by relative path. The

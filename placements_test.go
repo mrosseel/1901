@@ -73,7 +73,7 @@ func TestPlacementsLoadAndPassThrough(t *testing.T) {
 }
 
 // A label record is the box the placement search reserved, and the board's
-// whole guarantee is that it draws that box and no other (D-038). So every
+// whole guarantee is that it draws that box and no other (ADR-038). So every
 // number in it has to survive the trip unchanged, and a province that has no
 // name must not gain an empty one.
 func TestPlacementLabelsPassThrough(t *testing.T) {

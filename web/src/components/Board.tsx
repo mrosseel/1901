@@ -45,7 +45,7 @@ export function Board({
   onState: (state: BoardState) => void;
   onStatus: (text: string, isError: boolean) => void;
   onSelect: (province: string | null) => void;
-  /* The provinces whose drafted order the board knows is illegal (D-029), so
+  /* The provinces whose drafted order the board knows is illegal (ADR-029), so
      the panel can mark the same rows the map marks. */
   onIllegal?: (provinces: string[]) => void;
   onHandle?: (handle: BoardHandle | null) => void;

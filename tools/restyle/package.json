@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Puts converted jDip maps into a named style (DESIGN.md D-032, D-017).",
+  "description": "Puts converted jDip maps into a named style (DESIGN.md ADR-032, ADR-017).",
   "scripts": {
     "restyle": "node restyle.ts",
     "extract-parchment": "node extract-parchment.ts",

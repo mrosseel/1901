@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Verifies and re-places unit anchors on variant maps (DESIGN.md D-003).",
+  "description": "Verifies and re-places unit anchors on variant maps (DESIGN.md ADR-003).",
   "scripts": {
     "audit": "node cli.ts",
     "test": "node --test geometry.test.ts"

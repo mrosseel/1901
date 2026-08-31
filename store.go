@@ -50,13 +50,13 @@ CREATE TABLE IF NOT EXISTS game (
     phase_index      INTEGER NOT NULL DEFAULT 0,
     created_at       TEXT    NOT NULL,
     variant          TEXT    NOT NULL DEFAULT 'classical',
-    -- The deadline settings of D-022, each with the default a game gets
+    -- The deadline settings of ADR-022, each with the default a game gets
     -- when nobody sets it, so an older row loads as the game it was.
     retreat_build_percent    INTEGER NOT NULL DEFAULT 50,
     grace_minutes            INTEGER NOT NULL DEFAULT 0,
     first_turn_extra_minutes INTEGER NOT NULL DEFAULT 0,
     press_mode               TEXT    NOT NULL DEFAULT 'ftf',
-    -- D-029, and the default is ON: a game written before the setting
+    -- ADR-029, and the default is ON: a game written before the setting
     -- existed is one where nobody was ever refused a misorder.
     illegal_moves            INTEGER NOT NULL DEFAULT 1,
     -- What the table calls this game. Empty is the ordinary case and means
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS game_order (
     province    TEXT    NOT NULL,
     power       TEXT    NOT NULL,
     parts       TEXT    NOT NULL,
-    -- An order the engine refuses, kept as the player wrote it (D-029).
+    -- An order the engine refuses, kept as the player wrote it (ADR-029).
     -- Replay needs the flag: without it a row that will not validate is
     -- indistinguishable from a corrupt one, and the two want opposite
     -- treatment — reproduce the first, drop the second and say so.
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS event (
 CREATE INDEX IF NOT EXISTS event_by_game ON event(game_id, id);
 
 -- Secrets that belong to the server rather than to a game. One row today:
--- the salt every handover link is signed with (D-041). It lives here so a
+-- the salt every handover link is signed with (ADR-041). It lives here so a
 -- QR code on a table outlives the process that printed it.
 CREATE TABLE IF NOT EXISTS server_secret (
     name  TEXT PRIMARY KEY,
@@ -143,7 +143,7 @@ func openDB(path string) (*sql.DB, error) {
 }
 
 // loadHandoverSalt reads the salt every handover link is signed with, making
-// it on first run (D-041). It is stored rather than generated per boot so a
+// it on first run (ADR-041). It is stored rather than generated per boot so a
 // code somebody photographed still works after a restart.
 func loadHandoverSalt(handle *sql.DB) error {
 	var stored string
@@ -185,10 +185,10 @@ var gameColumns = []struct{ name, definition string }{
 	{"variant_hash", `TEXT NOT NULL DEFAULT ''`},
 	// A game written before names existed keeps the identity it had: its id.
 	{"name", `TEXT NOT NULL DEFAULT ''`},
-	// The handover counter for the game master role (D-041). A game from
+	// The handover counter for the game master role (ADR-041). A game from
 	// before role handovers starts at zero, which is what its links carry.
 	{"gm_epoch", `INTEGER NOT NULL DEFAULT 0`},
-	// The public half of the game master's key (D-048), base64url. Empty
+	// The public half of the game master's key (ADR-048), base64url. Empty
 	// for every game made before keys existed and every one whose game
 	// master declined to make one; such a game has no recovery.
 	{"gm_public_key", `TEXT NOT NULL DEFAULT ''`},
@@ -206,10 +206,10 @@ var orderColumns = []struct{ name, definition string }{
 // which keeps the stored value.
 var seatColumns = []struct{ name, definition string }{
 	{"locked", `INTEGER NOT NULL DEFAULT 0`},
-	// The handover counter (D-041). A game from before handovers existed
+	// The handover counter (ADR-041). A game from before handovers existed
 	// starts every seat at zero, which is the epoch its links would carry.
 	{"epoch", `INTEGER NOT NULL DEFAULT 0`},
-	// The public half of the seat's key (D-049). Empty on every seat that
+	// The public half of the seat's key (ADR-049). Empty on every seat that
 	// holds a token instead, which is every seat of every game made before
 	// keys existed.
 	{"sign_pub", `TEXT NOT NULL DEFAULT ''`},
@@ -332,7 +332,7 @@ func (self *game) persistErr(id string) error {
                           variant_hash, name, gm_epoch, gm_public_key)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
-            -- The role can be handed on (D-041), which rotates the token, so
+            -- The role can be handed on (ADR-041), which rotates the token, so
             -- unlike the invite it is not write-once.
             gm_token         = excluded.gm_token,
             gm_epoch         = excluded.gm_epoch,
@@ -351,7 +351,7 @@ func (self *game) persistErr(id string) error {
             illegal_moves            = excluded.illegal_moves,
             variant_hash             = excluded.variant_hash,
             name                     = excluded.name,
-            -- Write-once in the handler (D-048), so this only ever writes
+            -- Write-once in the handler (ADR-048), so this only ever writes
             -- the key the game already had or the first one it is given.
             gm_public_key            = excluded.gm_public_key`,
 		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
@@ -546,7 +546,7 @@ type storedOrder struct {
 	province godip.Province
 	power    godip.Nation
 	parts    []string
-	// illegal marks a row the engine refused when it was entered (D-029).
+	// illegal marks a row the engine refused when it was entered (ADR-029).
 	// It will not validate on the way back in either, and that is expected.
 	illegal bool
 }
@@ -682,7 +682,7 @@ func (self *game) replay(history map[int][]storedOrder, nmr map[int][]string, cu
 		}
 		// The same capture the live path does, so the review of the last
 		// replayed phase comes back byte for byte — and so does every
-		// public per-phase snapshot behind the /watch URLs (D-013). That is
+		// public per-phase snapshot behind the /watch URLs (ADR-013). That is
 		// what makes a historical link survive a hard kill: it is derived
 		// from the order rows, not stored beside them.
 		position := self.positionNow()
@@ -707,7 +707,7 @@ applyStored re-enters one phase's orders.
 
 Two kinds of row will not validate, and they want opposite treatment. A row
 marked illegal was refused by the engine when the player entered it and was
-kept anyway (D-029): it is put back exactly as it was, still outside the
+kept anyway (ADR-029): it is put back exactly as it was, still outside the
 engine, so the phase replays into the same board and the same review. Any
 other row that fails is skipped with a warning rather than failing the whole
 load — a game is more useful with one missing order than not at all — and the

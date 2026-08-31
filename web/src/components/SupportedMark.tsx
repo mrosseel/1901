@@ -1,5 +1,5 @@
 /*
-A green tick beside a variant whose board art is verified (D-014).
+A green tick beside a variant whose board art is verified (ADR-014).
 
 Everything else gets nothing at all. An "experimental" badge on twenty-two of
 twenty-three variants said far more about the label than about the variants:

@@ -5,7 +5,7 @@ import { TopBar } from "../components/TopBar";
 import { claimGmHandover, claimHandover } from "../api";
 
 /*
-The page a handover QR code opens (D-041).
+The page a handover QR code opens (ADR-041).
 
 Everything needed to take the seat is in the address, so this page's whole job
 is to ask before it acts. It must not claim on load: a link preview, a scanner
@@ -26,7 +26,7 @@ export function HandoverPage({
   gameId: string;
   /* The power being handed over, or null for the game master role. They are
      one page because the moment is the same — read this, then press once —
-     and two acts because what travels is different (D-041). */
+     and two acts because what travels is different (ADR-041). */
   power: string | null;
   epoch: string;
   signature: string;
@@ -42,7 +42,7 @@ export function HandoverPage({
         const gm = await claimGmHandover(gameId, epoch, signature);
         window.location.href = gm.gmUrl;
       } else {
-        // The phone taking the seat makes its own key (D-049). It is a new
+        // The phone taking the seat makes its own key (ADR-049). It is a new
         // one and not the old holder's: a handover moves the power, and the
         // person giving it away must keep nothing that opens the seat.
         const seed = makeSeatSeed();

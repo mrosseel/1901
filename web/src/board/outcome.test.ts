@@ -121,7 +121,7 @@ describe("which supports would draw on top of each other", () => {
 
 describe("an order that was never legal", () => {
   /* It failed like any other failure — the unit held — but it failed before
-     the adjudication rather than in it, so it gets its own ink (D-029). */
+     the adjudication rather than in it, so it gets its own ink (ADR-029). */
   it("beats every other reading of the same order", () => {
     expect(outcomeOf("movement", ["Move", "mos"], false, true)).toBe("illegal");
     expect(outcomeOf("movement", ["Move", "mos"], true, true)).toBe("illegal");

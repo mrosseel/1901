@@ -48,7 +48,7 @@ func TestNameOverridesLayerOverGodip(t *testing.T) {
 	}
 }
 
-// The three variant-level files the map editor loads (D-030). It edits a
+// The three variant-level files the map editor loads (ADR-030). It edits a
 // variant rather than a game, so each of these has to answer without one.
 func TestVariantFilesServeWithoutAGame(t *testing.T) {
 	// The tables are read once at startup in main(); a test process has to ask

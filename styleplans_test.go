@@ -1,6 +1,6 @@
 package main
 
-// The two shapes a style plan comes in (D-038). Version 1 is every plan
+// The two shapes a style plan comes in (ADR-038). Version 1 is every plan
 // checked in here; version 2 is what the exporter writes for a map whose names
 // have left the art. Both load, and the difference between them is where the
 // land-or-sea verdicts live.
@@ -96,7 +96,7 @@ func TestOnlyTheTwoKnownPlanVersionsAreRead(t *testing.T) {
 }
 
 // Every plan in the repository is version 1 and stays version 1 until its map
-// is re-authored (D-039). If this fails because a plan moved to version 2, the
+// is re-authored (ADR-039). If this fails because a plan moved to version 2, the
 // byte-for-byte promise below it is what has to be re-checked.
 func TestEveryCheckedInPlanIsStillVersionOne(t *testing.T) {
 	if err := loadPlans(); err != nil {

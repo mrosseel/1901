@@ -1,10 +1,10 @@
 # M1 flow contract — GM setup, invites, seats, phases
 
-Scope: the end-to-end flow of DESIGN.md D-020/D-021/D-022 on top of the M0
+Scope: the end-to-end flow of DESIGN.md ADR-020/ADR-021/ADR-022 on top of the M0
 spike. In-memory for now (SQLite later within M1). Classical only. Orders
 are stored plainly server-side (commit-reveal is M3); "lock" here
 means: mark the seat's orders locked in, replaceable until the phase
-resolves (D-011). The word was "finalize" until 2026-08-30.
+resolves (ADR-011). The word was "finalize" until 2026-08-30.
 
 Terminology per CONTEXT.md: Power (UI word), Seat, Player, Lock,
 Adjudicate, Resolution, NMR, Spectator view.
@@ -15,7 +15,7 @@ All tokens are random, URL-safe, ≥16 bytes entropy. Three kinds:
 `gmToken` (GM control), `inviteToken` (the one shared join link),
 `seatToken` (one per seat, created at claim). Device secret: random value
 set as a cookie at claim; a device presenting it gets its existing seat
-back (D-020). Referee secret: a fourth random value, set as a cookie at
+back (ADR-020). Referee secret: a fourth random value, set as a cookie at
 game creation; the browser holding it may open `/game/{id}/referee/`, and
 it is how the GM reaches the controls without the GM link ever being
 displayed or shared.
@@ -49,7 +49,7 @@ New game flow lives under /game/ (server) and new pages:
      leftover power to the GM seat when gmPlays; starts phase 1 and the
      deadline clock.
   - `POST .../adjudicate` → force adjudication; only when `canForce`
-     (deadline passed, or all-but-one locked — D-007). Unlocked
+     (deadline passed, or all-but-one locked — ADR-007). Unlocked
      seats resolve as NMR (units hold), event-logged.
   - `POST .../extend` `{minutes}` → push deadlineAt; event-logged.
 - Join:
@@ -72,7 +72,7 @@ New game flow lives under /game/ (server) and new pages:
      to this seat's power. No nation query parameter accepted.
   - `POST .../order` → same body as M0; 403 for another power's unit.
   - `POST .../lock` and `POST .../unlock` → toggle; auto-
-     adjudicate the moment every power is locked (D-008). After
+     adjudicate the moment every power is locked (ADR-008). After
      adjudication all seats' locked flags reset.
      `finalize` and `unfinalize` still reach the same two handlers, for
      phones that loaded the page before the 2026-08-30 rename. Delete
@@ -110,7 +110,7 @@ public only after adjudication.
   adjudication show all resolutions (public). Header: "You are Austria",
   phase, deadline countdown, Lock toggle + "N of 7 locked",
   "rules changed" banner on settingsVersion bump.
-- Poll /public every ~3s for liveness (SSE comes later per D-006).
+- Poll /public every ~3s for liveness (SSE comes later per ADR-006).
 
 ## Non-goals here
 
@@ -124,7 +124,7 @@ identity-mode setting, event-log UI. Keep the M0 sandbox working.
   `{key, name, powers: [names], powerCount, soloSCCount, totalSCCount,
    startYear, description, rules, createdBy, supported: bool,
    mapUrl: "/variants/{key}/map.svg"}`. `supported` is true only for
-  classical (D-014); the rest are experimental.
+  classical (ADR-014); the rest are experimental.
 - `GET /variants/{key}/map.svg` → that variant's map.
 - `POST /games` gains `settings.variant` (default `classical`); the whole
   flow (start position, parser, options, nations, long names) runs on the
@@ -142,7 +142,7 @@ identity-mode setting, event-log UI. Keep the M0 sandbox working.
 
 ## Addendum: deadline settings, watch URLs, press mode (r18)
 
-### Settings (D-022, D-027)
+### Settings (ADR-022, ADR-027)
 
 `POST /games` and `POST /game/{id}/gm/{gmToken}/settings` accept, on top of
 `deadlineMinutes`, `gmPlays` and `variant`:
@@ -155,9 +155,9 @@ identity-mode setting, event-log UI. Keep the M0 sandbox working.
 - `firstTurnExtraMinutes: int` (default 0). Added to the first movement
   phase only.
 - `pressMode: "ftf" | "gunboat" | "fullpress" | "rulebook"` (default `ftf`,
-  D-023). Data only, with no behaviour attached. An unknown value is a 400.
+  ADR-023). Data only, with no behaviour attached. An unknown value is a 400.
   Immutable after start, like `gmPlays`.
-- `illegalMoves: bool` (default **true**, D-029). With it on, an order that
+- `illegalMoves: bool` (default **true**, ADR-029). With it on, an order that
   parses but fails engine validation is stored as the player wrote it and
   marked illegal. It never enters the engine, so the unit holds, and the
   review gives it the resolution `IllegalOrder`. With it off, such an order
@@ -186,7 +186,7 @@ the next phase for anybody. A phase the GM forces carries nothing.
 GM, seat and public state gain `graceUntil` (RFC3339 or null) and
 `phaseMinutes`, the clock this phase was given.
 
-### Public per-phase watch URLs (D-013, D-028)
+### Public per-phase watch URLs (ADR-013, ADR-028)
 
 - `GET /watch/{gameId}/` and `GET /watch/{gameId}/{phaseIndex}` serve the SPA
   shell. A game that does not exist is a 404, not a shell.
@@ -208,7 +208,7 @@ A phase index that has not happened is a 404. The snapshots are built by the
 same replay the restore path uses, so a historical URL is stable across a
 restart and a hard kill.
 
-### Map styles are composed at serve time (D-026)
+### Map styles are composed at serve time (ADR-026)
 
 - `GET /styles` returns `[{name, title, description}]`, the default first.
 - `GET /variants/{key}/map.svg?style=<name>` and `/game/{id}/map.svg` behave

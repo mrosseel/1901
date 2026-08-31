@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, SeatClient, fetchPublic, type SeatState } from "../api";
 import { Board } from "../components/Board";
+import { StaleBuild } from "../components/StaleBuild";
 import { SeatMenu } from "../components/SeatMenu";
 import { Standings } from "../components/Standings";
 import { writeRecentGame } from "../recent";
@@ -25,6 +26,7 @@ import type {
   Unit,
 } from "../board/types";
 import { settingsLines, usePoll, useTicker } from "../hooks";
+import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
 import { useMapStyle } from "../components/StylePicker";
@@ -61,7 +63,7 @@ a tap on someone else's unit is answered with a sentence, not a 403.
 export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: string }) {
   const client = useMemo(() => new SeatClient(gameId, seatToken), [gameId, seatToken]);
   /*
-  A keyed seat (D-049). The address carries no token: the seed does the work,
+  A keyed seat (ADR-049). The address carries no token: the seed does the work,
   and it arrives either from this device's storage or, once, from the fragment
   of the link that was opened. Reading it here is what moves it into storage
   and takes it out of the address bar.
@@ -93,7 +95,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const [briefLabels, setBriefLabels] = useBriefLabels();
   const [briefMoves, setBriefMoves] = useBriefMoves();
   /*
-  The drafts this device knows the rules refuse (D-029). It comes from the
+  The drafts this device knows the rules refuse (ADR-029). It comes from the
   board, which is the only thing that saw the options tree the target was not
   in, and it goes no further than this panel: nothing about it is sent, and no
   other seat is told. That is the point of writing one.
@@ -106,7 +108,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const power = state?.you?.power || "";
 
   /*
-  The way back to this board (D-043).
+  The way back to this board (ADR-043).
 
   A player who leaves the seat to look at the list or read the questions has
   no account to find it again with: the address in the bar is the only copy of
@@ -132,6 +134,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       // Every countdown on this page is measured against the server's clock,
       // never this device's.
       noteServerTime(next.now);
+      noteBuild(next.build);
       setState(next);
       if (knownVersion.current !== null && next.settingsVersion !== knownVersion.current) {
         setRulesChanged(true);
@@ -162,6 +165,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     async () => {
       const summary = await fetchPublic(gameId);
       noteServerTime(summary.now);
+      noteBuild(summary.build);
       if (!summary.started) setBeat((n) => n + 1);
       const mark = JSON.stringify([
         summary.started,
@@ -313,7 +317,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       const next = await client.lock(wanted);
       setState(next);
       /*
-      Locking last resolves the phase at once (D-008), and that clears every
+      Locking last resolves the phase at once (ADR-008), and that clears every
       flag — so a false flag after asking to lock means "it adjudicated",
       not "it did not take".
       */
@@ -336,7 +340,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       <main className="page">
         <h1>This device holds no seat here</h1>
         <p>
-          A seat lives on the phone that claimed it, not in this address (D-049). This
+          A seat lives on the phone that claimed it, not in this address (ADR-049). This
           browser has no key for game {gameId}: it never claimed a power here, or its
           storage was cleared.
         </p>
@@ -419,6 +423,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
 
   return (
     <>
+    <StaleBuild beat={state ?? null} />
     <SplitLayout className="seat-layout" frozen={reading}>
       <main className="map-pane" inert={mapFrozen || undefined}>
         <Board
@@ -461,11 +466,11 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             <p className="phase-now">
               <PhaseName phase={state?.phase} />
             </p>
-            {/* The power, and the seat's own menu behind it (D-041). The icon
+            {/* The power, and the seat's own menu behind it (ADR-041). The icon
                 is the way to hand this seat to another phone, which is what a
                 dead battery or a player going home needs. */}
             {/* The power names itself, on its own colour, and the menu is
-                behind it (D-041) — which is how a dead battery or a player
+                behind it (ADR-041) — which is how a dead battery or a player
                 going home hands the seat on. */}
             <h1 className="seat-you">
               <span className="seat-you-word">You are</span>
@@ -592,12 +597,6 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           {status}
         </p>
 
-        {/* Every power's centre count, from the board this screen is already
-            drawing. It is the number the game is about, and counting it off
-            the map by hand is what players did instead. */}
-        {started ? (
-          <Standings state={state} you={power} powers={Object.keys(state?.locked || {})} />
-        ) : null}
 
         {/* No orders before the start: no phase has asked for one and the
             server refuses one. So the list, its heading and the switch that
@@ -693,6 +692,14 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
               ))}
             </ul>
           </section>
+        ) : null}
+
+        {/* Last on the panel, because it is read between turns and never
+            during one: the orders and the lock are what a player reaches for
+            under the clock. Every power's supply centres, counted off the
+            board this screen is already drawing. */}
+        {started ? (
+          <Standings state={state} you={power} powers={Object.keys(state?.locked || {})} />
         ) : null}
 
       </aside>

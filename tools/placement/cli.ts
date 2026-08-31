@@ -1,5 +1,5 @@
 /*
-Programmatic placement verification for variant maps (DESIGN.md D-003).
+Programmatic placement verification for variant maps (DESIGN.md ADR-003).
 
     node cli.ts --variant classical --variant coldwar
     node cli.ts --all

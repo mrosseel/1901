@@ -1,5 +1,5 @@
 /*
-Orders that are not legal, and are written anyway (D-029).
+Orders that are not legal, and are written anyway (ADR-029).
 
 Face-to-face Diplomacy is played on paper, and paper takes any order you can
 spell. "A Par → Mos" is not a move Paris can make, and writing it is not a

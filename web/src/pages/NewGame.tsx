@@ -39,7 +39,7 @@ export function NewGame() {
   const [deadlineMinutes, setDeadlineMinutes] = useState(15);
   const [gmPlays, setGmPlays] = useState(true);
   /* On by default: the paper game takes any order you can spell, and taking
-     that away is the change, not leaving it (D-029, illegal.ts). */
+     that away is the change, not leaving it (ADR-029, illegal.ts). */
   const [illegalMoves, setIllegalMoves] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

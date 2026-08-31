@@ -3,7 +3,7 @@ import { verify } from "@noble/ed25519";
 import { entropyFor, gmPublicKey, makeEntropy, signMessage, wordsFor } from "./gmkey";
 import { fromBase64Url } from "./keys";
 
-describe("the game master's key (D-048)", () => {
+describe("the game master's key (ADR-048)", () => {
   it("writes twelve words and reads the same entropy back", () => {
     const entropy = makeEntropy();
     const words = wordsFor(entropy);

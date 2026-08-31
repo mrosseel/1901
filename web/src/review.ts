@@ -34,7 +34,7 @@ export interface ReviewRow {
   failed: boolean;
   /** "bounced", "cut", … — the reason, in the server's own words. */
   reason: string;
-  /* Written but never legal (D-029). It is a failure like the others and it is
+  /* Written but never legal (ADR-029). It is a failure like the others and it is
      listed as one, in its own words: "bounced" is a story about the board and
      "illegal" is a story about the order. */
   illegal: boolean;

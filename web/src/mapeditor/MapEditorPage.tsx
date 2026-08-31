@@ -1,5 +1,5 @@
 /*
-The map editor (D-030).
+The map editor (ADR-030).
 
 A variant's placement table used to be corrected in a standalone HTML file the
 tool generated per variant — 26 pages, each a snapshot of the map at the moment
@@ -13,7 +13,7 @@ somewhere and a person disagreed, so there is a rule it does not know. The log
 records the move with the count either side of it, and the end state of this
 screen is an audit viewer whose drag count is zero.
 
-D-017 holds here as everywhere: the board never enters the React tree. React
+ADR-017 holds here as everywhere: the board never enters the React tree. React
 draws the panel, mounts the island once, and reaches the SVG for exactly one
 thing the island does not offer — the drag handles, which live in their own
 layer and are addressed in map units, so pan and zoom carry them along.

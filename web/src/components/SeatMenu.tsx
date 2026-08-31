@@ -7,7 +7,7 @@ import { PowerChip } from "./PowerChip";
 import { ModalLayer } from "./ModalLayer";
 
 /*
-The seat's own menu (D-041).
+The seat's own menu (ADR-041).
 
 Every seat carries a player icon. Tapping it opens this: what the seat is, and
 the one thing that can be done with it. It is deliberately short — a player
@@ -34,13 +34,13 @@ export function SeatMenu({
   turns?: number;
   createdAt?: string;
   /* A game master who plays holds two things at once, and they are handed on
-     separately (D-041). Their menu shows both codes; everybody else's shows
+     separately (ADR-041). Their menu shows both codes; everybody else's shows
      the one they have. */
   isGameMaster?: boolean;
   seat: SeatClient;
 }) {
   const [open, setOpen] = useState(false);
-  /* The seat's own address, rebuilt from the seed this device holds (D-049).
+  /* The seat's own address, rebuilt from the seed this device holds (ADR-049).
      It is the portable copy: a second device, or a phone passed round the
      table, opens the same seat rather than taking it from anybody. */
   const [portable, setPortable] = useState<string | null>(null);
@@ -134,7 +134,7 @@ export function SeatMenu({
 
             {/* The way out, and back. The seat page has no bar of its own —
                 the map wants every pixel — so the links live here, one tap
-                from the board (D-043). */}
+                from the board (ADR-043). */}
             <nav className="seat-menu-links">
               <a href="/games">All games</a>
               <a href="/faq">Questions</a>

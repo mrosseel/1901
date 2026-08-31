@@ -1,5 +1,5 @@
 /*
-The game master's key, on the device that holds it (D-048).
+The game master's key, on the device that holds it (ADR-048).
 
 The role used to be a link and a cookie, both on one machine, and losing them
 was a game nobody could run. So this browser makes a key. The server is handed

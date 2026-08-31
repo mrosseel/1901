@@ -22,7 +22,7 @@ states, not for playing, and a half-simulated server would be a lie of a
 different kind. The README says so too.
 */
 
-import type { GmState, PublicState, SeatState, WatchState } from "../api";
+import type { GameSummary, GmState, PublicState, SeatState, WatchState } from "../api";
 import type { OptionTree } from "../board/types";
 import { gameIdOf } from "./fixtures";
 
@@ -37,10 +37,14 @@ export interface Scenario {
   phases?: Record<number, WatchState>;
   /** Province → the option tree the server answered with. */
   options?: Record<string, OptionTree>;
+  /** The rows the game list shows. Only the list screen needs them. */
+  games?: GameSummary[];
 }
 
-const SEAT = /^\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|lock|unlock)$/;
-const GM = /^\/game\/[^/]+\/gm\/[^/]+\/(state|settings|start|adjudicate|extend)$/;
+/* The app's own transport is versioned and prefixed (ADR-050); the published
+   reads are not, which is the whole point of the split. */
+const SEAT = /^\/api\/v1\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|lock|unlock)$/;
+const GM = /^\/api\/v1\/game\/[^/]+\/gm\/[^/]+\/(state|settings|start|adjudicate|extend)$/;
 const WATCH = /^\/game\/[^/]+\/watch(?:\/(\d+))?$/;
 const PUBLIC = /^\/game\/[^/]+\/public$/;
 const MAP = /\/map\.svg$/;
@@ -114,6 +118,10 @@ function answer(scene: Scenario, url: URL, method: string): Response | null {
       return one ? json(one) : missing("phase " + watch[1]);
     }
     return scene.watch ? json(scene.watch) : missing("a live phase on this screen");
+  }
+
+  if (path === "/api/v1/games") {
+    return json(scene.games || []);
   }
 
   if (PUBLIC.test(path)) {

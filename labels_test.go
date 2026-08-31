@@ -16,7 +16,7 @@ import (
 
 var nameTextRe = regexp.MustCompile(`<text id="(\w+)Name"`)
 
-// The verdict is derived from godip's graph and never stored (D-038), so the
+// The verdict is derived from godip's graph and never stored (ADR-038), so the
 // only way to know the derivation is right is to check it against the answer
 // the art itself gives: the style plan's kinds, one per <text> in document
 // order, measured in a browser from what each name stands on.
@@ -63,7 +63,7 @@ func TestSeaVerdictMatchesTheArtsOwnMeasurement(t *testing.T) {
 	}
 }
 
-// The flag is the mode, and nothing else is (D-038). A map full of records
+// The flag is the mode, and nothing else is (ADR-038). A map full of records
 // whose art still draws its names must hand the board no plan at all, or the
 // board draws a second set of names over the first.
 func TestLabelPlanFollowsTheFlagAndNotTheRecords(t *testing.T) {
@@ -149,7 +149,7 @@ func TestAnArtModeStateCarriesNoLabelField(t *testing.T) {
 
 /*
 The board's land-or-sea verdict comes from the variant graph, never from the
-plan's kinds (D-038). The two normally agree, which is why nothing would
+plan's kinds (ADR-038). The two normally agree, which is why nothing would
 notice the day one started answering for the other: the exporter writes kinds
 for a styling pass, and a reader that quietly promoted it to the source of
 truth would keep passing every test that only checks the answer.

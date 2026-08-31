@@ -17,10 +17,18 @@ The address is the state:
     /dev/screens?screen=seat&state=retreat&theme=dark&w=390&style=midnight
 */
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
+import { FaqPage } from "../pages/FaqPage";
+import { GamesPage } from "../pages/GamesPage";
+import type { Route } from "../api";
 import { GmPage } from "../pages/GmPage";
+import { HandoverPage } from "../pages/HandoverPage";
+import { JoinPage } from "../pages/JoinPage";
+import { LandingPage } from "../pages/LandingPage";
+import { NewGame } from "../pages/NewGame";
+import { RecoverPage } from "../pages/RecoverPage";
 import { SeatPage } from "../pages/SeatPage";
 import { WatchPage } from "../pages/WatchPage";
 import { ModalLayer } from "../components/ModalLayer";
@@ -36,6 +44,13 @@ import "./gallery.css";
 // --- the catalogue --------------------------------------------------------
 
 interface Entry {
+  /*
+  The route this entry is the picture of. It is what makes the catalogue
+  answerable to the app rather than to whoever last remembered to add a
+  screen: gallery.coverage.test.ts walks the Route union and fails when a
+  kind has no entry here. Eight screens went missing before it existed.
+  */
+  route: Route["kind"];
   screen: string;
   state: string;
   title: string;
@@ -47,6 +62,12 @@ interface Entry {
 }
 
 const VARIANT = "classical";
+
+/* The editor carries the placement geometry no other page needs, so it is
+   loaded the way the app loads it rather than pulled into this bundle. */
+const MapEditorPage = lazy(() =>
+  import("../mapeditor/MapEditorPage").then((module) => ({ default: module.MapEditorPage })),
+);
 
 /** The five resolved phases of the captured game, for the spectator's nav. */
 function watchPhases(): Record<number, ReturnType<typeof fx.watch>> {
@@ -65,6 +86,7 @@ function seatEntry(
 ): Entry {
   const seat = fx.seat(fixture);
   return {
+    route: "seat",
     screen: "seat",
     state: state,
     title: title,
@@ -82,6 +104,7 @@ function seatEntry(
 function gmEntry(state: string, title: string, note: string, fixture: string): Entry {
   const gm = fx.gm(fixture);
   return {
+    route: "gm",
     screen: "gm",
     state: state,
     title: title,
@@ -91,7 +114,11 @@ function gmEntry(state: string, title: string, note: string, fixture: string): E
   };
 }
 
-function buildCatalogue(): Entry[] {
+/*
+Every screen the app can be in. Exported for the coverage test, which is what
+keeps this list answerable to the Route union rather than to memory.
+*/
+export function buildCatalogue(): Entry[] {
   const live = fx.watch("watch-live");
   const waiting = fx.watch("watch-prestart");
   const phases = watchPhases();
@@ -161,7 +188,7 @@ function buildCatalogue(): Entry[] {
     seatEntry(
       "illegal-draft",
       "Illegal order drafted",
-      "Austria wrote Army Budapest to the Adriatic Sea: amber, dashed, private (D-029).",
+      "Austria wrote Army Budapest to the Adriatic Sea: amber, dashed, private (ADR-029).",
       "seat-illegal",
     ),
     seatEntry(
@@ -176,6 +203,7 @@ function buildCatalogue(): Entry[] {
 
   if (guide) {
     list.push({
+      route: "seat",
       screen: "seat",
       state: "guide",
       title: "Move the pieces",
@@ -224,6 +252,7 @@ function buildCatalogue(): Entry[] {
       "gm-adjustment",
     ),
     {
+      route: "watch",
       screen: "watch",
       state: "waiting",
       title: "Waiting to start",
@@ -232,6 +261,7 @@ function buildCatalogue(): Entry[] {
       render: () => <WatchPage gameId={waiting.gameId} phaseIndex={null} />,
     },
     {
+      route: "watch",
       screen: "watch",
       state: "live",
       title: "Live",
@@ -240,12 +270,122 @@ function buildCatalogue(): Entry[] {
       render: () => <WatchPage gameId={live.gameId} phaseIndex={null} />,
     },
     {
+      route: "watch",
       screen: "watch",
       state: "historical",
       title: "Historical phase",
       note: "Fall 1901 movement, resolved: every power's orders in the outcome colours.",
       scenario: { variantKey: VARIANT, watch: live, phases: phases },
       render: () => <WatchPage gameId={live.gameId} phaseIndex={2} />,
+    },
+  );
+
+  /*
+  The screens with no game behind them.
+
+  They carry no token and most of them fetch nothing, which is why they were
+  easy to leave out of a gallery built around captured game states — and why
+  leaving them out was wrong: they are the screens a stranger meets first, and
+  the ones nobody ever looks at twice.
+  */
+  list.push(
+    {
+      route: "index",
+      screen: "page",
+      state: "landing",
+      title: "The landing page",
+      note: "The root (ADR-043): what this is, for somebody who was sent a link and nothing else.",
+      scenario: { variantKey: VARIANT },
+      render: () => <LandingPage />,
+    },
+    {
+      route: "games",
+      screen: "page",
+      state: "games",
+      title: "The game list",
+      note: "Every game this server holds. No ids on the face of it: the name is the handle.",
+      scenario: { variantKey: VARIANT, games: fx.gameList(waiting, live) },
+      render: () => <GamesPage />,
+    },
+    {
+      route: "games",
+      screen: "page",
+      state: "games-empty",
+      title: "The game list, empty",
+      note: "A server nobody has started a game on yet.",
+      scenario: { variantKey: VARIANT, games: [] },
+      render: () => <GamesPage />,
+    },
+    {
+      route: "new",
+      screen: "page",
+      state: "new",
+      title: "New game",
+      note: "The rules above, the board gallery below. Variants come from the real server.",
+      scenario: { variantKey: VARIANT },
+      render: () => <NewGame />,
+    },
+    {
+      route: "join",
+      screen: "page",
+      state: "join",
+      title: "Join",
+      note: "What the invite code opens: the rules of this table, then one button.",
+      scenario: { variantKey: VARIANT, watch: waiting },
+      render: () => <JoinPage gameId={waiting.gameId} inviteToken="fixture" />,
+    },
+    {
+      route: "faq",
+      screen: "page",
+      state: "faq",
+      title: "Questions",
+      note: "What this does at a table, and what it does not do yet.",
+      scenario: { variantKey: VARIANT },
+      render: () => <FaqPage />,
+    },
+    {
+      route: "handover",
+      screen: "page",
+      state: "handover-seat",
+      title: "Handover: a power",
+      note: "The page a handover code opens (ADR-041). It takes the seat only when the button is pressed.",
+      scenario: { variantKey: VARIANT },
+      render: () => (
+        <HandoverPage gameId={live.gameId} power="Austria" epoch="1" signature="fixture" />
+      ),
+    },
+    {
+      route: "handover-gm",
+      screen: "page",
+      state: "handover-gm",
+      title: "Handover: the game master role",
+      note: "The other half of ADR-041: the rights travel and a power does not.",
+      scenario: { variantKey: VARIANT },
+      render: () => (
+        <HandoverPage gameId={live.gameId} power={null} epoch="1" signature="fixture" />
+      ),
+    },
+    {
+      route: "mapeditor",
+      screen: "page",
+      state: "mapeditor",
+      title: "The map editor",
+      note: "The placement table for one variant (ADR-030). Read-only in a shipped build; it saves only in dev.",
+      scenario: { variantKey: VARIANT },
+      render: () => (
+        <Suspense fallback={<p className="page muted">Loading the editor…</p>}>
+          <MapEditorPage />
+        </Suspense>
+      ),
+    },
+    {
+      route: "recover",
+      screen: "page",
+      state: "recover",
+      title: "Take a game back",
+      note: "The twelve words (ADR-048). The only screen in the app somebody types a secret into.",
+      scenario: { variantKey: VARIANT },
+      render: () => <RecoverPage gameId={live.gameId} />,
     },
   );
 

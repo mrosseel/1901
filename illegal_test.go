@@ -264,7 +264,7 @@ func TestReplacingAndCancellingAnIllegalOrder(t *testing.T) {
 
 func TestIllegalMovesIsOnUnlessItIsTurnedOff(t *testing.T) {
 	if !defaultSettings().IllegalMoves {
-		t.Error("illegalMoves must default to on (D-029)")
+		t.Error("illegalMoves must default to on (ADR-029)")
 	}
 	// A patch that says nothing about it leaves it alone, in both
 	// directions. This is why the envelope is a patch: a client that sends

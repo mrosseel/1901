@@ -1,6 +1,6 @@
 // Command 1901 serves in-memory Diplomacy games.
 //
-// A game is created with POST /games and is then reachable through its GM
+// A game is created with POST /api/v1/games and is then reachable through its GM
 // token, its one shared invite, and one token per seat. The React frontend
 // in web/ is served as a single page application shell; the client routes
 // itself from location.pathname.
@@ -47,14 +47,14 @@ type game struct {
 	// filtered without inspecting the board.
 	owner map[godip.Province]godip.Nation
 	// illegal marks the provinces whose stored order the engine refuses
-	// (D-029). The order is kept as the player wrote it and is shown back
+	// (ADR-029). The order is kept as the player wrote it and is shown back
 	// to them, but it is never in the engine's order set, so the unit holds
 	// and the review shows the order struck.
 	illegal map[godip.Province]bool
 	// flow carries the GM, seat, and phase state.
 	flow *flow
 	// watch is one entry per resolved phase: the public per-phase history
-	// the /watch URLs serve (D-013). It is rebuilt by replay(), so a
+	// the /watch URLs serve (ADR-013). It is rebuilt by replay(), so a
 	// historical link survives a restart.
 	watch []*watchSnapshot
 	// previousPhase is the review of the phase that resolved most
@@ -109,7 +109,7 @@ func orderParts(prov godip.Province, rawParts []string) []string {
 }
 
 // allowsIllegal reports whether this game takes orders the engine refuses
-// (D-029). It is on by default; a game whose flow is not built yet is
+// (ADR-029). It is on by default; a game whose flow is not built yet is
 // strict, which is what every internal caller wants.
 func (self *game) allowsIllegal() bool {
 	return self.flow != nil && self.flow.settings.IllegalMoves
@@ -119,7 +119,7 @@ func (self *game) allowsIllegal() bool {
 setOrder stores one order, replacing any earlier order for the same province.
 The caller must hold g.mu.
 
-There are three outcomes, and the middle one is D-029.
+There are three outcomes, and the middle one is ADR-029.
 
 An order that does not PARSE is refused. Nothing coherent can be stored from
 it: the parser is what turns a list of words into an order at all, so a
@@ -130,7 +130,7 @@ An order that parses but does not VALIDATE is a misorder — Vienna ordered to
 Paris, a support for a move nobody is making. Bluffing by misordering is part
 of Diplomacy, so with illegalMoves on it is stored as the player wrote it and
 marked illegal: it never enters the engine's order set, so at adjudication
-the unit holds and the review shows the order struck (D-029). With the
+the unit holds and the review shows the order struck (ADR-029). With the
 setting off it is refused, which is the strict behaviour this server had.
 
 An order that validates goes into the engine, as always.
@@ -175,7 +175,7 @@ func (self *game) storeOrder(prov godip.Province, rawParts []string, allowIllega
 	return nil
 }
 
-// storeIllegal keeps a misorder as written, outside the engine (D-029).
+// storeIllegal keeps a misorder as written, outside the engine (ADR-029).
 // The caller must hold g.mu.
 func (self *game) storeIllegal(prov godip.Province, parts []string, power godip.Nation) {
 	self.clearOrder(prov)
@@ -248,7 +248,7 @@ func validID(id string) bool {
 	return idPattern.MatchString(id)
 }
 
-// lookup returns an existing game. Games exist only once POST /games has
+// lookup returns an existing game. Games exist only once POST /api/v1/games has
 // created them.
 func (self *registry) lookup(id string) (*game, bool) {
 	self.mu.Lock()
@@ -305,7 +305,7 @@ type stateJSON struct {
 	Resolutions   map[string]string   `json:"resolutions"`
 	SupplyCenters map[string]string   `json:"supplyCenters"`
 	Nations       []string            `json:"nations"`
-	// Illegal names the provinces whose order the engine refuses (D-029).
+	// Illegal names the provinces whose order the engine refuses (ADR-029).
 	// The order is in Orders like any other, as the player wrote it; this
 	// is what tells a board to strike it through.
 	Illegal []string `json:"illegal"`
@@ -377,7 +377,7 @@ type phaseReviewJSON struct {
 	Dislodged   map[string]unitJSON `json:"dislodged"`
 	NMR         []string            `json:"nmr"`
 	// Illegal names the provinces whose order never reached the engine
-	// (D-029). Their resolution is "IllegalOrder", which is not something
+	// (ADR-029). Their resolution is "IllegalOrder", which is not something
 	// godip can say: an engine failure names the rule that beat the order,
 	// and this one says the order was never in the fight.
 	Illegal []string `json:"illegal"`
@@ -426,7 +426,7 @@ func (self *game) endReview(review *phaseReviewJSON) {
 		}
 	}
 	// An illegal order has no resolution of the engine's, because it was
-	// never in the engine (D-029). It gets one of ours, so a reader can tell
+	// never in the engine (ADR-029). It gets one of ours, so a reader can tell
 	// "this order was struck and the unit held" from "this order was tried
 	// and lost".
 	for _, prov := range review.Illegal {
@@ -595,15 +595,6 @@ func (self *server) serveRoot(w http.ResponseWriter, r *http.Request) {
 	self.serveSPAAsset(w, r)
 }
 
-// serveGames answers the one address the game list and the create share.
-func (self *server) serveGames(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		self.serveSPA(w, r)
-		return
-	}
-	handleCreateGame(w, r)
-}
-
 // absPath resolves a path against the working directory, leaving it as
 // given when that fails.
 func absPath(path string) string {
@@ -631,7 +622,7 @@ const maxBodyBytes = 64 << 10
 // largeBodies names the few paths that are allowed a bigger body than the
 // cap above, with the cap each one gets. It is empty in a normal build; the
 // map editor's dev-only save route is the one thing that fills it, because it
-// posts a whole placement table rather than a handful of orders (D-030).
+// posts a whole placement table rather than a handful of orders (ADR-030).
 var largeBodies = map[string]int64{}
 
 // limitBody wraps a handler so every request body is size-capped. The
@@ -707,31 +698,35 @@ func main() {
 	mux.HandleFunc("/", srv.serveRoot)
 	mux.HandleFunc("/assets/", srv.serveSPAAsset)
 	mux.HandleFunc("/new", srv.serveSPA)
-	// The map editor is one more page of the same shell (D-030). It carries
+	// The map editor is one more page of the same shell (ADR-030). It carries
 	// no game and no token, so it needs nothing but the shell; whether it can
 	// save is decided by the build, in mapeditor_dev.go.
 	mux.HandleFunc("/mapeditor", srv.serveSPA)
-	// The questions page, and one more route of the same shell (D-043).
+	// The questions page, and one more route of the same shell (ADR-043).
 	mux.HandleFunc("/faq", srv.serveSPA)
+	// The design gallery. Whether it exists is decided in the frontend build,
+	// not here: a build made without SCREENS=1 carries no gallery, and this
+	// address then serves a shell that answers "nothing here". Serving the
+	// shell either way keeps the decision in one place.
+	mux.HandleFunc("/dev/screens", srv.serveSPA)
 	registerEditorSave(mux)
-	// /games is a page and an endpoint at once (D-043). A browser asking for
-	// it gets the game list screen; a POST to it creates a game, which is
-	// what a post to a collection has always meant here. Only the JSON list
-	// moved, to /games/list, because a page and its data cannot share one
-	// address and answer the same method.
-	mux.HandleFunc("/games", srv.serveGames)
-	mux.HandleFunc("/games/list", handleListGames)
+	// The game list page (ADR-043). The list itself and the create moved to
+	// /api/v1/games with everything else the app says to itself (ADR-050),
+	// so this address is a page and only a page.
+	mux.HandleFunc("/games", srv.serveSPA)
+	// The app's own transport, all of it (ADR-050).
+	mux.HandleFunc(apiPrefix+"/", srv.serveAPI)
 	mux.HandleFunc("/variants", handleVariants)
 	mux.HandleFunc("/styles", handleStyles)
 	mux.HandleFunc("/variants/", handleVariantMap)
 	mux.HandleFunc("/game/", srv.serveFlow)
 	mux.HandleFunc("/join/", srv.serveJoinPage)
 	mux.HandleFunc("/watch/", srv.serveWatchPage)
-	// The page the next person opens from a QR code (D-041). It is one more
+	// The page the next person opens from a QR code (ADR-041). It is one more
 	// route of the same shell; the claim it posts to lives under /game/.
 	mux.HandleFunc("/handover/", srv.serveSPA)
 	mux.HandleFunc("/handover-gm/", srv.serveSPA)
-	// Where a game master types their twelve words (D-048). Another route
+	// Where a game master types their twelve words (ADR-048). Another route
 	// of the same shell; the challenge and the answer live under /game/.
 	mux.HandleFunc("/recover/", srv.serveSPA)
 	mux.HandleFunc("/recover", srv.serveSPA)

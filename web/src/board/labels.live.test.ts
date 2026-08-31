@@ -103,7 +103,7 @@ describe("the exporter's own map, in data mode", () => {
   it("draws every name and glyph from the records with nothing stripped", async () => {
     const doc = new DOMParser().parseFromString(ART, "image/svg+xml");
     // What the art must no longer carry. A name, a supply-centre glyph and a
-    // unit anchor are records now (D-038), and the anchors go with the other
+    // unit anchor are records now (ADR-038), and the anchors go with the other
     // two because an anchor and a glyph share the id the board matches.
     expect(doc.querySelectorAll("text").length).toBe(0);
     expect(doc.querySelector("#names")).toBeNull();

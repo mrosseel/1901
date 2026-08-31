@@ -1,5 +1,5 @@
 // Auto-lock: a seat whose power has no legal order this phase is locked
-// by the server rather than by the player (D-034).
+// by the server rather than by the player (ADR-034).
 package main
 
 import (

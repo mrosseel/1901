@@ -1,5 +1,5 @@
 /*
-Puts godip's own maps into the named styles (D-024).
+Puts godip's own maps into the named styles (ADR-024).
 
     node restyle-godip.ts --all --all-styles
     node restyle-godip.ts --variant classical --style midnight
@@ -15,7 +15,7 @@ paints sea in without ever guessing from the tone.
     node restyle-godip.ts --all --all-styles --server http://localhost:8195
 
 What it writes is tools/restyle/out/styled/<key>/map-<style>.svg, for looking
-at. The server does not read it: since D-026 it composes a styled map at serve
+at. The server does not read it: since ADR-026 it composes a styled map at serve
 time from the original art, the style plan plans.ts measured, and the style's
 own tokens. This tool's real output is the report and the renderings beside it.
 
@@ -45,7 +45,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
 const STYLES = stylesDir(HERE);
 /* Renderings, not assets. The server composes a styled map at serve time out
-   of the original art and the plan plans.ts writes (D-026); what this tool
+   of the original art and the plan plans.ts writes (ADR-026); what this tool
    writes is a picture of the result, for a person to look at. */
 const STYLED = join(OUT, "styled");
 
@@ -71,7 +71,7 @@ interface Options {
 
 function usage(): string {
   return [
-    "restyle-godip — put godip's own maps into a named style (D-024)",
+    "restyle-godip — put godip's own maps into a named style (ADR-024)",
     "",
     "  --server <url>     a running 1901 server (default http://localhost:8195)",
     "  --variant <key>    a variant key; repeatable",

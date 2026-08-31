@@ -55,7 +55,7 @@ variant.
 | `seat-retreat.json` | Austria in the Fall 1901 retreat, its Trieste fleet dislodged. Its `previousPhase` is the Fall 1901 movement — the bounce, the dislodge and the NMR in one review |
 | `seat-adjustment-build.json` | France owing two builds, Brest and Marseilles open |
 | `seat-adjustment-disband.json` | Austria owing one disband |
-| `seat-idle.json` | Germany in the Spring 1901 retreat, asked for nothing and locked by the server (D-034) |
+| `seat-idle.json` | Germany in the Spring 1901 retreat, asked for nothing and locked by the server (ADR-034) |
 
 ### Option trees — `Record<string, OptionTree>`
 

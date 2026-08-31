@@ -1,5 +1,5 @@
 // Style plans: what a browser measured about one map, so the server never
-// has to (D-026).
+// has to (ADR-026).
 //
 // Restyling a map is two halves. The expensive half is DETECTION — loading
 // the art in a real rendering engine and asking what is painted under each
@@ -37,9 +37,9 @@ var planFS embed.FS
 // Version 1 draws the names in the art and records one land-or-sea verdict per
 // drawn name, as a list in document order. Version 2 draws no names layer, so
 // the verdicts become a map keyed by province and the plan carries `dataMode`
-// and the typography the art was drawn in (D-038). Both shapes load: every
+// and the typography the art was drawn in (ADR-038). Both shapes load: every
 // plan checked in here is version 1 and stays version 1 until its map is
-// re-authored, one map at a time (D-039).
+// re-authored, one map at a time (ADR-039).
 const (
 	minPlanVersion = 1
 	maxPlanVersion = 2
@@ -135,7 +135,7 @@ type godipPlan struct {
 		// Found says whether the art draws a names layer, and nothing more.
 		// It is not the mode flag: a data-mode map has it false and still has
 		// names, and six art-mode maps have it false with no records to draw
-		// from (D-038). DataMode on the plan is the flag.
+		// from (ADR-038). DataMode on the plan is the flag.
 		Found bool `json:"found"`
 		// Kinds is the terrain each name was found standing on.
 		Kinds nameKinds `json:"kinds"`
@@ -195,7 +195,7 @@ type stylePlan struct {
 	JDip  *jdipPlan  `json:"jdip"`
 	// DataMode says the art no longer draws the province names or the supply
 	// centre glyphs, so the board draws both from the placement records
-	// (D-038). It is per map and it is a flag, not an inference: while the
+	// (ADR-038). It is per map and it is a flag, not an inference: while the
 	// exporter writes records AND still draws the layers, a server that read
 	// "has records, therefore hide the layer" would change every map's
 	// picture on a release that changed nothing. It is not the same fact as

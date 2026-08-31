@@ -1,7 +1,7 @@
 // M1 game flow: GM setup, one shared invite, random anonymous seats,
 // per-seat order scoping, lock, and adjudication.
 //
-// See M1-CONTRACT.md and DESIGN.md D-020, D-021, D-022, D-011, D-010, D-008.
+// See M1-CONTRACT.md and DESIGN.md ADR-020, ADR-021, ADR-022, ADR-011, ADR-010, ADR-008.
 package main
 
 import (
@@ -50,7 +50,7 @@ func newGameID() (string, error) {
 	return string(b), nil
 }
 
-// settings are the game rules the GM fixes before inviting (D-022).
+// settings are the game rules the GM fixes before inviting (ADR-022).
 //
 // Everything but the variant may be changed later; every change bumps
 // settingsVersion, lands in the event log and is broadcast to every seat.
@@ -62,7 +62,7 @@ type settings struct {
 	// Name is what the table calls this game. Optional: an unnamed game is
 	// identified by its id, as every game was before this field existed.
 	// It names the table, never a person — nothing binds it to a seat, so
-	// D-020's anonymity is untouched and every screen may show it.
+	// ADR-020's anonymity is untouched and every screen may show it.
 	Name string `json:"name"`
 
 	// RetreatBuildPercent is what share of the movement clock a retreat or
@@ -83,22 +83,22 @@ type settings struct {
 	// and every platform that has run real games gives it longer.
 	FirstTurnExtraMinutes int `json:"firstTurnExtraMinutes"`
 
-	// IllegalMoves lets a player enter an order the engine refuses (D-029).
+	// IllegalMoves lets a player enter an order the engine refuses (ADR-029).
 	// Bluffing by misordering is part of Diplomacy, so this is ON by
 	// default, in every press mode. The order is stored and shown as
 	// written; at adjudication it is left out of the engine's order set,
 	// the unit holds, and the review shows it struck.
 	IllegalMoves bool `json:"illegalMoves"`
 
-	// PressMode is how negotiation happens (D-023). Data only for now: no
+	// PressMode is how negotiation happens (ADR-023). Data only for now: no
 	// behaviour is attached to it, and the app carries no messages in any
 	// mode. Declaring it is the point — a gunboat table wants its rules
-	// written down, and seat anonymity (D-020) is load-bearing there rather
+	// written down, and seat anonymity (ADR-020) is load-bearing there rather
 	// than incidental.
 	PressMode string `json:"pressMode"`
 }
 
-// The press modes a game may declare (D-023).
+// The press modes a game may declare (ADR-023).
 //
 //   - ftf: negotiation is verbal at the table. The default.
 //   - gunboat: no negotiation at all.
@@ -122,7 +122,7 @@ const defaultRetreatBuildPercent = 50
 // defaultSettings is what a game gets when the GM says nothing at all.
 //
 // It exists because two of the defaults are not the zero value: the retreat
-// clock is half the movement clock, and illegal orders are allowed (D-029).
+// clock is half the movement clock, and illegal orders are allowed (ADR-029).
 // Building the defaults in one place is what keeps a caller from inventing a
 // game that is strict because nobody said otherwise.
 func defaultSettings() settings {
@@ -135,33 +135,33 @@ func defaultSettings() settings {
 }
 
 // seat is one power in one game together with its claim state.
-// It deliberately carries no player name (D-020).
+// It deliberately carries no player name (ADR-020).
 type seat struct {
 	power godip.Nation
 	// token is the old credential: the secret in the address, which is
 	// also the secret in the database. A seat has this or a key, never
-	// both (D-049), and no game is migrated from one to the other.
+	// both (ADR-049), and no game is migrated from one to the other.
 	token string // seatToken, empty until claimed
 	// signPub is the public half of the key the joining phone made
-	// (D-049), base64url. The server can open nothing with it.
+	// (ADR-049), base64url. The server can open nothing with it.
 	signPub string
 	device  string // device secret, empty until claimed
 	isGM   bool
 	locked bool
 
-	// epoch is the handover counter (D-041). Every link ever minted for
+	// epoch is the handover counter (ADR-041). Every link ever minted for
 	// this seat is signed for one epoch, so taking the seat and raising it
 	// kills the rest — including the phone that just gave the power away.
 	epoch int
 
 	// autoLocked marks a seat the server locked because its power has no
-	// legal order this phase (D-034). It is derived from the resolved
+	// legal order this phase (ADR-034). It is derived from the resolved
 	// position, so it is recomputed on restore rather than stored.
 	autoLocked bool
 }
 
 // claimed says whether somebody holds this seat. A seat is held by a token
-// or by a key, never both (D-049), so no count anywhere may look at one of
+// or by a key, never both (ADR-049), so no count anywhere may look at one of
 // them alone.
 func (s *seat) claimed() bool {
 	return s.token != "" || s.signPub != ""
@@ -171,12 +171,12 @@ func (s *seat) claimed() bool {
 // Every field is guarded by the enclosing game's mutex.
 type flow struct {
 	gmToken string
-	// gmEpoch is the handover counter for the role (D-041). The role and a
+	// gmEpoch is the handover counter for the role (ADR-041). The role and a
 	// power are separate acts and fail differently, so they count
 	// separately: a game master who gives the role away still plays.
 	gmEpoch int
 	// gmPublicKey is the Ed25519 public half the game master's browser
-	// registered (D-048), base64url. Empty means the game has no key and
+	// registered (ADR-048), base64url. Empty means the game has no key and
 	// cannot be recovered by its words, which is every game made before
 	// this existed and every one whose game master declined.
 	gmPublicKey string
@@ -196,7 +196,7 @@ type flow struct {
 	bySeatToken map[string]godip.Nation
 	bySignPub   map[string]godip.Nation
 	byDevice    map[string]godip.Nation
-	// sessions are open seat sessions, cookie value to power (D-049).
+	// sessions are open seat sessions, cookie value to power (ADR-049).
 	// They live in memory on purpose: a restart signs every phone back in
 	// without asking, because the seed is on the device, and nothing that
 	// opens a seat is left in a file that could be copied.
@@ -249,7 +249,7 @@ func newFlow(s settings, v common.Variant) (*flow, error) {
 	return f, nil
 }
 
-// logEvent appends to the append-only event log (D-007).
+// logEvent appends to the append-only event log (ADR-007).
 func (self *flow) logEvent(id, format string, args ...interface{}) {
 	line := fmt.Sprintf("%v %v", time.Now().UTC().Format(time.RFC3339), fmt.Sprintf(format, args...))
 	self.events = append(self.events, line)
@@ -257,7 +257,7 @@ func (self *flow) logEvent(id, format string, args ...interface{}) {
 }
 
 // joinerSeats is how many powers the invite may hand out. When the GM
-// plays, one power stays behind as the leftover (D-021).
+// plays, one power stays behind as the leftover (ADR-021).
 func (self *flow) joinerSeats() int {
 	if self.settings.GMPlays {
 		return len(self.powers) - 1
@@ -319,7 +319,7 @@ func (self *flow) pendingCounts() (asked, in int) {
 	return asked, in
 }
 
-// canForce reports whether the GM may force adjudication (D-007, D-010).
+// canForce reports whether the GM may force adjudication (ADR-007, ADR-010).
 func (self *flow) canForce() bool {
 	if !self.started {
 		return false
@@ -330,12 +330,12 @@ func (self *flow) canForce() bool {
 	}
 	done := self.lockedCount()
 	if done >= active {
-		// Auto-adjudication already covers this case (D-008).
+		// Auto-adjudication already covers this case (ADR-008).
 		return false
 	}
 	// All but one player is in and the table is waiting on the straggler.
 	// A seat the server locked was never something the table waited for, so
-	// it is left out of both counts here (D-034) — otherwise a retreat phase
+	// it is left out of both counts here (ADR-034) — otherwise a retreat phase
 	// with a single dislodged unit would arm the button the instant it
 	// opened, before its one player had read the screen.
 	asked, in := self.pendingCounts()
@@ -363,7 +363,7 @@ func (self *game) nothingToOrder(power godip.Nation) bool {
 // anyoneCouldOrder reports whether the phase now on the board asks any
 // claimed seat for an order. A phase that asks nobody is one the table never
 // saw, so its empty review must not displace the review of the phase the
-// players did play (D-034). The public per-phase history keeps it either way.
+// players did play (ADR-034). The public per-phase history keeps it either way.
 func (self *game) anyoneCouldOrder() bool {
 	for _, s := range self.flow.seats {
 		if s.claimed() && !self.nothingToOrder(s.power) {
@@ -374,7 +374,7 @@ func (self *game) anyoneCouldOrder() bool {
 }
 
 // autoLock locks every claimed seat whose power has no legal order in
-// the phase now on the board, and returns the powers it locked (D-034).
+// the phase now on the board, and returns the powers it locked (ADR-034).
 // The caller must hold g.mu.
 func (self *game) autoLock() []godip.Nation {
 	f := self.flow
@@ -396,7 +396,7 @@ enterPhase settles the phase now on the board: it auto-locks the seats with
 nothing to order and, when that leaves the whole table in, adjudicates on.
 
 The cascade is what keeps auto-lock inside the two existing resolution paths
-(D-008, D-010) instead of adding a third. A phase nobody can order is not a
+(ADR-008, ADR-010) instead of adding a third. A phase nobody can order is not a
 phase the GM should be asked to force — canForce reads the table as complete,
 so without this the game would sit on a screen with no button that does
 anything. The caller must hold g.mu.
@@ -435,7 +435,7 @@ func (self *flow) unassignedPowers() []godip.Nation {
 	return out
 }
 
-// DEADLINE ARITHMETIC (D-008, D-010, D-022; research/platforms.md, steal 8)
+// DEADLINE ARITHMETIC (ADR-008, ADR-010, ADR-022; research/platforms.md, steal 8)
 //
 // A deadline is one number in the settings and three rules on top of it, all
 // of them stolen from platforms that have run real games for years:
@@ -739,7 +739,7 @@ func refereeCookieValue(r *http.Request, id string) string {
 // settingsPatch is a settings object where every field is optional. A GM who
 // sends one setting changes one setting, and a setting nobody mentions keeps
 // the value it had. That matters most for a boolean whose default is true:
-// illegalMoves (D-029) must not turn itself off because a client left it out.
+// illegalMoves (ADR-029) must not turn itself off because a client left it out.
 type settingsPatch struct {
 	DeadlineMinutes       *int    `json:"deadlineMinutes"`
 	GMPlays               *bool   `json:"gmPlays"`
@@ -1010,7 +1010,7 @@ func handleListGames(w http.ResponseWriter, r *http.Request) {
 type joinResponse struct {
 	SeatURL string `json:"seatUrl"`
 	// Whether this seat is held by a key rather than by a token in its
-	// address (D-049). The page needs to know: a keyed seat's seed has to
+	// address (ADR-049). The page needs to know: a keyed seat's seed has to
 	// be written to this device's storage before the board is opened.
 	Keyed bool `json:"keyed,omitempty"`
 }
@@ -1029,7 +1029,7 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// The joining phone made a key and sends its public half (D-049). A
+	// The joining phone made a key and sends its public half (ADR-049). A
 	// body without one still claims a seat the old way, so a link opened
 	// by something that is not this app is not left with a dead page.
 	var body struct {
@@ -1042,7 +1042,7 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	}
 
 	// Everything below runs under the game lock, so two simultaneous
-	// scans can never draw the same power (D-020).
+	// scans can never draw the same power (ADR-020).
 	device := ""
 	if c, err := r.Cookie(deviceCookieName(id)); err == nil {
 		device = c.Value
@@ -1068,7 +1068,7 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 
 	free := f.unassignedPowers()
 	if f.settings.GMPlays {
-		// Hold one power back for the GM; it is never drawn (D-021).
+		// Hold one power back for the GM; it is never drawn (ADR-021).
 		if len(free) <= 1 {
 			free = nil
 		}
@@ -1097,7 +1097,7 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	s.device = device
 	f.byDevice[device] = power
 
-	// One or the other, never both (D-049).
+	// One or the other, never both (ADR-049).
 	session := ""
 	if body.SignPub != "" {
 		f.bindSeatKey(s, body.SignPub)
@@ -1167,10 +1167,13 @@ type gmStateJSON struct {
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
 	Now             string              `json:"now"`
-	// Whether this game has a recovery key (D-048). A boolean and not the
+	// Whether this game has a recovery key (ADR-048). A boolean and not the
 	// key: the page needs to know which card to draw, not what the server
 	// holds.
 	HasGMKey bool `json:"hasGmKey"`
+	// Which client build this server is serving (ADR-050). A page that sees
+	// it change is running JavaScript the server has moved on from.
+	Build string `json:"build"`
 }
 
 // gmState renders the GM view. The caller must hold g.mu. It contains
@@ -1203,6 +1206,7 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		PreviousPhase: self.previousPhase,
 		Now:           serverNow(),
 		HasGMKey:      f.gmPublicKey != "",
+		Build:         buildStamp(),
 	}
 	for _, p := range f.powers {
 		s := f.seats[p]
@@ -1250,7 +1254,7 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 		return
 	}
 	// The press mode is part of the rules the table agreed to play under
-	// (D-023), so it is fixed at start the way gmPlays is.
+	// (ADR-023), so it is fixed at start the way gmPlays is.
 	if f.started && neu.PressMode != old.PressMode {
 		writeErr(w, http.StatusConflict, "the press mode cannot change after the game has started")
 		return
@@ -1262,7 +1266,7 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	// The name is not a rule. It changes nothing about how the game is
 	// played, so it does not bump the settings version and no seat is told
 	// "the rules changed" over it. It is still a game master act, so it is
-	// logged (D-007).
+	// logged (ADR-007).
 	renamed := neu.Name != old.Name
 	if renamed {
 		f.settings.Name = neu.Name
@@ -1324,7 +1328,7 @@ func handleGMStart(g *game, id string, w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "expected one leftover power, found %v", len(free))
 			return
 		}
-		// The leftover, never drawn from the pool (D-021).
+		// The leftover, never drawn from the pool (ADR-021).
 		power := free[0]
 		token, err := newToken()
 		if err != nil {
@@ -1430,6 +1434,9 @@ type publicStateJSON struct {
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
 	Now             string              `json:"now"`
+	// Which client build this server is serving (ADR-050). Every page polls
+	// this answer, so this is where a stale tab finds out.
+	Build string `json:"build"`
 }
 
 func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
@@ -1438,6 +1445,7 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	f := g.flow
 	writeJSON(w, http.StatusOK, publicStateJSON{
 		GameID: id,
+		Build:  buildStamp(),
 		Phase: phaseJSON{
 			Season: string(g.state.Phase().Season()),
 			Year:   g.state.Phase().Year(),
@@ -1479,16 +1487,16 @@ type seatStateJSON struct {
 	PhaseMinutes    int             `json:"phaseMinutes"`
 	Locked          map[string]bool `json:"locked"`
 	YouLocked       bool            `json:"youLocked"`
-	// YouAreGM says this seat is the game master's own (D-021). The seat
+	// YouAreGM says this seat is the game master's own (ADR-021). The seat
 	// menu shows two handovers rather than one when it is: the role and the
 	// power are different acts and this device holds both.
 	YouAreGM bool `json:"youAreGm"`
-	// What the seat menu says about the game it belongs to (D-041): how
+	// What the seat menu says about the game it belongs to (ADR-041): how
 	// many turns have been played, and when the game was made.
 	Turns     int    `json:"turns"`
 	CreatedAt string `json:"createdAt"`
 	// NothingToOrder says this seat was locked by the server because its
-	// power has no legal order this phase (D-034). The screen must say so;
+	// power has no legal order this phase (ADR-034). The screen must say so;
 	// a seat that finds itself locked with no explanation reads as a bug.
 	NothingToOrder bool `json:"nothingToOrder"`
 	LockedCount    int  `json:"lockedCount"`
@@ -1498,7 +1506,7 @@ type seatStateJSON struct {
 	// seats that must lock, which is the wrong denominator before a phase
 	// exists and, when the GM plays, excludes a seat that is not handed out.
 	// Both numbers are already public on /public, and neither says WHICH
-	// powers are taken — that stays unsaid (D-020, D-021).
+	// powers are taken — that stays unsaid (ADR-020, ADR-021).
 	JoinedCount      int               `json:"joinedCount"`
 	SeatsOnOffer     int               `json:"seatsOnOffer"`
 	PhaseResolutions map[string]string `json:"phaseResolutions"`
@@ -1696,7 +1704,7 @@ func (self *game) seatLock(id string, power godip.Nation, want bool, w http.Resp
 		f.logEvent(id, "%v withdrew its lock", power)
 	}
 
-	// Every power locked: resolve at once (D-008).
+	// Every power locked: resolve at once (ADR-008).
 	if want && f.lockedCount() >= f.activeSeats() {
 		if err := self.adjudicate(id, false); err != nil {
 			writeErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
@@ -1710,7 +1718,7 @@ func (self *game) seatLock(id string, power godip.Nation, want bool, w http.Resp
 
 // adjudicate resolves the phase and settles the one that follows it. With
 // dropUnlocked set, powers that have not locked lose their orders and
-// their units hold — an NMR (D-010). The caller must hold g.mu.
+// their units hold — an NMR (ADR-010). The caller must hold g.mu.
 func (self *game) adjudicate(id string, dropUnlocked bool) error {
 	if err := self.advance(id, dropUnlocked); err != nil {
 		return err
@@ -1762,7 +1770,7 @@ func (self *game) advance(id string, dropUnlocked bool) error {
 	persistNMR(id, f.phaseIndex, nmr)
 
 	// The position this phase was played from, for the public per-phase URL
-	// (D-013). It is read before the board moves.
+	// (ADR-013). It is read before the board moves.
 	position := self.positionNow()
 	asked := self.anyoneCouldOrder()
 	review := self.beginReview(nmr)
@@ -1821,18 +1829,20 @@ var seatRoutes = map[string]seatHandler{
 	"unfinalize": handleSeatUnlock,
 }
 
-// serveFlow routes everything under /game/{id}/.
+/*
+serveFlow routes the bare /game/{id}/ addresses, which are the published
+surface and the pages (ADR-050).
+
+Published: the board anybody may read, at an address anybody may paste.
+Pages: the seat and the game master shell, which carry a token because the
+address is the seat (ADR-012) but answer with nothing but the app.
+
+Everything this app says to itself moved under /api/v1 and is answered by
+serveFlowAPI below.
+*/
 func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
-	rest := strings.TrimPrefix(r.URL.Path, "/game/")
-	segments := strings.Split(rest, "/")
-	if len(segments) < 2 || !validID(segments[0]) {
-		http.NotFound(w, r)
-		return
-	}
-	id := segments[0]
-	g, found := games.lookup(id)
-	if !found {
-		http.NotFound(w, r)
+	g, id, segments, ok := lookupFlow(w, r, "/game/")
+	if !ok {
 		return
 	}
 
@@ -1840,14 +1850,42 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 	case "public":
 		handlePublic(g, id, w, r)
 	case "watch":
-		// Public and unauthenticated by design (D-013).
+		// Public and unauthenticated by design (ADR-013).
 		handleWatch(g, id, segments[2:], w, r)
 	case "map.svg":
+		// The art of the board being watched, which is as public as the
+		// board is.
 		handleMap(g, id, w, r)
 	case "referee":
 		// Token-free on purpose: the referee cookie set at creation is
-		// the credential. For anyone else the address is a 404.
+		// the credential. For anyone else the address is a 404. It answers
+		// with a redirect to a page, so it belongs with the pages.
 		handleRefereeEntry(g, id, w, r)
+	case "gm", "seat":
+		// The page only. Every action under it is transport and lives
+		// under /api/v1; this address serves the shell.
+		self.servePageScope(g, id, segments, w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+/*
+serveFlowAPI routes /api/v1/game/{id}/… — everything the app says to itself
+about one game.
+
+No promises are made about any of it (ADR-050). The only caller is the
+JavaScript this same build shipped, and the version in the path is what lets
+that stay true without breaking a phone that is still on the old one.
+*/
+func (self *server) serveFlowAPI(w http.ResponseWriter, r *http.Request, path string) {
+	g, id, segments, ok := lookupFlow(w, r, "/game/")
+	if !ok {
+		return
+	}
+	_ = path
+
+	switch segments[1] {
 	case "join":
 		if len(segments) != 3 {
 			http.NotFound(w, r)
@@ -1855,17 +1893,17 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 		}
 		handleJoin(g, id, segments[2], w, r)
 	case "handover":
-		// The signature in the path is the whole credential (D-041), so
+		// The signature in the path is the whole credential (ADR-041), so
 		// this sits beside join rather than inside a token scope.
 		handleHandoverClaim(g, id, segments[2:], w, r)
 	case "handover-gm":
 		handleGMRoleClaim(g, id, segments[2:], w, r)
 	case "session":
-		// Token-free: a keyed seat has none (D-049). The signature the
+		// Token-free: a keyed seat has none (ADR-049). The signature the
 		// phone sends back is the credential.
 		handleSeatSession(g, id, w, r)
 	case "recover":
-		// Token-free for the reason it exists (D-048): the person asking
+		// Token-free for the reason it exists (ADR-048): the person asking
 		// has lost every token they had. The signature they send back is
 		// the credential.
 		handleRecover(g, id, w, r)
@@ -1876,8 +1914,36 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// serveTokenScope handles /game/{id}/{gm|seat}/{token}[/{action}].
-func (self *server) serveTokenScope(g *game, id string, segments []string, w http.ResponseWriter, r *http.Request) {
+// lookupFlow finds the game an address names, whichever surface the address
+// is on. It answers the request itself when there is nothing to find.
+func lookupFlow(w http.ResponseWriter, r *http.Request, prefix string) (*game, string, []string, bool) {
+	path := r.URL.Path
+	if i := strings.Index(path, prefix); i >= 0 {
+		path = path[i+len(prefix):]
+	}
+	segments := strings.Split(path, "/")
+	if len(segments) < 2 || !validID(segments[0]) {
+		http.NotFound(w, r)
+		return nil, "", nil, false
+	}
+	g, found := games.lookup(segments[0])
+	if !found {
+		http.NotFound(w, r)
+		return nil, "", nil, false
+	}
+	return g, segments[0], segments, true
+}
+
+/*
+servePageScope serves the seat and the game master pages.
+
+The address carries a token and the page carries none of it: what is served is
+the same shell every address serves, and the JavaScript in it goes to /api/v1
+with whatever the address holds. The token is checked there, not here — which
+is also what lets a keyed seat open the page that signs it back in with no
+session at all (ADR-049).
+*/
+func (self *server) servePageScope(g *game, id string, segments []string, w http.ResponseWriter, r *http.Request) {
 	kind := segments[1]
 	if len(segments) < 3 {
 		http.NotFound(w, r)
@@ -1893,6 +1959,30 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 		http.Redirect(w, r, target, http.StatusFound)
 		return
 	}
+	if strings.Join(segments[3:], "/") != "" {
+		http.NotFound(w, r)
+		return
+	}
+	self.serveSPA(w, r)
+}
+
+/*
+serveTokenScope answers one seat's or one game master's actions, under
+/api/v1/game/{id}/{gm|seat}/{token}/{action}.
+
+The token in the address is the credential, except for a keyed seat, whose
+address says "me" and whose credential is the session cookie its own key
+bought (ADR-049). The page at the matching bare address is served by
+servePageScope and checks nothing, which is what lets a phone with a seed and
+no session load the page that signs it back in.
+*/
+func (self *server) serveTokenScope(g *game, id string, segments []string, w http.ResponseWriter, r *http.Request) {
+	kind := segments[1]
+	if len(segments) < 4 {
+		http.NotFound(w, r)
+		return
+	}
+	token := segments[2]
 	action := strings.Join(segments[3:], "/")
 
 	g.mu.Lock()
@@ -1902,7 +1992,7 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 	if kind == "gm" {
 		authorized = subtleEqual(token, f.gmToken)
 	} else if token == "me" {
-		// A keyed seat (D-049). The address carries no secret, so the
+		// A keyed seat (ADR-049). The address carries no secret, so the
 		// session cookie is what says which power this is.
 		power, authorized = f.sessionPower(id, r)
 	} else {
@@ -1913,35 +2003,11 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 	}
 	g.mu.Unlock()
 
-	/*
-	The page of a keyed seat is served to anybody who asks (D-049).
-
-	It has to be. The address carries no secret and the session is a cookie
-	the server keeps in memory, so a restart, a new device or a private tab
-	arrives with nothing — and the thing that signs back in is the JavaScript
-	on this very page, using the seed the device already holds. Refusing the
-	page would mean the only way back into a seat is a page the seat cannot
-	open, which is a locked door with the key behind it.
-
-	Nothing is given away. The page is the same shell every address serves,
-	it holds no state, and every request it goes on to make is answered only
-	for a device that can sign for the seat.
-	*/
-	if action == "" && kind == "seat" && token == "me" {
-		self.serveSPA(w, r)
-		return
-	}
-
 	if !authorized {
 		http.NotFound(w, r)
 		return
 	}
 
-	if action == "" {
-		// Both pages are routes inside the same SPA shell.
-		self.serveSPA(w, r)
-		return
-	}
 	if kind == "gm" {
 		if h, ok := gmRoutes[action]; ok {
 			h(g, id, w, r)

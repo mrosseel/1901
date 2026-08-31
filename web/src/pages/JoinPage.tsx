@@ -4,6 +4,7 @@ import { claimSeat, fetchPublic, type PublicState } from "../api";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
 import { makeSeatSeed, seatPublicKey, writeSeatSeed } from "../seatkey";
 import { SupportedMark } from "../components/SupportedMark";
+import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 
 /*
@@ -25,6 +26,7 @@ export function JoinPage({
   usePoll(3000, async () => {
     const next = await fetchPublic(gameId);
     noteServerTime(next.now);
+    noteBuild(next.build);
     setGame(next);
   });
   useTicker(Boolean(game?.deadlineAt));
@@ -34,7 +36,7 @@ export function JoinPage({
     setError(null);
     try {
       // This device makes the seat's key before it asks for a power, and
-      // sends only the public half (D-049). The seed is written here, one
+      // sends only the public half (ADR-049). The seed is written here, one
       // step before the board opens, so a refused claim leaves nothing
       // behind.
       const seed = makeSeatSeed();
@@ -58,7 +60,7 @@ export function JoinPage({
         <h1>Join the game</h1>
         {/* The name tells a player which table this link belongs to, which is
           worth knowing before claiming a power on it. It names the table and
-          nothing else, so the seats stay anonymous (D-020). */}
+          nothing else, so the seats stay anonymous (ADR-020). */}
         {game?.settings?.name ? (
           <p className="game-name">{game.settings.name}</p>
         ) : null}

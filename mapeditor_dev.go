@@ -1,6 +1,6 @@
 //go:build mapeditordev
 
-// The map editor's save endpoint (D-030), compiled only under
+// The map editor's save endpoint (ADR-030), compiled only under
 // `-tags mapeditordev`.
 //
 // The editor is a tool for whoever is correcting a variant's placement table,
@@ -22,7 +22,7 @@
 //	                            DOES read, at its next start (names.go).
 //	mapeditor/<key>.drags.json  the drag log — every hand correction with the
 //	                            violation count before and after it. It is the
-//	                            evidence D-030 asks for: each entry is a
+//	                            evidence ADR-030 asks for: each entry is a
 //	                            scoring rule the optimizer is missing.
 package main
 

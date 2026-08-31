@@ -1,9 +1,9 @@
 /*
-The game master's key, and the twelve words that recover it (D-048).
+The game master's key, and the twelve words that recover it (ADR-048).
 
 Until now the role was a URL and a cookie, and both live on one device. Lose
 them together and nobody can run the game any more: the create response carries
-no secret on purpose (D-041), the referee door answers only the browser that
+no secret on purpose (ADR-041), the referee door answers only the browser that
 made the game, and a handover link needs the role you have already lost.
 
 So the game master's browser makes an Ed25519 keypair. The server is given the

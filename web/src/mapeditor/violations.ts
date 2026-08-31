@@ -2,7 +2,7 @@
 What is wrong with a placement table, asked live while somebody drags it.
 
 tools/placement asks the same questions offline, in Node, through playwright:
-audit.ts walks a table and reports what it found. The map editor (D-030) needs
+audit.ts walks a table and reports what it found. The map editor (ADR-030) needs
 the answer between two frames of a drag, so it cannot go through Node and it
 cannot go through playwright — but it must not disagree with them either, or
 the editor would bless a table the audit rejects.

@@ -6,7 +6,7 @@
 // route does not exist, so a deployed server has no way to be told to write
 // files into its own working directory. The editor route itself still serves
 // — the page loads, drags, audits and exports through the browser's own
-// download — it simply has nowhere to save (D-030).
+// download — it simply has nowhere to save (ADR-030).
 //
 // The other half is mapeditor_dev.go, behind `-tags mapeditordev`.
 package main

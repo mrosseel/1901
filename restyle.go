@@ -1,4 +1,4 @@
-// The application half of a restyle (D-026).
+// The application half of a restyle (ADR-026).
 //
 // tools/restyle detects; this applies. Given the original art, the style plan
 // measured from it, and a style's tokens, the two functions here compose the
@@ -13,7 +13,7 @@
 // parse here, and it draws nothing either way.
 //
 // The two appliers exist because the two kinds of map are drawn differently
-// (D-024). A converted jDip map paints every province through a semantic
+// (ADR-024). A converted jDip map paints every province through a semantic
 // class, so replacing its stylesheet restyles the whole board. No godip map
 // has a class of any kind — classical paints its landmass as one path with a
 // literal fill over a sea-coloured rect — so there the substitution is by
@@ -300,7 +300,7 @@ func transformScale(transform string) float64 {
 }
 
 // labelLayerScale is the scale a jDip map draws its NAMES at, which is not
-// the scale it draws its art at (D-026).
+// the scale it draws its art at (ADR-026).
 //
 // jDip writes its art under a transform and its two name layers as siblings
 // of it, so a length in a label rule and a length in a terrain rule are
@@ -718,7 +718,7 @@ func buildStylesheet(plan *jdipPlan, style *loadedStyle, width, labelScale float
 	lines = append(lines,
 		"/* Style: "+style.Name+" — "+style.Title+".",
 		"   "+style.Description,
-		"   Applied from mapstyles/"+style.Name+".json (D-016, D-023, D-026).",
+		"   Applied from mapstyles/"+style.Name+".json (ADR-016, ADR-023, ADR-026).",
 		"   Terrain, borders and names follow the style; everything the board",
 		"   draws for itself is left as jDip wrote it. */")
 	if style.FontFaces != "" {
@@ -834,12 +834,12 @@ func buildStylesheet(plan *jdipPlan, style *loadedStyle, width, labelScale float
 			"; opacity:"+num(style.SupplyCentre.Opacity)+"; }",
 		"")
 
-	// The rings laid into a layer that ships empty (D-032). The selector is
+	// The rings laid into a layer that ships empty (ADR-032). The selector is
 	// one class more specific than the rule above, which would otherwise fill
 	// them from the style's token and swallow the name a ring is drawn around.
 	//
 	// The paint is godip's own and not the style's, the same paint the board
-	// uses when it draws a glyph from a record (D-038). A ring says only that
+	// uses when it draws a glyph from a record (ADR-038). A ring says only that
 	// a province is a supply centre; who owns it is the board's to draw, and
 	// it draws that in the style's colours over the top.
 	if rings {
@@ -871,7 +871,7 @@ func buildStylesheet(plan *jdipPlan, style *loadedStyle, width, labelScale float
 // centre at all, and nothing downstream draws one, so a player cannot see
 // which provinces are worth taking. The ring is drawn here at serve time
 // rather than baked into the art, because ?style=original serves the art's
-// own bytes and D-032 promises those stay a faithful copy of jDip's.
+// own bytes and ADR-032 promises those stay a faithful copy of jDip's.
 //
 // The glyph and the paint are godip's, quoted against its own 1524-unit
 // classical: a stroked circle of radius 10 in a stroke of 2.25273, black at

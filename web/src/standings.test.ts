@@ -3,8 +3,9 @@ import { buildBalance, standings } from "./standings";
 import type { BoardState } from "./board/types";
 
 /*
-The centre count is the number the game is about, and it is arithmetic on a
-board every screen already draws. Nothing here asks the server for anything.
+The supply centre count is the number the game is about, and it is arithmetic
+on a board every screen already draws. Nothing here asks the server for
+anything.
 */
 const STATE: BoardState = {
   phase: { season: "Fall", year: 1902, type: "Adjustment" },
@@ -26,12 +27,12 @@ const STATE: BoardState = {
   orderParts: {},
 };
 
-describe("the centre count", () => {
+describe("the supply centre count", () => {
   it("counts what each power owns and what it has standing", () => {
     expect(standings(STATE)).toEqual([
-      { power: "Austria", centres: 3, units: 2 },
-      { power: "France", centres: 2, units: 1 },
-      { power: "Russia", centres: 1, units: 1 },
+      { power: "Austria", supplyCentres: 3, units: 2 },
+      { power: "France", supplyCentres: 2, units: 1 },
+      { power: "Russia", supplyCentres: 1, units: 1 },
     ]);
   });
 
@@ -48,7 +49,7 @@ describe("the centre count", () => {
      is entitled to read it. */
   it("still lists a power that has lost everything", () => {
     const rows = standings(STATE, ["Austria", "France", "Russia", "Turkey"]);
-    expect(rows.at(-1)).toEqual({ power: "Turkey", centres: 0, units: 0 });
+    expect(rows.at(-1)).toEqual({ power: "Turkey", supplyCentres: 0, units: 0 });
   });
 
   it("says nothing at all about a board it has not been given", () => {
@@ -57,8 +58,8 @@ describe("the centre count", () => {
   });
 
   it("reads builds owed and units to come off from the same two numbers", () => {
-    expect(buildBalance({ power: "Austria", centres: 3, units: 2 })).toBe(1);
-    expect(buildBalance({ power: "France", centres: 1, units: 4 })).toBe(-3);
+    expect(buildBalance({ power: "Austria", supplyCentres: 3, units: 2 })).toBe(1);
+    expect(buildBalance({ power: "France", supplyCentres: 1, units: 4 })).toBe(-3);
   });
 });
 

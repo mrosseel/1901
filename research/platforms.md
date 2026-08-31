@@ -1,7 +1,7 @@
 # Diplomacy platform survey
 
 **Date:** 2026-08-28
-**For:** 1901 (face-to-face Diplomacy adjudicator). See `DESIGN.md` §1, D-018, D-023 and `CONTEXT.md`.
+**For:** 1901 (face-to-face Diplomacy adjudicator). See `DESIGN.md` §1, ADR-018, ADR-023 and `CONTEXT.md`.
 **Status:** research only. `DESIGN.md` is not modified by this document. §6 lists the amendments I think it needs.
 
 ---
@@ -345,7 +345,7 @@ competitive scene.
   orders and cannot alter the board.** In a public game a creator who takes a
   seat keeps none of the GM powers, "the risk of abuse is too high"; in a
   private game they keep pause and replace but not order or press visibility.
-  This is close to our D-007 split, arrived at independently.
+  This is close to our ADR-007 split, arrived at independently.
 - **Scoring: none.** Games end on 18 centres, on an agreed draw through a
   per-player victory-condition dropdown, or on the End Year. Profiles show
   reliability and win/draw/loss only, in the form
@@ -414,7 +414,7 @@ on time" badge does more for game quality than any rating.
 
 ### 1.5 Diplicity, godip, dipact, Droidippy
 
-The godip family, which matters to us because D-001 vendors godip.
+The godip family, which matters to us because ADR-001 vendors godip.
 
 The important correction to `DESIGN.md`'s picture: **the zond stack is dead and
 the project has changed hands.**
@@ -482,7 +482,7 @@ the project has changed hands.**
 - There is a `packages/variant-creator` and a `docs/variants/` series aimed at
   letting a non-programmer author a variant in Inkscape and generate the Go
   code, the migrations and the client geometry from one SVG. Two of the
-  documents are still marked "To Be Written". It is the same idea as our D-016
+  documents are still marked "To Be Written". It is the same idea as our ADR-016
   translator, from the other end.
 
 ### 1.6 diplomacy/diplomacy: the research engine
@@ -501,7 +501,7 @@ and CICERO. Worth knowing for two things:
 - **Order entry is order-type-first**, the opposite of Diplicity and Backstabbr:
   pick H/M/V/S/C/R/D/A/F, then click provinces to fill a path, with per-step
   legality checks. On touch this is worse, and it is a useful negative result
-  for D-019.
+  for ADR-019.
 
 Each variant map is a hand-converted React JSX component. Four maps only.
 
@@ -605,7 +605,7 @@ through a Discord bot or a human GM.
 - No official mobile app has ever existed.
 - **No online Diplomacy site has ever been licensed**, and I found no record of
   a cease-and-desist against any of them. The exposure is the trademark on the
-  name, not the rules. That is consistent with `DESIGN.md` §8 and D-015.
+  name, not the rules. That is consistent with `DESIGN.md` §8 and ADR-015.
 
 Also empty: Board Game Arena has no Diplomacy (only a locked 2018 feature
 request). Vassal and Tabletop Simulator have community modules, but they push
@@ -749,41 +749,41 @@ down for limited press and variants.
 | Live / real-time | Y | Y | ~ (15 min floor) | premium | N | N | Y (table) | N | Y |
 | Face-to-face at a table | N | N | ~ (sandbox, 1 screen) | N | N | N | Y (hot-seat) | Y (1 laptop) | **Y (per player)** |
 | Per-player device order entry | N | N | N | N | N | N | **N** | N | **Y** |
-| Full press | Y | Y | Y | Y | Y | Y | N | N | later (D-023) |
+| Full press | Y | Y | Y | Y | Y | Y | N | N | later (ADR-023) |
 | Public / broadcast press | Y | Y | N | Y | Y (conference) | Y (global) | N | N | N |
 | Grey / anonymous press | N | N | N | Y (anon) | N | N | N | N | N |
-| Gunboat | Y | Y | Y | Y | Y | N | n/a | n/a | Y (D-023) |
+| Gunboat | Y | Y | Y | Y | Y | N | n/a | n/a | Y (ADR-023) |
 | Press off in retreat/build | Y (`per rulebook`) | Y | Y (default) | ? | ? | N | n/a | n/a | open (Q-004) |
-| Variants | 11 | **197** | **0** | ~14 | 3 live of 21 in godip | 4 | 1 | 18 | 21+ (D-014) |
-| Map tech | GD PNG, SVG for Classic only | GD PNG | Raphaël SVG on raster | JS map | DSVG + Leaflet, raster base | inline JSX SVG | inline SVG | Batik SVG | SVG island (D-017) |
+| Variants | 11 | **197** | **0** | ~14 | 3 live of 21 in godip | 4 | 1 | 18 | 21+ (ADR-014) |
+| Map tech | GD PNG, SVG for Classic only | GD PNG | Raphaël SVG on raster | JS map | DSVG + Leaflet, raster base | inline JSX SVG | inline SVG | Batik SVG | SVG island (ADR-017) |
 | Order arrows with success/fail colour | Y | Y | **Y (best)** | Y | Y | Y | Y | Y | planned |
-| Order entry | click (Classic) or dropdowns | dropdowns + map preview | unit-first + keys | click or written | unit-first floating menu | **type-first (worse)** | click | menus | tap grammar (D-019) |
+| Order entry | click (Classic) or dropdowns | dropdowns + map preview | unit-first + keys | click or written | unit-first floating menu | **type-first (worse)** | click | menus | tap grammar (ADR-019) |
 | Illegal orders allowed | N | N | **Y (deliberate)** | N | N | N | **N (complained about)** | N | **N (open question)** |
 | Sandbox / free board | Y (2023, step back) | N | **Y, editable, public** | N | Y (solo) | N | n/a | n/a | n/a |
-| Spectator, no login | ~ | ~ | **Y** | N | ~ | N | n/a | n/a | Y (D-013) |
+| Spectator, no login | ~ | ~ | **Y** | N | ~ | N | n/a | n/a | Y (ADR-013) |
 | Permanent per-phase URL | ~ | ~ | **Y** | N | Y | N | N | N | not yet |
 | Replay / history | Y | Y | Y | Y | Y | **Y (best)** | Y | Y | not yet |
-| Mobile | responsive | responsive | responsive, no PWA | poor | **native iOS + PWA** | none | PWA | none | PWA (D-006) |
+| Mobile | responsive | responsive | responsive, no PWA | poor | **native iOS + PWA** | none | PWA | none | PWA (ADR-006) |
 | Accounts | email | email | **Google only** | email | email + Google | username | **none** | n/a | **none for seats** |
-| Anonymity | Y | Y | ~ | Y | Y (gunboat) | N | n/a | n/a | Y (D-020) |
-| Commit-reveal secrecy | N | N | N | N | N | N | ~ (hot-seat seal) | ~ | **Y (D-004)** |
+| Anonymity | Y | Y | ~ | Y | Y (gunboat) | N | n/a | n/a | Y (ADR-020) |
+| Commit-reveal secrecy | N | N | N | N | N | N | ~ (hot-seat seal) | ~ | **Y (ADR-004)** |
 | Scoring systems | 2 | 2 | **0** | Elo | 0 | 0 | 0 | 0 | 0 (non-goal) |
 | Ratings | Ghost Ratings | Ghost Ratings | none | secret Elo | none | none | none | none | none |
 | Reliability stat | Y | Y | Y | Y (classes) | ~ (badge) | N | n/a | n/a | none |
 | Tournament support | Y (TD tools + league) | ~ | N | premium | N | N | N | N | N |
 | Public API | **Y (`api.php`, keys granted)** | ? | N | N | ~ (OpenAPI) | Y (WebSocket) | N | n/a | JSON |
-| Open source | AGPL-3 | AGPL-3 | **N** | N | **no licence file** | AGPL-3 | N | GPL-3 | GPL-3 (D-002) |
-| Offline / LAN | N | N | N | N | N | Y (self-host) | Y | Y | **Y (D-006)** |
+| Open source | AGPL-3 | AGPL-3 | **N** | N | **no licence file** | AGPL-3 | N | GPL-3 | GPL-3 (ADR-002) |
+| Offline / LAN | N | N | N | N | N | Y (self-host) | Y | Y | **Y (ADR-006)** |
 | Registered users | 413k | 28k | ? (low k) | ? | ~10s | n/a | new | n/a | 0 |
 
 ---
 
-## 3. Table stakes for hosted mode (D-018)
+## 3. Table stakes for hosted mode (ADR-018)
 
 These are the things every surviving async platform has, which a hosted 1901
 would be judged against. Nothing here is needed for v1.
 
-1. **Accounts for game management only.** D-018 already says this and it is
+1. **Accounts for game management only.** ADR-018 already says this and it is
    right. Backstabbr's Google-only login is a recognised barrier; offer
    email plus an OAuth option, not OAuth alone.
 2. **Deadline machinery richer than a single duration.** The minimum set, all
@@ -795,7 +795,7 @@ would be judged against. Nothing here is needed for v1.
 3. **Ready-based early resolution with anti-rush arithmetic.** Backstabbr's rule
    is worth copying exactly: with period `T` and remaining time `R`, if `R < T`
    the next deadline becomes `R + T`, otherwise `R` stands. Resolving early
-   never shortens the next turn. Our D-008 auto-advance has the same problem the
+   never shortens the next turn. Our ADR-008 auto-advance has the same problem the
    moment deadlines are long.
 4. **Reliability on the public profile, and as a join filter.** Every surviving
    async platform has some version of it. Backstabbr shows raw counts
@@ -914,7 +914,7 @@ purpose**, because being able to claim you misordered is a legitimate way to
 lie. The one substantive complaint on the mylootcave thread was that you cannot
 enter a deliberately wrong order.
 
-Our tap grammar (D-019) builds orders from `Options()`, so it can only express
+Our tap grammar (ADR-019) builds orders from `Options()`, so it can only express
 legal orders. That is a genuine adoption risk for tournament play, not a
 theoretical one. It needs a decision. See Q-007 in §6.
 
@@ -926,18 +926,18 @@ Ranked by value to us, not by cost.
 
 ### 1. Public, permanent, login-free position URLs with per-phase history
 **From:** Backstabbr.
-**Touches:** D-013 (spectator view), post-v1 / hosted mode.
+**Touches:** ADR-013 (spectator view), post-v1 / hosted mode.
 
 `/game/<slug>/<id>/<year>/<season>` renders the full board, orders and results
 to a signed-out visitor, forever. That single property, not any feature, is why
 Backstabbr owns analysis, why sandbox links are the community's citation format,
-and why dipvis scrapes it. Our spectator view is already secret-free by D-013,
+and why dipvis scrapes it. Our spectator view is already secret-free by ADR-013,
 so the data model is done; what is missing is a stable public URL per phase.
 Cheap, and it is the thing that would make 1901 spreadable.
 
 ### 2. The referee guide: tell the piece pusher what to move
 **From:** mylootcave ("Referee guide: move the pieces").
-**Touches:** D-013, `CONTEXT.md` spectator view, M2.
+**Touches:** ADR-013, `CONTEXT.md` spectator view, M2.
 
 After adjudication, render the list of physical actions to perform on the board:
 move this, bounce that, remove that. At WDC the piece pusher is a named role and
@@ -947,20 +947,20 @@ plus resolutions, so it is nearly free.
 
 ### 3. Order semantics drawn into the map
 **From:** Backstabbr.
-**Touches:** D-003 (placements), D-033 (map styles), M2.
+**Touches:** ADR-003 (placements), ADR-033 (map styles), M2.
 
 Specifically: black for a successful order and red for a failed one, orange for
 retreats, a dotted line for a support, a wave glyph for a convoy, a circle for a
 hold, a dotted ghost for a build, a red X for a disband. And the detail that
 makes it work at density: **support lines are quadratic Béziers bent by a
 perpendicular offset of 0.05 of the span**, so two supports of the same move do
-not draw on top of each other. Our style system (D-033) should carry these as
+not draw on top of each other. Our style system (ADR-033) should carry these as
 style tokens, not hardcode them.
 
 ### 4. Decide what to do about illegal and bluff orders
 **From:** Backstabbr's deliberate permissiveness, WDC's lenient interpretation
 rules, and the one real complaint about mylootcave.
-**Touches:** D-019, Q-004, needs a new decision.
+**Touches:** ADR-019, Q-004, needs a new decision.
 
 Three options, in increasing cost: keep legal-only entry and accept the risk;
 add an "allow illegal orders" game setting that switches the bottom bar into a
@@ -972,21 +972,21 @@ I would not build this for the first playtest, but I would ask about it there.
 
 ### 5. Split map layers, and let a map library own pan and zoom
 **From:** Diplicity 2026 (DSVG plus Leaflet).
-**Touches:** D-017, Q-003, M2.
+**Touches:** ADR-017, Q-003, M2.
 
 Rasterise the static board once per phase and keep only units and order arrows
 as vector, repainting those on interaction. Hit-test against decimated polygon
 rings rather than SVG paths. Hosting the map in Leaflet gives momentum panning
 and pinch zoom for free, which is exactly the Q-003 blocker the M0 phone test
-found. This does not violate D-017: the map still never enters the React tree.
+found. This does not violate ADR-017: the map still never enters the React tree.
 Worth a spike before hand-writing more pan/zoom arithmetic.
 
 ### 6. Every gesture has a keyboard shortcut and a mirror button
 **From:** Backstabbr (`s`, `c`, `h`, `m`, `Esc`, each with a button below the
 map) and Diplicity (shortcuts shown inside the floating order menu).
-**Touches:** D-019 (the bottom bar is already the fallback path).
+**Touches:** ADR-019 (the bottom bar is already the fallback path).
 
-D-019 already has the bottom bar. Add the shortcut labels to it, and add key
+ADR-019 already has the bottom bar. Add the shortcut labels to it, and add key
 handling for the GM laptop and the spectator screen. Backstabbr's live hint text
 under the map ("Selected Ber. You may now: ...") is also better than our staged
 hints, because it enumerates the options rather than naming the state.
@@ -999,7 +999,7 @@ are deciding. Neither exists upstream on webDiplomacy.
 
 ### 7. `per rulebook` press, and what it implies for retreats and builds
 **From:** webDiplomacy.
-**Touches:** D-023, Q-004.
+**Touches:** ADR-023, Q-004.
 
 webDiplomacy has a fourth press mode: press during movement phases, none during
 retreat and build phases, and it says this is how face-to-face Diplomacy is
@@ -1009,7 +1009,7 @@ and they probably should not make the whole table wait on commit-reveal.
 
 ### 8. Deadline humanity: multipliers, weekend skip, anti-rush
 **From:** Backstabbr; fixed wall-clock deadlines from Diplicity.
-**Touches:** D-008, D-010, hosted mode.
+**Touches:** ADR-008, ADR-010, hosted mode.
 
 Retreat and build phases at 50% of the movement clock. Weekend skip. A longer
 first turn. Deadlines anchored to a wall-clock time in a timezone rather than
@@ -1041,7 +1041,7 @@ retreat and build tests; ours can beat that.
 (Diplicity) for whenever fullpress lands. Keyboard-navigable replay with an
 order overlay on any past phase (diplomacy/diplomacy, the best replay I saw).
 Backstabbr's `/ajax/info` settings sheet, a plain complete shareable statement
-of a game's rules, which is what our D-022 join page should aspire to.
+of a game's rules, which is what our ADR-022 join page should aspire to.
 webDiplomacy's private notes tab, where your own power's press tab is a notepad
 only you can see. Its vote cancel, distinct from a draw vote. And its
 registration captcha, which asks you to click France's three supply centres:
@@ -1095,38 +1095,38 @@ counts and adjustments, 15 to 17 minutes. That is an argument for running
 retreats and builds fast and in the open rather than making the table wait on a
 full commit-reveal round.
 
-### D-023 could gain a fourth press mode
+### ADR-023 could gain a fourth press mode
 `rulebook`: press during movement, none during retreat and build. It is the
 mode that names the actual face-to-face convention, and webDiplomacy already
 proved the name is legible to players. Cheap to add to the data model now, per
-D-023's own reasoning about establishing the model early.
+ADR-023's own reasoning about establishing the model early.
 
-### D-013 could gain two things
+### ADR-013 could gain two things
 A public, permanent per-phase URL for the spectator view (§5.1), and the referee
 guide screen (§5.2). Both are secret-free by construction, so neither disturbs
-the D-013 property.
+the ADR-013 property.
 
 ### Add a timing acceptance criterion to the playtest
 `DESIGN.md` §7 "Then" says playtest before adding anything. Give that playtest a
 number. A face-to-face season at WDC is 15 to 17 minutes including negotiation.
 **Seven seats should be able to enter and finalize a movement phase in under 3
 minutes of wall time**, measured from the phase opening. If the tap grammar
-cannot hit that, D-019 needs the free-form path from §5.4 whether or not anyone
+cannot hit that, ADR-019 needs the free-form path from §5.4 whether or not anyone
 wants to bluff.
 
 ### Licence notes for later reuse
-- dipvis is GPL-3.0. Its `game_scoring/` is compatible with D-002 and is the
+- dipvis is GPL-3.0. Its `game_scoring/` is compatible with ADR-002 and is the
   right thing to fork if scoring is ever built.
 - `diplomacy/diplomacy` is AGPL-3.0. webDiplomacy and vDiplomacy are AGPL-3.0.
   Copying from any of them pulls in AGPL obligations.
 - **`johnpooch/diplicity-react` has no licence file at all.** Do not copy code
   from it. Its ideas are free; its source is not licensed.
 
-### D-003 and D-017 get outside support
+### ADR-003 and ADR-017 get outside support
 webDiplomacy has run two map systems side by side since June 2022: an
 interactive React SVG board for Classic, and server-composited indexed PNGs for
 every other variant. Four years later the SVG path still covers exactly one
-variant. The lesson is the one D-003 already takes, and it is worth recording
+variant. The lesson is the one ADR-003 already takes, and it is worth recording
 because the alternative failed in public: **make the map a data-driven SVG for
 every variant on day one.** Retrofitting it does not happen. Our placement-table
 generator running across all 21 godip variants is the right shape.
@@ -1135,7 +1135,7 @@ generator running across all 21 godip variants is the right shape.
 **Nobody does commit-reveal.** Not webDiplomacy, not Backstabbr, not
 PlayDiplomacy, not Diplicity. Every one of them stores plaintext orders that an
 operator could read. Backstabbr's answer to a playing GM is to remove the GM's
-powers instead. D-004 is the strongest genuinely novel technical claim in the
+powers instead. ADR-004 is the strongest genuinely novel technical claim in the
 project, and §1.3 shows the alternative the incumbent chose. Keep it, and say so
 publicly when the time comes.
 

@@ -922,7 +922,7 @@ describe("an adjustment phase", () => {
 });
 
 /*
-Illegal orders (D-029). The highlights still say what is legal; they have
+Illegal orders (ADR-029). The highlights still say what is legal; they have
 stopped being a fence. Every case below taps a province the option tree never
 offered and checks what is posted.
 */
@@ -1214,7 +1214,7 @@ describe("what the board draws on top of the map", () => {
     expect(seat.posted).toEqual([{ province: "vie", parts: ["Move", "gal"] }]);
 
     // The same unit, now with an arrow across it, sent somewhere else. The
-    // second order replaces the first: one province, one order (D-011).
+    // second order replaces the first: one province, one order (ADR-011).
     seat.board.update(
       {
         ...MOVEMENT_STATE,

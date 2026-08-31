@@ -3,20 +3,23 @@ import { standings, buildBalance } from "../standings";
 import { PowerChip } from "./PowerChip";
 
 /*
-The centre count, for every power, on the screen a player is already looking
-at.
+The supply centre count, for every power, on the screen a player is already
+looking at.
 
 It is the number the whole game is about and the app never showed it. Players
-counted centres off the map instead, which is slow and goes wrong about a
-centre that changed hands in the phase just gone.
+counted them off the map instead, which is slow and goes wrong about a centre
+that changed hands in the phase just gone.
 
 Nothing here is private. Ownership and unit positions are on the map for
-everyone, and the spectator screen publishes both (D-013), so listing them
+everyone, and the spectator screen publishes both (ADR-013), so listing them
 tells no one anything they could not count themselves.
 
 The build column is the honest part: it is right after a Fall adjustment moves
 the ownership and meaningless before it, so it says so rather than printing a
 number that will change.
+
+"SC" heads its column because the column is two characters wide. Every word a
+person reads in a sentence is "supply centre" in full (CONTEXT.md).
 */
 export function Standings({
   state,
@@ -33,19 +36,24 @@ export function Standings({
   if (!rows.length) return null;
 
   // Ownership only moves at a Fall adjustment, so the difference between
-  // centres and units is a build owed then and a half-played turn otherwise.
+  // supply centres and units is a build owed then, and a half-played turn
+  // otherwise.
   const settled = state?.phase?.type === "Adjustment";
 
   return (
     <section className="card standings">
-      <h2>Centres</h2>
-      <ul>
+      <h2>Supply centres</h2>
+      <ul className="standings-rows">
+        <li className="standings-legend" aria-hidden="true">
+          <span className="standings-centres">SC</span>
+          <span className="standings-units">units</span>
+        </li>
         {rows.map((row) => {
           const balance = buildBalance(row);
           return (
             <li key={row.power} className={row.power === you ? "you" : undefined}>
               <PowerChip power={row.power} small />
-              <span className="standings-centres">{row.centres}</span>
+              <span className="standings-centres">{row.supplyCentres}</span>
               <span className="standings-units">
                 {row.units} {row.units === 1 ? "unit" : "units"}
               </span>
@@ -60,8 +68,8 @@ export function Standings({
       </ul>
       <p className="note">
         {settled
-          ? "Centres own the builds: + is owed, − comes off."
-          : "Ownership changes after the Fall retreats, not before."}
+          ? "Supply centres pay for units: + is a build owed, − comes off."
+          : "Supply centre ownership changes after the Fall retreats, not before."}
       </p>
     </section>
   );

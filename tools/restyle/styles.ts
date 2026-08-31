@@ -134,7 +134,7 @@ export interface LoadedStyle extends Omit<StyleDefinition, "defs" | "fonts" | "g
 The default directory: mapstyles/ at the top of the repository.
 
 The styles moved out of this tool when the server learned to apply them
-itself (D-026). They are read by two programs now — this tool and the Go
+itself (ADR-026). They are read by two programs now — this tool and the Go
 server, which embeds the directory — so they belong to neither.
 */
 export function stylesDir(here: string): string {
