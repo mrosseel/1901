@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/zond/godip"
@@ -271,5 +272,35 @@ func TestTheSeatPageOpensWithoutASession(t *testing.T) {
 	srv.serveFlowAPI(rec, httptest.NewRequest(http.MethodGet, path, nil), path)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("the seat state answered %v without a session, want 404", rec.Code)
+	}
+}
+
+/*
+TestTheSessionCookieReachesTheActions is the bug the /api/v1 move shipped.
+
+The cookie was scoped to /game/{id}/, which was where the actions lived. They
+moved to /api/v1/game/{id}/ (ADR-050) and the cookie did not, so no browser
+sent it: every keyed player who scanned an invite landed on "Board not found",
+because the page loaded and its first request was answered 404.
+
+A path a browser will not send the cookie to is not a scope, it is a bug, and
+this test compares the two directly.
+*/
+func TestTheSessionCookieReachesTheActions(t *testing.T) {
+	id := makeGame(t)
+	g, _ := games.lookup(id)
+	_, _, joined := joinWithKey(t, g, id)
+	cookie := sessionCookie(t, id, joined)
+
+	action := apiPrefix + "/game/" + id + "/seat/me/state"
+	if !strings.HasPrefix(action, cookie.Path) {
+		t.Fatalf("the cookie is scoped to %v, which no browser sends to %v",
+			cookie.Path, action)
+	}
+
+	// And the seat page, which is on the other surface, does not need it.
+	page := "/game/" + id + "/seat/me/"
+	if strings.HasPrefix(page, cookie.Path) {
+		t.Errorf("the cookie is sent to %v, which is served to anybody", page)
 	}
 }

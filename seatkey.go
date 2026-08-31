@@ -99,13 +99,21 @@ func (f *flow) openSession(power godip.Nation) (string, error) {
 	return token, nil
 }
 
-// setSessionCookie is the one place the cookie is written, so its scope and
-// flags cannot drift between the join, the handover and the session route.
+/*
+setSessionCookie is the one place the cookie is written, so its scope and
+flags cannot drift between the join, the handover and the session route.
+
+The path is the transport's, not the page's. Every request that needs this
+cookie is an action under /api/v1 (ADR-050); the seat page itself is served to
+anybody who asks for it, because the JavaScript on it is what signs a device
+back in. A cookie scoped to the page would be sent where it is not needed and
+withheld where it is.
+*/
 func setSessionCookie(w http.ResponseWriter, id, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     seatSessionCookieName(id),
 		Value:    token,
-		Path:     "/game/" + id + "/",
+		Path:     apiPrefix + "/game/" + id + "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   60 * 60 * 24 * 7,
