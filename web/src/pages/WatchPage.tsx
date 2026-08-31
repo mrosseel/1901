@@ -326,7 +326,7 @@ export function WatchPage({
             <>
               {joinedCount !== undefined && seatsToFill !== undefined ? (
                 <p className="joined-big">
-                  <strong>{joinedCount}</strong> of {seatsToFill} players joined
+                  <strong>{joinedCount}</strong> of {seatsToFill} players have joined
                 </p>
               ) : null}
               <p className="muted">
@@ -335,8 +335,12 @@ export function WatchPage({
               </p>
             </>
           ) : totalSeats !== undefined ? (
+            /* "locked in" alone was read as "joined" on a screen that also
+               counts joiners, and the two count different sets: this line
+               counts every claimed seat, the one above counts the seats an
+               invite may still hand out. Naming what was locked ends it. */
             <p className="muted">
-              {lockedCount} of {totalSeats} players locked in
+              {lockedCount} of {totalSeats} players have locked in their orders
             </p>
           ) : null}
         </header>
