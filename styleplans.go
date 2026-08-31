@@ -19,18 +19,10 @@
 package main
 
 import (
-	"embed"
 	"encoding/json"
-	"fmt"
-	"io/fs"
 	"log"
-	"path"
 	"strings"
-	"sync"
 )
-
-//go:embed styleplans
-var planFS embed.FS
 
 // The plan schema versions this server reads. plans.ts writes the number.
 //
@@ -222,47 +214,35 @@ func (self *stylePlan) styleable() bool {
 	return false
 }
 
-var (
-	plans     = map[string]*stylePlan{}
-	plansOnce sync.Once
-	plansErr  error
-)
+/*
+Every plan this server holds, filled as the variants load (generated.go).
 
-// loadPlans reads every plan once.
+A plan used to be a file in a styleplans/ directory that this binary embedded,
+because the tool that measured it lived here. It moved to dipmap, and a plan
+now travels in the variant package beside the art it measured, so the two
+cannot disagree about which map they describe.
+*/
+var plans = map[string]*stylePlan{}
+
+/*
+loadPlans makes sure the plans are in memory, and says what is there.
+
+A plan arrives with its variant now (generated.go), so this loads the
+variants and then counts. It stays a function of its own because a plan is
+optional — a variant with no plan is served in its own colours — and because
+the count is worth a line in the startup log.
+*/
 func loadPlans() error {
-	plansOnce.Do(func() {
-		entries, err := fs.ReadDir(planFS, "styleplans")
-		if err != nil {
-			plansErr = err
-			return
+	if err := loadGeneratedVariants(); err != nil {
+		return err
+	}
+	styleable := 0
+	for _, plan := range plans {
+		if plan.styleable() {
+			styleable++
 		}
-		styleable := 0
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-				continue
-			}
-			b, err := planFS.ReadFile(path.Join("styleplans", entry.Name()))
-			if err != nil {
-				plansErr = err
-				return
-			}
-			plan := &stylePlan{}
-			if err := json.Unmarshal(b, plan); err != nil {
-				plansErr = fmt.Errorf("parse styleplans/%v: %w", entry.Name(), err)
-				return
-			}
-			if !plan.versionSupported() {
-				plansErr = fmt.Errorf("styleplans/%v is version %v, this server reads %v to %v",
-					entry.Name(), plan.Version, minPlanVersion, maxPlanVersion)
-				return
-			}
-			plans[plan.Key] = plan
-			if plan.styleable() {
-				styleable++
-			}
-		}
-		log.Printf("style plans: %v map(s), %v styleable, in %v style(s)",
-			len(plans), styleable, len(styleNames))
-	})
-	return plansErr
+	}
+	log.Printf("style plans: %v map(s), %v styleable, in %v style(s)",
+		len(plans), styleable, len(styleNames))
+	return nil
 }

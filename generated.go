@@ -238,6 +238,34 @@ func loadGeneratedVariant(fsys fs.FS, key string) (pendingVariant, error) {
 			}
 		}
 		placements[key] = table
+	}
+
+	/*
+		The style plan, beside the art it describes (ADR-050 order, ADR-026).
+
+		It used to live in a styleplans/ directory of its own, because the tool
+		that wrote it lived in this repository and wrote there. dipmap writes the
+		four files of a map together — variant.json, map.svg, placements.json,
+		styleplan.json — so the plan travels with the art it measured, and a
+		variant cannot arrive with a plan for a different map.
+
+		Optional, like the placements: a map with no plan is served in its own
+		colours.
+	*/
+	planPath := generatedPath(path.Join(key, "styleplan.json"))
+	if b, err := fs.ReadFile(fsys, path.Join(key, "styleplan.json")); err == nil {
+		plan := &stylePlan{}
+		if err := json.Unmarshal(b, plan); err != nil {
+			return pendingVariant{}, fmt.Errorf("parse %v: %w", planPath, err)
+		}
+		if !plan.versionSupported() {
+			return pendingVariant{}, fmt.Errorf("%v is version %v, this server reads %v to %v",
+				planPath, plan.Version, minPlanVersion, maxPlanVersion)
+		}
+		if plan.Key == "" {
+			plan.Key = key
+		}
+		plans[plan.Key] = plan
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return pendingVariant{}, fmt.Errorf("read %v: %w", placementPath, err)
 	}
