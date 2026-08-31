@@ -16,3 +16,10 @@ and the GM is by definition present. Silent auto-resolution mid-conversation
 is a hosted-play instinct, not a table instinct. This also keeps a single
 resolution path: all-revealed auto-advance (ADR-008) or GM force — never a
 timer racing the GM.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r2, 2026-08-28** — ADR-010: deadlines arm the GM's force-adjudication and never auto-fire; forced no-commit powers hold, logged as NMR.

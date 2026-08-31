@@ -35,3 +35,13 @@ Cancel; the server cancels an order on POST with empty parts.
 Known debt: the frontend holds a PROVINCE_NAMES table (variant data in
 the client). At M2 the server should serve names per variant from godip's
 ProvinceLongNames instead.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r7, 2026-08-28** — ADR-019: touch order grammar — two-tap move, double-tap hold, attack/support chip on occupied targets, bottom-bar fallback.
+- **r7, 2026-08-28** — From phone testing of the M0 spike.
+- **r9, 2026-08-28** — ADR-019 additions: highlight color grammar (green/amber/pulsing blue), staged hints, order Change/Cancel; server-side order cancellation.
+- **r9, 2026-08-28** — Debt noted: province names table in the client, move server-side at M2.

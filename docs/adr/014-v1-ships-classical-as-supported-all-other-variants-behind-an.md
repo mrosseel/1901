@@ -14,3 +14,15 @@ warning text. The supported flag itself remains in the API and still
 gates the checkmark. Promoting a
 variant to supported is data work only: check its generated table, remove
 the flag.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r2, 2026-08-28** — ADR-014: classical supported in v1, other variants behind an experimental flag; closes Q-006.
+- **r2, 2026-08-28** — Q-003 gains jDip's 201 KB map as a measured art fallback.
+- **r15, 2026-08-28** — ADR-014 presentation: checkmark for supported, no experimental badge.
+- **r15, 2026-08-28** — Restyle shipped as scripted theming (no LLM needed); style system with four named themes underway.
+- **r15, 2026-08-28** — Placement pipeline (audit/optimize/editor/serving) complete for classical + sailho.
+- **r16, 2026-08-28** — Experimental badge removed per ADR-014 presentation (r15).

@@ -23,3 +23,11 @@ It is not a rule. Renaming does not bump the settings version and no seat sees
 still an enumerated, logged act (ADR-007). The server folds whitespace, drops
 control characters and cuts the name to 60 runes, because it is drawn as one
 line in a list beside other names.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r45, 2026-08-30** — ADR-042: a game may be named.
+- **r45, 2026-08-30** — The New game screen puts the name, the rules and the create button above the map gallery, which was a screenful of scrolling between the choice and the act.

@@ -18,3 +18,10 @@ and re-enters orders. Rationale: ADR-009 makes the device load-bearing
 (drafts and unrevealed orders live in its localStorage), so two devices
 holding one seat with divergent state is exactly what commit-reveal cannot
 tolerate.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r2, 2026-08-28** — ADR-012: hard seat claim in v1; second device blocked and logged, seat moves via GM token rotation.

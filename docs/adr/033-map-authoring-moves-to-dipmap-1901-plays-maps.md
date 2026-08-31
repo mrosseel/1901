@@ -34,3 +34,11 @@ hit-testing fails silently. When 1900's art failed to render, every hit-test
 missed and the detector wrote a well-formed plan calling all 181 names land,
 twenty-one seas among them. A plan writer must count the labels that land on
 nothing and refuse rather than write.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r25, 2026-08-29** — ADR-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay.
+- **r28, 2026-08-30** — ADR-033 widened: `tools/jdip-import/` moves to dipmap as well, so 1901 never writes a map.

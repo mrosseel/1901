@@ -25,3 +25,11 @@ they have names already. Where they do not, keep ours and write them down.
 
 We implement none of the 25 scoring systems in dipvis's catalogue. Somebody
 else wrote them, with tests, and §1 says scoring is not our job.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r47, 2026-08-30** — ADR-046: publish supply-centre counts as JSON and CSV, because dipvis scrapes Backstabbr's HTML for exactly that and a stable address replaces a scraper.
+- **r47, 2026-08-30** — Q-008 opened: whether to bring back a board with no players, which is Backstabbr's sandbox and the reason its links are the community's citation format.

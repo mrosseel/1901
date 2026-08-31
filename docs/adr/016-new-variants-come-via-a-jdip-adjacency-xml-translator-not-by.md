@@ -39,3 +39,12 @@ machine-readable form, and typos in adjacency data are exactly the bugs
 that surface mid-game at a table.
 
 ---
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r4, 2026-08-28** — ADR-016: jDip-only variants are added via a generated translation of jDip's adjacency XML + variants.xml into a godip variant package; translator built on first concrete need, post-v1.
+- **r14, 2026-08-28** — ADR-016 activated: pilot port of 1900 and Sail Ho from jDip (translator + map conversion phase 1; LLM-assisted restyle phase 2, needs OpenRouter key).
+- **r14, 2026-08-28** — Sources vendored to tools/jdip-import/source.

@@ -52,3 +52,12 @@ referee role to somebody else and keep playing, hand the power away and keep
 refereeing, or move either to a second device. This also answers the laptop
 and phone case: the GM creates the game on a laptop and moves the power to a
 phone, with the referee view left where it is.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r26, 2026-08-30** — ADR-034: a seat whose power has no legal order this phase is finalized by the server, in every phase type, so an empty retreat never reaches a screen.
+- **r26, 2026-08-30** — Force adjudication counts only the seats a phase asked a player for; the seat screen says why it is locked; an auto-locked seat cannot be unlocked.
+- **r26, 2026-08-30** — Move the pieces became a checklist.

@@ -52,3 +52,11 @@ nothing else. Scoring stays a non-goal (§1); dipvis owns that job.
 **Not decided here:** what happens to a game after it ends. A frozen game
 sitting in the list is enough for a first tournament. Rematch, archive and
 delete can wait for somebody to want them.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r47, 2026-08-30** — ADR-044: a game ends, by a solo read from godip's `SoloWinner`, by a draw the game master records, or at an end year, and an ended game freezes and publishes a result; the flow never asked who won.
+- **r47, 2026-08-30** — Build order in §7 restated: ADR-044 before M3, then ADR-004 and ADR-041.

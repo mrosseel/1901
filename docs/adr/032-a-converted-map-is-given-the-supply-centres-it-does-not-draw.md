@@ -22,3 +22,11 @@ is often under the province name and a filled dot would swallow it. The id is
 `sc-<key>`, deliberately not `<key>Center`, because `board.ts` matches
 `[id$="Center"]` for anchors. `?style=original` gains nothing. It stays a
 faithful copy.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r25, 2026-08-29** — ADR-032: converted maps are given supply-centre rings they never carried.
+- **r34, 2026-08-30** — A drawn ring keeps the id from ADR-032 and never `<key>Center`, which the board matches to find anchors.

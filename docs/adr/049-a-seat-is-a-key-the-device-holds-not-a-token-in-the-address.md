@@ -64,3 +64,11 @@ of seats. That is worth having on its own.
 who wants the orders can serve a page that posts them twice. The claim this
 earns is *the server does not need your orders, and no copy of the database
 gives them up later* — not "nobody can read them".
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r50, 2026-08-30** — ADR-049: a seat is a key the joining device makes, not a token in its address.
+- **r50, 2026-08-30** — The device sends the public half, keeps the seed in its own storage, and moves it between devices in a URL fragment, which no browser ever sends.

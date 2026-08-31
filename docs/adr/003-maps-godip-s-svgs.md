@@ -89,3 +89,16 @@ nothing else in it, because an approved table can hold corrections a person
 made by hand and the codes are a later question than the markers were. It
 writes the codes as a replacement rather than a merge, so a province the tool
 declines loses any code an earlier run left there.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r2, 2026-08-28** — Fact correction in §2.3: godip maps carry `<abbr>Center` placement anchors in all 17 SVG variants; ADR-003 amended to generate the placement table from them.
+- **r2, 2026-08-28** — §2.1: jDip's `egdipmap.svg` PROVINCE_DATA measured; usable only with jDip's own art.
+- **r21, 2026-08-29** — ADR-003 amended: the table gained a `brief` position per province for the three-letter code, judged against the province own marker, the neighbours markers, the dislodged ring, the supply glyph and the province border, with the full names off because brief mode hides them.
+- **r21, 2026-08-29** — A code is stored only where it measures no worse than the board offset heuristic in both board states, so a map whose provinces are smaller than their codes keeps the heuristic.
+- **r21, 2026-08-29** — The board reads the field and falls back per province.
+- **r21, 2026-08-29** — `--brief-only` adds codes to an approved table without re-deriving it, which is how classical kept its hand corrections.
+- **r21, 2026-08-29** — The jDip maps keep their own BriefLabelLayer; their codes were measured and not moved.

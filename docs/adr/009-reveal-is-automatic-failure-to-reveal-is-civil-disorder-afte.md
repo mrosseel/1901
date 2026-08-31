@@ -23,3 +23,11 @@ committed power whose client dies could stall the table forever.
 At a table the social fix ("unlock your phone") resolves almost every case.
 The GM decision path exists so the state machine has a defined terminal
 state without a timer racing a human — same philosophy as ADR-010.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r2, 2026-08-28** — ADR-009: auto-reveal from client localStorage, civil disorder after grace period — closes the committed-but-never-revealed stall between ADR-004 and ADR-008.
+- **r2, 2026-08-28** — ADR-009 amended: failed reveal flags the GM (wait/extend/force), no automatic civil-disorder timer.

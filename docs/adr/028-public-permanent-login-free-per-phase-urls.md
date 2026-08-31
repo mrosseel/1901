@@ -39,3 +39,11 @@ the JSON before and after. Only the `now` field differed.
 
 Still open, and cheap once wanted: the layout variants ADR-013 asked for (board
 only, board plus move list), and the referee guide of steal 2.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r18, 2026-08-28** — ADR-028: public per-phase watch URLs, /watch/{id}/{phaseIndex}, snapshots derived from replay and stable across a hard kill.
+- **r48, 2026-08-30** — Editing the position breaks ADR-028's replay-from-orders, so an edit writes a whole-position checkpoint and replay starts there, and an edited phase says so on the page.

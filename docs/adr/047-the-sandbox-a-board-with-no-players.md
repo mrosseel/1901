@@ -66,3 +66,12 @@ handover. None of them has a second person to be about.
 **Where it sits.** After ADR-044, because a board that cannot end is not worth
 publishing. Independent of M3: with no secrets to keep, commit-reveal has
 nothing to say here.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r48, 2026-08-30** — ADR-047: the sandbox, a game with no seats, one `sandboxToken` link that may drive every power and adjudicate, and the ordinary watch addresses for everybody else.
+- **r48, 2026-08-30** — It closes Q-008 ahead of the playtest, on the owner's call.
+- **r48, 2026-08-30** — It is a flag on a game rather than a second object, so there is one adjudication path; a sandbox route refuses a real game and a seat route refuses a sandbox, which is a test and not a comment.

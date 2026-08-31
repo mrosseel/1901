@@ -72,3 +72,13 @@ behind import.meta.env.DEV as well.
 Where it stands: pure reports zero violations today. Classical reports
 145, of which 79 are the name and glyph overlaps the audit already
 counts. twentytwenty reports 1336.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r20, 2026-08-29** — ADR-030: in-app map editor at /mapeditor, with the convergence goal — every hand drag is a scoring bug to encode; zero audit violations auto-promotes the variant to supported.
+- **r22, 2026-08-29** — ADR-030 implemented: /mapeditor in-app — variant picker, draggable unit/dislodged/brief markers, live violation audit sharing tools/placement rules (rules.ts split out), drag telemetry, province display-name overrides (names/{key}.json over ProvinceLongNames), stable-diff export, disk save only under -tags mapeditordev into .hand files the server never loads.
+- **r22, 2026-08-29** — Editor reads terrain from godip, exposing colour-guess faults in the offline audit (open item).
+- **r25, 2026-08-29** — ADR-030 superseded in ownership.

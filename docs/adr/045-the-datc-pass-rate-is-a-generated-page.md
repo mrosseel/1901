@@ -19,3 +19,10 @@ webDiplomacy's table is honest about skipping the retreat and build cases and
 ours can beat it by being honest in the same place. And the number is
 generated, never typed. A hand-written claim goes stale the first time godip
 moves, and a stale claim about correctness is worse than no claim.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r47, 2026-08-30** — ADR-045: the DATC pass rate the CI already computes becomes a generated page that also states what was not run.

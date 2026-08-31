@@ -124,3 +124,15 @@ as a recovery mechanism alone it is a heavy answer to a light question.
 **Still open.** Keys for the seats, which is alternative 4 and costs ADR-020. The
 signature half — a signed commit under ADR-004, signed press under ADR-023 — is
 what this was built for and is not built.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r49, 2026-08-30** — ADR-048 accepted and built, closing Q-009.
+- **r49, 2026-08-30** — The game master's browser makes an Ed25519 key, the server keeps the public half, and twelve BIP-39 words are the copy that outlives the device: typing them at /recover signs a challenge and buys a fresh game master address, which rotates the token and drops the referee cookie exactly as a role handover does.
+- **r49, 2026-08-30** — The key is write-once, because the token is not the credential it protects.
+- **r49, 2026-08-30** — Alternative 1 shipped beside it: the game master page shows its own address, folded and guarded like every other secret there.
+- **r49, 2026-08-30** — HKDF-SHA256 and not BIP-39's PBKDF2 seed, a vendored curve and not crypto.subtle, because run.sh serves plain http on a LAN.
+- **r49, 2026-08-30** — Nothing changes for a player, and no seat has a key.

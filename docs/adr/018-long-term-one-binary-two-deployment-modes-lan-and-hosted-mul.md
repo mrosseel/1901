@@ -30,3 +30,11 @@ What this changes *now* (cheap if done early, expensive to retrofit):
 What this explicitly does not change: no account system, lobby, or
 multi-tenancy work before M5 is accepted. Hosted mode gets its own
 milestones after v1 ships.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r6, 2026-08-28** — ADR-018: long-term target is one binary with two modes — LAN (primary, unchanged) and hosted multi-game with accounts for game management only; seat play stays login-free in both.
+- **r6, 2026-08-28** — Non-goals updated to point at it.

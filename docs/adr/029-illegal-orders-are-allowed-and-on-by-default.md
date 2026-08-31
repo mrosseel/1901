@@ -18,3 +18,14 @@ unit held" (the WDC misorder outcome). Entry UX: legal targets stay
 highlighted, but with the setting on, taps outside the highlights are
 accepted rather than refused; the tap grammar remains the guide, not a
 cage. Turning the setting off restores strict legal-only entry.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r19, 2026-08-29** — ADR-029: illegal orders are allowed and on by default (closes Q-007).
+- **r19, 2026-08-29** — An order that parses but fails validation is stored as written, excluded from the engine, resolves as IllegalOrder, and the unit holds.
+- **r19, 2026-08-29** — Own seat only; amber in the list.
+- **r48, 2026-08-30** — ADR-029 and ADR-044 apply; press, deadlines, anonymity and handover have no second person to be about.
+- **r48, 2026-08-30** — CONTEXT.md gains Sandbox.

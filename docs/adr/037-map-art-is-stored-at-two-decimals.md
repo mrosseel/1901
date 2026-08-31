@@ -30,3 +30,11 @@ to 7.5 MB gzipped.
    pixel changed.
 5. The art bytes change, so every style plan is re-pinned to the digest of
    what it was measured on (ADR-026).
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r27, 2026-08-30** — ADR-037: map art is stored at two decimals, 19% off disk and 24% off the gzipped bytes, touching only `d` and `points` so the viewBox and every placement table stay valid.
+- **r27, 2026-08-30** — Dead definitions are pruned from the art, which changes the bytes of `?style=original` but not its picture.

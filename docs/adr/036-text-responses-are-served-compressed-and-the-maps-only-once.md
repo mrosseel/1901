@@ -28,3 +28,10 @@ classical's parchment map is 1.8 MB of SVG and gzips to 976 KB.
    the process, so the compressed copy is cached beside them.
 7. Both routes that serve a board go through one function, so the gallery and
    a game table cannot disagree about the bytes or the headers.
+
+## Revisions
+
+From the revision log this decision used to live beside. Each line is
+the sentence that revised it, with the document revision it came from.
+
+- **r27, 2026-08-30** — ADR-036: text responses are gzipped for clients that offer it, with `Vary: Accept-Encoding` on everything compressible; the map art is compressed once per style and cached beside the composed bytes, 64% off the wire.
