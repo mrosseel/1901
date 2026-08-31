@@ -1,6 +1,6 @@
 // The application half of a restyle (ADR-026).
 //
-// tools/restyle detects; this applies. Given the original art, the style plan
+// dipmap detects; this applies. Given the original art, the style plan
 // measured from it, and a style's tokens, the two functions here compose the
 // styled map as a string substitution — no browser, no coordinate touched.
 // What changes is a fill value, a pattern's insides, a stroke, a text's
@@ -34,7 +34,7 @@ import (
 // --- numbers ---------------------------------------------------------------
 
 // num formats a number the way JavaScript's String() does, because these
-// values are compared against art that tools/restyle wrote.
+// values are compared against art that the detector wrote.
 func num(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }

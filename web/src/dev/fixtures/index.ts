@@ -13,7 +13,8 @@ with its own name in the message, instead of rendering a page full of blanks.
 
 import type { GameSummary, GmState, SeatState, WatchState } from "../../api";
 import type { OptionTree } from "../../board/types";
-import { isGmState, isOptionBook, isSeatState, isWatchState } from "../guards";
+import type { DatcReport } from "../../pages/DatcPage";
+import { isDatcReport, isGmState, isOptionBook, isSeatState, isWatchState } from "../guards";
 
 const files = import.meta.glob("./*.json", { eager: true, import: "default" }) as Record<
   string,
@@ -53,6 +54,7 @@ export const gm = (name: string): GmState => checked(name, isGmState);
 export const watch = (name: string): WatchState => checked(name, isWatchState);
 export const options = (name: string): Record<string, OptionTree> =>
   checked(name, isOptionBook);
+export const datc = (name: string): DatcReport => checked(name, isDatcReport);
 
 /*
 The game list, derived from the spectator captures rather than captured on its

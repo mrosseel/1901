@@ -96,7 +96,7 @@ func TestIllegalOrderIsKeptAndStruck(t *testing.T) {
 
 	// Adjudicate with everybody locked, so the NMR list stays empty.
 	for _, power := range g.flow.powers {
-		g.flow.seats[power].locked = true
+		seatIn(g, power)
 	}
 	if err := g.adjudicate(id, true); err != nil {
 		t.Fatal(err)
@@ -176,7 +176,7 @@ func TestIllegalOrderSurvivesARestart(t *testing.T) {
 
 	// Adjudicating after the restart must produce the same review.
 	for _, power := range restored.flow.powers {
-		restored.flow.seats[power].locked = true
+		seatIn(restored, power)
 	}
 	if err := restored.adjudicate(id, true); err != nil {
 		t.Fatal(err)

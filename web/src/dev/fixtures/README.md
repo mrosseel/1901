@@ -56,6 +56,8 @@ variant.
 | `seat-adjustment-build.json` | France owing two builds, Brest and Marseilles open |
 | `seat-adjustment-disband.json` | Austria owing one disband |
 | `seat-idle.json` | Germany in the Spring 1901 retreat, asked for nothing and locked by the server (ADR-034) |
+| `seat-ended-draw.json` | France in the game above, after the draw: the result, the powers in it and every power's final count |
+| `seat-sealed-locked.json` | Austria in a sealed game (ADR-004), locked in with six of seven powers in. It carries no `orderParts` at all, and that is the capture rather than a gap: the draft is on the phone and the server holds a digest |
 
 ### Option trees — `Record<string, OptionTree>`
 
@@ -80,6 +82,7 @@ beside their state.
 | `gm-force-armed.json` | Six of seven locked in, so the forced adjudication is live |
 | `gm-deadline-passed.json` | A third game with a one-minute deadline, snapshotted after it ran out with nobody locked in |
 | `gm-adjustment.json` | After Fall 1901, with the event log filled in |
+| `gm-ended-draw.json` | A fifth game, played through 1901 and then drawn among England, France and Russia (ADR-044). The clock is gone and `canForce` is false for good |
 
 ### Spectator states — `WatchState`
 
@@ -88,6 +91,13 @@ beside their state.
 | `watch-prestart.json` | A game that has not started: two of six seats filled, no clock, the opening position on the board |
 | `watch-live.json` | The live Spring 1901 movement: a board and a clock, no orders public yet |
 | `watch-phase-0.json` … `watch-phase-4.json` | The five resolved phases, so the page's earlier and later buttons really walk them |
+| `watch-ended.json` | A sixth game created with `endYear: 1901`, frozen the moment the board left that year (ADR-044). Its own history was not captured, so the earlier button finds nothing — the screen this is here for is the result |
+
+### The DATC report — `DatcReport`
+
+| File | The moment |
+| --- | --- |
+| `datc-report.json` | What `/datc.json` served (ADR-045). It is generated output rather than a game state, and the copy here is a picture of the page, not a claim about the build the gallery is running in |
 
 ## Capturing another one
 

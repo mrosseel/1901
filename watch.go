@@ -131,6 +131,11 @@ type watchJSON struct {
 	DeadlineAt  interface{}     `json:"deadlineAt"`
 	GraceUntil  interface{}     `json:"graceUntil"`
 
+	// Result is how the game ended, null while it runs (ADR-044). It belongs
+	// to the game rather than to a phase, so every phase of a finished game
+	// carries it: a citation of Fall 1904 should say the game was won.
+	Result *gameResult `json:"result"`
+
 	Variant       variantRefJSON    `json:"variant"`
 	ProvinceNames map[string]string `json:"provinceNames"`
 	Placements    placementTable    `json:"placements"`
@@ -154,6 +159,7 @@ func (self *game) watchState(id string, phaseIndex int) (watchJSON, bool) {
 		ProvinceNames: self.provinceNames(),
 		Placements:    self.placements(),
 		Labels:        self.labels(),
+		Result:        f.result,
 		Now:           serverNow(),
 		Units:         map[string]unitJSON{},
 		Dislodged:     map[string]unitJSON{},

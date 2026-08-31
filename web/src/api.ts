@@ -36,6 +36,28 @@ export interface Settings {
   screens say it. Absent means the server's default, ftf.
   */
   pressMode?: "ftf" | "gunboat" | "fullpress" | "rulebook";
+  /*
+  The year the game stops after, zero or absent meaning it plays on until a
+  solo or a draw (ADR-044). A tournament round with a hard stop sets it.
+  */
+  endYear?: number;
+}
+
+/*
+How a game ended (ADR-044), null while it runs.
+
+`centres` names every power of the variant, zeros included, so an eliminated
+one reads as eliminated rather than as missing. `powers` is who the ending
+names: the winner of a solo, the powers that agreed a draw, everybody still
+holding a centre at the end year.
+*/
+export interface GameResult {
+  kind: "solo" | "draw" | "endYear";
+  powers: string[];
+  centres: Record<string, number>;
+  year: number;
+  /** How many phases had resolved: the last one a /watch link can show. */
+  phaseIndex: number;
 }
 
 /** What a running game says about the variant it was created with. */
@@ -79,6 +101,13 @@ export interface VariantAware {
   */
   now?: string;
   previousPhase?: PreviousPhase | null;
+  /*
+  How the game ended (ADR-044). Null or absent while it runs, and on every
+  answer once it has: the seat, the game master view, the public summary and
+  every phase of the spectator feed, so a citation of Fall 1904 still says the
+  game was won.
+  */
+  result?: GameResult | null;
 }
 
 /*
@@ -157,9 +186,11 @@ export interface GmSeat {
   joined: boolean;
   locked: boolean;
   isGm?: boolean;
+  /** This seat has released the orders behind its lock (ADR-004). */
+  revealed?: boolean;
 }
 
-export interface GmState extends VariantAware {
+export interface GmState extends VariantAware, SealedPhase {
   gameId: string;
   settings: Settings;
   settingsVersion: number;
@@ -182,7 +213,7 @@ export interface GmState extends VariantAware {
   hasGmKey?: boolean;
 }
 
-export interface PublicState extends VariantAware {
+export interface PublicState extends VariantAware, SealedPhase {
   gameId: string;
   phase: BoardState["phase"];
   started: boolean;
@@ -194,8 +225,27 @@ export interface PublicState extends VariantAware {
   deadlineAt: string | null;
 }
 
-export interface SeatState extends BoardState, VariantAware {
+/*
+How a game takes orders (ADR-004).
+
+`sealed` is every game made from 2026-08-31 on: the draft lives on this phone,
+locking sends it encrypted, and the key goes up only once every seat has
+locked in. `revealOpen` is that moment. A game made before commit-reveal existed
+keeps writing its drafts to the server and has all three of these false.
+*/
+export interface SealedPhase {
+  sealed?: boolean;
+  revealOpen?: boolean;
+  /** Seats the board is still waiting on. It names seats, never orders. */
+  awaitingReveal?: string[];
+}
+
+export interface SeatState extends BoardState, VariantAware, SealedPhase {
   you: { power: string };
+  /** Which phase this is, counting resolved phases from zero. */
+  phaseIndex?: number;
+  /** This seat has released the orders behind its own lock. */
+  youRevealed?: boolean;
   settings: Settings;
   settingsVersion: number;
   started: boolean;
@@ -311,10 +361,9 @@ export type Route =
   | { kind: "games" }
   /* The questions a first table asks. One page, no game behind it. */
   | { kind: "faq" }
+  /* What this build scored against DATC (ADR-045). Generated, never typed. */
+  | { kind: "datc" }
   | { kind: "new" }
-  /* The map editor (ADR-030). It carries no game and no token: it edits a
-     variant's placement table, and a variant is all it needs. */
-  | { kind: "mapeditor" }
   | { kind: "join"; gameId: string; inviteToken: string }
   | { kind: "gm"; gameId: string; gmToken: string }
   | { kind: "seat"; gameId: string; seatToken: string }
@@ -329,6 +378,7 @@ export function parseRoute(pathname: string): Route {
   if (parts.length === 1 && parts[0] === "new") return { kind: "new" };
   if (parts.length === 1 && parts[0] === "games") return { kind: "games" };
   if (parts.length === 1 && parts[0] === "faq") return { kind: "faq" };
+  if (parts.length === 1 && parts[0] === "datc") return { kind: "datc" };
   if (parts[0] === "recover" && parts.length <= 2) {
     return { kind: "recover", gameId: parts.length === 2 ? parts[1] : null };
   }
@@ -344,7 +394,6 @@ export function parseRoute(pathname: string): Route {
       signature: parts[4],
     };
   }
-  if (parts.length === 1 && parts[0] === "mapeditor") return { kind: "mapeditor" };
   if (parts.length === 3 && parts[0] === "join") {
     return { kind: "join", gameId: parts[1], inviteToken: parts[2] };
   }
@@ -422,6 +471,17 @@ export function watchUrl(gameId: string, phaseIndex: number | null): string {
 
 export function fetchWatch(gameId: string, phaseIndex: number | null): Promise<WatchState> {
   return getJSON<WatchState>(watchUrl(gameId, phaseIndex));
+}
+
+/*
+The counts a tournament pipeline reads (ADR-046).
+
+Public and token-free, like the board they are counted from. dipvis scrapes
+Backstabbr's HTML for exactly this; a director who is handed one of these
+addresses needs no scraper.
+*/
+export function resultsUrl(gameId: string, format: "json" | "csv"): string {
+  return absolute("/game/" + encodeURIComponent(gameId) + "/results." + format);
 }
 
 /** The map, which the spectator screen may ask for without any token. */
@@ -542,6 +602,14 @@ export class GmClient {
     return postJSON(this.base + "extend", { minutes: minutes });
   }
 
+  /*
+  End the game in a draw the table agreed (ADR-044). The powers must each
+  still hold a centre; one power is a concession and is allowed.
+  */
+  draw(powers: string[]): Promise<unknown> {
+    return postJSON(this.base + "draw", { powers: powers });
+  }
+
   /** The link that hands the game master role to another device (ADR-041). */
   roleHandover(): Promise<Handover> {
     return getJSON<Handover>(this.base + "handover-role");
@@ -657,8 +725,25 @@ export class SeatClient {
     );
   }
 
-  lock(on: boolean): Promise<SeatState> {
-    return this.withSession(() => postJSON<SeatState>(this.base + (on ? "lock" : "unlock")));
+  /*
+  Locking. In a sealed game the body is the sealed orders and nothing else,
+  which is what makes the lock a commitment (ADR-011): one act, one word in
+  front of the player, an envelope behind it.
+  */
+  lock(on: boolean, sealed?: string): Promise<SeatState> {
+    return this.withSession(() =>
+      postJSON<SeatState>(this.base + (on ? "lock" : "unlock"), on ? { sealed: sealed } : {}),
+    );
+  }
+
+  /*
+  Releasing what this phone locked in (ADR-004): the key, and only the key.
+  The orders are already on the server, inside the envelope it opens. No
+  player presses anything — the page sends this by itself the moment it sees
+  the window open (ADR-009).
+  */
+  reveal(key: string): Promise<SeatState> {
+    return this.withSession(() => postJSON<SeatState>(this.base + "reveal", { key: key }));
   }
 
   /** The link that hands this power to another phone (ADR-041). */

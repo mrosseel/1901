@@ -119,6 +119,19 @@ export function FaqPage() {
           <p>
             <a href="https://github.com/zond/godip">godip</a>, which has survived a decade of
             real games and is tested here against the DATC corpus on every push.
+            The score, and what it leaves out, is on <a href="/datc">the adjudication page</a>.
+          </p>
+        </section>
+
+        <section className="card">
+          <h2>How does a game end?</h2>
+          <p>
+            On a solo, when one power holds enough supply centres — eighteen on
+            the classical board. On a draw or a concession, which the table
+            agrees out loud and the game master records. Or at an end year, if
+            the game was created with one, which is how a tournament round with
+            a hard stop finishes. An ended game freezes: the result and the
+            supply centre counts stay on the spectator link forever.
           </p>
         </section>
 

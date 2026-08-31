@@ -23,6 +23,7 @@ different kind. The README says so too.
 */
 
 import type { GameSummary, GmState, PublicState, SeatState, WatchState } from "../api";
+import type { DatcReport } from "../pages/DatcPage";
 import type { OptionTree } from "../board/types";
 import { gameIdOf } from "./fixtures";
 
@@ -39,12 +40,14 @@ export interface Scenario {
   options?: Record<string, OptionTree>;
   /** The rows the game list shows. Only the list screen needs them. */
   games?: GameSummary[];
+  /** The published DATC report (ADR-045). Only the adjudication page needs it. */
+  datc?: DatcReport;
 }
 
 /* The app's own transport is versioned and prefixed (ADR-050); the published
    reads are not, which is the whole point of the split. */
-const SEAT = /^\/api\/v1\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|lock|unlock)$/;
-const GM = /^\/api\/v1\/game\/[^/]+\/gm\/[^/]+\/(state|settings|start|adjudicate|extend)$/;
+const SEAT = /^\/api\/v1\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|lock|unlock|reveal)$/;
+const GM = /^\/api\/v1\/game\/[^/]+\/gm\/[^/]+\/(state|settings|start|adjudicate|extend|draw)$/;
 const WATCH = /^\/game\/[^/]+\/watch(?:\/(\d+))?$/;
 const PUBLIC = /^\/game\/[^/]+\/public$/;
 const MAP = /\/map\.svg$/;
@@ -122,6 +125,12 @@ function answer(scene: Scenario, url: URL, method: string): Response | null {
 
   if (path === "/api/v1/games") {
     return json(scene.games || []);
+  }
+
+  /* The DATC report is published data, not a game (ADR-045), so it is matched
+     by its whole address rather than by a game route. */
+  if (path === "/datc.json") {
+    return scene.datc ? json(scene.datc) : missing("the DATC report");
   }
 
   if (PUBLIC.test(path)) {

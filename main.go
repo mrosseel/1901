@@ -610,10 +610,10 @@ func absPath(path string) string {
 // cap is what stops one request from costing the server its memory.
 const maxBodyBytes = 64 << 10
 
-// largeBodies names the few paths that are allowed a bigger body than the
-// cap above, with the cap each one gets. It is empty in a normal build; the
-// map editor's dev-only save route is the one thing that fills it, because it
-// posts a whole placement table rather than a handful of orders (ADR-030).
+// largeBodies names the few paths that are allowed a bigger body than the cap
+// above, with the cap each one gets. It is empty, and has been since the map
+// editor moved to dipmap (ADR-051): every route this server has now posts a
+// handful of orders, not a whole placement table.
 var largeBodies = map[string]int64{}
 
 // limitBody wraps a handler so every request body is size-capped. The
@@ -656,9 +656,6 @@ func loadState() error {
 	if err := loadAll(); err != nil {
 		return fmt.Errorf("load games: %w", err)
 	}
-	if err := loadNameOverrides(); err != nil {
-		return fmt.Errorf("load name overrides: %w", err)
-	}
 	if err := loadStyles(); err != nil {
 		return fmt.Errorf("load map styles: %w", err)
 	}
@@ -692,10 +689,6 @@ func main() {
 	mux.HandleFunc("/", srv.serveRoot)
 	mux.HandleFunc("/assets/", srv.serveSPAAsset)
 	mux.HandleFunc("/new", srv.serveSPA)
-	// The map editor is one more page of the same shell (ADR-030). It carries
-	// no game and no token, so it needs nothing but the shell; whether it can
-	// save is decided by the build, in mapeditor_dev.go.
-	mux.HandleFunc("/mapeditor", srv.serveSPA)
 	// The questions page, and one more route of the same shell (ADR-043).
 	mux.HandleFunc("/faq", srv.serveSPA)
 	// The design gallery. Whether it exists is decided in the frontend build,
@@ -703,13 +696,16 @@ func main() {
 	// address then serves a shell that answers "nothing here". Serving the
 	// shell either way keeps the decision in one place.
 	mux.HandleFunc("/dev/screens", srv.serveSPA)
-	registerEditorSave(mux)
 	// The game list page (ADR-043). The list itself and the create moved to
 	// /api/v1/games with everything else the app says to itself (ADR-050),
 	// so this address is a page and only a page.
 	mux.HandleFunc("/games", srv.serveSPA)
 	// The app's own transport, all of it (ADR-050).
 	mux.HandleFunc(apiPrefix+"/", srv.serveAPI)
+	// What this build scored against DATC (ADR-045). The JSON is published
+	// data and the page is one more route of the same shell.
+	mux.HandleFunc("/datc.json", handleDATC)
+	mux.HandleFunc("/datc", srv.serveSPA)
 	mux.HandleFunc("/variants", handleVariants)
 	mux.HandleFunc("/styles", handleStyles)
 	mux.HandleFunc("/variants/", handleVariantMap)

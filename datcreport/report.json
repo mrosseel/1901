@@ -1,0 +1,43 @@
+{
+  "engine": "v0.6.6-0.20251114160713-cd2444219282",
+  "variant": "classical",
+  "cases": 185,
+  "passed": 185,
+  "files": [
+    {
+      "name": "datc_v2.4_06.txt",
+      "cases": 167,
+      "passed": 167,
+      "failed": []
+    },
+    {
+      "name": "dipai.txt",
+      "cases": 9,
+      "passed": 9,
+      "failed": []
+    },
+    {
+      "name": "diplicity_errors.txt",
+      "cases": 1,
+      "passed": 1,
+      "failed": []
+    },
+    {
+      "name": "droidippy_errors.txt",
+      "cases": 4,
+      "passed": 4,
+      "failed": []
+    },
+    {
+      "name": "real.txt",
+      "cases": 4,
+      "passed": 4,
+      "failed": []
+    }
+  ],
+  "limits": [
+    "Only the classical variant. Every other variant this server plays is generated from the same descriptor format and is checked structurally, not against DATC.",
+    "The corpus is godip's: DATC v2.4 section 6, plus the regression files godip collected from Diplicity, Droidippy, dipai and real games. A DATC case godip does not ship is not run here.",
+    "Each case is one position resolved once. Nothing here exercises the deadline, the seat rules or the order-entry grammar."
+  ]
+}

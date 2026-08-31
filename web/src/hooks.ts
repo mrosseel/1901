@@ -68,6 +68,7 @@ export function settingsLines(
         gmPlays: boolean;
         illegalMoves?: boolean;
         pressMode?: string;
+        endYear?: number;
       }
     | undefined,
 ): string[] {
@@ -88,5 +89,10 @@ export function settingsLines(
     // A mode the server does not know is a mode this build cannot describe,
     // so it says nothing rather than guessing (filtered below).
     PRESS_LINES[rules.pressMode || "ftf"] || "",
+    /* Only a game that has one gets a line. No end year is the ordinary case
+       and it is what a game plays under until somebody wins (ADR-044). */
+    rules.endYear && rules.endYear > 0
+      ? "The game stops after " + rules.endYear + "."
+      : "",
   ].filter((line) => line !== "");
 }

@@ -24,12 +24,19 @@ func withGeneratedDir(t *testing.T, dir string) {
 
 	savedVariants := generatedVariants
 	savedPlacements := placements
+	// The style plans load from the same directory and were the one global
+	// this helper did not put back. A test that read testdata left demo7's
+	// version-2 plan in the map for every test after it, and which tests
+	// those were depended on the file names in this package.
+	savedPlans := plans
 	generatedVariants = map[string]generatedVariant{}
 	placements = map[string]placementTable{}
+	plans = map[string]*stylePlan{}
 
 	t.Cleanup(func() {
 		generatedVariants = savedVariants
 		placements = savedPlacements
+		plans = savedPlans
 		// The key index caches whatever was loaded, so it has to follow.
 		rebuildVariantIndex()
 	})

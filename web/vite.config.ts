@@ -30,10 +30,8 @@ deliberately few: every address here is one we mean to keep working.
 */
 const endpoints =
   "^/(api/" +
-  // The variant catalogue, its maps, and the three variant-level files the
-  // map editor loads: terrain, the approved placement table, the display names.
-  "|variants$|variants/[^/]+/(map\\.svg|provinces\\.json|placement\\.json|names\\.json)" +
-  "|mapeditor/save" + // the editor's dev-only save endpoint (ADR-030)
+  // The variant catalogue and its maps.
+  "|variants$|variants/[^/]+/(map\\.svg|provinces\\.json|placement\\.json)" +
   "|styles$" + // the map styles this server can draw in
   // The spectator page stays with vite; the board it reads goes to Go.
   "|game/[^/]+/(public|watch(/[0-9]+)?|map\\.svg)" +

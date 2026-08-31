@@ -116,3 +116,17 @@ the sentence that revised it, with the document revision it came from.
 - **r25, 2026-08-29** — A length is now carried onto the scale of the layer it lands in rather than the map's, and `jdipPlan` gains `labelScale`, derived from the art when a plan omits it.
 - **r25, 2026-08-29** — Two dormant faults recorded: jDip label lengths are emitted unitless and inert, and the label layer's `stroke:none` outranks the halo rule.
 - **r25, 2026-08-29** — ADR-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges.
+
+## Confirmed by measurement, 2026-08-31
+
+When the authoring tools moved to dipmap (ADR-051), the alternative was
+reconsidered: dipmap could write one styled SVG per style, and this server
+would serve files instead of composing.
+
+It was measured. The 26 maps use 23 MB of SVG, and there are four styles, so
+the binary would embed 92 MB instead of 344 KB of styles. That is 270 times the
+data, to remove 1307 lines of Go.
+
+Serve-time composition stands. The style plan now arrives in the variant
+package as `styleplan.json` rather than in a `styleplans/` directory of its
+own, because dipmap writes the four files of a map together.

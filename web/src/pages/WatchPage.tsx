@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchPublic,
   fetchWatch,
+  resultsUrl,
   watchMapUrl,
   watchPath,
   type PreviousPhase,
@@ -10,6 +11,7 @@ import {
 } from "../api";
 import { Board } from "../components/Board";
 import { Clock } from "../components/Clock";
+import { GameOver } from "../components/GameOver";
 import { RefereeGuide } from "../components/RefereeGuide";
 import { ModalLayer } from "../components/ModalLayer";
 import { SplitLayout } from "../components/SplitLayout";
@@ -339,11 +341,25 @@ export function WatchPage({
           ) : null}
         </header>
 
+        {/* How the game ended (ADR-044). It rides on every phase of a
+            finished game, so a link to Fall 1904 still says who won. */}
+        <GameOver result={watch?.result} />
+
         {/* The supply centre count, which is what a room watching a board
             wants to know and what the whole game is about. Public arithmetic
             on a position this page is already drawing (ADR-013). */}
         {waiting ? null : (
           <Standings state={boardState} powers={Object.keys(summary?.locked || {})} />
+        )}
+
+        {/* The counts, as a file (ADR-046). This is the address a tournament
+            director is handed, so the export lives here as well as on the
+            game master's page. */}
+        {waiting ? null : (
+          <p className="results-links">
+            <a href={resultsUrl(gameId, "csv")}>results.csv</a>{" "}
+            <a href={resultsUrl(gameId, "json")}>results.json</a>
+          </p>
         )}
 
         {/* Nothing to walk before the first phase has resolved. */}

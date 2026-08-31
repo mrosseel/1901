@@ -21,14 +21,28 @@ What that looks like in practice:
   whoever keeps the physical board what to do.
 - A login-free spectator URL exists for every phase, forever, for beamers and
   bystanders.
+- Games end. A solo at eighteen centres, a draw or a concession the game
+  master records, or an end year for a round with a hard stop. The result and
+  the supply centre counts stay on the spectator link.
+- `results.csv` and `results.json` per game, so a tournament director's scoring
+  tool reads the counts instead of scraping a web page for them.
 - 26 variants (Classical through Sail Ho!), four map styles, and it all runs
   offline on a laptop, because tournament venue wifi is what it is.
 
-The interesting technical bit is planned for a later milestone: commit-reveal
-order secrecy, so a GM who also plays cannot peek at anyone's orders before
-their own are in. No existing platform does this. The design notes live in
-[DESIGN.md](DESIGN.md), which records every decision this project has made
-and why.
+The interesting technical bit is that the server cannot read your orders while
+you are writing them. They stay on your phone. Locking in sends them encrypted
+under a key the phone keeps, and the key goes up only once every power has
+locked in. So a game master who runs the server on their own laptop, and plays
+a power, cannot read anybody's orders before writing their own — not as a
+promise, but because they hold seven envelopes and no key to any of them. No
+other Diplomacy platform does this.
+
+The key comes from your seat, so it can be made again. If your phone dies
+after you lock in, open your seat link on another one and your orders still
+count.
+
+The design notes live in [DESIGN.md](DESIGN.md) and [docs/adr/](docs/adr/),
+which record every decision this project has made and why.
 
 ## Running it
 
@@ -129,6 +143,9 @@ cd web && npx vitest run
 ```
 
 CI runs both suites plus govulncheck and godip's DATC corpus on every push.
+The DATC run writes `datcreport/report.json`, which the binary embeds and
+serves at `/datc`. Do not edit that file: the number is generated, and a typed
+claim about correctness goes stale the first time godip moves.
 
 ## Legal
 

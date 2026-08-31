@@ -1,10 +1,10 @@
 ---
-status: superseded by ADR-033
+status: superseded by ADR-051
 ---
 
 # ADR-030 — In-app map editor at /mapeditor
 
-**Status:** implemented r22, superseded r25 by ADR-033. The editor works and
+**Status:** implemented r22, superseded r25 by ADR-051. The editor works and
 ships today; its ownership moves to dipmap.
 The placement editor graduates from generated standalone HTML files into
 an app route: pick a variant, drag unit / dislodged / brief-code markers
@@ -82,3 +82,17 @@ the sentence that revised it, with the document revision it came from.
 - **r22, 2026-08-29** — ADR-030 implemented: /mapeditor in-app — variant picker, draggable unit/dislodged/brief markers, live violation audit sharing tools/placement rules (rules.ts split out), drag telemetry, province display-name overrides (names/{key}.json over ProvinceLongNames), stable-diff export, disk save only under -tags mapeditordev into .hand files the server never loads.
 - **r22, 2026-08-29** — Editor reads terrain from godip, exposing colour-guess faults in the offline audit (open item).
 - **r25, 2026-08-29** — ADR-030 superseded in ownership.
+
+## Closed, 2026-08-31
+
+The editor is gone from this repository. `web/src/mapeditor/`, the
+`/mapeditor` route, `mapeditor_dev.go` and `mapeditor_off.go` are all deleted.
+
+The scoring half — `violations.ts` and `measure.ts`, which said which rule each
+marker broke — moved to dipmap as `web/src/audit/`, with its 24 tests. The
+React page did not move: dipmap has its own editor, and a second one would be
+dead code in two places. This repository's git history holds it.
+
+The drag log this record calls its evidence went with the save route. Nothing
+writes one now. If the optimiser still needs that evidence, dipmap has to
+produce it.

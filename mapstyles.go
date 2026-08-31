@@ -5,7 +5,7 @@
 // directory is embedded in the binary, so a styled map costs no file system
 // access and a deployment is one executable.
 //
-// The same directory is read by tools/restyle, which is why it sits at the
+// The same directory is read by dipmap's style detector, which is why it sits at the
 // top of the repository and not inside either program. Everything a style can
 // say is a presentation property; a style that could say more would no longer
 // be a restyle.
@@ -110,7 +110,7 @@ var (
 )
 
 // readStyleAsset reads one asset by its path relative to mapstyles/.
-// Every file is trimmed, exactly as tools/restyle trims it, so the two
+// Every file is trimmed, exactly as the detector trims it, so the two
 // programs embed the same bytes.
 func readStyleAsset(rel string) (string, error) {
 	b, err := styleFS.ReadFile(path.Join("mapstyles", rel))

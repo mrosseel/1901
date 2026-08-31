@@ -21,12 +21,27 @@ func lockedPowers(g *game) []godip.Nation {
 	return out
 }
 
+/*
+seatIn marks a seat as having its orders on the board.
+
+A test that drives the board through setOrder is standing in for a phone that
+drafted, committed and revealed, so "in" means locked AND revealed: in a sealed
+game (ADR-004) a lock alone is a hash, and a forced phase writes an NMR against
+a seat whose orders never arrived. Tests about the protocol itself commit and
+reveal for real; see sealed_test.go.
+*/
+func seatIn(g *game, power godip.Nation) {
+	s := g.flow.seats[power]
+	s.locked = true
+	s.revealed = true
+}
+
 // lockAll locks every seat and adjudicates, the way a table that all
 // locked in does.
 func lockAll(t *testing.T, g *game, id string) {
 	t.Helper()
 	for _, p := range g.flow.powers {
-		g.flow.seats[p].locked = true
+		seatIn(g, p)
 	}
 	if err := g.adjudicate(id, false); err != nil {
 		t.Fatal(err)
@@ -192,12 +207,22 @@ func TestAnAutoLockedSeatCannotBeUnlocked(t *testing.T) {
 		t.Error("the refused request unlocked the seat anyway")
 	}
 
-	// The one power the phase did ask still owns its own lock.
-	if rec := post("Italy", true); rec.Code != http.StatusOK {
+	// The one power the phase did ask still owns its own lock. In a sealed
+	// game locking is a commitment (ADR-004), so the phase settles on the
+	// reveal and not on the lock: the retreat is still on the board in
+	// between, which is the whole point of the window.
+	retreat := draft([]string{"ven", "Move", "apu"})
+	if rec := commitAs(g, "game", "Italy", retreat); rec.Code != http.StatusOK {
 		t.Fatalf("Italy could not lock: %v %v", rec.Code, rec.Body.String())
 	}
+	if g.state.Phase().Type() != godip.Retreat {
+		t.Error("the phase resolved on the lock, before anything was revealed")
+	}
+	if rec := revealAs(g, "game", "Italy", nil); rec.Code != http.StatusOK {
+		t.Fatalf("Italy could not reveal: %v %v", rec.Code, rec.Body.String())
+	}
 	if g.state.Phase().Type() == godip.Retreat {
-		t.Error("the last player locked and the retreat phase did not resolve")
+		t.Error("the last player revealed and the retreat phase did not resolve")
 	}
 }
 

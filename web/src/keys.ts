@@ -1,10 +1,12 @@
 /*
 The one place this app does cryptography.
 
-Two things use it: the game master's key and its twelve words (ADR-048), and the
-seat key that replaces the token in the address (ADR-049). Both make random
-bytes, derive a named key from them, and sign a sentence the server made up.
-Nothing here holds state and nothing here talks to the server.
+Three things use it: the game master's key and its twelve words (ADR-048), the
+seat key that replaces the token in the address (ADR-049), and the key that
+seals a phase's orders (ADR-004). The first two make random bytes, derive a
+named key from them, and sign a sentence the server made up; the third derives
+a key and encrypts with it. Nothing here holds state and nothing here talks to
+the server.
 
 Ed25519 is not in every browser's WebCrypto, and crypto.subtle is unavailable
 outside a secure context — which run.sh's plain http on a LAN is. So the maths
@@ -53,6 +55,22 @@ seat's signing key can never be mistaken for anything else it might later hold.
 */
 export function deriveSigningKey(secret: Uint8Array, name: string): Uint8Array {
   return hkdf(sha256, secret, name, "ed25519 seed", 32);
+}
+
+/*
+The key that seals one phase's orders (ADR-004).
+
+Derived and not random, so it can be made again. A device holding the seat seed
+can produce the key for any phase of that game, which is what lets a player
+whose phone died open the seat on a second device and release orders that are
+already sitting on the server.
+
+The phase is in the derivation, so one released key opens one phase and no
+other. The game id is there too, because one device may hold seats in several
+games and a key must not travel between them.
+*/
+export function deriveOrderKey(seed: Uint8Array, gameId: string, phaseIndex: number): Uint8Array {
+  return hkdf(sha256, seed, "1901 order key v1", gameId + "|" + phaseIndex, 32);
 }
 
 export function publicKeyOf(signingKey: Uint8Array): string {

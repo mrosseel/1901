@@ -45,7 +45,7 @@ let
 
   webDeps = fetchNpmDeps {
     src = webSrc;
-    hash = "sha256-S8NGrso5bkVzXTlOaJNPTRPVYp+iCHUocG5CW9gRqFw=";
+    hash = "sha256-966lKCI9FHDEoOBGnZ9dxrENejLzxrSdon2iGbwbpRw=";
   };
 
   web = stdenv.mkDerivation {
@@ -116,7 +116,7 @@ let
     pname = "1901-server";
     inherit version;
     src = goSrc;
-    vendorHash = "sha256-4qQDpzAs0wuMEKv3o2ZPsLwCgF5cGrDYgMXgL1O8Mbo=";
+    vendorHash = "sha256-UFbEJ+D1lizdtj5pDarrGOO/+RVk8nOGX4DAt4PmgLk=";
 
     # The DATC corpus is data, not code: `go mod vendor` keeps godip's Go
     # files and drops the .txt case files the test reads from the module

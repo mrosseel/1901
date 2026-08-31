@@ -3,7 +3,7 @@
 // A map's own `<abbr>Center` anchors are a starting point and no more (ADR-003).
 // They put markers on province names, on supply centre glyphs, and half
 // outside their own province, and on a coast they can put "stp/nc" three map
-// units from "stp", where neither reads as anything. tools/placement measures
+// units from "stp", where neither reads as anything. dipmap measures
 // all of that on real browser geometry, proposes a better table, and hands it
 // to a person to correct by hand.
 //
@@ -13,7 +13,7 @@
 //	                                          with the variant and is the only
 //	                                          one this server reads (generated.go)
 //	placements/<key>.hand.json                a hand-corrected table, an INPUT to
-//	                                          tools/placement and never read here
+//	                                          dipmap and never read here
 //
 // A variant with no file falls back to the map's anchors, which is what every
 // unverified variant does and what classical did before this table existed.

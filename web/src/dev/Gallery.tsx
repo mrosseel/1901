@@ -17,9 +17,10 @@ The address is the state:
     /dev/screens?screen=seat&state=retreat&theme=dark&w=390&style=midnight
 */
 
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
+import { DatcPage } from "../pages/DatcPage";
 import { FaqPage } from "../pages/FaqPage";
 import { GamesPage } from "../pages/GamesPage";
 import type { Route } from "../api";
@@ -62,12 +63,6 @@ interface Entry {
 }
 
 const VARIANT = "classical";
-
-/* The editor carries the placement geometry no other page needs, so it is
-   loaded the way the app loads it rather than pulled into this bundle. */
-const MapEditorPage = lazy(() =>
-  import("../mapeditor/MapEditorPage").then((module) => ({ default: module.MapEditorPage })),
-);
 
 /** The five resolved phases of the captured game, for the spectator's nav. */
 function watchPhases(): Record<number, ReturnType<typeof fx.watch>> {
@@ -121,6 +116,8 @@ keeps this list answerable to the Route union rather than to memory.
 export function buildCatalogue(): Entry[] {
   const live = fx.watch("watch-live");
   const waiting = fx.watch("watch-prestart");
+  const ended = fx.watch("watch-ended");
+  const report = fx.datc("datc-report");
   const phases = watchPhases();
   const retreat = fx.seat("seat-retreat");
   const guide = refereeGuide(retreat.previousPhase);
@@ -192,6 +189,21 @@ export function buildCatalogue(): Entry[] {
       "seat-illegal",
     ),
     seatEntry(
+      "sealed-locked",
+      "Locked in, sealed",
+      "Six of seven in, and the server holds a digest of this seat's orders rather than "
+        + "the orders (ADR-004). The list is empty here because the draft lives on the "
+        + "phone, in storage this gallery has none of.",
+      "seat-sealed-locked",
+    ),
+    seatEntry(
+      "ended",
+      "The game is over",
+      "France, in a draw agreed after 1901: the result, the powers in it, and every "
+        + "power's final count (ADR-044).",
+      "seat-ended-draw",
+    ),
+    seatEntry(
       "review-illegal",
       "Review with an illegal order",
       "The misorder resolved as IllegalOrder: struck, the unit held.",
@@ -251,6 +263,13 @@ export function buildCatalogue(): Entry[] {
       "After Fall 1901, with the event log filled in.",
       "gm-adjustment",
     ),
+    gmEntry(
+      "ended",
+      "The game is over",
+      "A draw among England, France and Russia. The clock is gone, the draw control "
+        + "with it, and the event log carries the ending.",
+      "gm-ended-draw",
+    ),
     {
       route: "watch",
       screen: "watch",
@@ -268,6 +287,16 @@ export function buildCatalogue(): Entry[] {
       note: "The projector view of the phase being ordered. No orders are public yet.",
       scenario: { variantKey: VARIANT, watch: live, phases: phases },
       render: () => <WatchPage gameId={live.gameId} phaseIndex={null} />,
+    },
+    {
+      route: "watch",
+      screen: "watch",
+      state: "ended",
+      title: "The game is over",
+      note: "A round that stopped at its end year. The result rides on every phase of the "
+        + "feed, so this link says how it ended whichever phase it is opened at.",
+      scenario: { variantKey: VARIANT, watch: ended, phases: {}, datc: report },
+      render: () => <WatchPage gameId={ended.gameId} phaseIndex={null} />,
     },
     {
       route: "watch",
@@ -344,6 +373,16 @@ export function buildCatalogue(): Entry[] {
       render: () => <FaqPage />,
     },
     {
+      route: "datc",
+      screen: "page",
+      state: "datc",
+      title: "Adjudication",
+      note: "What this build scored against DATC (ADR-045), written by the run that "
+        + "resolved the cases and never typed by hand.",
+      scenario: { variantKey: VARIANT, datc: report },
+      render: () => <DatcPage />,
+    },
+    {
       route: "handover",
       screen: "page",
       state: "handover-seat",
@@ -363,19 +402,6 @@ export function buildCatalogue(): Entry[] {
       scenario: { variantKey: VARIANT },
       render: () => (
         <HandoverPage gameId={live.gameId} power={null} epoch="1" signature="fixture" />
-      ),
-    },
-    {
-      route: "mapeditor",
-      screen: "page",
-      state: "mapeditor",
-      title: "The map editor",
-      note: "The placement table for one variant (ADR-030). Read-only in a shipped build; it saves only in dev.",
-      scenario: { variantKey: VARIANT },
-      render: () => (
-        <Suspense fallback={<p className="page muted">Loading the editor…</p>}>
-          <MapEditorPage />
-        </Suspense>
       ),
     },
     {

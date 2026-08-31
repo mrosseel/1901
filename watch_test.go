@@ -43,7 +43,7 @@ func TestWatchShowsAResolvedPhaseWholeAndTheCurrentOneBare(t *testing.T) {
 		if power == "Austria" {
 			continue // the NMR
 		}
-		g.flow.seats[power].locked = true
+		seatIn(g, power)
 	}
 	if err := g.adjudicate("game", true); err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestWatchShowsAResolvedPhaseWholeAndTheCurrentOneBare(t *testing.T) {
 	// On to a movement phase, where an ordinary unit has an order to give.
 	for g.state.Phase().Type() != godip.Movement {
 		for _, power := range g.flow.powers {
-			g.flow.seats[power].locked = true
+			seatIn(g, power)
 		}
 		if err := g.adjudicate("game", false); err != nil {
 			t.Fatal(err)

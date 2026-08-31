@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/zond/godip"
@@ -200,6 +201,19 @@ var gameColumns = []struct{ name, definition string }{
 	// for every game made before keys existed and every one whose game
 	// master declined to make one; such a game has no recovery.
 	{"gm_public_key", `TEXT NOT NULL DEFAULT ''`},
+	// The end year, and how the game ended (ADR-044). A game written before
+	// endings existed has no end year and no result, which is what every
+	// running game has.
+	{"end_year", `INTEGER NOT NULL DEFAULT 0`},
+	{"result_kind", `TEXT NOT NULL DEFAULT ''`},
+	{"result_powers", `TEXT NOT NULL DEFAULT ''`},
+	{"result_year", `INTEGER NOT NULL DEFAULT 0`},
+	{"result_phase", `INTEGER NOT NULL DEFAULT 0`},
+	// Whether this game keeps its orders on the phones (ADR-004). The default
+	// is 0 and it is deliberate: every game written before commit-reveal
+	// existed keeps writing its drafts to the server, because migrating a
+	// game that is mid-phase at a table would lose the orders on the table.
+	{"sealed", `INTEGER NOT NULL DEFAULT 0`},
 }
 
 // orderColumns are the columns a game_order row has grown, in the same shape
@@ -221,6 +235,12 @@ var seatColumns = []struct{ name, definition string }{
 	// holds a token instead, which is every seat of every game made before
 	// keys existed.
 	{"sign_pub", `TEXT NOT NULL DEFAULT ''`},
+	// The envelope this seat locked in, and whether the key to it has been
+	// sent (ADR-004). Both are per phase and both are cleared by every
+	// adjudication, so an older database starts every seat empty, which is
+	// what a seat that has not locked in looks like.
+	{"sealed_orders", `TEXT NOT NULL DEFAULT ''`},
+	{"revealed", `INTEGER NOT NULL DEFAULT 0`},
 }
 
 // renamedColumns are columns that changed name. The rename must run before
@@ -229,6 +249,10 @@ var seatColumns = []struct{ name, definition string }{
 var renamedColumns = []struct{ table, from, to string }{
 	// "finalize" was the word for this act until 2026-08-30; see CONTEXT.md.
 	{"seat", "finalized", "locked"},
+	// The commitment was a digest for one afternoon and is an envelope
+	// (ADR-004). No database outside this repository ever held the old
+	// column, and the rename is here so the ones inside it carry across.
+	{"seat", "commit_hash", "sealed_orders"},
 }
 
 // migrate brings an older database up to the current schema.
@@ -331,14 +355,27 @@ func (self *game) persistErr(id string) error {
 	if f.deadlineAt != nil {
 		deadline = f.deadlineAt.UTC().Format(time.RFC3339Nano)
 	}
+	// How the game ended, flattened (ADR-044). The centre counts are not
+	// stored: they are the position the board is restored to, so reading
+	// them back would be storing the same fact twice.
+	resultKind, resultPowers := "", ""
+	resultYear, resultPhase := 0, 0
+	if f.result != nil {
+		resultKind = f.result.Kind
+		resultPowers = strings.Join(f.result.Powers, ",")
+		resultYear = f.result.Year
+		resultPhase = f.result.PhaseIndex
+	}
 	_, err = tx.Exec(`
         INSERT INTO game (id, gm_token, invite_token, gm_device, deadline_minutes, gm_plays,
                           settings_version, started, deadline_at, gm_power,
                           phase_index, created_at, variant,
                           retreat_build_percent, grace_minutes,
                           first_turn_extra_minutes, press_mode, illegal_moves,
-                          variant_hash, name, gm_epoch, gm_public_key)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          variant_hash, name, gm_epoch, gm_public_key,
+                          end_year, result_kind, result_powers, result_year, result_phase,
+                          sealed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             -- The role can be handed on (ADR-041), which rotates the token, so
             -- unlike the invite it is not write-once.
@@ -361,13 +398,25 @@ func (self *game) persistErr(id string) error {
             name                     = excluded.name,
             -- Write-once in the handler (ADR-048), so this only ever writes
             -- the key the game already had or the first one it is given.
-            gm_public_key            = excluded.gm_public_key`,
+            gm_public_key            = excluded.gm_public_key,
+            end_year                 = excluded.end_year,
+            -- A result is written once and never unwritten (ADR-044): the game
+            -- is frozen from the moment it has one, so nothing can produce a
+            -- second.
+            result_kind              = excluded.result_kind,
+            result_powers            = excluded.result_powers,
+            result_year              = excluded.result_year,
+            result_phase             = excluded.result_phase,
+            -- Fixed when the game is made and written back unchanged, so a
+            -- game cannot become sealed or unsealed under a table.
+            sealed                   = excluded.sealed`,
 		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
 		f.settings.RetreatBuildPercent, f.settings.GraceMinutes,
 		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves,
-		variantHash(self.variantKey), f.settings.Name, f.gmEpoch, f.gmPublicKey)
+		variantHash(self.variantKey), f.settings.Name, f.gmEpoch, f.gmPublicKey,
+		f.settings.EndYear, resultKind, resultPowers, resultYear, resultPhase, f.sealed)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
@@ -375,16 +424,20 @@ func (self *game) persistErr(id string) error {
 	for _, p := range f.powers {
 		s := f.seats[p]
 		_, err = tx.Exec(`
-            INSERT INTO seat (game_id, power, seat_token, device, is_gm, locked, epoch, sign_pub)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO seat (game_id, power, seat_token, device, is_gm, locked, epoch,
+                              sign_pub, sealed_orders, revealed)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(game_id, power) DO UPDATE SET
                 seat_token = excluded.seat_token,
                 device     = excluded.device,
                 is_gm      = excluded.is_gm,
                 locked  = excluded.locked,
                 epoch      = excluded.epoch,
-                sign_pub   = excluded.sign_pub`,
-			id, string(p), s.token, s.device, s.isGM, s.locked, s.epoch, s.signPub)
+                sign_pub   = excluded.sign_pub,
+                sealed_orders = excluded.sealed_orders,
+                revealed    = excluded.revealed`,
+			id, string(p), s.token, s.device, s.isGM, s.locked, s.epoch, s.signPub,
+			s.sealed, s.revealed)
 		if err != nil {
 			return fmt.Errorf("seat %v: %v", p, err)
 		}
@@ -471,7 +524,10 @@ func loadAll() error {
                created_at, COALESCE(variant, ?),
                retreat_build_percent, grace_minutes, first_turn_extra_minutes,
                COALESCE(press_mode, ?), illegal_moves, COALESCE(variant_hash, ''),
-               COALESCE(name, ''), COALESCE(gm_epoch, 0), COALESCE(gm_public_key, '')
+               COALESCE(name, ''), COALESCE(gm_epoch, 0), COALESCE(gm_public_key, ''),
+               COALESCE(end_year, 0), COALESCE(result_kind, ''),
+               COALESCE(result_powers, ''), COALESCE(result_year, 0),
+               COALESCE(result_phase, 0), COALESCE(sealed, 0)
         FROM game`, defaultVariant, defaultPressMode)
 	if err != nil {
 		return err
@@ -494,12 +550,16 @@ func loadAll() error {
 		var id, gmPower, createdAt, key, recordedHash string
 		var deadline sql.NullString
 		var phaseIndex int
+		var resultKind, resultPowers string
+		var resultYear, resultPhase int
 		if err := rows.Scan(&id, &f.gmToken, &f.inviteToken, &f.gmDevice, &f.settings.DeadlineMinutes,
 			&f.settings.GMPlays, &f.settingsVersion, &f.started, &deadline, &gmPower,
 			&phaseIndex, &createdAt, &key, &f.settings.RetreatBuildPercent,
 			&f.settings.GraceMinutes, &f.settings.FirstTurnExtraMinutes,
 			&f.settings.PressMode, &f.settings.IllegalMoves, &recordedHash,
-			&f.settings.Name, &f.gmEpoch, &f.gmPublicKey); err != nil {
+			&f.settings.Name, &f.gmEpoch, &f.gmPublicKey,
+			&f.settings.EndYear, &resultKind, &resultPowers, &resultYear,
+			&resultPhase, &f.sealed); err != nil {
 			rows.Close()
 			return err
 		}
@@ -529,6 +589,20 @@ func loadAll() error {
 		}
 		f.gmPower = godip.Nation(gmPower)
 		f.phaseIndex = phaseIndex
+		if resultKind != "" {
+			powers := []string{}
+			if resultPowers != "" {
+				powers = strings.Split(resultPowers, ",")
+			}
+			// Centres are filled in by restore(), once the board they count
+			// has been replayed.
+			f.result = &gameResult{
+				Kind:       resultKind,
+				Powers:     powers,
+				Year:       resultYear,
+				PhaseIndex: resultPhase,
+			}
+		}
 		loaded = append(loaded, row{id: id, f: f, key: key, variant: v})
 	}
 	rows.Close()
@@ -566,15 +640,17 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 	}
 	rows, err := db.Query(
 		`SELECT power, seat_token, device, is_gm, locked, epoch,
-                COALESCE(sign_pub, '') FROM seat WHERE game_id = ?`, id)
+                COALESCE(sign_pub, ''), COALESCE(sealed_orders, ''),
+                COALESCE(revealed, 0) FROM seat WHERE game_id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
-		var power, token, device, signPub string
-		var isGM, locked bool
+		var power, token, device, signPub, sealed string
+		var isGM, locked, revealed bool
 		var epoch int
-		if err := rows.Scan(&power, &token, &device, &isGM, &locked, &epoch, &signPub); err != nil {
+		if err := rows.Scan(&power, &token, &device, &isGM, &locked, &epoch, &signPub,
+			&sealed, &revealed); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -584,6 +660,11 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 		}
 		s.token, s.device, s.isGM, s.locked, s.epoch = token, device, isGM, locked, epoch
 		s.signPub = signPub
+		// A restart in the middle of a sealed phase brings the envelopes
+		// back and no key to any of them (ADR-004). The phones hold the
+		// keys, which is the property, and they send them again when the
+		// window is open.
+		s.sealed, s.revealed = sealed, revealed
 		if token != "" {
 			f.bySeatToken[token] = s.power
 		}
@@ -638,6 +719,12 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 	// replay just rebuilt, and the event log already carries the lines from
 	// when the phase began.
 	g.autoLock()
+	// The centre counts of a finished game are the position replay just
+	// rebuilt, so they are counted here rather than read from a row
+	// (ADR-044).
+	if f.result != nil {
+		f.result.Centres = g.centreCounts()
+	}
 	return g, nil
 }
 

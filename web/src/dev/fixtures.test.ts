@@ -8,12 +8,14 @@ rather than rendering a page full of blanks.
 
 The naming rule is the test's only convention: a file called seat-* holds a
 SeatState, gm-* a GmState, watch-* a WatchState, options-* a book of option
-trees. Anything else is a fixture nobody claims, which is also a failure.
+trees, datc-* the published compliance report. Anything else is a fixture
+nobody claims, which is also a failure.
 */
 
 import { describe, expect, it } from "vitest";
 import { names, raw } from "./fixtures";
 import {
+  isDatcReport,
   isGmState,
   isOptionBook,
   isOptionTree,
@@ -27,6 +29,7 @@ const guards: Array<[string, (value: unknown) => boolean]> = [
   ["gm-", isGmState],
   ["watch-", isWatchState],
   ["options-", isOptionBook],
+  ["datc-", isDatcReport],
 ];
 
 describe("fixtures", () => {
@@ -82,6 +85,33 @@ describe("fixtures", () => {
     const gm = raw("gm-deadline-passed") as { canForce: boolean; deadlineAt: string; now: string };
     expect(gm.canForce).toBe(true);
     expect(Date.parse(gm.deadlineAt)).toBeLessThan(Date.parse(gm.now));
+  });
+
+  /* The endings (ADR-044). Three fixtures, two kinds: a draw the table agreed
+     and a round that stopped at its end year. A capture whose result went
+     missing draws the running game, which is the one thing these screens are
+     not for. */
+  it("keeps a game the table drew and one that hit its end year", () => {
+    const drawn = raw("seat-ended-draw") as { result?: { kind: string; powers: string[] } };
+    expect(drawn.result?.kind).toBe("draw");
+    expect(drawn.result?.powers.length).toBeGreaterThan(1);
+
+    const gm = raw("gm-ended-draw") as { result?: { kind: string }; canForce: boolean };
+    expect(gm.result?.kind).toBe("draw");
+    expect(gm.canForce).toBe(false);
+
+    const ended = raw("watch-ended") as { result?: { kind: string; year: number } };
+    expect(ended.result?.kind).toBe("endYear");
+    expect(ended.result?.year).toBe(1901);
+  });
+
+  /* The DATC report is the page (ADR-045): a copy with no cases in it would
+     render a screen that says nothing. */
+  it("keeps a DATC report with cases in it", () => {
+    const report = raw("datc-report") as { cases: number; files: unknown[]; limits: string[] };
+    expect(report.cases).toBeGreaterThan(100);
+    expect(report.files.length).toBeGreaterThan(1);
+    expect(report.limits.length).toBeGreaterThan(0);
   });
 
   it("keeps every resolved phase of the spectator feed", () => {

@@ -266,11 +266,16 @@ func Validate(d Descriptor) error {
 			totalSCs++
 		}
 	}
-	if d.SoloSupplyCenters <= 0 {
-		report("soloSupplyCenters must be positive, got %d", d.SoloSupplyCenters)
-	} else if d.SoloSupplyCenters > totalSCs {
-		report("soloSupplyCenters is %d but the map has %d supply centres, so nobody can win",
-			d.SoloSupplyCenters, totalSCs)
+	// A profile that brings its own win condition is not counting to this
+	// number, so it is not checked as though it were. The field stays in the
+	// descriptors that have it because the variant hash covers it.
+	if !ownsVictory(d) {
+		if d.SoloSupplyCenters <= 0 {
+			report("soloSupplyCenters must be positive, got %d", d.SoloSupplyCenters)
+		} else if d.SoloSupplyCenters > totalSCs {
+			report("soloSupplyCenters is %d but the map has %d supply centres, so nobody can win",
+				d.SoloSupplyCenters, totalSCs)
+		}
 	}
 
 	if len(problems) > 0 {
@@ -342,7 +347,7 @@ func Warnings(d Descriptor) []string {
 			totalSCs++
 		}
 	}
-	if d.SoloSupplyCenters > 0 && d.SoloSupplyCenters <= totalSCs/2 {
+	if !ownsVictory(d) && d.SoloSupplyCenters > 0 && d.SoloSupplyCenters <= totalSCs/2 {
 		out = append(out, fmt.Sprintf(
 			"soloSupplyCenters is %d of %d, so several nations could win at once",
 			d.SoloSupplyCenters, totalSCs))

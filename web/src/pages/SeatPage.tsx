@@ -39,9 +39,17 @@ import { SupportedMark } from "../components/SupportedMark";
 import { styledMapUrl } from "../style";
 import { ReviewOverlay, ReviewPeekBar } from "../components/ReviewOverlay";
 import { ModalLayer } from "../components/ModalLayer";
+import { GameOver } from "../components/GameOver";
 import { RefereeGuide } from "../components/RefereeGuide";
 import { SeatWaiting } from "../components/SeatWaiting";
 import { useBriefLabels, useBriefMoves, useHideOrders } from "../prefs";
+import {
+  forgetOldDrafts,
+  readDraft,
+  sealDraft,
+  writeDraft,
+  type Draft,
+} from "../sealed";
 import { refereeGuide } from "../referee";
 import {
   dismiss,
@@ -104,6 +112,21 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const handle = useRef<BoardHandle | null>(null);
   const knownVersion = useRef<number | null>(null);
   const fingerprint = useRef<string>("");
+  /*
+  This phase's orders, in a sealed game (ADR-004).
+
+  They live here and in this device's storage, and the server is sent a digest
+  of them when the player locks in. Everything below reads them off the state
+  as it always did, because takeState lays them over the server's answer at the
+  one place a state arrives.
+
+  A ref and not a hook: the board asks for the new state synchronously when it
+  posts an order, and a value that arrives on the next render would be one tap
+  behind.
+  */
+  const draft = useRef<Draft>({ key: "", orders: {} });
+  const draftPhase = useRef<number>(-1);
+  const latest = useRef<SeatState | null>(null);
 
   const power = state?.you?.power || "";
 
@@ -121,6 +144,33 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     writeRecentGame({ url: window.location.pathname, label: gameName, power: power });
   }, [gameName, power]);
 
+  /*
+  Every state answer comes through here.
+
+  In a sealed game the server's answer carries no current-phase order, because
+  it has none (ADR-004), so this phone's own draft is laid over it. A phase
+  that has moved on brings its own empty draft, and the drafts of phases that
+  are over are dropped: they were revealed when the phase resolved and are
+  public now, so keeping them would only fill the phone up.
+  */
+  const takeState = useCallback(
+    (next: SeatState): SeatState => {
+      if (next.sealed) {
+        const at = next.phaseIndex ?? 0;
+        if (draftPhase.current !== at) {
+          draftPhase.current = at;
+          draft.current = readDraft(gameId, at);
+          forgetOldDrafts(gameId, at);
+        }
+        next = { ...next, orderParts: draft.current.orders, orders: {} };
+      }
+      latest.current = next;
+      setState(next);
+      return next;
+    },
+    [gameId],
+  );
+
   const refresh = useCallback(async () => {
     try {
       const next = await client.state();
@@ -135,7 +185,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       // never this device's.
       noteServerTime(next.now);
       noteBuild(next.build);
-      setState(next);
+      takeState(next);
       if (knownVersion.current !== null && next.settingsVersion !== knownVersion.current) {
         setRulesChanged(true);
       }
@@ -145,7 +195,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       if (err instanceof ApiError && err.status === 404) setGone(true);
       throw err;
     }
-  }, [client]);
+  }, [client, takeState]);
 
   useEffect(() => {
     if (!heldSeat) return;
@@ -175,6 +225,10 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         summary.phase,
         summary.locked,
         summary.deadlineAt,
+        // The moment the phones should send what they locked in (ADR-004).
+        // Without it this seat would learn the window had opened only when
+        // something else about the game happened to change.
+        summary.revealOpen,
       ]);
       if (mark === fingerprint.current) return;
       fingerprint.current = mark;
@@ -283,13 +337,47 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   starting the board over on it is simpler than teaching it to swap its own
   art underneath a half-built order.
   */
+  /*
+  Writing one order down.
+
+  In a sealed game nothing is sent (ADR-004): the order goes into this phase's
+  draft and into storage, and the board is handed back the state it would have
+  got from the server. The board cannot tell the difference, which is the point
+  — it asks for the new state and draws it, here as everywhere.
+
+  An unsealed game is a game made before commit-reveal existed, and it still
+  posts every order as it is written.
+  */
+  const writeOrder = useCallback(
+    async (province: string, parts: string[]): Promise<BoardState> => {
+      const orders = { ...draft.current.orders };
+      if (parts.length === 0) {
+        delete orders[province];
+      } else {
+        orders[province] = parts;
+      }
+      draft.current = { ...draft.current, orders: orders };
+      writeDraft(gameId, draftPhase.current, draft.current);
+      const base = latest.current;
+      if (!base) throw new Error("the board is not loaded yet");
+      const next = { ...base, orderParts: orders, orders: {} };
+      latest.current = next;
+      setState(next);
+      return next;
+    },
+    [gameId],
+  );
+
+  const sealed = Boolean(state?.sealed);
   const api = useMemo<BoardApi>(
     () => ({
       mapUrl: styledMapUrl(client.mapUrl, style),
       options: (province) => client.options(province),
-      order: (province, parts) => client.order(province, parts),
+      order: sealed
+        ? (province, parts) => writeOrder(province, parts)
+        : (province, parts) => client.order(province, parts),
     }),
-    [client, style],
+    [client, style, sealed, writeOrder],
   );
 
   const canOrder = useCallback(
@@ -306,23 +394,73 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
 
   const onBoardState = useCallback((next: BoardState) => {
     // An order post answers with the whole seat state, so it replaces this
-    // page's copy as well as the board's.
-    setState((current) => (current ? ({ ...current, ...next } as SeatState) : (next as SeatState)));
+    // page's copy as well as the board's. In a sealed game the board is
+    // handing back what writeOrder just built, which is already here.
+    setState((current) => {
+      const merged = (current ? { ...current, ...next } : next) as SeatState;
+      latest.current = merged;
+      return merged;
+    });
   }, []);
+
+  /*
+  Releasing what this phone locked in (ADR-004, ADR-009).
+
+  No player presses anything. The window opens when every seat has committed,
+  or when the deadline runs out, and the next poll finds it — so waking a
+  locked phone is enough to unstick a table that is waiting on it.
+
+  A reveal that is refused leaves the seat unrevealed on purpose. Either this
+  device has lost the draft behind its digest, in which case the game master
+  forcing the phase is the way out (ADR-009), or the two sides disagree about
+  the digest, which is a bug and must not be papered over by sending something
+  else.
+  */
+  useEffect(() => {
+    if (!state?.sealed || !state.revealOpen || state.youRevealed || !power) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const next = await client.reveal(draft.current.key);
+        if (!cancelled) takeState(next);
+      } catch (err) {
+        if (cancelled) return;
+        setStatus(err instanceof Error ? err.message : String(err));
+        setIsError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, power, state?.sealed, state?.revealOpen, state?.youRevealed, takeState]);
 
   const toggleLock = async () => {
     if (!state) return;
     const wanted = !state.youLocked;
     try {
-      const next = await client.lock(wanted);
-      setState(next);
       /*
-      Locking last resolves the phase at once (ADR-008), and that clears every
-      flag — so a false flag after asking to lock means "it adjudicated",
-      not "it did not take".
+      In a sealed game the lock is the commitment (ADR-011): what goes up is
+      this phone's orders encrypted under a key it keeps, so the server holds
+      them and cannot read them. It is the same button and the same word,
+      which is why there is no second one.
+      */
+      const sealedOrders =
+        state.sealed && wanted
+          ? sealDraft(gameId, state.phaseIndex ?? 0, power, draft.current)
+          : undefined;
+      const next = takeState(await client.lock(wanted, sealedOrders));
+      /*
+      Locking last resolves the phase at once (ADR-008) — through the reveal,
+      in a sealed game — and that clears every flag, so a false flag after
+      asking to lock means "it adjudicated", not "it did not take".
       */
       if (wanted && !next.youLocked) {
         setStatus("Every power locked in. The phase was adjudicated.");
+      } else if (next.youLocked && next.sealed) {
+        setStatus(
+          "Locked in. The server has your orders sealed, and no key to them. "
+            + "You can still change them until every power has locked in.",
+        );
       } else if (next.youLocked) {
         setStatus("Orders locked in. You can still change them until the phase resolves.");
       } else {
@@ -581,8 +719,12 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
               </span>
               <span className="lock-sub">
                 {state.youLocked
-                  ? "Tap to unlock · locked in"
-                  : "Lock this phase · you can still change them"}
+                  ? state.revealOpen
+                    ? "Everybody is in · the orders are going up now"
+                    : "Tap to unlock · locked in"
+                  : state.sealed
+                    ? "Sent sealed · you can still change them"
+                    : "Lock this phase · you can still change them"}
               </span>
             </button>
             {state.youLocked ? null : (
@@ -590,6 +732,20 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
                 {state.lockedCount} of {state.totalSeats} players locked in
               </p>
             )}
+            {/*
+            The window is open and the board is waiting on somebody's phone
+            (ADR-009). Naming them is what turns "it has hung" into a thing
+            the table can fix by saying it out loud, which is how nearly every
+            one of these ends.
+            */}
+            {state.revealOpen && (state.awaitingReveal || []).length ? (
+              <p className="muted reveal-wait">
+                {state.youRevealed
+                  ? "Waiting for " + (state.awaitingReveal || []).join(", ")
+                    + " to send their orders."
+                  : "Sending your orders…"}
+              </p>
+            ) : null}
           </section>
         ) : null}
 
@@ -693,6 +849,10 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             </ul>
           </section>
         ) : null}
+
+        {/* The result, above everything, on the one screen a player is
+            certainly looking at when the game ends (ADR-044). */}
+        <GameOver result={state?.result} />
 
         {/* Last on the panel, because it is read between turns and never
             during one: the orders and the lock are what a player reaches for

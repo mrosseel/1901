@@ -4,7 +4,8 @@ status: accepted
 
 # ADR-034 — A seat moves by handoff, and its holder may start one
 
-**Status:** accepted, r27. Amends ADR-012. Not implemented.
+**Status:** accepted, r27. Amends ADR-012. Built, as ADR-041's signed
+handover link. This entry said "not implemented" until r51.
 ADR-012 sends every device change through the GM. A table does not work that
 way. A phone dies, a player leaves at midnight and hands their power to
 somebody else, two people share one handset. The seat has to move without

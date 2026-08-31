@@ -4,7 +4,9 @@ status: accepted
 
 # ADR-041 — A power can be handed to another person, by link
 
-**Status:** accepted, r42 (owner design). Not built. Extends ADR-012 and ADR-020.
+**Status:** accepted, r42 (owner design). Built. Extends ADR-012 and ADR-020.
+This entry said "not built" until r51, by which time it had been for a while:
+handover.go, its tests, the seat menu and the handover page.
 
 Every seat carries a player icon. Tapping it opens that seat's own menu, which
 holds what the seat is and what can be done with it.

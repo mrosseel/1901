@@ -80,13 +80,17 @@ _Avoid_: submit (banned — ambiguous between draft, commit, and reveal),
 finalize, ready up
 
 **Commit**:
-The mechanism behind Lock: the hash of `orders || nonce` the client
-sends, stored server-side (ADR-004). Backstage term — code, docs, protocol,
-`commit` table.
+The mechanism behind Lock: the sealed orders the client sends, stored
+server-side (ADR-004). The server holds the envelope and no key to it. The
+game, the phase and the power are sealed in with it, so it cannot be moved
+between any of them. Backstage term — code, docs, protocol,
+`seat.sealed_orders`.
 
 **Reveal**:
-The client releasing the actual `orders || nonce` for verification once
-every power has locked or the GM forces resolution. Backstage term.
+The client releasing the key to its envelope, once every power has locked or
+the deadline has passed. No player presses anything: the phone sends it by
+itself (ADR-009). Any device holding the seat seed can make the key again,
+which is how a dead phone's orders are recovered. Backstage term.
 
 ### Views
 

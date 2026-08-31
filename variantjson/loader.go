@@ -243,6 +243,15 @@ var profiles = map[string]profile{
 	},
 }
 
+// ownsVictory reports whether the profile brings its own win condition, which
+// makes the descriptor's soloSupplyCenters a number nothing reads. Twenty
+// Twenty is the one: victory there is a lead over the second power, and the
+// lead shrinks by a centre every year.
+func ownsVictory(d Descriptor) bool {
+	prof, known := profiles[d.Rules.Profile]
+	return known && prof.soloWinner != nil
+}
+
 // Profiles names every rule set this build carries, in sorted order.
 func Profiles() []string {
 	return sortedKeys(profiles)

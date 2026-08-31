@@ -2,7 +2,7 @@
 
 **Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r50 — 2026-08-30
+**Document revision:** r53 — 2026-08-31
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -248,11 +248,10 @@ the code still resolves.
 | [ADR-027 — Deadline humanity: phase multiplier, grace, first turn, anti-rush](docs/adr/027-deadline-humanity-phase-multiplier-grace-first-turn-anti-rus.md) | accepted |
 | [ADR-028 — Public, permanent, login-free per-phase URLs](docs/adr/028-public-permanent-login-free-per-phase-urls.md) | accepted |
 | [ADR-029 — Illegal orders are allowed, and on by default](docs/adr/029-illegal-orders-are-allowed-and-on-by-default.md) | accepted |
-| [ADR-030 — In-app map editor at /mapeditor](docs/adr/030-in-app-map-editor-at-mapeditor.md) | superseded by ADR-033 |
+| [ADR-030 — In-app map editor at /mapeditor](docs/adr/030-in-app-map-editor-at-mapeditor.md) | superseded by ADR-051 |
 | [ADR-031 — Pan/zoom stays hand-rolled; Leaflet rejected, its math taken](docs/adr/031-pan-zoom-stays-hand-rolled-leaflet-rejected-its-math-taken.md) | accepted |
 | [ADR-032 — A converted map is given the supply centres it does not draw](docs/adr/032-a-converted-map-is-given-the-supply-centres-it-does-not-draw.md) | accepted |
 | [ADR-032 — Converted jDip maps are restyled into godip's classical style](docs/adr/032-converted-jdip-maps-are-restyled-into-godip-s-classical-styl.md) | accepted |
-| [ADR-033 — Map authoring moves to dipmap; 1901 plays maps](docs/adr/033-map-authoring-moves-to-dipmap-1901-plays-maps.md) | accepted |
 | [ADR-033 — Map styles are named data, chosen per device](docs/adr/033-map-styles-are-named-data-chosen-per-device.md) | accepted |
 | [ADR-034 — A seat moves by handoff, and its holder may start one](docs/adr/034-a-seat-moves-by-handoff-and-its-holder-may-start-one.md) | accepted |
 | [ADR-034 — A seat with nothing to order is finalized by the server](docs/adr/034-a-seat-with-nothing-to-order-is-finalized-by-the-server.md) | accepted |
@@ -271,6 +270,7 @@ the code still resolves.
 | [ADR-048 — A key the game master holds, and twelve words to recover it](docs/adr/048-a-key-the-game-master-holds-and-twelve-words-to-recover-it.md) | accepted |
 | [ADR-049 — A seat is a key the device holds, not a token in the address](docs/adr/049-a-seat-is-a-key-the-device-holds-not-a-token-in-the-address.md) | accepted |
 | [ADR-050 — The app's transport and the published data are two surfaces](docs/adr/050-two-http-surfaces.md) | accepted |
+| [ADR-051 — Map authoring moves to dipmap; 1901 plays maps](docs/adr/051-map-authoring-moves-to-dipmap-1901-plays-maps.md) | accepted |
 
 ## 4. Open questions
 
@@ -415,6 +415,15 @@ ADR-004. Deadline handling. Auto-advance (ADR-008).
 learn any power's orders before the reveal, verified by inspecting the
 database mid-phase.
 
+*Met at r52, rebuilt at r53.* A sealed game holds one envelope per seat and no
+key to any of them until the window opens.
+`TestASealedGameHoldsNoOrderUntilEveryoneHasLocked` is the criterion in code:
+with six of seven locked in it reads the board, the engine's order set and
+every seat's own state answer, finds no order anywhere, and checks that an
+all-zero key does not open what is stored. The two implementations are pinned
+against each other: the Go tests open an envelope the TypeScript tests
+produced.
+
 ### M4 — GM mode
 ADR-007. GM view, enumerated actions, gated force-adjudication, player
 replacement, public audit feed. GM plays a power.
@@ -444,6 +453,12 @@ tournament director is shown. ADR-047, the sandbox, sits with them and not
 ahead of ADR-044; it needs no part of M3, having no secrets to keep. Q-008 was
 going to the playtest and the owner answered it at r48 instead. No acceptance
 criterion above changes.
+
+**Where that stands, r53.** ADR-004 is built, so every decision between here
+and a tournament board is. What is left before a table is the playtest itself,
+and the two questions it is meant to answer, Q-004 and Q-006. ADR-047, the
+sandbox, is decided and not built, and the owner wants another conversation
+before it is.
 
 ---
 
@@ -514,3 +529,6 @@ decision now lives in that decision, under its own Revisions heading.
 | r41 | 2026-08-30 | The invite link reaches the table. Without BASE_URL the server swaps a loopback host for its own LAN address, keeping the port and the scheme, because a QR code that says localhost opens on no phone. It asks the kernel for the address with a UDP dial that sends nothing, so a laptop running docker gets the right one of its several addresses, and it declines rather than guesses when there is no default route. |
 | r45 | 2026-08-30 | The game master's waiting room shows the joined count only until every power is claimed, then the list of powers appears. |
 | r47 | 2026-08-30 | Read back against research/platforms.md, most of the survey's steal list is built and the gaps are elsewhere. |
+| r51 | 2026-08-31 | A game can end, and the numbers leave the building. ADR-044, ADR-045 and ADR-046 are built; the flow had never asked who won, so every board ran forever. Two stale status lines corrected: ADR-041 and ADR-034's handoff both said they were not built, and both had been for some time. |
+| r52 | 2026-08-31 | Commit-reveal, which is M3 and the project's one novel claim. The drafts left the server: a phone keeps them in storage, draws them itself, and sends a digest when the player locks in; the orders go up only once every seat has locked in, and the phone sends them unasked. So a game master reading their own SQLite file mid-phase finds seven hashes. A sealed game is decided at creation and a game made before this keeps its server-side drafts, on ADR-049's rule about tokens and keys. The two hashers are pinned against each other in Go and TypeScript, and a third implementation played a phase end to end over HTTP. |
+| r53 | 2026-08-31 | The commitment is a sealed envelope and not a digest, on the owner's question. A digest kept the orders off the server and lost them: a phone that locked in and then went flat held the only copy, so its power was an NMR. The lock now sends the orders encrypted, the reveal sends the 32-byte key, and a second device holding the seat seed derives the same key and can release a dead phone's orders. XChaCha20-Poly1305 on both sides, with the game, the phase and the power as associated data. Dropping the commitment altogether was refused: the reveals are not simultaneous, so the last seat to reveal would choose knowing everybody else's orders. |

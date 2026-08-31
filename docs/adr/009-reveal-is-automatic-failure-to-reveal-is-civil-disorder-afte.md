@@ -4,7 +4,7 @@ status: accepted
 
 # ADR-009 — Reveal is automatic; failure to reveal is civil disorder after a grace period
 
-**Status:** accepted, r2
+**Status:** accepted, r2. Built at r52 with ADR-004.
 Closes the gap between ADR-004 and ADR-008: the server holds only a hash, so a
 committed power whose client dies could stall the table forever.
 
@@ -31,3 +31,6 @@ the sentence that revised it, with the document revision it came from.
 
 - **r2, 2026-08-28** — ADR-009: auto-reveal from client localStorage, civil disorder after grace period — closes the committed-but-never-revealed stall between ADR-004 and ADR-008.
 - **r2, 2026-08-28** — ADR-009 amended: failed reveal flags the GM (wait/extend/force), no automatic civil-disorder timer.
+- **r52, 2026-08-31** — Built. The reveal window has two ways in, and the second was missing from the entry as written: every asked seat committed, or the deadline and its grace ran out with at least one seat committed. Without the deadline clause one phone that never locks in keeps every other phone's orders on its own phone, and the game master has nothing to force but a table of NMRs.
+- **r53, 2026-08-31** — The entry's failure case is now recoverable for most seats. A phone that locked in and died left its envelope on the server, and a second device holding the seat seed derives the key and releases it (ADR-004). Wait, extend and force are still the three ways out, and they are still what a seat with no seed or no saved link needs.
+- **r52, 2026-08-31** — `awaitingReveal` is the flag, on the seat, game master and public answers alike. It names seats and never orders, so the shared screen may carry it (ADR-013). Force adjudication arms the moment the window is open with somebody still out, on the same reasoning ADR-010 gives: the button is a person choosing, so no timer gates it.

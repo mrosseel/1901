@@ -2068,3 +2068,149 @@ old transport, which is still there.
   padding: 4px 12px;
   font-size: 13px;
 }
+
+/*
+The last screen (ADR-044).
+
+A finished game gets one loud card and the rest of the page stays as it was.
+The accent border is the only place in the app that draws a card in the good
+colour, which is the point: it is the one screen a table will photograph.
+*/
+.game-over {
+  border-color: var(--good);
+}
+
+.game-over h2 {
+  color: var(--good);
+  font-size: 20px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.game-over-powers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+
+.game-over-centres {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.game-over-centres li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.game-over-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+}
+
+/* Naming the powers in a draw. A column of checkboxes, because the game
+   master is reading power names off a table and ticking them. */
+.draw-picks {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.draw-picks label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.draw-confirm {
+  margin: 8px 0 0;
+}
+
+/* The counts a tournament director takes away (ADR-046). */
+.results-links {
+  margin: 8px 0 0;
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+
+/* The DATC page (ADR-045). The score is the page, so it is set at the size a
+   number gets when it is the whole answer. */
+.datc-score {
+  text-align: center;
+}
+
+.datc-number {
+  margin: 0 0 8px;
+  font-size: 40px;
+  font-variant-numeric: tabular-nums;
+  color: var(--good);
+}
+
+.datc-files,
+.datc-limits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.datc-files > li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.datc-files code {
+  font-size: 13px;
+}
+
+.datc-pass {
+  margin-left: auto;
+  color: var(--good);
+  font-variant-numeric: tabular-nums;
+}
+
+.datc-fail {
+  margin-left: auto;
+  color: var(--bad);
+  font-variant-numeric: tabular-nums;
+}
+
+.datc-failed {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  padding-left: 16px;
+  color: var(--bad);
+  font-size: 13px;
+}
+
+.datc-limits > li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.datc-limits > li:last-child {
+  border-bottom: 0;
+}
+
+/* A phone that locked in and has not sent its orders yet (ADR-004, ADR-009).
+   Amber, because it is a thing the table can fix by saying it out loud, not
+   a failure. */
+.reveal-wait {
+  color: var(--warn);
+}

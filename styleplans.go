@@ -6,7 +6,7 @@
 // province, what each label stands on, how much of the board each tone
 // covers. The cheap half is APPLICATION: a handful of string substitutions.
 //
-// tools/restyle/plans.ts writes the first half out as styleplans/<key>.json,
+// dipmap writes the first half into the variant package as styleplan.json,
 // a few kilobytes per map. This file reads them; restyle.go applies them.
 // Before that split, every map in every style was checked in as SVG: 156 MB
 // of generated art that a `git clone` had to carry and a style change had to

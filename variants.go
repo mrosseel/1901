@@ -267,7 +267,7 @@ func styledMapBytes(key string, v common.Variant, style string) ([]byte, error) 
 		if !stalePlans.by[key] {
 			stalePlans.by[key] = true
 			log.Printf("style plan: %v was measured on different art (%v, now %v) — "+
-				"serving godip's own colours until tools/restyle/plans.ts is re-run",
+				"serving godip's own colours until dipmap writes it a plan",
 				key, plan.Map.SHA256[:12], sum[:12])
 		}
 		stalePlans.mu.Unlock()
@@ -388,7 +388,7 @@ func serveMapArt(w http.ResponseWriter, r *http.Request, key string, v common.Va
 //
 // It is published because the map tooling has to know, and the adjudicator is
 // the only thing that does. A godip map paints its terrain as bare fill
-// values with no class to read, so tools/restyle decides which colour is sea
+// values with no class to read, so dipmap decides which colour is sea
 // by asking here which provinces are sea and then looking at what the map
 // paints under each one (ADR-024). Guessing from the tone would be a guess.
 type provinceJSON struct {
@@ -422,16 +422,16 @@ func variantProvinces(v common.Variant) ([]provinceJSON, error) {
 	return out, nil
 }
 
-// handleVariantMap serves the four things a variant has that need no game:
-// /variants/{key}/map.svg, /provinces.json, /placement.json and /names.json.
+// handleVariantMap serves the three things a variant has that need no game:
+// /variants/{key}/map.svg, /provinces.json and /placement.json.
 //
-// The last two are what the map editor loads (ADR-030). It edits a variant, not
-// a game, so everything it reads has to be reachable without one.
+// They describe a variant rather than a game, so they are reachable without
+// one. dipmap reads them when it audits a map somebody else drew (ADR-051).
 func handleVariantMap(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/variants/")
 	key, sub, _ := strings.Cut(rest, "/")
 	switch sub {
-	case "map.svg", "provinces.json", "placement.json", "names.json":
+	case "map.svg", "provinces.json", "placement.json":
 	default:
 		http.NotFound(w, r)
 		return
@@ -445,10 +445,6 @@ func handleVariantMap(w http.ResponseWriter, r *http.Request) {
 		// nil is meaningful and serialises as null: no approved table, so the
 		// editor starts from the map's own anchors.
 		writeJSON(w, http.StatusOK, placementFor(key))
-		return
-	}
-	if sub == "names.json" {
-		writeJSON(w, http.StatusOK, namesFor(key))
 		return
 	}
 	if sub == "provinces.json" {
@@ -485,12 +481,27 @@ func (self *game) variantRef() variantRefJSON {
 	}
 }
 
-// provinceNames is the abbreviation-to-long-name table for this variant.
-// The frontend labels the board from it. It is godip's own table with the
-// variant's name overrides layered on top (names.go, ADR-030), so a name
-// corrected in the map editor reaches every board.
+/*
+provinceNames is the abbreviation-to-long-name table for this variant.
+
+The frontend labels the board from it. It is godip's own table, which for a
+generated variant is the one in variant.json — so a name corrected in dipmap
+travels in the package and reaches every board.
+
+An overrides file used to be layered on top, written by a map editor that
+lived here. Both moved to dipmap on 2026-08-31, and the name now belongs to
+the descriptor (MAP_FORMAT.md).
+*/
 func (self *game) provinceNames() map[string]string {
-	return namesFor(self.variantKey)
+	names := map[string]string{}
+	v, found := lookupVariant(self.variantKey)
+	if !found {
+		return names
+	}
+	for prov, long := range v.ProvinceLongNames {
+		names[string(prov)] = long
+	}
+	return names
 }
 
 // sortedNations returns the variant's powers in a stable order.

@@ -14,7 +14,7 @@ room is not going to navigate it, and the seat page is a map fighting a phone
 for every pixel; that one carries the same links inside the seat menu instead,
 which is one tap away and costs no height.
 */
-export function TopBar({ here }: { here?: "games" | "faq" | "new" }) {
+export function TopBar({ here }: { here?: "games" | "faq" | "new" | "datc" }) {
   const game = readRecentGame();
 
   return (

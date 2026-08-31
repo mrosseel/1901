@@ -90,6 +90,12 @@ type settings struct {
 	// the unit holds, and the review shows it struck.
 	IllegalMoves bool `json:"illegalMoves"`
 
+	// EndYear stops the game after the last phase of that year (ADR-044).
+	// Zero means no end year, which is every game that plays to a solo or a
+	// draw. A tournament round with a hard stop at 17:00 sets it, because a
+	// board that runs past the round is a board with no result.
+	EndYear int `json:"endYear"`
+
 	// PressMode is how negotiation happens (ADR-023). Data only for now: no
 	// behaviour is attached to it, and the app carries no messages in any
 	// mode. Declaring it is the point — a gunboat table wants its rules
@@ -146,13 +152,22 @@ type seat struct {
 	// (ADR-049), base64url. The server can open nothing with it.
 	signPub string
 	device  string // device secret, empty until claimed
-	isGM   bool
-	locked bool
+	isGM    bool
+	locked  bool
 
 	// epoch is the handover counter (ADR-041). Every link ever minted for
 	// this seat is signed for one epoch, so taking the seat and raising it
 	// kills the rest — including the phone that just gave the power away.
 	epoch int
+
+	// sealed is the envelope this seat locked in, empty until it does and
+	// cleared by every adjudication (ADR-004). In a sealed game it is the
+	// only thing the server holds about a power's orders until the reveal,
+	// and it holds no key to it.
+	sealed string
+	// revealed says this seat has sent the key to its envelope and the
+	// orders are on the board. Only a sealed game uses it.
+	revealed bool
 
 	// autoLocked marks a seat the server locked because its power has no
 	// legal order this phase (ADR-034). It is derived from the resolved
@@ -191,6 +206,15 @@ type flow struct {
 
 	started    bool
 	deadlineAt *time.Time
+	// sealed says this game keeps its drafts on the phones and takes a hash
+	// at the lock (ADR-004). It is decided when the game is made and never
+	// changes: a game that predates commit-reveal keeps writing its drafts
+	// to the server, because migrating a game mid-phase at a table would
+	// lose the orders on the table.
+	sealed bool
+	// result is how the game ended, nil while it runs (ADR-044). Everything
+	// that could move the board reads flow.over() before it does.
+	result *gameResult
 
 	seats       map[godip.Nation]*seat
 	bySeatToken map[string]godip.Nation
@@ -201,7 +225,7 @@ type flow struct {
 	// without asking, because the seed is on the device, and nothing that
 	// opens a seat is left in a file that could be copied.
 	sessions map[string]godip.Nation
-	gmPower     godip.Nation // empty until start, and always empty when !gmPlays
+	gmPower  godip.Nation // empty until start, and always empty when !gmPlays
 
 	// powers are this variant's powers, in a stable order. The seat count
 	// follows the variant, so nothing here assumes seven.
@@ -235,6 +259,9 @@ func newFlow(s settings, v common.Variant) (*flow, error) {
 		inviteToken: inviteToken,
 		gmDevice:    gmDevice,
 		settings:    s,
+		// Every game made from here on (ADR-004). Nothing turns it off:
+		// it is how the app works, not a rule the table agrees.
+		sealed:      true,
 		createdAt:   time.Now().UTC(),
 		powers:      sortedNations(v),
 		seats:       map[godip.Nation]*seat{},
@@ -296,6 +323,15 @@ func (self *flow) activeSeats() int {
 	return n
 }
 
+// nations renders a list of powers as the strings a JSON answer carries.
+func nations(powers []godip.Nation) []string {
+	out := make([]string, 0, len(powers))
+	for _, p := range powers {
+		out = append(out, string(p))
+	}
+	return out
+}
+
 func (self *flow) lockedMap() map[string]bool {
 	out := map[string]bool{}
 	for _, p := range self.powers {
@@ -321,12 +357,21 @@ func (self *flow) pendingCounts() (asked, in int) {
 
 // canForce reports whether the GM may force adjudication (ADR-007, ADR-010).
 func (self *flow) canForce() bool {
-	if !self.started {
+	if !self.started || self.over() {
 		return false
 	}
 	active := self.activeSeats()
 	if active == 0 {
 		return false
+	}
+	// A sealed game that is waiting on a reveal (ADR-009). It comes first
+	// because every power being locked in is exactly that state: the phase
+	// is settled and what is missing is a phone that has not sent its
+	// orders. The game master decides between waiting for it and resolving
+	// without it, and no timer gates the button, the way no timer fires a
+	// deadline (ADR-010).
+	if self.sealed && self.revealOpen() && len(self.awaitingReveal()) > 0 {
+		return true
 	}
 	done := self.lockedCount()
 	if done >= active {
@@ -404,6 +449,12 @@ anything. The caller must hold g.mu.
 func (self *game) enterPhase(id string) error {
 	f := self.flow
 	for i := 0; i < maxAutoPhases; i++ {
+		// A game that has ended has no phase to settle (ADR-044). Nothing is
+		// auto-locked and nothing adjudicates on, or the board would run
+		// past its own result.
+		if f.over() {
+			return nil
+		}
 		locked := self.autoLock()
 		for _, p := range locked {
 			f.logEvent(id, "%v has no order to give this phase — locked automatically", p)
@@ -748,6 +799,7 @@ type settingsPatch struct {
 	RetreatBuildPercent   *int    `json:"retreatBuildPercent"`
 	GraceMinutes          *int    `json:"graceMinutes"`
 	FirstTurnExtraMinutes *int    `json:"firstTurnExtraMinutes"`
+	EndYear               *int    `json:"endYear"`
 	PressMode             *string `json:"pressMode"`
 	IllegalMoves          *bool   `json:"illegalMoves"`
 }
@@ -773,6 +825,9 @@ func (self settingsPatch) apply(base settings) settings {
 	}
 	if self.FirstTurnExtraMinutes != nil {
 		base.FirstTurnExtraMinutes = *self.FirstTurnExtraMinutes
+	}
+	if self.EndYear != nil {
+		base.EndYear = *self.EndYear
 	}
 	if self.PressMode != nil {
 		base.PressMode = *self.PressMode
@@ -810,6 +865,13 @@ func (self settings) normalised() settings {
 	}
 	if self.FirstTurnExtraMinutes < 0 {
 		self.FirstTurnExtraMinutes = 0
+	}
+	// A year before the game starts, or a negative one, is no end year at
+	// all. Lowering it below the year on the board is allowed and fires at
+	// the next adjudication, which is what a game master shortening a round
+	// that has overrun is asking for.
+	if self.EndYear < 0 {
+		self.EndYear = 0
 	}
 	if self.RetreatBuildPercent <= 0 {
 		self.RetreatBuildPercent = defaultRetreatBuildPercent
@@ -1136,11 +1198,16 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 
 // ---------------------------------------------------------------------- GM
 
+// gmSeatJSON is one seat, as the game master's screen may show it. Booleans
+// only: no device, no identity, and in a sealed game no order (ADR-013).
 type gmSeatJSON struct {
 	Power  string `json:"power"`
 	Joined bool   `json:"joined"`
 	Locked bool   `json:"locked"`
 	IsGM   bool   `json:"isGm"`
+	// Revealed says this seat has released the orders behind its lock
+	// (ADR-004). False on every seat of an unsealed game.
+	Revealed bool `json:"revealed"`
 }
 
 type gmStateJSON struct {
@@ -1166,7 +1233,16 @@ type gmStateJSON struct {
 	Labels          *labelPlanJSON      `json:"labels,omitempty"`
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
-	Now             string              `json:"now"`
+	// Result is how the game ended, null while it runs (ADR-044).
+	Result *gameResult `json:"result"`
+	// Sealed says this game keeps its orders on the phones until every power
+	// has locked in (ADR-004). RevealOpen says that moment has come, and
+	// AwaitingReveal names the seats that have not sent theirs — the flag
+	// ADR-009 asks for, and the only thing the game master can act on here.
+	Sealed         bool     `json:"sealed"`
+	RevealOpen     bool     `json:"revealOpen"`
+	AwaitingReveal []string `json:"awaitingReveal"`
+	Now            string   `json:"now"`
 	// Whether this game has a recovery key (ADR-048). A boolean and not the
 	// key: the page needs to know which card to draw, not what the server
 	// holds.
@@ -1190,31 +1266,36 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 			Year:   self.state.Phase().Year(),
 			Type:   string(self.state.Phase().Type()),
 		},
-		JoinedCount:   f.joinedCount(),
-		TotalSeats:    f.joinerSeats(),
-		InviteURL:     inviteURL(r, id, f.inviteToken),
-		DeadlineAt:    rfc3339(f.deadlineAt),
-		GraceUntil:    rfc3339(f.graceEndsAt()),
-		PhaseMinutes:  f.phaseMinutes(self.state.Phase()),
-		CanForce:      f.canForce(),
-		Events:        f.events,
-		Variant:       self.variantRef(),
-		ProvinceNames: self.provinceNames(),
-		Placements:    self.placements(),
-		Labels:        self.labels(),
-		Dislodged:     self.dislodgedMap(),
-		PreviousPhase: self.previousPhase,
-		Now:           serverNow(),
-		HasGMKey:      f.gmPublicKey != "",
-		Build:         buildStamp(),
+		JoinedCount:    f.joinedCount(),
+		TotalSeats:     f.joinerSeats(),
+		InviteURL:      inviteURL(r, id, f.inviteToken),
+		DeadlineAt:     rfc3339(f.deadlineAt),
+		GraceUntil:     rfc3339(f.graceEndsAt()),
+		PhaseMinutes:   f.phaseMinutes(self.state.Phase()),
+		CanForce:       f.canForce(),
+		Events:         f.events,
+		Variant:        self.variantRef(),
+		ProvinceNames:  self.provinceNames(),
+		Placements:     self.placements(),
+		Labels:         self.labels(),
+		Dislodged:      self.dislodgedMap(),
+		PreviousPhase:  self.previousPhase,
+		Now:            serverNow(),
+		HasGMKey:       f.gmPublicKey != "",
+		Result:         f.result,
+		Sealed:         f.sealed,
+		RevealOpen:     f.revealOpen(),
+		AwaitingReveal: nations(f.awaitingReveal()),
+		Build:          buildStamp(),
 	}
 	for _, p := range f.powers {
 		s := f.seats[p]
 		out.Seats = append(out.Seats, gmSeatJSON{
-			Power:  string(p),
-			Joined: s.claimed(),
-			Locked: s.locked,
-			IsGM:   s.isGM,
+			Power:    string(p),
+			Joined:   s.claimed(),
+			Locked:   s.locked,
+			IsGM:     s.isGM,
+			Revealed: s.revealed,
 		})
 	}
 	if f.gmPower != "" {
@@ -1287,13 +1368,14 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	f.settings = neu
 	f.settingsVersion++
 	f.logEvent(id, "settings changed to deadlineMinutes=%v gmPlays=%v "+
-		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v pressMode=%v "+
-		"illegalMoves=%v (version %v)",
+		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v endYear=%v "+
+		"pressMode=%v illegalMoves=%v (version %v)",
 		neu.DeadlineMinutes, neu.GMPlays, neu.RetreatBuildPercent, neu.GraceMinutes,
-		neu.FirstTurnExtraMinutes, neu.PressMode, neu.IllegalMoves, f.settingsVersion)
+		neu.FirstTurnExtraMinutes, neu.EndYear, neu.PressMode, neu.IllegalMoves,
+		f.settingsVersion)
 	// A change to the clock takes effect on the phase now running, so the
 	// table sees the rule it was just told about rather than the next one.
-	if f.started && (neu.DeadlineMinutes != old.DeadlineMinutes ||
+	if f.started && !f.over() && (neu.DeadlineMinutes != old.DeadlineMinutes ||
 		neu.RetreatBuildPercent != old.RetreatBuildPercent ||
 		neu.FirstTurnExtraMinutes != old.FirstTurnExtraMinutes) {
 		f.resetDeadline(g.state.Phase(), 0)
@@ -1368,6 +1450,10 @@ func handleGMForce(g *game, id string, w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "the game has not started")
 		return
 	}
+	if f.over() {
+		writeErr(w, http.StatusConflict, "the game is over")
+		return
+	}
 	if !f.canForce() {
 		writeErr(w, http.StatusConflict,
 			"force adjudication is locked until the deadline passes or all but one power has locked")
@@ -1402,6 +1488,10 @@ func handleGMExtend(g *game, id string, w http.ResponseWriter, r *http.Request) 
 	defer g.mu.Unlock()
 	f := g.flow
 
+	if f.over() {
+		writeErr(w, http.StatusConflict, "the game is over")
+		return
+	}
 	from := time.Now()
 	if f.deadlineAt != nil && f.deadlineAt.After(from) {
 		from = *f.deadlineAt
@@ -1433,7 +1523,14 @@ type publicStateJSON struct {
 	Labels          *labelPlanJSON      `json:"labels,omitempty"`
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
-	Now             string              `json:"now"`
+	// Result is how the game ended, null while it runs (ADR-044).
+	Result *gameResult `json:"result"`
+	// Sealed and RevealOpen say how this game takes orders and whether the
+	// phones should be sending theirs (ADR-004). Both are counts of nobody:
+	// a seat's own orders are not here and never were.
+	Sealed     bool   `json:"sealed"`
+	RevealOpen bool   `json:"revealOpen"`
+	Now        string `json:"now"`
 	// Which client build this server is serving (ADR-050). Every page polls
 	// this answer, so this is where a stale tab finds out.
 	Build string `json:"build"`
@@ -1466,6 +1563,9 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 		Labels:          g.labels(),
 		Dislodged:       g.dislodgedMap(),
 		PreviousPhase:   g.previousPhase,
+		Result:          f.result,
+		Sealed:          f.sealed,
+		RevealOpen:      f.revealOpen(),
 		Now:             serverNow(),
 	})
 }
@@ -1516,7 +1616,21 @@ type seatStateJSON struct {
 	Placements       placementTable    `json:"placements"`
 	Labels           *labelPlanJSON    `json:"labels,omitempty"`
 	PreviousPhase    *phaseReviewJSON  `json:"previousPhase"`
-	Now              string            `json:"now"`
+	// Result is how the game ended, null while it runs (ADR-044).
+	Result *gameResult `json:"result"`
+	// PhaseIndex is which phase this is, counting resolved phases from zero.
+	// A phone needs it to hash a commitment, because a hash is bound to the
+	// phase it was made in (ADR-004).
+	PhaseIndex int `json:"phaseIndex"`
+	// How this game takes orders (ADR-004). Sealed means this phone holds the
+	// draft and sends a hash; RevealOpen means every power has locked in and
+	// this phone should send what is behind its own hash; YouRevealed says it
+	// already has. AwaitingReveal is public — it names seats, never orders.
+	Sealed         bool     `json:"sealed"`
+	RevealOpen     bool     `json:"revealOpen"`
+	YouRevealed    bool     `json:"youRevealed"`
+	AwaitingReveal []string `json:"awaitingReveal"`
+	Now            string   `json:"now"`
 	// RefereeURL is set only for the GM's own seat: the seat that holds
 	// the GM rights may link back to the GM view. It is how the GM
 	// switches between the board and the controls.
@@ -1584,6 +1698,12 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 		Placements:       self.placements(),
 		Labels:           self.labels(),
 		PreviousPhase:    self.previousPhase,
+		Result:           f.result,
+		PhaseIndex:       f.phaseIndex,
+		Sealed:           f.sealed,
+		RevealOpen:       f.revealOpen(),
+		YouRevealed:      f.seats[power].revealed,
+		AwaitingReveal:   nations(f.awaitingReveal()),
 		Now:              serverNow(),
 		RefereeURL:       referee,
 	}
@@ -1653,6 +1773,17 @@ func handleSeatOrder(g *game, id string, power godip.Nation, w http.ResponseWrit
 		writeErr(w, http.StatusConflict, "the game has not started")
 		return
 	}
+	if g.flow.over() {
+		writeErr(w, http.StatusConflict, "the game is over")
+		return
+	}
+	if g.flow.sealed {
+		// A sealed game has no server-side draft to write to (ADR-004,
+		// ADR-011). The orders are on the phone until the reveal.
+		writeErr(w, http.StatusConflict,
+			"this game keeps its orders on the phone until every power has locked in")
+		return
+	}
 	if !g.ownsProvince(power, prov) {
 		writeErr(w, http.StatusForbidden, "%v is not yours to order", prov)
 		return
@@ -1684,12 +1815,27 @@ func (self *game) seatLock(id string, power godip.Nation, want bool, w http.Resp
 		writeErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
+	// In a sealed game the lock IS the commit (ADR-011), so the same two
+	// addresses answer with the same word in front of the player and a hash
+	// behind it. One act, one button, two implementations.
+	if self.flow.sealed {
+		if want {
+			handleSeatCommit(self, id, power, w, r)
+		} else {
+			handleSeatUncommit(self, id, power, w, r)
+		}
+		return
+	}
 	self.mu.Lock()
 	defer self.mu.Unlock()
 	f := self.flow
 
 	if !f.started {
 		writeErr(w, http.StatusConflict, "the game has not started")
+		return
+	}
+	if f.over() {
+		writeErr(w, http.StatusConflict, "the game is over")
 		return
 	}
 	if !want && f.seats[power].autoLocked {
@@ -1746,7 +1892,18 @@ func (self *game) advance(id string, dropUnlocked bool) error {
 	if dropUnlocked {
 		for _, p := range f.powers {
 			s := f.seats[p]
-			if !s.claimed() || s.locked {
+			if !s.claimed() {
+				continue
+			}
+			// A sealed seat that locked and never revealed is an NMR too
+			// (ADR-009): its orders exist, on a phone nobody can reach, and
+			// the board has never seen them. An auto-locked seat was asked
+			// for nothing and is not one.
+			held := s.locked
+			if f.sealed && !s.autoLocked {
+				held = s.revealed
+			}
+			if held {
 				continue
 			}
 			dropped := 0
@@ -1788,12 +1945,16 @@ func (self *game) advance(id string, dropUnlocked bool) error {
 		s.locked = false
 		s.autoLocked = false
 	}
+	f.clearCommits()
 	f.phaseIndex++
 	f.resetDeadline(self.state.Phase(), carry)
 	f.logEvent(id, "phase is now %v %v %v, %v minute(s) of clock%v, deadline %v",
 		self.state.Phase().Season(), self.state.Phase().Year(), self.state.Phase().Type(),
 		f.phaseMinutes(self.state.Phase()),
 		carryNote(carry), rfc3339(f.deadlineAt))
+	// Whether that was the last phase (ADR-044). The board has already moved,
+	// so the year that was played is the one the position was read at.
+	self.checkEnd(id, position.phase.Year)
 	self.persist(id)
 	return nil
 }
@@ -1808,6 +1969,7 @@ var gmRoutes = map[string]gameHandler{
 	"settings":      handleGMSettings,
 	"start":         handleGMStart,
 	"adjudicate":    handleGMForce,
+	"draw":          handleGMDraw,
 	"extend":        handleGMExtend,
 	"map.svg":       handleMap,
 }
@@ -1820,6 +1982,9 @@ var seatRoutes = map[string]seatHandler{
 	"order":         handleSeatOrder,
 	"lock":          handleSeatLock,
 	"unlock":        handleSeatUnlock,
+	// Only a sealed game answers this (ADR-004). The phone sends what it
+	// locked in, once every power has.
+	"reveal": handleSeatReveal,
 
 	// The names these two carried until 2026-08-30. A phone that loaded the
 	// seat page before the rename shipped still posts to them, and a game at
@@ -1852,6 +2017,12 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 	case "watch":
 		// Public and unauthenticated by design (ADR-013).
 		handleWatch(g, id, segments[2:], w, r)
+	case "results.json":
+		// The counts a tournament pipeline reads (ADR-046). As public as the
+		// board they are counted from.
+		handleResults(g, id, w, r)
+	case "results.csv":
+		handleResultsCSV(g, id, w, r)
 	case "map.svg":
 		// The art of the board being watched, which is as public as the
 		// board is.

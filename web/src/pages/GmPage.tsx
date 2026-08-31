@@ -3,7 +3,10 @@ import {
   ApiError,
   GmClient,
   mintHandover,
+  resultsUrl,
   watchPath,
+  type GameResult,
+  type GmSeat,
   type GmState,
   type Handover,
 } from "../api";
@@ -22,6 +25,7 @@ import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
 import { ReviewOverlay } from "../components/ReviewOverlay";
+import { GameOver } from "../components/GameOver";
 import { RefereeGuide } from "../components/RefereeGuide";
 import { ModalLayer } from "../components/ModalLayer";
 import { refereeGuide } from "../referee";
@@ -45,6 +49,79 @@ waiting screen shows a count for that reason, so this one does too. The list
 appears when the last seat is claimed: from then on every power is in it and
 it names no order.
 */
+/*
+Ending the game in a draw the table agreed (ADR-044, ADR-007).
+
+The app cannot know that seven people shook hands, so this is the game master
+writing down what happened in the room. It is behind a fold and behind a
+confirm because it is not undoable: a game with a result is frozen and no
+phase follows it.
+
+Only powers still holding a supply centre may be named, which the server
+enforces too. One power is a concession, and that is a real thing at a table.
+*/
+function DrawCard({
+  seats,
+  result,
+  onDraw,
+}: {
+  seats: GmSeat[];
+  result?: GameResult | null;
+  onDraw: (powers: string[]) => void;
+}) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const [confirming, setConfirming] = useState(false);
+
+  if (result) return null;
+
+  const toggle = (power: string) =>
+    setPicked((was) =>
+      was.includes(power) ? was.filter((p) => p !== power) : was.concat(power),
+    );
+
+  return (
+    <details className="card">
+      <summary>End the game</summary>
+      <p className="note">
+        For a draw the table has agreed, or a concession. Name everybody who is
+        in it. A solo ends the game on its own and needs nothing here.
+      </p>
+      <ul className="draw-picks">
+        {seats.map((seat) => (
+          <li key={seat.power}>
+            <label>
+              <input
+                type="checkbox"
+                checked={picked.includes(seat.power)}
+                onChange={() => toggle(seat.power)}
+              />
+              <PowerChip power={seat.power} small />
+            </label>
+          </li>
+        ))}
+      </ul>
+      {confirming ? (
+        <p className="draw-confirm">
+          <button type="button" onClick={() => onDraw(picked)}>
+            Yes, end the game
+          </button>{" "}
+          <button type="button" onClick={() => setConfirming(false)}>
+            Cancel
+          </button>
+        </p>
+      ) : (
+        <button type="button" disabled={!picked.length} onClick={() => setConfirming(true)}>
+          {picked.length === 1 ? "Record a concession" : "Record a draw"}
+        </button>
+      )}
+      <p className="note">
+        This cannot be undone. The board freezes where it stands and the result
+        goes on every screen, including the spectator link.
+      </p>
+    </details>
+  );
+}
+
 export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string }) {
   const client = useMemo(() => new GmClient(gameId, gmToken), [gameId, gmToken]);
 
@@ -495,13 +572,17 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         </details>
       ) : null}
 
+      {/* The result, first, because a finished game has nothing else worth
+          reading at the top of this page (ADR-044). */}
+      <GameOver result={game.result} />
+
       <SettingsCard
         settings={game.settings}
         started={game.started}
         onSave={(patch) => act("The rules were changed.", () => client.settings(patch))}
       />
 
-      {game.started ? (
+      {game.started && !game.result ? (
         <section className="card">
           <h2>The clock</h2>
           <p>{countdown(game.deadlineAt)}</p>
@@ -517,6 +598,43 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
             {game.canForce
               ? "Powers that have not locked in keep no orders: their units hold."
               : "Possible once the deadline passes, or when every power but one has locked in."}
+          </p>
+          {/*
+          A phone that locked in and then died holds the only copy of its
+          orders (ADR-004), so the board cannot resolve without it. The game
+          master's three ways out are wait, extend, and force — and forcing
+          writes an NMR against exactly the seats named here (ADR-009).
+          */}
+          {game.revealOpen && (game.awaitingReveal || []).length ? (
+            <p className="note reveal-wait">
+              Every power has locked in. Still waiting for{" "}
+              {(game.awaitingReveal || []).join(", ")} to send their orders — ask them
+              to wake the phone, or force the phase and their units hold.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {game.started ? (
+        <DrawCard
+          seats={game.seats}
+          result={game.result}
+          onDraw={(powers) => act("The game is over.", () => client.draw(powers))}
+        />
+      ) : null}
+
+      {/* What a tournament director takes away (ADR-046). Public addresses,
+          so the link works from their machine and not only from this one. */}
+      {game.started ? (
+        <section className="card">
+          <h2>Supply centre counts</h2>
+          <p className="note">
+            Every year, every power, as a file. dipvis and any other scoring
+            tool can read these addresses without an account.
+          </p>
+          <p className="results-links">
+            <a href={resultsUrl(gameId, "csv")}>results.csv</a>{" "}
+            <a href={resultsUrl(gameId, "json")}>results.json</a>
           </p>
         </section>
       ) : null}
@@ -575,27 +693,37 @@ function SettingsCard({
   started,
   onSave,
 }: {
-  settings: { deadlineMinutes: number; gmPlays: boolean; illegalMoves?: boolean };
+  settings: {
+    deadlineMinutes: number;
+    gmPlays: boolean;
+    illegalMoves?: boolean;
+    endYear?: number;
+  };
   started: boolean;
   onSave: (patch: {
     deadlineMinutes: number;
     gmPlays?: boolean;
     illegalMoves?: boolean;
+    endYear?: number;
   }) => void;
 }) {
   const [minutes, setMinutes] = useState(settings.deadlineMinutes);
   const [plays, setPlays] = useState(settings.gmPlays);
   const allowIllegal = illegalAllowed(settings);
   const [illegal, setIllegal] = useState(allowIllegal);
+  const savedEndYear = settings.endYear || 0;
+  const [endYear, setEndYear] = useState(savedEndYear);
 
   // A change made from another device wins over an untouched form.
   useEffect(() => setMinutes(settings.deadlineMinutes), [settings.deadlineMinutes]);
   useEffect(() => setPlays(settings.gmPlays), [settings.gmPlays]);
   useEffect(() => setIllegal(allowIllegal), [allowIllegal]);
+  useEffect(() => setEndYear(savedEndYear), [savedEndYear]);
 
   const dirty =
     minutes !== settings.deadlineMinutes ||
     plays !== settings.gmPlays ||
+    endYear !== savedEndYear ||
     illegal !== allowIllegal;
 
   return (
@@ -616,6 +744,18 @@ function SettingsCard({
           value={minutes}
           onChange={(event) => setMinutes(Number(event.target.value))}
         />
+      </label>
+      <label className="field">
+        <span>Stop after the year</span>
+        <input
+          type="number"
+          min={0}
+          max={9999}
+          inputMode="numeric"
+          value={endYear}
+          onChange={(event) => setEndYear(Number(event.target.value))}
+        />
+        <small>Zero plays on until a solo or a draw.</small>
       </label>
       <label className="field check">
         <input
@@ -645,11 +785,13 @@ function SettingsCard({
               ? {
                   deadlineMinutes: Math.max(0, Math.floor(minutes) || 0),
                   illegalMoves: illegal,
+                  endYear: Math.max(0, Math.floor(endYear) || 0),
                 }
               : {
                   deadlineMinutes: Math.max(0, Math.floor(minutes) || 0),
                   gmPlays: plays,
                   illegalMoves: illegal,
+                  endYear: Math.max(0, Math.floor(endYear) || 0),
                 },
           )
         }

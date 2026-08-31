@@ -41,6 +41,9 @@ export function NewGame() {
   /* On by default: the paper game takes any order you can spell, and taking
      that away is the change, not leaving it (ADR-029, illegal.ts). */
   const [illegalMoves, setIllegalMoves] = useState(true);
+  /* Zero is no end year, which is how a game plays until somebody wins or the
+     table agrees a draw (ADR-044). A tournament round sets one. */
+  const [endYear, setEndYear] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -79,6 +82,7 @@ export function NewGame() {
         deadlineMinutes: Math.max(0, Math.floor(deadlineMinutes) || 0),
         gmPlays: gmPlays,
         illegalMoves: illegalMoves,
+        endYear: Math.max(0, Math.floor(endYear) || 0),
         variant: chosen,
       });
       // The cookie the create set is the credential; the entry redirects
@@ -131,6 +135,22 @@ export function NewGame() {
                 }
               />
               <small>Zero runs the game with no deadline.</small>
+            </label>
+
+            <label className="field">
+              <span>Stop after the year</span>
+              <input
+                type="number"
+                min={0}
+                max={9999}
+                inputMode="numeric"
+                value={endYear}
+                onChange={(event) => setEndYear(Number(event.target.value))}
+              />
+              <small>
+                Zero plays on until a solo or a draw. A round with a hard stop
+                sets the last year here.
+              </small>
             </label>
 
             <label className="field check">
