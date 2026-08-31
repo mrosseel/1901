@@ -55,9 +55,9 @@ export function FaqPage() {
         <section className="card">
           <h2>What if the game master loses their link?</h2>
           <p>
-            The game master's screen carries a <strong>If you lose this screen</strong>{" "}
-            card. It shows that page's own address, to keep on a second device, and it
-            offers a key: twelve words, written on this app's screen and nowhere else.
+            The game master's screen carries a{" "}
+            <strong>Back up the game master key</strong> card. It offers twelve words,
+            written on that screen and nowhere else.
           </p>
           <p>
             Typing the words at <a href="/recover">/recover</a> gives the game back on any
