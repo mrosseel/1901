@@ -75,20 +75,11 @@ it was, not an empty one.
 This is also why the epoch belongs on the command path rather than on the
 orders. There is no draft living on a device to rescue or discard: a device
 holds a token, and the orders are already here.
-
 ## Revisions
 
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
+Decisions this record changed, and alternatives it refused. Anything that was
+only progress, a correction to the document, or a bug is gone.
 
-- **r42, 2026-08-30** — ADR-041: a power can be handed to another person by a signed link, `HMAC(salt, power, game id, epoch)`, with the epoch raised on use so the previous holder's access dies with it.
-- **r42, 2026-08-30** — Every seat gets an icon and a menu carrying the power, the turns played, the time elapsed, and the handover.
-- **r42, 2026-08-30** — The game master has two entries, one for the rights and one for the power, because they fail differently.
-- **r42, 2026-08-30** — Designed, not built.
-- **r43, 2026-08-30** — ADR-041's open question is closed and was malformed.
 - **r43, 2026-08-30** — The signed value authenticates commands, so an order the server accepted was accepted under a valid epoch and is server state from that moment.
 - **r43, 2026-08-30** — Raising the epoch stops the old holder sending anything further and reaches back into nothing.
 - **r43, 2026-08-30** — The new holder inherits the seat as it stands, orders included.
-- **r44, 2026-08-30** — ADR-041: the game master can mint a handover link for any power.
-- **r44, 2026-08-30** — A dead phone takes its own menu with it, which is the case this exists for.
-- **r45, 2026-08-30** — That list is where ADR-041's per-power actions will live.

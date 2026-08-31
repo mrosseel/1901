@@ -30,15 +30,9 @@ creation and by the GM before start, validated against the four names,
 event-logged, persisted in `game.press_mode` and returned in the GM, seat and
 public views. No behaviour is attached to it, and the app carries no messages
 in any mode.
-
 ## Revisions
 
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
+Decisions this record changed, and alternatives it refused. Anything that was
+only progress, a correction to the document, or a bug is gone.
 
-- **r16, 2026-08-28** — ADR-023: pressMode setting (ftf default / gunboat / fullpress-later); §1 press non-goal narrowed accordingly.
-- **r16, 2026-08-28** — Map styles as named JSON data (parchment extracted from classical, plus midnight, print and flat), applied to any converted map, served at `?style=`, chosen per device.
-- **r16, 2026-08-28** — Gallery map previews open in a pan-and-zoom lightbox; the pan/zoom arithmetic is shared with the board.
-- **r17, 2026-08-28** — ADR-023 may later gain a 'rulebook' press mode.
-- **r17, 2026-08-28** — Stale facts flagged: godip variant count, diplomacy/diplomacy status.
 - **r18, 2026-08-28** — ADR-023 gains the rulebook press mode and is implemented as data.

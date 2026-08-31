@@ -104,29 +104,9 @@ locked layer, and it checks the cache for byte stability.
 style-independent and there is no styled file left to hold it. The tools still
 write styled SVGs under `tools/restyle/out/styled/`, but those are renderings
 for a person to look at, not assets the server reads.
-
 ## Revisions
 
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
+Decisions this record changed, and alternatives it refused. Anything that was
+only progress, a correction to the document, or a bug is gone.
 
-- **r18, 2026-08-28** — ADR-026: styled maps composed at serve time from a style plan (styleplans/*.json) plus embedded style tokens (mapstyles/), with an in-memory cache; styledmaps/ (156 MB) and the checked-in map-<style>.svg files deleted after a byte-for-byte comparison against them; sailho's label repair baked into its own map.svg.
-- **r25, 2026-08-29** — ADR-026 amended: a converted label class under 1.15% of the map's width is lifted to that floor, which is what made 1900's province names readable.
-- **r25, 2026-08-29** — Classes already above it keep the size their placement was measured against.
-- **r25, 2026-08-29** — A length is now carried onto the scale of the layer it lands in rather than the map's, and `jdipPlan` gains `labelScale`, derived from the art when a plan omits it.
-- **r25, 2026-08-29** — Two dormant faults recorded: jDip label lengths are emitted unitless and inert, and the label layer's `stroke:none` outranks the halo rule.
 - **r25, 2026-08-29** — ADR-026 amended: a length belongs to the layer it lands in, not to the map, which is why 1900's small labels rendered as smudges.
-
-## Confirmed by measurement, 2026-08-31
-
-When the authoring tools moved to dipmap (ADR-051), the alternative was
-reconsidered: dipmap could write one styled SVG per style, and this server
-would serve files instead of composing.
-
-It was measured. The 26 maps use 23 MB of SVG, and there are four styles, so
-the binary would embed 92 MB instead of 344 KB of styles. That is 270 times the
-data, to remove 1307 lines of Go.
-
-Serve-time composition stands. The style plan now arrives in the variant
-package as `styleplan.json` rather than in a `styleplans/` directory of its
-own, because dipmap writes the four files of a map together.

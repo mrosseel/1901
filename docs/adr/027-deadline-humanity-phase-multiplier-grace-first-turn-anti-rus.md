@@ -35,10 +35,3 @@ nothing, because its clock had run out or the GM chose to spend it.
 Not taken here, and still worth taking later: the weekend skip, the per-game
 timezone, and a wall-clock deadline that does not drift daily. None of them
 matters for a table in a room. All of them matter for hosted mode (ADR-018).
-
-## Revisions
-
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
-
-- **r18, 2026-08-28** — ADR-027: deadline humanity — retreatBuildPercent (50), graceMinutes, firstTurnExtraMinutes, and Backstabbr's anti-rush rule.

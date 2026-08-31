@@ -26,12 +26,9 @@ Q-002's VDOM-overhead concern returns with it.
 Considered: Svelte and SolidJS — equally capable here and equally served
 by Vite; rejected on familiarity, not on merit. Note autoreload was no
 tiebreaker: Vite HMR works for all three.
-
 ## Revisions
 
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
+Decisions this record changed, and alternatives it refused. Anything that was
+only progress, a correction to the document, or a bug is gone.
 
-- **r5, 2026-08-28** — ADR-017: React + Vite from M2 with the map as an imperative DOM island; closes Q-002.
-- **r5, 2026-08-28** — Q-003 gains the M0 phone finding: renders fine over LAN, pan/zoom is a hard requirement.
 - **r12, 2026-08-28** — ADR-017 amended: React + Vite + TypeScript from M1 (owner call — build the flow pages correctly once). web/ scaffolded; board core ported to the imperative island; M0 sandbox stays vanilla meanwhile.

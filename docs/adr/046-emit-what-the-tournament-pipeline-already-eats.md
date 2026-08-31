@@ -25,13 +25,9 @@ they have names already. Where they do not, keep ours and write them down.
 
 We implement none of the 25 scoring systems in dipvis's catalogue. Somebody
 else wrote them, with tests, and §1 says scoring is not our job.
-
 ## Revisions
 
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
+Decisions this record changed, and alternatives it refused. Anything that was
+only progress, a correction to the document, or a bug is gone.
 
-- **r47, 2026-08-30** — ADR-046: publish supply-centre counts as JSON and CSV, because dipvis scrapes Backstabbr's HTML for exactly that and a stable address replaces a scraper.
-- **r47, 2026-08-30** — Q-008 opened: whether to bring back a board with no players, which is Backstabbr's sandbox and the reason its links are the community's citation format.
-- **r51, 2026-08-31** — Built as `/game/{id}/results.json` and `/game/{id}/results.csv`, public and token-free like the board they count. A year's count is read from the last phase the server holds for that year, so a finished year is final and the year being played says `final: false` rather than pretending to be settled.
 - **r51, 2026-08-31** — The columns are ours — game, year, power, centres, final — because dipvis reads a site's HTML rather than a file and publishes no column names for an import. That is the case ADR-046 said to write down.

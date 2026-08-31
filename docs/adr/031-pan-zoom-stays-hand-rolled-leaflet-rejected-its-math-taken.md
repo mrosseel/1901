@@ -24,11 +24,9 @@ What the spike prescribes instead, all in our own gesture code:
    the instant 1.8x jump.
 4. Wheel debounce — accumulate deltas ~40 ms and apply one step;
    trackpads emit dozens of events and each runs a full render today.
-
 ## Revisions
 
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
+Decisions this record changed, and alternatives it refused. Anything that was
+only progress, a correction to the document, or a bug is gone.
 
 - **r23, 2026-08-29** — ADR-031: Leaflet rejected after a working spike — 46 KB gz for ~460 replaceable lines, plus a zoomed-SVG layout-box risk on phones.
-- **r23, 2026-08-29** — Four gesture fixes adopted instead: wheel deltaMode normalisation (Firefox wheel zoom was dead), pan inertia, eased double-tap zoom, wheel debounce.

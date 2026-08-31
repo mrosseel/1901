@@ -48,13 +48,9 @@ Mediterranean and Unconstitutional never drew names and simply gain them.
 one jDip art is still served. The sequence is: the importer moves (ADR-033), the
 maps cross one at a time, the last crossing removes the art, and only then the
 code that read it goes. A deletion made early is a variant nobody can play.
-
 ## Revisions
 
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
+Decisions this record changed, and alternatives it refused. Anything that was
+only progress, a correction to the document, or a bug is gone.
 
-- **r31, 2026-08-30** — ADR-039: the jDip importer is a one-time migration and the end state has no jDip maps, only 1901 maps.
-- **r31, 2026-08-30** — Once the last jDip art is gone, the second style applier and everything only it reads is deleted, and a style plan stops having two shapes.
 - **r32, 2026-08-30** — ADR-039 refined: the importer may outlive the migration, in dipmap, because what it produces is an ordinary 1901 map.
-- **r32, 2026-08-30** — The jDip format still ends in this repository, and no code here is kept alive against the chance of another jDip map appearing.

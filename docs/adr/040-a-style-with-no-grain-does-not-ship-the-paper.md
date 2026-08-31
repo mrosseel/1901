@@ -45,12 +45,3 @@ unmatched close tag and the map does not draw at all. An HTML page forgives
 the same file, so a check that renders the art inside a page cannot see it.
 `TestAStyledMapIsWellFormedXML` parses the served bytes of every styleable map
 in every style, and is the only thing here that catches it.
-
-## Revisions
-
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
-
-- **r33, 2026-08-30** — ADR-040: a style with no grain drops the overlay's fill instead of dimming it, so the paper pattern is orphaned and the existing prune takes the 29 KB bitmap with it. 20 of 130 map and style pairs get 22.4 KB smaller gzipped, 447 KB over the set, with no pixel changed and `?style=original` byte-identical.
-- **r33, 2026-08-30** — The overlay element stays: on seven of the ten maps it carries the board's hairline frame.
-- **r33, 2026-08-30** — Styled art is now checked to parse as XML, which is how a board's `<img>` reads it.

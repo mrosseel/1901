@@ -39,55 +39,9 @@ hit-testing fails silently. When 1900's art failed to render, every hit-test
 missed and the detector wrote a well-formed plan calling all 181 names land,
 twenty-one seas among them. A plan writer must count the labels that land on
 nothing and refuse rather than write.
-
 ## Revisions
 
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
+Decisions this record changed, and alternatives it refused. Anything that was
+only progress, a correction to the document, or a bug is gone.
 
-- **r25, 2026-08-29** — ADR-033: map authoring moves to dipmap, 1901 plays maps (owner decision) — placement, restyle and the map editor leave; every serve-time reader and tools/jdip-import stay.
 - **r28, 2026-08-30** — ADR-033 widened: `tools/jdip-import/` moves to dipmap as well, so 1901 never writes a map.
-
-## Done, 2026-08-31
-
-Every authoring tool has left this repository, and 14,727 lines with them:
-
-| what | lines |
-|---|---|
-| `tools/restyle/` | 5238 |
-| `tools/placement/` | 5809 |
-| `web/src/mapeditor/` | 2138 |
-| `tools/jdip-import/` | 1269 |
-| `mapeditor_dev.go`, `mapeditor_off.go` | 147 |
-| `names.go` and `names/` | 103 |
-| `placements/`, routes, proxy line, gallery entry | 23 |
-
-The `mapeditordev` build tag is gone, which was this record's own reason for
-the move: code that has to hide from its own host is in the wrong repository.
-
-**The detector moved as TypeScript, not as a Python port.** The measurement is
-`getBBox`, `getComputedStyle` and hit-testing inside a rendered document, so it
-drives a browser. Five thousand lines of measurement heuristics rewritten in
-another language would be a way of introducing bugs, not of removing them.
-dipmap's `EDITOR_PLAN.md` assumed a port; the move is better, because the code
-that works is the code that runs.
-
-It was proven before anything was deleted. Run against a 1901 server from its
-new home, `plans.ts` reproduced `styleplans/classical.json` byte for byte.
-
-**Two file kinds moved with it, and one did not.** A style plan now travels in
-the variant package as `styleplan.json`, beside the art it measured, so a
-variant cannot arrive carrying a plan for a different map; `styleplans/` and
-its pin test are deleted. Province long names were always in `variant.json`,
-so `names.go` and its empty `names/` directory were dead and are deleted.
-
-`mapstyles/` stays. Pre-rendering the four styles in dipmap would let this
-repository drop `restyle.go` and `mapstyles.go` — 1307 lines — and would cost
-92 MB in the binary, because 26 maps use 23 MB of SVG. ADR-026 chose serve-time
-composition, and the measurement agrees with it.
-
-What this repository keeps is the code that **applies** map data: `restyle.go`,
-`mapstyles.go`, `placements.go`, `variants.go`. What it lost is the code that
-**makes** map data.
-
-dipmap's `EDITOR_MOVE.md` is the other half of this record.

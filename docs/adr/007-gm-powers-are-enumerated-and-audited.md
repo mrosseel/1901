@@ -19,10 +19,3 @@ allowed because tables make physical mistakes, but it is logged loudly.
 Every GM action appends to a public, append-only event log visible to all
 players in-game. The audit trail is what makes a playing GM socially
 acceptable; it is a feature, not compliance theatre.
-
-## Revisions
-
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
-
-- **r44, 2026-08-30** — It is an enumerated, logged game master power (ADR-007), because a game master who can mint a link for any seat can take any seat; the record is what makes that visible rather than prevented.

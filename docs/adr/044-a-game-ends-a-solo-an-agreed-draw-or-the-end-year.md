@@ -52,14 +52,9 @@ nothing else. Scoring stays a non-goal (§1); dipvis owns that job.
 **Not decided here:** what happens to a game after it ends. A frozen game
 sitting in the list is enough for a first tournament. Rematch, archive and
 delete can wait for somebody to want them.
-
 ## Revisions
 
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
+Decisions this record changed, and alternatives it refused. Anything that was
+only progress, a correction to the document, or a bug is gone.
 
-- **r47, 2026-08-30** — ADR-044: a game ends, by a solo read from godip's `SoloWinner`, by a draw the game master records, or at an end year, and an ended game freezes and publishes a result; the flow never asked who won.
-- **r47, 2026-08-30** — Build order in §7 restated: ADR-044 before M3, then ADR-004 and ADR-041.
-- **r51, 2026-08-31** — Built. A solo is one call to the variant's `SoloWinner` at the end of every adjudication; a draw is a game master route that names the powers and refuses one holding no centre; `settings.endYear` fires when the board leaves that year. An ended game clears its deadline, closes force adjudication, and answers 409 to an order, a lock and an extend.
-- **r51, 2026-08-31** — The result rides on the seat, game master, public and watch answers alike, so a spectator link to any phase of a finished game says how it ended. The centre counts name every power, zeros included.
 - **r51, 2026-08-31** — Persisted as four columns rather than recomputed: a draw is an act and replaying the order rows would never find it. The counts are the exception and are counted from the replayed board.

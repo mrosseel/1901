@@ -309,37 +309,3 @@ breaks nothing. Then the server prefers the records where it finds them. Then
 the exporter stops writing the layers and the plan version moves. The reader
 must be built so a map without records falls back, which is also exactly what
 the two-kinds rule needs.
-
-## Revisions
-
-From the revision log this decision used to live beside. Each line is
-the sentence that revised it, with the document revision it came from.
-
-- **r28, 2026-08-30** — ADR-038: the province name, the supply-centre glyph and the unit anchor become records in `placements.json`; the art keeps geometry.
-- **r28, 2026-08-30** — A label record carries position, size and reserved width, so the drawn box is the measured box.
-- **r28, 2026-08-30** — A map is in data mode if it has any label record, and maps whose names are outlined shapes keep their art.
-- **r29, 2026-08-30** — ADR-038 corrected after review by the map exporter: `at` is stated as the ink box centre and the record gains `height`, because a reader that took it for the baseline would draw every name half a cap height high; the centre glyph gains a radius, since it is an obstacle the name search fits around; `found` is not the mode flag; name styling moves to the board with the verdict, the typography and the halo travelling with the board state, so the two restyle paths do not collapse; the saving is restated gzipped and net of the records, about 1.8 KB a board load.
-- **r30, 2026-08-30** — ADR-038 corrected again after scoping.
-- **r30, 2026-08-30** — The record gains `rot`: classical rotates 73 of 90 names and a flat Portugal runs across Spain.
-- **r30, 2026-08-30** — `?style=original` keeps its layers.
-- **r30, 2026-08-30** — The land-or-sea verdict is derived from the variant graph, not stored.
-- **r30, 2026-08-30** — The layers are 27.3% of the art, not 10.4%, but only 14.5% gzipped and almost all of that is in the four maps whose names are outlined shapes and cannot be migrated automatically. 1800 Empires and Coalitions has no long names at all and blocks its own migration.
-- **r30, 2026-08-30** — Multi-line names and the gallery card have no answer yet.
-- **r31, 2026-08-30** — The hybrid in ADR-038 is a stage, not a resting place.
-- **r31, 2026-08-30** — Four maps whose names are outlined shapes need re-authoring by a person, not a recovery pass.
-- **r34, 2026-08-30** — ADR-038: the supply-centre glyph follows the same rule as the name.
-- **r34, 2026-08-30** — Where the art draws the layer, the art wins.
-- **r34, 2026-08-30** — Where it does not, the board draws from the record.
-- **r35, 2026-08-30** — ADR-038: a wrapped name gets an optional `labelRuns` beside `label` rather than turning `at` into a list, and a run's text wins for drawing only.
-- **r35, 2026-08-30** — The claim that moving a short label makes the payload bigger is withdrawn: it was JSON pretty-printing, not the format.
-- **r35, 2026-08-30** — Tables collapse arrays and innermost objects onto one line, 30.1% off raw and 4.3% gzipped, keeping one line per field so a moved marker stays a one-line diff.
-- **r36, 2026-08-30** — ADR-038 corrected: it said the mode was inferred from the presence of a record and also that it was an explicit flag.
-- **r36, 2026-08-30** — It is the flag, `dataMode` in the style plan.
-- **r36, 2026-08-30** — The land-or-sea verdict is derived from godip's graph and agrees with the art's own measurement on 73 of 73.
-- **r36, 2026-08-30** — With the flag off, 130 renders are byte-identical to master.
-- **r37, 2026-08-30** — ADR-038: the supply-centre record gains `centreStroke`.
-- **r37, 2026-08-30** — Asking what stroke width a glyph uses found that it is a line weight in map units and not a fraction of the radius, so the reader's derivation from godip's ratio was wrong by more than a factor of two, and that the exporter reserved `2 * radius` when the ink reaches `radius + stroke / 2`.
-- **r37, 2026-08-30** — A `labelRuns` anchor is in unrotated space and a run carries no rotation of its own.
-- **r38, 2026-08-30** — ADR-038 gains the rule that a record is compared to the art with a tolerance of half the art's rounding step, and never looked up by formatted string, because the two roundings do not commute.
-- **r39, 2026-08-30** — ADR-038 corrected: the sentence saying the mode is the presence of a label record is struck, having been overturned at r36.
-- **r39, 2026-08-30** — With no plan in data mode, 130 of 130 served SVGs are byte-identical.
