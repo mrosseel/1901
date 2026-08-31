@@ -79,7 +79,7 @@ export function Standings({
           board is mid-year and these counts are not yet the ones that pay.
           Nobody at the table needs the rule explained. */}
       <p className="note">
-        {settled ? "+ is a build owed, − comes off." : "Ownership changes after the Fall retreats."}
+        {settled ? "+ build, − remove." : "Ownership changes after the Fall retreats."}
       </p>
     </section>
   );
