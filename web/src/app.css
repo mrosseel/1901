@@ -2012,10 +2012,13 @@ drawn on the map and both published to the spectator screen (ADR-013).
   text-align: right;
 }
 
+/* A number only where it differs from the supply centres, and a dash where it
+   does not, so the column reads as an exception list rather than a second
+   count. Narrow, because it now holds one character most of the time. */
 .standings-units {
   color: var(--muted);
-  font-size: 12px;
-  min-width: 7ch;
+  font-size: 13px;
+  min-width: 3ch;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

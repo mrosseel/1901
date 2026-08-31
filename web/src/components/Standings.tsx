@@ -54,8 +54,17 @@ export function Standings({
             <li key={row.power} className={row.power === you ? "you" : undefined}>
               <PowerChip power={row.power} small />
               <span className="standings-centres">{row.supplyCentres}</span>
+              {/*
+              A dash where the two agree, which is most rows most of the
+              time. Printing the same number twice makes the reader compare
+              them; a dash says "nothing to see" at a glance, and leaves the
+              eye free for the rows where they differ.
+
+              The word "units" is in the header and not in every cell, for
+              the reason "SC" is not repeated either.
+              */}
               <span className="standings-units">
-                {row.units} {row.units === 1 ? "unit" : "units"}
+                {row.units === row.supplyCentres ? "—" : row.units}
               </span>
               {settled && balance !== 0 ? (
                 <span className={balance > 0 ? "standings-build" : "standings-build off"}>
