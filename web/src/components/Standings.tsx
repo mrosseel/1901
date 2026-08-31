@@ -75,10 +75,11 @@ export function Standings({
           );
         })}
       </ul>
+      {/* One line, and only where it says something a player cannot see: the
+          board is mid-year and these counts are not yet the ones that pay.
+          Nobody at the table needs the rule explained. */}
       <p className="note">
-        {settled
-          ? "Supply centres pay for units: + is a build owed, − comes off."
-          : "Supply centre ownership changes after the Fall retreats, not before."}
+        {settled ? "+ is a build owed, − comes off." : "Ownership changes after the Fall retreats."}
       </p>
     </section>
   );
