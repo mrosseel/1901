@@ -17,22 +17,26 @@ to Go.
 const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
 const API = env?.API_TARGET || "http://localhost:8190";
 
+/*
+What Go owns in development (ADR-050).
+
+This used to be a hand-written list of every endpoint, and it drifted four
+features behind: a request for JSON came back as the app's HTML, and the
+failure surfaced as a parse error in an unrelated file. It cannot drift now,
+because the transport is one prefix.
+
+Beside it are the published reads, which are deliberately not prefixed and are
+deliberately few: every address here is one we mean to keep working.
+*/
 const endpoints =
-  "^/(games$" +
+  "^/(api/" +
   // The variant catalogue, its maps, and the three variant-level files the
   // map editor loads: terrain, the approved placement table, the display names.
   "|variants$|variants/[^/]+/(map\\.svg|provinces\\.json|placement\\.json|names\\.json)" +
   "|mapeditor/save" + // the editor's dev-only save endpoint (ADR-030)
   "|styles$" + // the map styles this server can draw in
-  "|g/" +
-  "|map\\.svg|state|options|order|adjudicate" + // the M0 sandbox's own routes
-  // The spectator page stays with vite; its feed goes to Go.
-  "|game/[^/]+/watch(/[0-9]+)?" +
-  "|game/[^/]+/(public" +
-  "|map\\.svg" +
-  "|join/[^/]+" +
-  "|gm/[^/]+/(state|settings|start|adjudicate|extend|map\\.svg)" +
-  "|seat/[^/]+/(state|options|order|lock|unlock|map\\.svg))" +
+  // The spectator page stays with vite; the board it reads goes to Go.
+  "|game/[^/]+/(public|watch(/[0-9]+)?|map\\.svg)" +
   ")";
 
 export default defineConfig({

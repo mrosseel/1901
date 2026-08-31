@@ -52,6 +52,12 @@ variant's map, and "bud" is Budapest in one variant and nothing at all in the
 next.
 */
 export interface VariantAware {
+  /*
+  Which client build the server is serving (ADR-050). A tab that sees it
+  change is running JavaScript the server has moved on from; build.ts keeps
+  the first one it saw and says so.
+  */
+  build?: string;
   variant?: VariantRef;
   provinceNames?: Record<string, string>;
   /*
@@ -359,6 +365,25 @@ function absolute(path: string): string {
   return new URL(path, window.location.origin).toString();
 }
 
+/*
+Where this app talks to itself (ADR-050).
+
+Two surfaces, and only one of them is ours to change: /api/v1 is the
+transport, and nothing outside the build that ships with it is promised
+anything. The version is what makes that safe — a breaking change becomes
+/api/v2 and a phone still on the old page keeps working until somebody
+reloads it, rather than dying mid-phase.
+
+The published reads — a game's public summary, the spectator feed, the
+variant catalogue and the art — are built with `absolute` instead, because
+they are addresses a person may paste and we mean to keep them working.
+*/
+const API = "/api/v1";
+
+function api(path: string): string {
+  return absolute(API + path);
+}
+
 /** The token-free endpoint every page may poll for liveness. */
 export function publicUrl(gameId: string): string {
   return absolute("/game/" + encodeURIComponent(gameId) + "/public");
@@ -418,7 +443,7 @@ export async function fetchVariants(): Promise<Variant[]> {
 // --- creation -------------------------------------------------------------
 
 export function createGame(settings: Settings): Promise<CreatedGame> {
-  return postJSON<CreatedGame>(absolute("/games"), { settings: settings });
+  return postJSON<CreatedGame>(api("/games"), { settings: settings });
 }
 
 // --- the main-page list ---------------------------------------------------
@@ -433,7 +458,7 @@ export function createGame(settings: Settings): Promise<CreatedGame> {
  * the game.
  */
 export function fetchGames(): Promise<GameSummary[]> {
-  return getJSON<GameSummary[]>(absolute("/games/list"));
+  return getJSON<GameSummary[]>(api("/games"));
 }
 
 // --- join -----------------------------------------------------------------
@@ -450,7 +475,7 @@ export function claimSeat(
   inviteToken: string,
   signPub: string,
 ): Promise<SeatClaim> {
-  const url = absolute(
+  const url = api(
     "/game/" + encodeURIComponent(gameId) + "/join/" + encodeURIComponent(inviteToken),
   );
   return postJSON<SeatClaim>(url, { signPub: signPub });
@@ -475,7 +500,7 @@ here, and what it will sign one day is the sealed order itself.
 export async function openSeatSession(gameId: string): Promise<string> {
   const seed = readSeatSeed(gameId);
   if (!seed) throw new ApiError("This device does not hold a seat in this game.", 404);
-  const base = absolute("/game/" + encodeURIComponent(gameId) + "/session");
+  const base = api("/game/" + encodeURIComponent(gameId) + "/session");
   const challenge = await getJSON<{ nonce: string; message: string }>(base);
   const { power } = await postJSON<{ power: string }>(base, {
     signPub: seatPublicKey(seed),
@@ -491,7 +516,7 @@ export class GmClient {
   private base: string;
 
   constructor(gameId: string, gmToken: string) {
-    this.base = absolute(
+    this.base = api(
       "/game/" + encodeURIComponent(gameId) + "/gm/" + encodeURIComponent(gmToken) + "/",
     );
   }
@@ -554,7 +579,7 @@ export interface RecoverChallenge {
 }
 
 export function recoverChallenge(gameId: string): Promise<RecoverChallenge> {
-  return getJSON<RecoverChallenge>(absolute("/game/" + encodeURIComponent(gameId) + "/recover"));
+  return getJSON<RecoverChallenge>(api("/game/" + encodeURIComponent(gameId) + "/recover"));
 }
 
 export function recoverClaim(
@@ -563,7 +588,7 @@ export function recoverClaim(
   signature: string,
 ): Promise<{ gmUrl: string }> {
   return postJSON<{ gmUrl: string }>(
-    absolute("/game/" + encodeURIComponent(gameId) + "/recover"),
+    api("/game/" + encodeURIComponent(gameId) + "/recover"),
     { nonce: nonce, signature: signature },
   );
 }
@@ -584,7 +609,7 @@ export class SeatClient {
   constructor(gameId: string, seatToken: string) {
     this.gameId = gameId;
     this.keyed = seatToken === "me";
-    this.base = absolute(
+    this.base = api(
       "/game/" + encodeURIComponent(gameId) + "/seat/" + encodeURIComponent(seatToken) + "/",
     );
   }
@@ -604,6 +629,13 @@ export class SeatClient {
       return await run();
     } catch (err) {
       if (!this.keyed || !(err instanceof ApiError) || err.status !== 404) throw err;
+      /*
+      A restart drops every session at once (ADR-049), so every phone at
+      every table finds out in the same second and signs back in together.
+      A short random wait spreads that over the poll interval instead of
+      landing it on a server that is still warming up.
+      */
+      await new Promise((wake) => setTimeout(wake, Math.random() * 1500));
       await openSeatSession(this.gameId);
       return run();
     }
@@ -661,7 +693,7 @@ export function claimHandover(
   signPub: string,
 ): Promise<SeatClaim> {
   return postJSON<SeatClaim>(
-    absolute(
+    api(
       "/game/" +
         encodeURIComponent(gameId) +
         "/handover/" +
@@ -687,7 +719,7 @@ export function claimGmHandover(
   signature: string,
 ): Promise<{ gmUrl: string }> {
   return postJSON<{ gmUrl: string }>(
-    absolute(
+    api(
       "/game/" +
         encodeURIComponent(gameId) +
         "/handover-gm/" +
@@ -701,7 +733,7 @@ export function claimGmHandover(
 /** The game master mints a link for any power, dead phone or not (r44). */
 export function mintHandover(gameId: string, gmToken: string, power: string): Promise<Handover> {
   return getJSON<Handover>(
-    absolute(
+    api(
       "/game/" +
         encodeURIComponent(gameId) +
         "/gm/" +

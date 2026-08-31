@@ -88,7 +88,7 @@ describe("requests", () => {
   it("sends the settings the contract asks for", async () => {
     const calls = stubFetch({ ok: true, status: 200, body: '{"gameId":"7"}' });
     await createGame({ deadlineMinutes: 15, gmPlays: true });
-    expect(calls[0].url).toBe("http://localhost:3000/games");
+    expect(calls[0].url).toBe("http://localhost:3000/api/v1/games");
     expect(JSON.parse(String(calls[0].init?.body))).toEqual({
       settings: { deadlineMinutes: 15, gmPlays: true },
     });
@@ -121,11 +121,11 @@ describe("requests", () => {
   it("claims a power under the game, not under the join page", async () => {
     const calls = stubFetch({ ok: true, status: 200, body: '{"seatUrl":"/game/7/seat/s/"}' });
     const answer = await claimSeat("7", "invite", "pub");
-    expect(calls[0].url).toBe("http://localhost:3000/game/7/join/invite");
+    expect(calls[0].url).toBe("http://localhost:3000/api/v1/game/7/join/invite");
     expect(answer.seatUrl).toBe("/game/7/seat/s/");
   });
 
-  it("reads the game list from the token-free endpoint", async () => {
+  it("reads the game list from the transport surface (ADR-050)", async () => {
     const calls = stubFetch({
       ok: true,
       status: 200,
@@ -135,7 +135,7 @@ describe("requests", () => {
       ]),
     });
     const list = await fetchGames();
-    expect(calls[0].url).toBe("http://localhost:3000/games/list");
+    expect(calls[0].url).toBe("http://localhost:3000/api/v1/games");
     expect(list.map((game) => game.gameId)).toEqual(["7", "9"]);
     expect(list[1].referee).toBe(true);
   });

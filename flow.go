@@ -1171,6 +1171,9 @@ type gmStateJSON struct {
 	// key: the page needs to know which card to draw, not what the server
 	// holds.
 	HasGMKey bool `json:"hasGmKey"`
+	// Which client build this server is serving (ADR-050). A page that sees
+	// it change is running JavaScript the server has moved on from.
+	Build string `json:"build"`
 }
 
 // gmState renders the GM view. The caller must hold g.mu. It contains
@@ -1203,6 +1206,7 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		PreviousPhase: self.previousPhase,
 		Now:           serverNow(),
 		HasGMKey:      f.gmPublicKey != "",
+		Build:         buildStamp(),
 	}
 	for _, p := range f.powers {
 		s := f.seats[p]
@@ -1430,6 +1434,9 @@ type publicStateJSON struct {
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
 	Now             string              `json:"now"`
+	// Which client build this server is serving (ADR-050). Every page polls
+	// this answer, so this is where a stale tab finds out.
+	Build string `json:"build"`
 }
 
 func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
@@ -1438,6 +1445,7 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	f := g.flow
 	writeJSON(w, http.StatusOK, publicStateJSON{
 		GameID: id,
+		Build:  buildStamp(),
 		Phase: phaseJSON{
 			Season: string(g.state.Phase().Season()),
 			Year:   g.state.Phase().Year(),
@@ -1821,18 +1829,20 @@ var seatRoutes = map[string]seatHandler{
 	"unfinalize": handleSeatUnlock,
 }
 
-// serveFlow routes everything under /game/{id}/.
+/*
+serveFlow routes the bare /game/{id}/ addresses, which are the published
+surface and the pages (ADR-050).
+
+Published: the board anybody may read, at an address anybody may paste.
+Pages: the seat and the game master shell, which carry a token because the
+address is the seat (ADR-012) but answer with nothing but the app.
+
+Everything this app says to itself moved under /api/v1 and is answered by
+serveFlowAPI below.
+*/
 func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
-	rest := strings.TrimPrefix(r.URL.Path, "/game/")
-	segments := strings.Split(rest, "/")
-	if len(segments) < 2 || !validID(segments[0]) {
-		http.NotFound(w, r)
-		return
-	}
-	id := segments[0]
-	g, found := games.lookup(id)
-	if !found {
-		http.NotFound(w, r)
+	g, id, segments, ok := lookupFlow(w, r, "/game/")
+	if !ok {
 		return
 	}
 
@@ -1843,11 +1853,39 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 		// Public and unauthenticated by design (ADR-013).
 		handleWatch(g, id, segments[2:], w, r)
 	case "map.svg":
+		// The art of the board being watched, which is as public as the
+		// board is.
 		handleMap(g, id, w, r)
 	case "referee":
 		// Token-free on purpose: the referee cookie set at creation is
-		// the credential. For anyone else the address is a 404.
+		// the credential. For anyone else the address is a 404. It answers
+		// with a redirect to a page, so it belongs with the pages.
 		handleRefereeEntry(g, id, w, r)
+	case "gm", "seat":
+		// The page only. Every action under it is transport and lives
+		// under /api/v1; this address serves the shell.
+		self.servePageScope(g, id, segments, w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+/*
+serveFlowAPI routes /api/v1/game/{id}/… — everything the app says to itself
+about one game.
+
+No promises are made about any of it (ADR-050). The only caller is the
+JavaScript this same build shipped, and the version in the path is what lets
+that stay true without breaking a phone that is still on the old one.
+*/
+func (self *server) serveFlowAPI(w http.ResponseWriter, r *http.Request, path string) {
+	g, id, segments, ok := lookupFlow(w, r, "/game/")
+	if !ok {
+		return
+	}
+	_ = path
+
+	switch segments[1] {
 	case "join":
 		if len(segments) != 3 {
 			http.NotFound(w, r)
@@ -1876,8 +1914,36 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// serveTokenScope handles /game/{id}/{gm|seat}/{token}[/{action}].
-func (self *server) serveTokenScope(g *game, id string, segments []string, w http.ResponseWriter, r *http.Request) {
+// lookupFlow finds the game an address names, whichever surface the address
+// is on. It answers the request itself when there is nothing to find.
+func lookupFlow(w http.ResponseWriter, r *http.Request, prefix string) (*game, string, []string, bool) {
+	path := r.URL.Path
+	if i := strings.Index(path, prefix); i >= 0 {
+		path = path[i+len(prefix):]
+	}
+	segments := strings.Split(path, "/")
+	if len(segments) < 2 || !validID(segments[0]) {
+		http.NotFound(w, r)
+		return nil, "", nil, false
+	}
+	g, found := games.lookup(segments[0])
+	if !found {
+		http.NotFound(w, r)
+		return nil, "", nil, false
+	}
+	return g, segments[0], segments, true
+}
+
+/*
+servePageScope serves the seat and the game master pages.
+
+The address carries a token and the page carries none of it: what is served is
+the same shell every address serves, and the JavaScript in it goes to /api/v1
+with whatever the address holds. The token is checked there, not here — which
+is also what lets a keyed seat open the page that signs it back in with no
+session at all (ADR-049).
+*/
+func (self *server) servePageScope(g *game, id string, segments []string, w http.ResponseWriter, r *http.Request) {
 	kind := segments[1]
 	if len(segments) < 3 {
 		http.NotFound(w, r)
@@ -1893,6 +1959,30 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 		http.Redirect(w, r, target, http.StatusFound)
 		return
 	}
+	if strings.Join(segments[3:], "/") != "" {
+		http.NotFound(w, r)
+		return
+	}
+	self.serveSPA(w, r)
+}
+
+/*
+serveTokenScope answers one seat's or one game master's actions, under
+/api/v1/game/{id}/{gm|seat}/{token}/{action}.
+
+The token in the address is the credential, except for a keyed seat, whose
+address says "me" and whose credential is the session cookie its own key
+bought (ADR-049). The page at the matching bare address is served by
+servePageScope and checks nothing, which is what lets a phone with a seed and
+no session load the page that signs it back in.
+*/
+func (self *server) serveTokenScope(g *game, id string, segments []string, w http.ResponseWriter, r *http.Request) {
+	kind := segments[1]
+	if len(segments) < 4 {
+		http.NotFound(w, r)
+		return
+	}
+	token := segments[2]
 	action := strings.Join(segments[3:], "/")
 
 	g.mu.Lock()
@@ -1913,35 +2003,11 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 	}
 	g.mu.Unlock()
 
-	/*
-	The page of a keyed seat is served to anybody who asks (ADR-049).
-
-	It has to be. The address carries no secret and the session is a cookie
-	the server keeps in memory, so a restart, a new device or a private tab
-	arrives with nothing — and the thing that signs back in is the JavaScript
-	on this very page, using the seed the device already holds. Refusing the
-	page would mean the only way back into a seat is a page the seat cannot
-	open, which is a locked door with the key behind it.
-
-	Nothing is given away. The page is the same shell every address serves,
-	it holds no state, and every request it goes on to make is answered only
-	for a device that can sign for the seat.
-	*/
-	if action == "" && kind == "seat" && token == "me" {
-		self.serveSPA(w, r)
-		return
-	}
-
 	if !authorized {
 		http.NotFound(w, r)
 		return
 	}
 
-	if action == "" {
-		// Both pages are routes inside the same SPA shell.
-		self.serveSPA(w, r)
-		return
-	}
 	if kind == "gm" {
 		if h, ok := gmRoutes[action]; ok {
 			h(g, id, w, r)

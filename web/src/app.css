@@ -2039,3 +2039,32 @@ drawn on the map and both published to the spectator screen (ADR-013).
 }
 
 .standings-legend .standings-centres { font-size: 11px; margin-left: auto; }
+
+/* --- "this app has been updated" (ADR-050) -------------------------------
+Above everything, because the alternative is finding out by tapping something
+and having it fail. Quiet, because nothing is broken: the old app talks to the
+old transport, which is still there.
+*/
+.stale-build {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--accent);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.stale-build button {
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 13px;
+}

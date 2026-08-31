@@ -24,6 +24,8 @@ import { setPowerPalette, setProvinceNames } from "../board/provinces";
 import { PowerChip } from "../components/PowerChip";
 import { Standings } from "../components/Standings";
 import type { BoardApi, BoardState, ReviewDraw } from "../board/types";
+import { StaleBuild } from "../components/StaleBuild";
+import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 import { usePoll, useTicker } from "../hooks";
 import { refereeGuide } from "../referee";
@@ -98,6 +100,7 @@ export function WatchPage({
       setProvinceNames(next.provinceNames);
       setPowerPalette(Object.keys(next.locked || {}));
       noteServerTime(next.now);
+      noteBuild(next.build);
       setWatch(next);
       setFeedMissing(false);
       setError(null);
@@ -115,6 +118,7 @@ export function WatchPage({
       setProvinceNames(fallback.provinceNames);
       setPowerPalette(Object.keys(fallback.locked || {}));
       noteServerTime(fallback.now);
+      noteBuild(fallback.build);
       setSummary(fallback);
       setFeedMissing(true);
       setError(null);
@@ -262,6 +266,7 @@ export function WatchPage({
 
   return (
     <>
+    <StaleBuild beat={watch ?? null} />
     <SplitLayout className="seat-layout watch" frozen={reading}>
       <main className="map-pane" inert={reading || undefined}>
         {boardState ? (

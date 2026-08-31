@@ -41,8 +41,10 @@ export interface Scenario {
   games?: GameSummary[];
 }
 
-const SEAT = /^\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|lock|unlock)$/;
-const GM = /^\/game\/[^/]+\/gm\/[^/]+\/(state|settings|start|adjudicate|extend)$/;
+/* The app's own transport is versioned and prefixed (ADR-050); the published
+   reads are not, which is the whole point of the split. */
+const SEAT = /^\/api\/v1\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|lock|unlock)$/;
+const GM = /^\/api\/v1\/game\/[^/]+\/gm\/[^/]+\/(state|settings|start|adjudicate|extend)$/;
 const WATCH = /^\/game\/[^/]+\/watch(?:\/(\d+))?$/;
 const PUBLIC = /^\/game\/[^/]+\/public$/;
 const MAP = /\/map\.svg$/;
@@ -118,7 +120,7 @@ function answer(scene: Scenario, url: URL, method: string): Response | null {
     return scene.watch ? json(scene.watch) : missing("a live phase on this screen");
   }
 
-  if (path === "/games/list") {
+  if (path === "/api/v1/games") {
     return json(scene.games || []);
   }
 

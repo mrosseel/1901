@@ -17,6 +17,8 @@ import { StylePicker, useMapStyle } from "../components/StylePicker";
 import { PhaseName } from "../components/PhaseName";
 import { illegalAllowed } from "../illegal";
 import { SupportedMark } from "../components/SupportedMark";
+import { StaleBuild } from "../components/StaleBuild";
+import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
 import { ReviewOverlay } from "../components/ReviewOverlay";
@@ -114,6 +116,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       setProvinceNames(next.provinceNames);
       setPowerPalette(next.seats.map((seat) => seat.power));
       noteServerTime(next.now);
+      noteBuild(next.build);
       setGame(next);
       setGone(false);
     } catch (err) {
@@ -197,6 +200,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
 
   return (
     <>
+    <StaleBuild beat={game} />
     <main className="page wide" inert={reading || undefined}>
       <header className="page-head">
         <div>

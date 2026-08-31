@@ -75,3 +75,6 @@ the sentence that revised it, with the document revision it came from.
 - **r48, 2026-08-30** — ADR-047: the sandbox, a game with no seats, one `sandboxToken` link that may drive every power and adjudicate, and the ordinary watch addresses for everybody else.
 - **r48, 2026-08-30** — It closes Q-008 ahead of the playtest, on the owner's call.
 - **r48, 2026-08-30** — It is a flag on a game rather than a second object, so there is one adjudication path; a sandbox route refuses a real game and a seat route refuses a sandbox, which is a test and not a comment.
+- **r48, 2026-08-30** — Editing the position breaks ADR-028's replay-from-orders, so an edit writes a whole-position checkpoint and replay starts there, and an edited phase says so on the page.
+- **r48, 2026-08-30** — ADR-029 and ADR-044 apply; press, deadlines, anonymity and handover have no second person to be about.
+- **r48, 2026-08-30** — CONTEXT.md gains Sandbox.

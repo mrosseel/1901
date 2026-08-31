@@ -12,18 +12,25 @@ import { SeatPage } from "./pages/SeatPage";
 import { WatchPage } from "./pages/WatchPage";
 
 /*
-The design gallery, and how it stays out of the shipped app.
+The design gallery, and which builds carry it.
 
-import.meta.env.DEV is replaced with a literal at build time, so in a
-production build this is `false ? … : null`: the branch is dead, the dynamic
-import inside it is never reached, and nothing under src/dev — the gallery, its
-fixtures, the fetch stub — enters the module graph. The route below is guarded
-by the same constant, so /dev/screens in production falls through to the same
-"nothing here" page as any other unknown address.
+Three shapes, one flag:
+
+  development       always has it
+  the hosted site   has it: SCREENS=1 at build time
+  a release build   does not: the flag is absent, the branch is `false ? … :
+                    null`, and nothing under src/dev — the gallery, its
+                    fixtures, the fetch stub — enters the module graph at all
+
+A phone pays nothing in any of them. Both constants are replaced with literals
+at build time, and where the branch survives it is a lazy import: the gallery
+is its own chunk, fetched only by a browser that actually opens /dev/screens.
+No player ever does.
 */
-const DevGallery = import.meta.env.DEV
-  ? lazy(() => import("./dev/Gallery").then((module) => ({ default: module.Gallery })))
-  : null;
+const DevGallery =
+  import.meta.env.DEV || import.meta.env.VITE_SCREENS
+    ? lazy(() => import("./dev/Gallery").then((module) => ({ default: module.Gallery })))
+    : null;
 
 /*
 The map editor (ADR-030), which ships in every build but is only loaded when
@@ -47,7 +54,7 @@ the server only ever serves this shell at the addresses below, and nothing
 in the app navigates between them, so a route table is all that is needed.
 */
 export function App() {
-  if (import.meta.env.DEV && DevGallery && window.location.pathname === "/dev/screens") {
+  if (DevGallery && window.location.pathname === "/dev/screens") {
     return (
       <Suspense fallback={null}>
         <DevGallery />

@@ -4,6 +4,7 @@ import { claimSeat, fetchPublic, type PublicState } from "../api";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
 import { makeSeatSeed, seatPublicKey, writeSeatSeed } from "../seatkey";
 import { SupportedMark } from "../components/SupportedMark";
+import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 
 /*
@@ -25,6 +26,7 @@ export function JoinPage({
   usePoll(3000, async () => {
     const next = await fetchPublic(gameId);
     noteServerTime(next.now);
+    noteBuild(next.build);
     setGame(next);
   });
   useTicker(Boolean(game?.deadlineAt));

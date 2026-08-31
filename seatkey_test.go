@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -148,18 +150,16 @@ func TestTheSessionCookieOpensTheSeat(t *testing.T) {
 	cookie := sessionCookie(t, id, joined)
 
 	srv := &server{}
-	path := "/game/" + id + "/seat/me/state"
-	segments := []string{id, "seat", "me", "state"}
+	path := apiPrefix + "/game/" + id + "/seat/me/state"
 
 	rec := httptest.NewRecorder()
-	srv.serveTokenScope(g, id, segments, rec,
-		withCookie(httptest.NewRequest(http.MethodGet, path, nil), cookie))
+	srv.serveFlowAPI(rec, withCookie(httptest.NewRequest(http.MethodGet, path, nil), cookie), path)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("with the cookie: got %v: %v", rec.Code, rec.Body.String())
 	}
 
 	rec = httptest.NewRecorder()
-	srv.serveTokenScope(g, id, segments, rec, httptest.NewRequest(http.MethodGet, path, nil))
+	srv.serveFlowAPI(rec, httptest.NewRequest(http.MethodGet, path, nil), path)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("without the cookie: got %v, want 404", rec.Code)
 	}
@@ -250,10 +250,16 @@ func TestTheSeatPageOpensWithoutASession(t *testing.T) {
 	// Every session gone, as a restart leaves it.
 	g.flow.sessions = map[string]godip.Nation{}
 
-	srv := &server{spaDir: t.TempDir()}
+	// Through the real front doors, so this covers the routing and not one
+	// handler: the page is on the bare surface, its actions are transport.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html></html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	srv := &server{spaDir: dir}
+
 	rec := httptest.NewRecorder()
-	srv.serveTokenScope(g, id, []string{id, "seat", "me", ""}, rec,
-		httptest.NewRequest(http.MethodGet, "/game/"+id+"/seat/me/", nil))
+	srv.serveFlow(rec, httptest.NewRequest(http.MethodGet, "/game/"+id+"/seat/me/", nil))
 	if rec.Code == http.StatusNotFound {
 		t.Fatal("the seat page is a 404 without a session, so nothing can sign back in")
 	}
@@ -261,8 +267,8 @@ func TestTheSeatPageOpensWithoutASession(t *testing.T) {
 	// The page, and only the page. Everything it goes on to ask for still
 	// needs a device that can sign for the seat.
 	rec = httptest.NewRecorder()
-	srv.serveTokenScope(g, id, []string{id, "seat", "me", "state"}, rec,
-		httptest.NewRequest(http.MethodGet, "/game/"+id+"/seat/me/state", nil))
+	path := apiPrefix + "/game/" + id + "/seat/me/state"
+	srv.serveFlowAPI(rec, httptest.NewRequest(http.MethodGet, path, nil), path)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("the seat state answered %v without a session, want 404", rec.Code)
 	}

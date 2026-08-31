@@ -67,9 +67,13 @@ let
       chmod -R u+w tools
     '';
 
+    # SCREENS=1 builds the design gallery into the site (/dev/screens). It is
+    # a lazy chunk, so a player's phone never downloads it; what the flag
+    # decides is whether the chunk exists on the server at all. A release
+    # build for somebody else to run omits this and carries no gallery.
     buildPhase = ''
       runHook preBuild
-      npm run build
+      VITE_SCREENS=1 npm run build
       runHook postBuild
     '';
 

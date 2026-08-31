@@ -1,6 +1,6 @@
 // Command 1901 serves in-memory Diplomacy games.
 //
-// A game is created with POST /games and is then reachable through its GM
+// A game is created with POST /api/v1/games and is then reachable through its GM
 // token, its one shared invite, and one token per seat. The React frontend
 // in web/ is served as a single page application shell; the client routes
 // itself from location.pathname.
@@ -248,7 +248,7 @@ func validID(id string) bool {
 	return idPattern.MatchString(id)
 }
 
-// lookup returns an existing game. Games exist only once POST /games has
+// lookup returns an existing game. Games exist only once POST /api/v1/games has
 // created them.
 func (self *registry) lookup(id string) (*game, bool) {
 	self.mu.Lock()
@@ -595,15 +595,6 @@ func (self *server) serveRoot(w http.ResponseWriter, r *http.Request) {
 	self.serveSPAAsset(w, r)
 }
 
-// serveGames answers the one address the game list and the create share.
-func (self *server) serveGames(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		self.serveSPA(w, r)
-		return
-	}
-	handleCreateGame(w, r)
-}
-
 // absPath resolves a path against the working directory, leaving it as
 // given when that fails.
 func absPath(path string) string {
@@ -713,14 +704,18 @@ func main() {
 	mux.HandleFunc("/mapeditor", srv.serveSPA)
 	// The questions page, and one more route of the same shell (ADR-043).
 	mux.HandleFunc("/faq", srv.serveSPA)
+	// The design gallery. Whether it exists is decided in the frontend build,
+	// not here: a build made without SCREENS=1 carries no gallery, and this
+	// address then serves a shell that answers "nothing here". Serving the
+	// shell either way keeps the decision in one place.
+	mux.HandleFunc("/dev/screens", srv.serveSPA)
 	registerEditorSave(mux)
-	// /games is a page and an endpoint at once (ADR-043). A browser asking for
-	// it gets the game list screen; a POST to it creates a game, which is
-	// what a post to a collection has always meant here. Only the JSON list
-	// moved, to /games/list, because a page and its data cannot share one
-	// address and answer the same method.
-	mux.HandleFunc("/games", srv.serveGames)
-	mux.HandleFunc("/games/list", handleListGames)
+	// The game list page (ADR-043). The list itself and the create moved to
+	// /api/v1/games with everything else the app says to itself (ADR-050),
+	// so this address is a page and only a page.
+	mux.HandleFunc("/games", srv.serveSPA)
+	// The app's own transport, all of it (ADR-050).
+	mux.HandleFunc(apiPrefix+"/", srv.serveAPI)
 	mux.HandleFunc("/variants", handleVariants)
 	mux.HandleFunc("/styles", handleStyles)
 	mux.HandleFunc("/variants/", handleVariantMap)

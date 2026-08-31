@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, SeatClient, fetchPublic, type SeatState } from "../api";
 import { Board } from "../components/Board";
+import { StaleBuild } from "../components/StaleBuild";
 import { SeatMenu } from "../components/SeatMenu";
 import { Standings } from "../components/Standings";
 import { writeRecentGame } from "../recent";
@@ -25,6 +26,7 @@ import type {
   Unit,
 } from "../board/types";
 import { settingsLines, usePoll, useTicker } from "../hooks";
+import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
 import { useMapStyle } from "../components/StylePicker";
@@ -132,6 +134,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       // Every countdown on this page is measured against the server's clock,
       // never this device's.
       noteServerTime(next.now);
+      noteBuild(next.build);
       setState(next);
       if (knownVersion.current !== null && next.settingsVersion !== knownVersion.current) {
         setRulesChanged(true);
@@ -162,6 +165,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     async () => {
       const summary = await fetchPublic(gameId);
       noteServerTime(summary.now);
+      noteBuild(summary.build);
       if (!summary.started) setBeat((n) => n + 1);
       const mark = JSON.stringify([
         summary.started,
@@ -419,6 +423,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
 
   return (
     <>
+    <StaleBuild beat={state ?? null} />
     <SplitLayout className="seat-layout" frozen={reading}>
       <main className="map-pane" inert={mapFrozen || undefined}>
         <Board
