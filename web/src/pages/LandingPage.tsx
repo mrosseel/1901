@@ -150,6 +150,12 @@ export function LandingPage() {
           <p className="lp-fact">0</p>
           <p className="note">accounts, names or passwords</p>
         </div>
+        <div>
+          <p className="lp-fact">185/185</p>
+          <p className="note">
+            <a href="/datc">DATC cases</a>, run on every push
+          </p>
+        </div>
       </section>
 
       <section className="lp-section" id="turn">
@@ -237,9 +243,7 @@ export function LandingPage() {
             </p>
           </article>
           <article className="lp-card">
-            <p className="lp-card-head">
-              It runs on venue wifi, or none <span className="badge warn">Planned</span>
-            </p>
+            <p className="lp-card-head">It runs on venue wifi, or none</p>
             <p className="note">
               One binary and a SQLite file on a laptop. Phones reach it over the room's
               own network. Nothing calls home.
@@ -253,12 +257,12 @@ export function LandingPage() {
             </p>
           </article>
           <article className="lp-card">
-            <p className="lp-card-head">
-              The game master cannot peek <span className="badge warn">Planned</span>
-            </p>
+            <p className="lp-card-head">The game master cannot peek</p>
             <p className="note">
-              Commit-reveal order secrecy, so a GM who also plays cannot read anyone's
-              orders before their own are in. No other platform does this.
+              Your orders never reach the server unsealed. Locking sends them encrypted
+              under a key your phone keeps, and the key goes up only once every power has
+              locked in. A game master who also plays holds seven envelopes and no key to
+              any of them. No other platform does this.
             </p>
           </article>
         </div>

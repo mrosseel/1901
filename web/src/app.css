@@ -312,7 +312,6 @@ details.card > summary::marker { color: var(--muted); }
 
 .badge.done { color: var(--good); border-color: #2f6b45; }
 .badge.gm { color: var(--warn); border-color: #7a5a24; }
-.badge.warn { color: var(--warn); border-color: #7a5a24; }
 
 /* --- the variant gallery on /new ----------------------------------------- */
 
@@ -1798,7 +1797,7 @@ the margins come in. The phone mock stays: it is the picture of the thing.
   .lp-split { flex-direction: column; align-items: stretch; gap: 28px; }
   .lp-sheet { flex: 1 1 auto; }
   .lp-facts { flex-wrap: wrap; gap: 0 20px; }
-  .lp-facts > div { flex: 1 1 30%; }
+  .lp-facts > div { flex: 1 1 40%; }
   .lp-foot .note { margin-left: 0; text-align: left; }
   .lp-actions .lp-primary, .lp-actions .lp-secondary { flex: 1 1 100%; text-align: center; }
 }
