@@ -137,7 +137,6 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
      separate pieces of state because they are separate acts, and the wording
      beside each has to be able to differ. */
   const [role, setRole] = useState<Handover | null>(null);
-  const [ownSeat, setOwnSeat] = useState<Handover | null>(null);
   /* The role's link again, shown beside a row of the Powers card when that
      row is the game master's own. It is its own piece of state so the card
      above and the row below never fight over one box. */
@@ -163,22 +162,12 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   the start deals the game master one (ADR-021), which is what the second
   dependency watches for.
   */
-  const gmPower = game?.gmPower || "";
   useEffect(() => {
     client
       .roleHandover()
       .then(setRole)
       .catch(() => setRole(null));
   }, [client]);
-  useEffect(() => {
-    if (!gmPower) {
-      setOwnSeat(null);
-      return;
-    }
-    mintHandover(gameId, gmToken, gmPower)
-      .then(setOwnSeat)
-      .catch(() => setOwnSeat(null));
-  }, [gameId, gmToken, gmPower]);
   const [gone, setGone] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [refereeing, setRefereeing] = useState(false);
@@ -270,9 +259,6 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   // inert, so the only button on screen is the one that closes what is open.
   const reading = (refereeing && Boolean(guide)) || (reviewing && Boolean(review));
   const inviteUrl = new URL(game.inviteUrl, location.href).toString();
-  // This page's own address, which is the role itself. It is read from the
-  // browser rather than built, because the token is only ever here.
-  const selfUrl = window.location.href;
   const spectatorUrl = new URL(watchPath(gameId, null), location.origin).toString();
 
   return (
@@ -371,6 +357,20 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
             url={inviteUrl}
             note="Pass the phone around, or let the players scan this. Each one gets a power."
           />
+          {/*
+          The one handover that exists before the start. There is no list of
+          powers yet, so this is the only place the role can be given away;
+          once the game runs, every handover lives on its own power's row and
+          this card is gone.
+          */}
+          {role ? (
+            <LinkShare
+              private
+              title="Hand the game master role to somebody else"
+              url={role.url}
+              note="Whoever opens this runs the game. You stop being the game master the moment they do."
+            />
+          ) : null}
         </section>
       ) : null}
 
@@ -464,89 +464,25 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         </section>
       ) : null}
 
-      {/*
-      The two handovers, which are two acts and not one (ADR-041). The role and
-      the power fail differently: a game master who gives away their power
-      still runs the game, and one who gives away the role and keeps their
-      power becomes an ordinary player. So there are two codes, side by side,
-      worded differently and never merged into one.
-
-      Before the start there is only one, because there is no power yet: the
-      game master plays the leftover and it is dealt when the game begins
-      (ADR-021). The card says so rather than showing an empty box.
-      */}
-      <details className="card">
-        <summary>Hand over</summary>
-        <p className="note">
-          The role is the rights: the deadline, the start, forcing a phase, handing out
-          seats. The power is a seat at the board. Handing over one leaves the other
-          exactly where it is.
-        </p>
-        <p className="note">
-          Both are hidden until you ask for them. Either one gives away what it names to
-          whoever reads it off the screen, and this screen is often the one on the beamer.
-        </p>
-        {handoverError ? <p className="error">{handoverError}</p> : null}
-        <div className="handovers">
-          {role ? (
-            <LinkShare
-              private
-              title="The game master role"
-              url={role.url}
-              note={
-                <>
-                  Whoever opens this runs the game. You stop being the game master the
-                  moment they do, and keep whatever power you play.
-                </>
-              }
-            />
-          ) : null}
-          {ownSeat ? (
-            <LinkShare
-              private
-              title={"Your power · " + ownSeat.power}
-              url={ownSeat.url}
-              note={
-                <>
-                  Whoever opens this plays {ownSeat.power}. You keep the game master role
-                  and stop having a seat at the board.
-                </>
-              }
-            />
-          ) : game.gmPower ? null : (
-            <p className="note">
-              You get a power when the game starts: the game master plays whichever one is
-              left over. Its code appears here then.
-            </p>
-          )}
-        </div>
-      </details>
 
       {/*
-      The two ways this game survives losing this screen (ADR-048).
+      The backup, which is the opposite act to a handover (ADR-048).
 
-      The role is a URL and a cookie, and both live here. Nothing else in the
-      app is like that: a player who loses their seat asks the game master for
-      a link, and the game master has nobody to ask. So this card holds the
-      cheap answer and the real one — the address itself, which any second
-      device can keep, and a key whose twelve words work from any device at
-      all, including one that has never seen this game.
+      Every other credential card here gives something away and takes it off
+      this device. This one gives nothing away and holds one thing: the twelve
+      words. It used to offer this page's address beside them, which made a
+      third card that looked like the two handover cards and was not one.
 
-      Folded and guarded like everything else on this screen. Both halves are
-      credentials and this laptop is often the one on the beamer.
+      The address was the weaker copy anyway. It dies with the next handover
+      or recovery, and it is already in this browser's history and address bar.
+      The words survive both, and any device can type them.
       */}
       <details className="card">
-        <summary>If you lose this screen</summary>
+        <summary>Back up the game master key</summary>
         <p className="note">
-          There is no account here and no password to reset. This address is the game
-          master role, and a browser that forgets it is a game nobody can run.
+          This gives nothing away. There is no account here and no password to reset, so
+          the words are the only copy of this role that outlives this browser.
         </p>
-        <LinkShare
-          private
-          title="This page"
-          url={selfUrl}
-          note="Keep it on a second device. It does not hand the role away: every device that has it runs the game."
-        />
         <GmKeyCard
           gameId={gameId}
           client={client}
