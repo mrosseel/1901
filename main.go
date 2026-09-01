@@ -705,6 +705,9 @@ func main() {
 	mux.HandleFunc("/", srv.serveRoot)
 	mux.HandleFunc("/assets/", srv.serveSPAAsset)
 	mux.HandleFunc("/new", srv.serveSPA)
+	// The create form asked for a board with no players (ADR-047). One more
+	// route of the same shell; the create it posts lives under /api/v1.
+	mux.HandleFunc("/sandbox", srv.serveSPA)
 	// The questions page, and one more route of the same shell (ADR-043).
 	mux.HandleFunc("/faq", srv.serveSPA)
 	// The design gallery. Whether it exists is decided in the frontend build,
