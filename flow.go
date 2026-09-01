@@ -2129,6 +2129,7 @@ var gmRoutes = map[string]gameHandler{
 	"draw":          handleGMDraw,
 	"draw-withdraw": handleGMDrawWithdraw,
 	"extend":        handleGMExtend,
+	"events":        handleGMEvents,
 	"map.svg":       handleMap,
 }
 
@@ -2141,6 +2142,7 @@ var seatRoutes = map[string]seatHandler{
 	"lock":          handleSeatLock,
 	"unlock":        handleSeatUnlock,
 	"draw-response": handleSeatDrawResponse,
+	"events":        handleSeatEvents,
 	// Only a sealed game answers this (ADR-004). The phone sends what it
 	// locked in, once every power has.
 	"reveal": handleSeatReveal,
@@ -2216,6 +2218,14 @@ func (self *server) serveFlowAPI(w http.ResponseWriter, r *http.Request, path st
 	_ = path
 
 	switch segments[1] {
+	case "events":
+		if len(segments) != 2 {
+			http.NotFound(w, r)
+			return
+		}
+		// Public invalidations contain no state, only a changing version. The
+		// spectator and join pages use them to re-read their public views.
+		handleEvents(g, id, w, r)
 	case "join":
 		if len(segments) != 3 {
 			http.NotFound(w, r)

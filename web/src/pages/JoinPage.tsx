@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { TopBar } from "../components/TopBar";
-import { claimSeat, fetchPublic, type PublicState } from "../api";
-import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
+import { claimSeat, fetchPublic, gameEventsUrl, type PublicState } from "../api";
+import { countdown, settingsLines, useGameEvents, usePoll, useTicker } from "../hooks";
 import { makeSeatSeed, readSeatSeed, seatPublicKey, writeSeatSeed } from "../seatkey";
 import { SupportedMark } from "../components/SupportedMark";
 import { noteBuild } from "../build";
@@ -23,12 +23,14 @@ export function JoinPage({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  usePoll(3000, async () => {
+  const refresh = useCallback(async () => {
     const next = await fetchPublic(gameId);
     noteServerTime(next.now);
     noteBuild(next.build);
     setGame(next);
-  });
+  }, [gameId]);
+  const live = useGameEvents(gameEventsUrl(gameId), refresh);
+  usePoll(3000, refresh, !live);
   useTicker(Boolean(game?.deadlineAt));
 
   const claim = async () => {

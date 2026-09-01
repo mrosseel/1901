@@ -21,7 +21,15 @@ the start there is no phase — the board is set up and nobody has played on it 
 and the power a player has just been dealt at random is the whole of what this
 screen is about.
 */
-export function SeatWaiting({ state, beat }: { state: SeatState | null; beat: number }) {
+export function SeatWaiting({
+  state,
+  beat,
+  connected,
+}: {
+  state: SeatState | null;
+  beat: number;
+  connected: boolean;
+}) {
   const power = state?.you?.power || "";
   const claimed = state?.joinedCount ?? 0;
   const onOffer = state?.seatsOnOffer ?? 0;
@@ -72,13 +80,12 @@ export function SeatWaiting({ state, beat }: { state: SeatState | null; beat: nu
         <div className="list-head">
           <h2>At the table</h2>
           {/*
-          The one honest sign this page is not stuck. The element is replaced
-          on every answer the server gives, which is what restarts the
-          animation — a page whose polling has died shows a dot that has
-          stopped, rather than a timer of its own beating over a dead line.
+          A connected socket keeps the dot alive. During fallback polling the
+          element is replaced on every answer, so a poll that has died leaves
+          a stopped dot rather than a timer beating over a dead line.
           */}
-          <span className="live" key={beat}>
-            <span className="live-dot" />
+          <span className="live" key={connected ? "socket" : beat}>
+            <span className={`live-dot${connected ? " live-dot-connected" : ""}`} />
             Live
           </span>
         </div>

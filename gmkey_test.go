@@ -75,6 +75,11 @@ func TestRecoveryTakesTheRoleAndKillsTheOldToken(t *testing.T) {
 	g.flow.gmDevice = "the-lost-laptop"
 	before := g.flow.gmToken
 	epoch := g.flow.gmEpoch
+	_, _, revoked, unsubscribe, ok := g.events.subscribe(eventAudienceGM, "")
+	if !ok {
+		t.Fatal("could not subscribe the lost game master view")
+	}
+	defer unsubscribe()
 
 	nonce, message := challenge(t, g, id)
 	rec := claimRecovery(g, id, nonce, ed25519.Sign(private, []byte(message)))
@@ -99,6 +104,11 @@ func TestRecoveryTakesTheRoleAndKillsTheOldToken(t *testing.T) {
 	}
 	if g.flow.gmEpoch != epoch+1 {
 		t.Errorf("role epoch %v, want %v", g.flow.gmEpoch, epoch+1)
+	}
+	select {
+	case <-revoked:
+	default:
+		t.Error("the lost game master's live connection was not revoked")
 	}
 }
 

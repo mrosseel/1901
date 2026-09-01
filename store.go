@@ -347,6 +347,20 @@ func columnNames(handle *sql.DB, table string) (map[string]bool, error) {
 // orders, and any unwritten events — in one transaction. The caller must
 // hold g.mu. Completed phases' order rows are history and never rewritten.
 func (self *game) persist(id string) {
+	// Orders in an old, unsealed game are persisted too, but editing a private
+	// draft is not a public event and must not wake (or disclose activity to)
+	// the whole table. User-visible mutations already append an event-log line,
+	// so that boundary selects joins, locks, reveals, adjudication, draw votes,
+	// settings, handovers and results without a second list of call sites.
+	notify := self.flow != nil && len(self.flow.events) > self.notifiedEvents
+	if self.flow != nil {
+		self.notifiedEvents = len(self.flow.events)
+	}
+	if notify {
+		// The in-memory mutation is authoritative even if SQLite later refuses
+		// the write, so connected clients still need to read it.
+		defer self.events.publish()
+	}
 	if db == nil {
 		return
 	}
@@ -757,6 +771,7 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 		return nil, err
 	}
 	g.flow = f
+	g.notifiedEvents = len(f.events)
 	if err := g.replay(history, nmr, f.phaseIndex); err != nil {
 		return nil, err
 	}

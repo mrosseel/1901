@@ -18,7 +18,7 @@ import { LinkShare } from "../components/LinkShare";
 import { writeRecentGame } from "../recent";
 import { setPowerPalette, setProvinceNames } from "../board/provinces";
 import { PowerChip } from "../components/PowerChip";
-import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
+import { countdown, settingsLines, useGameEvents, usePoll, useRefreshAt, useTicker } from "../hooks";
 import { StylePicker, useMapStyle } from "../components/StylePicker";
 import { PhaseName } from "../components/PhaseName";
 import { illegalAllowed } from "../illegal";
@@ -215,7 +215,9 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
     }
   };
 
-  usePoll(3000, refresh, !gone);
+  const live = useGameEvents(client.eventsUrl, refresh, !gone);
+  useRefreshAt(game?.graceUntil, refresh, live);
+  usePoll(3000, refresh, !gone && !live);
   useTicker(Boolean(game?.deadlineAt));
 
   /*

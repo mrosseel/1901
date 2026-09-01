@@ -63,6 +63,10 @@ func localOpenURL(addr string) string {
 type game struct {
 	mu    sync.Mutex
 	state *state.State
+	// events wakes public and role-authenticated views after a mutation. Its
+	// frames are invalidations only; each view fetches its own filtered state.
+	events         *gameEvents
+	notifiedEvents int
 	// parts keeps the raw order bits per province, for readable order strings.
 	parts map[godip.Province][]string
 	// owner records which power entered the order, so seat views can be
@@ -95,6 +99,7 @@ func newGame(key string, v common.Variant) (*game, error) {
 	}
 	return &game{
 		state:      s,
+		events:     newGameEvents(),
 		parts:      map[godip.Province][]string{},
 		owner:      map[godip.Province]godip.Nation{},
 		illegal:    map[godip.Province]bool{},

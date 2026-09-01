@@ -201,6 +201,7 @@ export interface WatchState extends VariantAware {
   */
   sandbox?: boolean;
   deadlineAt: string | null;
+  graceUntil?: string | null;
 }
 
 export interface CreatedGame {
@@ -235,6 +236,7 @@ export interface GmState extends VariantAware, SealedPhase {
   gmPower: string | null;
   inviteUrl: string;
   deadlineAt: string | null;
+  graceUntil?: string | null;
   canForce: boolean;
   gmSeatUrl?: string | null;
   events?: string[];
@@ -256,6 +258,7 @@ export interface PublicState extends VariantAware, SealedPhase {
   settings: Settings;
   settingsVersion: number;
   deadlineAt: string | null;
+  graceUntil?: string | null;
 }
 
 /*
@@ -283,6 +286,7 @@ export interface SeatState extends BoardState, VariantAware, SealedPhase {
   settingsVersion: number;
   started: boolean;
   deadlineAt: string | null;
+  graceUntil?: string | null;
   locked: Record<string, boolean>;
   youLocked: boolean;
   /** True when this seat is the game master's own (ADR-021). */
@@ -504,6 +508,11 @@ function api(path: string): string {
   return absolute(API + path);
 }
 
+/** Public live invalidations for the join and spectator views. */
+export function gameEventsUrl(gameId: string): string {
+  return api("/game/" + encodeURIComponent(gameId) + "/events");
+}
+
 /** The token-free endpoint every page may poll for liveness. */
 export function publicUrl(gameId: string): string {
   return absolute("/game/" + encodeURIComponent(gameId) + "/public");
@@ -654,6 +663,10 @@ export class GmClient {
     );
   }
 
+  get eventsUrl(): string {
+    return this.base + "events";
+  }
+
   state(): Promise<GmState> {
     return getJSON<GmState>(this.base + "state");
   }
@@ -761,6 +774,10 @@ export class SeatClient {
 
   get mapUrl(): string {
     return this.base + "map.svg";
+  }
+
+  get eventsUrl(): string {
+    return this.base + "events";
   }
 
   /*

@@ -220,6 +220,7 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 	// epoch moves past every link that was signed for it.
 	delete(f.bySeatToken, s.token)
 	f.dropSessions(power)
+	g.events.revokeSeat(power)
 	if s.device != "" {
 		delete(f.byDevice, s.device)
 	}
@@ -359,6 +360,7 @@ func handleGMRoleClaim(g *game, id string, rest []string, w http.ResponseWriter,
 	}
 	f.gmToken = token
 	f.gmDevice = ""
+	g.events.revokeGM()
 	// Recovery belongs to the role holder, not to the game forever. Keeping
 	// this key would let the former game master use their twelve words to take
 	// the role straight back after handing it over.

@@ -25,7 +25,7 @@ import type {
   ReviewDraw,
   Unit,
 } from "../board/types";
-import { settingsLines, usePoll, useTicker } from "../hooks";
+import { settingsLines, useGameEvents, usePoll, useRefreshAt, useTicker } from "../hooks";
 import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 import { Clock } from "../components/Clock";
@@ -240,6 +240,8 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   another ordinary three-second tick. The normal cadence resumes with the new
   phase, so this does not add traffic while players are writing orders.
   */
+  const live = useGameEvents(client.eventsUrl, refresh, !gone && heldSeat);
+  useRefreshAt(state?.graceUntil, refresh, live && Boolean(state?.sealed));
   usePoll(
     state?.sealed && state.revealOpen ? REVEAL_POLL_MS : NORMAL_POLL_MS,
     async () => {
@@ -271,7 +273,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       fingerprint.current = mark;
       await refresh();
     },
-    !gone && heldSeat,
+    !gone && heldSeat && !live,
   );
   useTicker(Boolean(state?.deadlineAt));
 
@@ -708,7 +710,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             </button>
           </div>
         ) : null}
-        {!started ? <SeatWaiting state={state} beat={beat} /> : (
+        {!started ? <SeatWaiting state={state} beat={beat} connected={live} /> : (
           <header className="seat-head">
             {/* The phase is what the whole table is playing. It is read across a
                 room, so it is the largest thing on the page. */}

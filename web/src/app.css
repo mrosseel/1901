@@ -847,15 +847,18 @@ and a flex row would either overflow it or shrink the type it is drawn at.
   color: var(--muted);
 }
 
-/* One beat per answer the server gives: the element is replaced on each poll,
-   which is what starts this over. It must not loop — a dot that keeps beating
-   on a dead connection is the lie this mark exists to avoid. */
+/* Fallback polling replaces the element for one beat per answer. A confirmed
+   socket loops it; losing the socket removes that class immediately. */
 .live-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--good);
   animation: live-beat 2.6s ease-out 1;
+}
+
+.live-dot-connected {
+  animation-iteration-count: infinite;
 }
 
 @keyframes live-beat {

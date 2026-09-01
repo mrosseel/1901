@@ -110,11 +110,12 @@ public only after adjudication.
   adjudication show all resolutions (public). Header: "You are Austria",
   phase, deadline countdown, Lock toggle + "N of 7 locked",
   "rules changed" banner on settingsVersion bump.
-- Poll /public every ~3s for liveness (SSE comes later per ADR-006).
+- Keep the game WebSocket open for liveness and state invalidations; poll
+  /public every ~3s only while it is disconnected (ADR-006).
 
 ## Non-goals here
 
-SQLite, SSE, commit-reveal hashes, spectator page, variant choice,
+SQLite, WebSockets, commit-reveal hashes, spectator page, variant choice,
 identity-mode setting, event-log UI. Keep the M0 sandbox working.
 
 

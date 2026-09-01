@@ -31,6 +31,11 @@ func TestHandoverMovesTheSeatAndKillsTheOldToken(t *testing.T) {
 	seat.device = "old-device"
 	g.flow.bySeatToken["old-token"] = power
 	g.flow.byDevice["old-device"] = power
+	_, _, revoked, unsubscribe, ok := g.events.subscribe(eventAudienceSeat, power)
+	if !ok {
+		t.Fatal("could not subscribe the old seat view")
+	}
+	defer unsubscribe()
 
 	epoch := seat.epoch
 	sig := handoverSig(id, power, epoch)
@@ -67,6 +72,11 @@ func TestHandoverMovesTheSeatAndKillsTheOldToken(t *testing.T) {
 	}
 	if _, ok := g.flow.bySeatToken[g.flow.seats[power].token]; !ok {
 		t.Error("the new token does not open the seat")
+	}
+	select {
+	case <-revoked:
+	default:
+		t.Error("the previous holder's live connection was not revoked")
 	}
 }
 
@@ -178,6 +188,11 @@ func TestGMRoleHandoverRotatesTheTokenAndTheRefereeDoor(t *testing.T) {
 	}
 	power := g.flow.gmPower
 	sig := gmHandoverSig(id, epoch)
+	_, _, revoked, unsubscribe, ok := g.events.subscribe(eventAudienceGM, "")
+	if !ok {
+		t.Fatal("could not subscribe the old game master view")
+	}
+	defer unsubscribe()
 
 	rec := httptest.NewRecorder()
 	handleGMRoleClaim(g, id, []string{strconv.Itoa(epoch), sig}, rec,
@@ -200,6 +215,11 @@ func TestGMRoleHandoverRotatesTheTokenAndTheRefereeDoor(t *testing.T) {
 	}
 	if g.flow.gmPower != power {
 		t.Error("handing over the role moved a power with it")
+	}
+	select {
+	case <-revoked:
+	default:
+		t.Error("the previous game master's live connection was not revoked")
 	}
 
 	replay := httptest.NewRecorder()

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchPublic,
   fetchWatch,
+  gameEventsUrl,
   resultsUrl,
   watchMapUrl,
   watchPath,
@@ -29,7 +30,7 @@ import type { BoardApi, BoardState, ReviewDraw } from "../board/types";
 import { StaleBuild } from "../components/StaleBuild";
 import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
-import { usePoll, useTicker } from "../hooks";
+import { useGameEvents, usePoll, useRefreshAt, useTicker } from "../hooks";
 import { refereeGuide } from "../referee";
 import { nmrLine, reviewPlan } from "../review";
 import { styledMapUrl } from "../style";
@@ -136,7 +137,9 @@ export function WatchPage({
   }, [at, read]);
 
   // Only the live phase moves under the viewer; a resolved one is a fact.
-  usePoll(3000, read, at === null);
+  const live = useGameEvents(gameEventsUrl(gameId), read, at === null);
+  useRefreshAt(watch?.graceUntil || summary?.graceUntil, read, live && at === null);
+  usePoll(3000, read, at === null && !live);
 
   const phase = watch?.phase || summary?.phase;
   const deadlineAt = watch ? watch.deadlineAt : summary?.deadlineAt || null;

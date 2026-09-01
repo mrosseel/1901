@@ -226,6 +226,7 @@ func handleRecoverClaim(g *game, id string, w http.ResponseWriter, r *http.Reque
 	}
 	f.gmToken = token
 	f.gmDevice = ""
+	g.events.revokeGM()
 	f.gmEpoch++
 
 	f.logEvent(id, "the game master role was recovered with its twelve words")

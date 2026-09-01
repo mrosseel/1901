@@ -215,7 +215,10 @@ func (self *compressWriter) close() {
 // answer would renumber them.
 func compress(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Range") != "" {
+		// An upgraded connection is no longer an HTTP response body. Passing the
+		// original writer through also preserves the hijacking interfaces the
+		// WebSocket handshake needs.
+		if r.Header.Get("Range") != "" || strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 			next.ServeHTTP(w, r)
 			return
 		}

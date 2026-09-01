@@ -331,11 +331,11 @@ the code still resolves.
 ```
 ┌─ Go binary ────────────────────────────────────────────┐
 │                                                        │
-│  HTTP/SSE handlers                                     │
-│    ├─ /g/{game}/{token}       player view              │
-│    ├─ /g/{game}/gm/{token}    GM view                  │
-│    ├─ /api/…                  JSON                     │
-│    └─ /events/{game}          SSE, phase transitions   │
+│  HTTP/WebSocket handlers                               │
+│    ├─ /game/{id}/seat/{token} player view              │
+│    ├─ /game/{id}/gm/{token}   GM view                  │
+│    ├─ /api/v1/…               JSON commands/state      │
+│    └─ /api/v1/game/…/events   live invalidations       │
 │                                                        │
 │  Session layer      ← ours: games, seats, tokens,      │
 │                       deadlines, commit-reveal, audit  │
@@ -350,7 +350,8 @@ the code still resolves.
 
 Frontend responsibilities: render `map.svg`, overlay units from the
 placement table, build orders from `Options()`, commit, reveal, re-render on
-SSE. It never adjudicates and never receives another power's pending orders.
+WebSocket invalidation. It never adjudicates and never receives another
+power's pending orders.
 
 ### Endpoint discipline
 

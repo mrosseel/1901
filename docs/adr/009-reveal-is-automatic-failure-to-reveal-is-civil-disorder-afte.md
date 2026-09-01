@@ -10,7 +10,7 @@ committed power whose client dies could stall the table forever.
 
 1. The client keeps `orders || nonce` in localStorage. It reveals
    automatically — no player action — the moment the reveal window opens
-   (all commits in, or deadline passed). SSE reconnect re-triggers the
+   (all commits in, or deadline passed). WebSocket reconnect re-triggers the
    reveal check, so waking a locked phone is enough to unstick it.
 2. If a committed power has not revealed shortly after the reveal window
    opens, the seat is flagged to the GM and the whole table

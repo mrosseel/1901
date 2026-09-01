@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { illegalAllowed } from "./illegal";
+import { msLeft } from "./clock";
 
 /*
 Runs a job now and every `ms` after that, and stops while the tab is hidden so
@@ -34,6 +35,150 @@ export function usePoll(ms: number, job: () => void | Promise<void>, enabled = t
       window.clearTimeout(timer);
     };
   }, [ms, enabled]);
+}
+
+/*
+Keeps one live invalidation channel open and reconnects it after a sleeping
+phone, network change, or server restart. Frames carry no state: they only say
+that the caller should re-read its own authorized view. While one read is in
+flight, further frames collapse into one final read of the newest state.
+*/
+export function useGameEvents(
+  url: string,
+  job: () => void | Promise<unknown>,
+  enabled = true,
+): boolean {
+  const latest = useRef(job);
+  latest.current = job;
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    if (!enabled || !url || typeof WebSocket === "undefined") {
+      setConnected(false);
+      return;
+    }
+
+    let stopped = false;
+    let socket: WebSocket | null = null;
+    let retryTimer = 0;
+    let stableTimer = 0;
+    let retry = 0;
+    let reading = false;
+    let readAgain = false;
+    let readFailures = 0;
+    let stateReadsFailed = false;
+
+    const closeAfterFailedReads = () => {
+      stateReadsFailed = true;
+      setConnected(false);
+      socket?.close(1011, "state refresh failed");
+    };
+
+    const read = async () => {
+      readAgain = true;
+      if (reading) return;
+      reading = true;
+      while (readAgain && !stopped) {
+        readAgain = false;
+        try {
+          await latest.current();
+          readFailures = 0;
+        } catch {
+          readFailures++;
+          if (readFailures >= 5) {
+            closeAfterFailedReads();
+            break;
+          }
+          // A live socket and a failed state read is still a stale screen. A
+          // few bounded retries cover transient failures; after that the
+          // socket yields to the page's slower polling fallback.
+          readAgain = true;
+          const delay = Math.min(1000 * 2 ** (readFailures - 1), 15000);
+          await new Promise((wake) => window.setTimeout(wake, delay));
+        }
+      }
+      reading = false;
+    };
+
+    const connect = () => {
+      if (stopped || stateReadsFailed) return;
+      const target = new URL(url, window.location.href);
+      target.protocol = target.protocol === "https:" ? "wss:" : "ws:";
+      const openedSocket = new WebSocket(target);
+      socket = openedSocket;
+      openedSocket.onopen = () => {
+        setConnected(true);
+        // An upgrade that a proxy immediately drops is not a successful
+        // reconnect. Reset the backoff only after a genuinely stable socket.
+        stableTimer = window.setTimeout(() => { retry = 0; }, 5000);
+      };
+      openedSocket.onmessage = (message) => {
+        try {
+          const event = JSON.parse(String(message.data)) as { type?: string; version?: number };
+          if (event.type === "state" && typeof event.version === "number") void read();
+        } catch {
+          // Unknown frames belong to a newer protocol. This build ignores
+          // them instead of refreshing on untrusted or malformed input.
+        }
+      };
+      openedSocket.onerror = () => openedSocket.close();
+      openedSocket.onclose = () => {
+        if (socket === openedSocket) socket = null;
+        window.clearTimeout(stableTimer);
+        setConnected(false);
+        if (stopped || stateReadsFailed) return;
+        const delay = Math.min(1000 * 2 ** retry, 15000);
+        retry++;
+        retryTimer = window.setTimeout(connect, delay + Math.random() * 250);
+      };
+    };
+
+    connect();
+    return () => {
+      stopped = true;
+      window.clearTimeout(retryTimer);
+      window.clearTimeout(stableTimer);
+      socket?.close(1000, "page closed");
+    };
+  }, [url, enabled]);
+
+  return connected;
+}
+
+/*
+Some state changes because server time crosses a boundary, not because a
+request was made: reveal opens and force adjudication becomes available when
+grace ends. A socket has no mutation to announce then, so refresh once at that
+known server timestamp. A sleeping tab runs the overdue timer when it wakes.
+*/
+export function useRefreshAt(
+  at: string | null | undefined,
+  job: () => void | Promise<unknown>,
+  enabled = true,
+): void {
+  const latest = useRef(job);
+  latest.current = job;
+  useEffect(() => {
+    if (!enabled) return;
+    let stopped = false;
+    let timer = 0;
+    const schedule = () => {
+      const left = msLeft(at);
+      if (left === null || stopped) return;
+      // Browsers cannot represent a timeout past roughly 24 days. Wake and
+      // recalculate instead of overflowing a long tournament deadline.
+      if (left > 2_000_000_000) {
+        timer = window.setTimeout(schedule, 2_000_000_000);
+        return;
+      }
+      timer = window.setTimeout(() => void latest.current(), Math.max(0, left) + 100);
+    };
+    schedule();
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
+  }, [at, enabled]);
 }
 
 /** Re-renders once a second, so a countdown line stays true. */

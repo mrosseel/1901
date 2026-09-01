@@ -294,5 +294,5 @@ The game master may also write a free notice, of one line. This is not press
   adjudication. A game that becomes drawable between two phases must not wait
   for the next phase.
 - The elimination of a power cancels the acceptances for the old survivor set.
-- SSE already pushes the seat state, so a new prompt reaches a phone with no
-  new transport (ADR-006).
+- The game WebSocket already invalidates the seat state, so a new prompt
+  reaches a phone with no new transport (ADR-006).

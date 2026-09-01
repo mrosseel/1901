@@ -5,6 +5,7 @@ import {
   createGame,
   fetchGames,
   fetchVariants,
+  gameEventsUrl,
   parseRoute,
   postJSON,
   publicUrl,
@@ -77,6 +78,7 @@ describe("routes", () => {
 
   it("addresses the public endpoint without a token", () => {
     expect(publicUrl("7")).toBe("http://localhost:3000/game/7/public");
+    expect(gameEventsUrl("7")).toBe("http://localhost:3000/api/v1/game/7/events");
   });
 
   it("addresses the spectator feed beside the page it feeds", () => {

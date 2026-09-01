@@ -204,6 +204,28 @@ func TestANonDIASDrawNeedsEveryExcludedSurvivor(t *testing.T) {
 	}
 }
 
+func TestADrawProposalPublishesALiveUpdate(t *testing.T) {
+	g := watchTestGame(t)
+	_, events, _, unsubscribe, ok := g.events.subscribe(eventAudiencePublic, "")
+	if !ok {
+		t.Fatal("could not subscribe the public view")
+	}
+	defer unsubscribe()
+
+	rec := gmRequest(g, "game", "draw", `{"powers":["France","England"]}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("draw refused: %v %v", rec.Code, rec.Body.String())
+	}
+	select {
+	case event := <-events:
+		if event.Type != "state" || event.Version == 0 {
+			t.Fatalf("draw notification is %#v", event)
+		}
+	default:
+		t.Fatal("the draw proposal did not notify connected players")
+	}
+}
+
 func TestADIASDrawIsRecordedDirectly(t *testing.T) {
 	g := watchTestGame(t)
 	rec := gmRequest(g, "game", "draw",

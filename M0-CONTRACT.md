@@ -68,6 +68,6 @@ note the deviation in your report — do not fight the library.
 
 ## Non-goals for M0
 
-Do not add: sessions, tokens, SQLite, SSE, commit-reveal, deadlines,
+Do not add: sessions, tokens, SQLite, WebSockets, commit-reveal, deadlines,
 retreat/build phase UI polish (adjudicating into autumn is fine; the UI
 only needs movement orders to work), tests beyond `go vet`/compile, CI.
