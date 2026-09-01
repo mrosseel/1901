@@ -70,7 +70,12 @@ CREATE TABLE IF NOT EXISTS game (
     illegal_moves            INTEGER NOT NULL DEFAULT 1,
     -- What the table calls this game. Empty is the ordinary case and means
     -- the game is known by its id, which is what every game did before.
-    name                     TEXT    NOT NULL DEFAULT ''
+    name                     TEXT    NOT NULL DEFAULT '',
+    -- A board with no players (ADR-047), and the one token that drives it.
+    -- Both are fixed when the game is made: a game cannot grow a driver or
+    -- lose one, so nothing writes either of them twice.
+    sandbox                  INTEGER NOT NULL DEFAULT 0,
+    sandbox_token            TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS seat (
@@ -218,6 +223,11 @@ var gameColumns = []struct{ name, definition string }{
 	// existed keeps writing its drafts to the server, because migrating a
 	// game that is mid-phase at a table would lose the orders on the table.
 	{"sealed", `INTEGER NOT NULL DEFAULT 0`},
+	// A board with no players, and the token that drives it (ADR-047). The
+	// default is 0 and an empty token: every game written before sandboxes
+	// existed was played by people, which is what a sandbox is not.
+	{"sandbox", `INTEGER NOT NULL DEFAULT 0`},
+	{"sandbox_token", `TEXT NOT NULL DEFAULT ''`},
 }
 
 // orderColumns are the columns a game_order row has grown, in the same shape
@@ -384,8 +394,9 @@ func (self *game) persistErr(id string) error {
                           first_turn_extra_minutes, press_mode, illegal_moves,
                           variant_hash, name, gm_epoch, gm_public_key,
                           end_year, result_kind, result_powers, result_year, result_phase,
-                          sealed, draw_powers, draw_required, draw_confirmed)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          sealed, draw_powers, draw_required, draw_confirmed,
+                          sandbox, sandbox_token)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             -- The role can be handed on (ADR-041), which rotates the token, so
             -- unlike the invite it is not write-once.
@@ -422,7 +433,11 @@ func (self *game) persistErr(id string) error {
             sealed                   = excluded.sealed,
 			draw_powers              = excluded.draw_powers,
 			draw_required            = excluded.draw_required,
-			draw_confirmed           = excluded.draw_confirmed`,
+			draw_confirmed           = excluded.draw_confirmed,
+            -- Fixed when the game is made, like sealed above and for the
+            -- same reason: a table cannot become a sandbox under its players.
+            sandbox                  = excluded.sandbox,
+            sandbox_token            = excluded.sandbox_token`,
 		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
@@ -430,7 +445,7 @@ func (self *game) persistErr(id string) error {
 		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves,
 		variantHash(self.variantKey), f.settings.Name, f.gmEpoch, f.gmPublicKey,
 		f.settings.EndYear, resultKind, resultPowers, resultYear, resultPhase, f.sealed,
-		drawPowers, drawRequired, drawConfirmed)
+		drawPowers, drawRequired, drawConfirmed, f.settings.Sandbox, f.sandboxToken)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
@@ -543,7 +558,8 @@ func loadAll() error {
                COALESCE(result_powers, ''), COALESCE(result_year, 0),
                COALESCE(result_phase, 0), COALESCE(sealed, 0),
 			   COALESCE(draw_powers, ''), COALESCE(draw_required, ''),
-			   COALESCE(draw_confirmed, '')
+			   COALESCE(draw_confirmed, ''),
+			   COALESCE(sandbox, 0), COALESCE(sandbox_token, '')
         FROM game`, defaultVariant, defaultPressMode)
 	if err != nil {
 		return err
@@ -576,7 +592,8 @@ func loadAll() error {
 			&f.settings.PressMode, &f.settings.IllegalMoves, &recordedHash,
 			&f.settings.Name, &f.gmEpoch, &f.gmPublicKey,
 			&f.settings.EndYear, &resultKind, &resultPowers, &resultYear,
-			&resultPhase, &f.sealed, &drawPowers, &drawRequired, &drawConfirmed); err != nil {
+			&resultPhase, &f.sealed, &drawPowers, &drawRequired, &drawConfirmed,
+			&f.settings.Sandbox, &f.sandboxToken); err != nil {
 			rows.Close()
 			return err
 		}
@@ -821,6 +838,7 @@ func (self *game) replay(history map[int][]storedOrder, nmr map[int][]string, cu
 		self.recordWatch(phase, position, review)
 		self.parts = map[godip.Province][]string{}
 		self.owner = map[godip.Province]godip.Nation{}
+		self.illegal = map[godip.Province]bool{}
 	}
 	return self.applyStored(history[currentPhase])
 }

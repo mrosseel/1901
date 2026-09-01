@@ -147,6 +147,14 @@ export function dutyLine(plan: PhasePlan, state: BoardState | null): string {
     /* Not "home centres": several variants let a power build on any centre it
        holds, and the server has already decided which ones — they are the
        highlighted ones. */
+    const legalSites = Object.keys(plan.actionable).length;
+    if (legalSites < duty.count) {
+      const waived = duty.count - legalSites;
+      return "Build " + duty.count + ", but only " + legalSites + " legal build " +
+        (legalSites === 1 ? "site is" : "sites are") + " open; " +
+        (waived === 1 ? "the remaining build is" : "the remaining " + waived + " builds are") +
+        " waived.";
+    }
     return "Build " + duty.count + ": tap a highlighted supply centre.";
   }
   return "Disband " + duty.count + ": tap " + (duty.count === 1 ? "a unit" : duty.count + " units") + " to remove" + many + ".";

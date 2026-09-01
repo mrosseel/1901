@@ -8,7 +8,9 @@ A sandbox is a Diplomacy board you play alone, with no other players, so
 you can set up any position and try things out.
 
 **Status:** accepted, r48 (owner decision, closes Q-008). Extends ADR-028.
-Not built.
+Built at r54, except the position editor: everything below is live but the two
+paragraphs on editing and the phase mark that goes with them, which are the
+half that breaks replay and are still to do.
 
 A sandbox is a game with no seats. Nobody joins it, no deadline runs, and one
 person drives every power and presses adjudicate. It is Backstabbr's most
@@ -75,3 +77,4 @@ Decisions this record changed, and alternatives it refused. Anything that was
 only progress, a correction to the document, or a bug is gone.
 
 - **r48, 2026-08-30** — Editing the position breaks ADR-028's replay-from-orders, so an edit writes a whole-position checkpoint and replay starts there, and an edited phase says so on the page.
+- **r54, 2026-09-01** — Built, without the position editor. Two things the record did not settle came up in the building. A sandbox keeps its seats as unclaimed rows rather than having none, because every count already reads `claimed()` and an absent seat would have meant a second answer in a dozen places; nothing can claim one, and `activeSeats()` is nought, so "no seats" holds where it is asked. And ADR-034's rule is asked of the position instead of the seats: a phase no power can order is walked past, or an empty retreat would leave the driver on a board with no legal tap and a button that only presses itself.

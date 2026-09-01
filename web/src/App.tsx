@@ -9,6 +9,7 @@ import { JoinPage } from "./pages/JoinPage";
 import { LandingPage } from "./pages/LandingPage";
 import { NewGame } from "./pages/NewGame";
 import { RecoverPage } from "./pages/RecoverPage";
+import { SandboxPage } from "./pages/SandboxPage";
 import { SeatPage } from "./pages/SeatPage";
 import { WatchPage } from "./pages/WatchPage";
 
@@ -79,7 +80,9 @@ export function App() {
         />
       );
     case "new":
-      return <NewGame />;
+      return <NewGame sandbox={route.sandbox} />;
+    case "sandbox":
+      return <SandboxPage gameId={route.gameId} sandboxToken={route.sandboxToken} />;
     case "join":
       return <JoinPage gameId={route.gameId} inviteToken={route.inviteToken} />;
     case "gm":

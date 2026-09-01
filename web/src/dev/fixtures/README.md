@@ -84,6 +84,16 @@ beside their state.
 | `gm-adjustment.json` | After Fall 1901, with the event log filled in |
 | `gm-ended-draw.json` | A fifth game, played through 1901 and then drawn among England, France and Russia (ADR-044). The clock is gone and `canForce` is false for good |
 
+### Sandbox states — `SandboxState`
+
+A board with no players (ADR-047), driven from one link. Its own game: a
+sandbox has no seats, so it cannot be captured from the one above.
+
+| File | The moment |
+| --- | --- |
+| `sandbox-movement.json` | Spring 1901 with nineteen orders in, across all seven powers. Turkey's `con Move bla` is an army ordered into a sea: kept as written and marked (ADR-029) |
+| `sandbox-review.json` | The same board adjudicated. Two pairs bounced in Burgundy and Trieste, the misorder resolved `IllegalOrder`, and nothing was dislodged — so the Spring retreat asked nobody anything and the board walked past it to Fall 1901 |
+
 ### Spectator states — `WatchState`
 
 | File | The moment |
@@ -104,7 +114,7 @@ beside their state.
 A dev build puts one function on the window:
 
 ```js
-await __1901capture()          // guesses from the address: seat, gm or watch
+await __1901capture()          // guesses from the address: seat, sandbox, gm or watch
 await __1901capture("options") // the option trees this seat could be asked about
 await __1901capture("watch", 2) // one resolved phase of the spectator feed
 ```

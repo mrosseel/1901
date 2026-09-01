@@ -96,6 +96,12 @@ type settings struct {
 	// board that runs past the round is a board with no result.
 	EndYear int `json:"endYear"`
 
+	// Sandbox is a board with no players (ADR-047): one person holds the
+	// link, orders every power, and adjudicates. It is set when the game is
+	// made and never after, because a game that grew a driver mid-phase
+	// would be a game whose orders stopped being its players'.
+	Sandbox bool `json:"sandbox"`
+
 	// PressMode is how negotiation happens (ADR-023). Data only for now: no
 	// behaviour is attached to it, and the app carries no messages in any
 	// mode. Declaring it is the point — a gunboat table wants its rules
@@ -200,6 +206,12 @@ type flow struct {
 	// game holds it, and it is what /game/{id}/referee/ answers to. It
 	// keeps the GM link off the creation screen and out of every share.
 	gmDevice string
+	// sandboxToken is the whole credential of a sandbox (ADR-047), minted at
+	// creation and empty in every other game. Whoever holds the link drives
+	// every power; the bare game id stays read-only for everybody, exactly
+	// as a real game's watch address is. A link and not a cookie, because a
+	// tournament hands the laptop to the next round's operator.
+	sandboxToken string
 
 	settings        settings
 	settingsVersion int
@@ -257,14 +269,25 @@ func newFlow(s settings, v common.Variant) (*flow, error) {
 	if err != nil {
 		return nil, err
 	}
+	sandboxToken := ""
+	if s.Sandbox {
+		if sandboxToken, err = newToken(); err != nil {
+			return nil, err
+		}
+	}
 	f := &flow{
-		gmToken:     gmToken,
-		inviteToken: inviteToken,
-		gmDevice:    gmDevice,
-		settings:    s,
+		gmToken:      gmToken,
+		inviteToken:  inviteToken,
+		gmDevice:     gmDevice,
+		sandboxToken: sandboxToken,
+		settings:     s,
 		// Every game made from here on (ADR-004). Nothing turns it off:
 		// it is how the app works, not a rule the table agrees.
-		sealed:      true,
+		//
+		// A sandbox is the exception, and not because it is newer: there is
+		// one driver and no other player, so there is nobody to hide from
+		// (ADR-047). Sealing it would seal orders against their own author.
+		sealed:      !s.Sandbox,
 		createdAt:   time.Now().UTC(),
 		powers:      sortedNations(v),
 		seats:       map[godip.Nation]*seat{},
@@ -404,6 +427,18 @@ func (self *game) nothingToOrder(power godip.Nation) bool {
 // saw, so its empty review must not displace the review of the phase the
 // players did play (ADR-034). The public per-phase history keeps it either way.
 func (self *game) anyoneCouldOrder() bool {
+	// A sandbox has no claimed seat to ask (ADR-047), and the review is the
+	// half of it that matters: a driver adjudicates to see what happened.
+	// So the question there is whether the POSITION offers an order, which
+	// is the same question with the seat layer taken off.
+	if self.flow.settings.Sandbox {
+		for _, p := range self.flow.powers {
+			if !self.nothingToOrder(p) {
+				return true
+			}
+		}
+		return false
+	}
 	for _, s := range self.flow.seats {
 		if s.claimed() && !self.nothingToOrder(s.power) {
 			return true
@@ -448,6 +483,21 @@ func (self *game) enterPhase(id string) error {
 		// past its own result.
 		if f.over() {
 			return nil
+		}
+		// A sandbox has no seat to lock, so ADR-034's rule is asked of the
+		// position instead: a phase that offers nobody an order is one the
+		// driver cannot act on, and leaving it on screen with a button that
+		// does nothing but press itself is the dead end auto-lock exists to
+		// avoid. An empty retreat phase is the ordinary case.
+		if f.settings.Sandbox {
+			if self.anyoneCouldOrder() {
+				return nil
+			}
+			f.logEvent(id, "no power has an order to give this phase — adjudicating")
+			if err := self.advance(id, false); err != nil {
+				return err
+			}
+			continue
 		}
 		locked := self.autoLock()
 		for _, p := range locked {
@@ -753,6 +803,12 @@ func seatURL(r *http.Request, id, token string) string {
 	return fmt.Sprintf("%v/game/%v/seat/%v/", baseURL(r), id, token)
 }
 
+// sandboxURL is the whole of a sandbox's authorisation (ADR-047): the person
+// holding this link drives the board, and anybody else has the read-only id.
+func sandboxURL(r *http.Request, id, token string) string {
+	return fmt.Sprintf("%v/game/%v/sandbox/%v/", baseURL(r), id, token)
+}
+
 func gmURL(r *http.Request, id, token string) string {
 	return fmt.Sprintf("%v/game/%v/gm/%v/", baseURL(r), id, token)
 }
@@ -796,6 +852,11 @@ type settingsPatch struct {
 	EndYear               *int    `json:"endYear"`
 	PressMode             *string `json:"pressMode"`
 	IllegalMoves          *bool   `json:"illegalMoves"`
+	// Sandbox may be set when the game is made and never after (ADR-047),
+	// so apply() below leaves it alone and only decodeCreateSettings reads
+	// it. A game master posting settings at a running board cannot turn a
+	// table into a sandbox, which would take every player's orders away.
+	Sandbox *bool `json:"sandbox"`
 }
 
 func (self settingsPatch) apply(base settings) settings {
@@ -839,6 +900,14 @@ type settingsEnvelope struct {
 	settingsPatch
 }
 
+// sandboxAsked reads the create-only flag out of either shape of the body.
+func (self settingsEnvelope) sandboxAsked() bool {
+	if self.Settings != nil && self.Settings.Sandbox != nil {
+		return *self.Settings.Sandbox
+	}
+	return self.settingsPatch.Sandbox != nil && *self.settingsPatch.Sandbox
+}
+
 // merge applies the envelope on top of the given settings.
 func (self settingsEnvelope) merge(base settings) settings {
 	if self.Settings != nil {
@@ -878,6 +947,16 @@ func (self settings) normalised() settings {
 	}
 	if self.PressMode == "" {
 		self.PressMode = defaultPressMode
+	}
+	// A sandbox has nobody to keep waiting and nobody to hand a seat to
+	// (ADR-047), so the three settings that only mean something to a table
+	// are held at nothing. Doing it here rather than at creation is what
+	// makes a row loaded from the database say the same thing.
+	if self.Sandbox {
+		self.GMPlays = false
+		self.DeadlineMinutes = 0
+		self.GraceMinutes = 0
+		self.FirstTurnExtraMinutes = 0
 	}
 	self.Name = tidyName(self.Name)
 	return self
@@ -924,12 +1003,43 @@ func decodeSettings(r *http.Request, base settings) (settings, error) {
 	return neu, nil
 }
 
+/*
+decodeCreateSettings reads a creation body.
+
+It is decodeSettings plus the one field that may only be set here: the sandbox
+flag (ADR-047). Everything else about a game may be changed later and is
+answered by the game master's settings route; a board with no players cannot
+become a board with players, or the other way round, without the orders on it
+changing hands.
+*/
+func decodeCreateSettings(r *http.Request) (settings, error) {
+	base := defaultSettings()
+	env := settingsEnvelope{}
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&env); err != nil {
+			return base, err
+		}
+	}
+	neu := env.merge(base)
+	if !pressModes[neu.PressMode] {
+		return base, fmt.Errorf("unknown press mode %q: it is one of ftf, gunboat, fullpress, rulebook",
+			neu.PressMode)
+	}
+	neu.Sandbox = env.sandboxAsked()
+	// normalised has already run inside merge, and the flag arrives after
+	// it, so the settings a sandbox holds at nothing are cleared here.
+	return neu.normalised(), nil
+}
+
 // ---------------------------------------------------------------- creation
 
 type createResponse struct {
 	GameID    string         `json:"gameId"`
 	InviteURL string         `json:"inviteUrl"`
 	Variant   variantRefJSON `json:"variant"`
+	// SandboxURL is set only for a sandbox (ADR-047). There is no invite to
+	// share and no seat to claim, so this one link is the whole handover.
+	SandboxURL string `json:"sandboxUrl,omitempty"`
 }
 
 // The create response carries no GM secret on purpose. The creating browser
@@ -941,7 +1051,7 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
-	s, err := decodeSettings(r, defaultSettings())
+	s, err := decodeCreateSettings(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
@@ -978,6 +1088,18 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	if !supportedVariants[s.Variant] {
 		f.logEvent(id, "%v is experimental — unit placement on the map is not verified", v.Name)
 	}
+	if s.Sandbox {
+		// There is nobody to wait for, so a sandbox is open the moment it
+		// exists (ADR-047). enterPhase settles the opening position exactly
+		// as a started game does; with no claimed seat it locks nothing.
+		f.started = true
+		f.logEvent(id, "sandbox opened — no seats, no deadline, one driver")
+		if err := g.enterPhase(id); err != nil {
+			g.mu.Unlock()
+			writeErr(w, http.StatusInternalServerError, "open sandbox: %v", err)
+			return
+		}
+	}
 	g.persist(id)
 	g.mu.Unlock()
 
@@ -989,11 +1111,18 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   60 * 60 * 24 * 30,
 	})
-	writeJSON(w, http.StatusOK, createResponse{
+	out := createResponse{
 		GameID:    id,
 		InviteURL: inviteURL(r, id, f.inviteToken),
 		Variant:   g.variantRef(),
-	})
+	}
+	if s.Sandbox {
+		// A sandbox hands out no seats, so the invite in the answer above
+		// opens nothing. The link that matters is this one.
+		out.InviteURL = ""
+		out.SandboxURL = sandboxURL(r, id, f.sandboxToken)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // gameSummaryJSON is one row of the main-page list. It holds what the
@@ -1012,6 +1141,10 @@ type gameSummaryJSON struct {
 	Turns       int            `json:"turns"`
 	DeadlineAt  interface{}    `json:"deadlineAt"`
 	CreatedAt   string         `json:"createdAt"`
+	// Sandbox marks a board with no players (ADR-047). The list shows it
+	// because the two read nothing alike: "0 of 7 joined" on a sandbox is
+	// not a table waiting to fill, it is a board that never had seats.
+	Sandbox bool `json:"sandbox,omitempty"`
 	// Referee is true only for the browser that created the game: its
 	// cookie matched. It is what puts the referee link on the main page
 	// for the GM and nobody else.
@@ -1053,6 +1186,7 @@ func handleListGames(w http.ResponseWriter, r *http.Request) {
 			Turns:       f.phaseIndex,
 			DeadlineAt:  rfc3339(f.deadlineAt),
 			CreatedAt:   f.createdAt.UTC().Format(time.RFC3339),
+			Sandbox:     f.settings.Sandbox,
 			Referee:     f.gmDevice != "" && subtleEqual(refereeCookieValue(r, id), f.gmDevice),
 		})
 		g.mu.Unlock()
@@ -1081,6 +1215,14 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	f := g.flow
 
 	if token != f.inviteToken {
+		http.NotFound(w, r)
+		return
+	}
+	// A sandbox has no seat to claim (ADR-047). Its invite token is minted
+	// like any other and handed to nobody, so this is unreachable through
+	// the app — and it is written here rather than trusted, because the two
+	// authorization paths must never meet.
+	if f.settings.Sandbox {
 		http.NotFound(w, r)
 		return
 	}
@@ -1926,6 +2068,8 @@ func (self *game) advance(id string, dropUnlocked bool) error {
 			f.logEvent(id, "NMR for %v — no readiness, %v draft order(s) dropped", p, dropped)
 		}
 		f.logEvent(id, "GM forced adjudication")
+	} else if f.settings.Sandbox {
+		f.logEvent(id, "the sandbox driver adjudicated")
 	} else {
 		f.logEvent(id, "every power locked — adjudicating")
 	}
@@ -1950,6 +2094,10 @@ func (self *game) advance(id string, dropUnlocked bool) error {
 	self.recordWatch(f.phaseIndex, position, review)
 	self.parts = map[godip.Province][]string{}
 	self.owner = map[godip.Province]godip.Nation{}
+	// The marks belong to the orders that have just been spent (ADR-029).
+	// Left standing they would strike a province in the next phase that
+	// nobody has ordered yet.
+	self.illegal = map[godip.Province]bool{}
 	for _, s := range f.seats {
 		s.locked = false
 		s.autoLocked = false
@@ -2043,7 +2191,7 @@ func (self *server) serveFlow(w http.ResponseWriter, r *http.Request) {
 		// the credential. For anyone else the address is a 404. It answers
 		// with a redirect to a page, so it belongs with the pages.
 		handleRefereeEntry(g, id, w, r)
-	case "gm", "seat":
+	case "gm", "seat", "sandbox":
 		// The page only. Every action under it is transport and lives
 		// under /api/v1; this address serves the shell.
 		self.servePageScope(g, id, segments, w, r)
@@ -2091,6 +2239,8 @@ func (self *server) serveFlowAPI(w http.ResponseWriter, r *http.Request, path st
 		handleRecover(g, id, w, r)
 	case "gm", "seat":
 		self.serveTokenScope(g, id, segments, w, r)
+	case "sandbox":
+		self.serveSandboxScope(g, id, segments, w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -2169,6 +2319,15 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 
 	g.mu.Lock()
 	f := g.flow
+	if f.settings.Sandbox {
+		// A sandbox has no seats and no game master (ADR-047). Its own
+		// scope answers below; these two never do, so no credential minted
+		// for a table can drive a sandbox and no sandbox link can reach a
+		// seat route.
+		g.mu.Unlock()
+		http.NotFound(w, r)
+		return
+	}
 	var power godip.Nation
 	authorized := false
 	if kind == "gm" {
@@ -2218,6 +2377,11 @@ func handleRefereeEntry(g *game, id string, w http.ResponseWriter, r *http.Reque
 	device := refereeCookieValue(r, id)
 	ok := g.flow.gmDevice != "" && subtleEqual(device, g.flow.gmDevice)
 	target := gmURL(r, id, g.flow.gmToken)
+	if g.flow.settings.Sandbox {
+		// A sandbox has no game master view to open. The browser that made
+		// it gets the driver's link back, which is the only way in.
+		target = sandboxURL(r, id, g.flow.sandboxToken)
+	}
 	g.mu.Unlock()
 	if !ok {
 		http.NotFound(w, r)

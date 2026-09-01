@@ -30,6 +30,7 @@ import { JoinPage } from "../pages/JoinPage";
 import { LandingPage } from "../pages/LandingPage";
 import { NewGame } from "../pages/NewGame";
 import { RecoverPage } from "../pages/RecoverPage";
+import { SandboxPage } from "../pages/SandboxPage";
 import { SeatPage } from "../pages/SeatPage";
 import { WatchPage } from "../pages/WatchPage";
 import { ModalLayer } from "../components/ModalLayer";
@@ -95,6 +96,21 @@ function seatEntry(
       options: optionBook ? fx.options(optionBook) : {},
     },
     render: () => <SeatPage gameId={fx.gameIdOf(seat)} seatToken="fixture" />,
+  };
+}
+
+/* The sandbox (ADR-047). One fixture is one board with no players, and the
+   page is handed a token that opens nothing: the stub answers instead. */
+function sandboxEntry(state: string, title: string, note: string, fixture: string): Entry {
+  const box = fx.sandbox(fixture);
+  return {
+    route: "sandbox",
+    screen: "sandbox",
+    state: state,
+    title: title,
+    note: note,
+    scenario: { variantKey: VARIANT, sandbox: box },
+    render: () => <SandboxPage gameId={fx.gameIdOf(box)} sandboxToken="fixture" />,
   };
 }
 
@@ -237,6 +253,23 @@ export function buildCatalogue(): Entry[] {
       render: () => <GuideOnly />,
     });
   }
+
+  list.push(
+    sandboxEntry(
+      "movement",
+      "Sandbox: mid-movement",
+      "Nineteen orders across all seven powers, driven from one link. The map draws"
+        + " the chosen power's arrows; the switcher counts every power's.",
+      "sandbox-movement",
+    ),
+    sandboxEntry(
+      "adjudicated",
+      "Sandbox: after adjudicating",
+      "Spring 1901 resolved and the empty retreat phase walked past, so the board"
+        + " is already at Fall 1901 with the review one tap away.",
+      "sandbox-review",
+    ),
+  );
 
   list.push(
     gmEntry(

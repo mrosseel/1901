@@ -136,6 +136,11 @@ type watchJSON struct {
 	// carries it: a citation of Fall 1904 should say the game was won.
 	Result *gameResult `json:"result"`
 
+	// Sandbox says this board has no players (ADR-047). A reader citing the
+	// link is entitled to know which one they are looking at: a board one
+	// person drove is not a board that seven people played.
+	Sandbox bool `json:"sandbox,omitempty"`
+
 	Variant       variantRefJSON    `json:"variant"`
 	ProvinceNames map[string]string `json:"provinceNames"`
 	Placements    placementTable    `json:"placements"`
@@ -160,6 +165,7 @@ func (self *game) watchState(id string, phaseIndex int) (watchJSON, bool) {
 		Placements:    self.placements(),
 		Labels:        self.labels(),
 		Result:        f.result,
+		Sandbox:       f.settings.Sandbox,
 		Now:           serverNow(),
 		Units:         map[string]unitJSON{},
 		Dislodged:     map[string]unitJSON{},

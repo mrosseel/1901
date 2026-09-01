@@ -30,6 +30,7 @@ const ADDRESSES: Record<string, string> = {
   join: "/join/abc/xyz",
   gm: "/game/abc/gm/tok",
   seat: "/game/abc/seat/tok",
+  sandbox: "/game/abc/sandbox/tok",
   watch: "/watch/abc",
   handover: "/handover/abc/Austria/1/sig",
   "handover-gm": "/handover-gm/abc/1/sig",

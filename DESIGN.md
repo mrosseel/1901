@@ -1,8 +1,9 @@
 # Face-to-Face Diplomacy Adjudicator — Execution Brief
 
-**Status:** M1 flow live (React SPA + Go, in-memory). M0 sandbox removed.
+**Status:** M1 flow live (React SPA + Go, in-memory). The M0 one-screen spike
+was removed at r13; the sandbox of ADR-047 is a different thing and is live.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r53 — 2026-08-31
+**Document revision:** r54 — 2026-09-01
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -454,11 +455,11 @@ ahead of ADR-044; it needs no part of M3, having no secrets to keep. Q-008 was
 going to the playtest and the owner answered it at r48 instead. No acceptance
 criterion above changes.
 
-**Where that stands, r53.** ADR-004 is built, so every decision between here
+**Where that stands, r54.** ADR-004 is built, so every decision between here
 and a tournament board is. What is left before a table is the playtest itself,
 and the two questions it is meant to answer, Q-004 and Q-006. ADR-047, the
-sandbox, is decided and not built, and the owner wants another conversation
-before it is.
+sandbox, is built except for its position editor, which is the half that
+breaks ADR-028's replay and wants a checkpoint before it can be written.
 
 ---
 
@@ -532,3 +533,4 @@ decision now lives in that decision, under its own Revisions heading.
 | r51 | 2026-08-31 | A game can end, and the numbers leave the building. ADR-044, ADR-045 and ADR-046 are built; the flow had never asked who won, so every board ran forever. Two stale status lines corrected: ADR-041 and ADR-034's handoff both said they were not built, and both had been for some time. |
 | r52 | 2026-08-31 | Commit-reveal, which is M3 and the project's one novel claim. The drafts left the server: a phone keeps them in storage, draws them itself, and sends a digest when the player locks in; the orders go up only once every seat has locked in, and the phone sends them unasked. So a game master reading their own SQLite file mid-phase finds seven hashes. A sealed game is decided at creation and a game made before this keeps its server-side drafts, on ADR-049's rule about tokens and keys. The two hashers are pinned against each other in Go and TypeScript, and a third implementation played a phase end to end over HTTP. |
 | r53 | 2026-08-31 | The commitment is a sealed envelope and not a digest, on the owner's question. A digest kept the orders off the server and lost them: a phone that locked in and then went flat held the only copy, so its power was an NMR. The lock now sends the orders encrypted, the reveal sends the 32-byte key, and a second device holding the seat seed derives the same key and can release a dead phone's orders. XChaCha20-Poly1305 on both sides, with the game, the phase and the power as associated data. Dropping the commitment altogether was refused: the reveals are not simultaneous, so the last seat to reveal would choose knowing everybody else's orders. |
+| r54 | 2026-09-01 | The sandbox (ADR-047): a board with no players, driven from one link. It is a flag on an ordinary game and not a second object, so the variants, the map, the adjudication, the review and the public per-phase addresses are the ones a played game has; what comes off is the seat layer. Its seats stay as unclaimed rows, which is what keeps every count and the persistence untouched, and its scope rejects a table exactly as the seat scope rejects a sandbox. A phase no power can order is walked past, ADR-034's rule read off the position rather than off the seats. Not built: editing the position, which is the part that needs a checkpoint because an edit cannot be replayed. One bug fell out of it — an illegal-order mark survived the adjudication that spent it, and only the sandbox's own state answer ever drew one. |

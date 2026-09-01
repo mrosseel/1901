@@ -11,7 +11,7 @@ They check shape, not truth. A guard asks "is `units` a map of province to
 {type, nation}", never "is Vienna Austrian".
 */
 
-import type { GmState, PublicState, SeatState, WatchState } from "../api";
+import type { GmState, PublicState, SandboxState, SeatState, WatchState } from "../api";
 import type { DatcReport } from "../pages/DatcPage";
 import type { OptionTree } from "../board/types";
 
@@ -129,6 +129,28 @@ export function isSeatState(value: unknown): value is SeatState {
       mapOf(state.locked, isBool) &&
       mapOf(state.phaseResolutions, isString) &&
       optional(state.refereeUrl, isString),
+  );
+}
+
+/*
+The sandbox answer (ADR-047): the seat state with the seat taken off. No `you`,
+no lock, no clock — and one field a seat has no use for, which is who entered
+each drafted order.
+*/
+export function isSandboxState(value: unknown): value is SandboxState {
+  const state = bag(value);
+  if (!state) return false;
+  return Boolean(
+    isString(state.gameId) &&
+      isBoardish(state) &&
+      isVariantAware(state) &&
+      isSettings(state.settings) &&
+      isNumber(state.settingsVersion) &&
+      isNumber(state.phaseIndex) &&
+      isStrings(state.nations) &&
+      isStrings(state.nothingToOrder) &&
+      mapOf(state.orderPowers, isString) &&
+      optional(state.illegal, isStrings),
   );
 }
 

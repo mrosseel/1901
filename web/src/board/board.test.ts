@@ -436,6 +436,65 @@ describe("a movement phase", () => {
     seat.board.destroy();
   });
 
+  /*
+  The hold support, and the line that offers it.
+
+  A support of a hold asks the supporting unit to reach the province the
+  supported unit stands in, so the tree offers it only where that province is
+  among the destinations. The line has to follow the tree: it named a province
+  the map had not lit, and a tap on it wrote a bluff nobody asked for.
+  */
+  it("offers the hold when the tree carries the supported unit's own province", async () => {
+    const seat = setup("Austria", { vie: MOVEMENT_TREE });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    tap("bud");
+    await settle();
+
+    expect(seat.view()?.hint).toBe(
+      "Supporting Army Budapest — tap where you are helping it go, " +
+        "or tap Budapest again to back its hold.",
+    );
+    expect(classesOf("bud")).toContain("support-src");
+    seat.board.destroy();
+  });
+
+  it("says nothing about the hold when the tree does not carry it", async () => {
+    const moveOnly: OptionTree = {
+      vie: {
+        Type: "Province",
+        Next: {
+          Support: {
+            Type: "OrderType",
+            Next: {
+              vie: {
+                Type: "SrcProvince",
+                Next: { bud: { Type: "Province", Next: { gal: { Type: "Province", Next: {} } } } },
+              },
+            },
+          },
+        },
+      },
+    };
+    const seat = setup("Austria", { vie: moveOnly });
+    await seat.board.ready;
+    seat.board.update(MOVEMENT_STATE, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    tap("bud");
+    await settle();
+
+    expect(seat.view()?.hint).toBe(
+      "Supporting Army Budapest — tap where you are helping it go.",
+    );
+    expect(classesOf("bud")).not.toContain("support-src");
+    seat.board.destroy();
+  });
+
   it("lights up every shape a province is drawn with, coasts included", async () => {
     const seat = setup("Austria", { vie: MOVEMENT_TREE });
     await seat.board.ready;
@@ -826,6 +885,17 @@ describe("the review of the last phase", () => {
 
 describe("an adjustment phase", () => {
   const plan = () => planFor("adjustment", "Austria", { rom: BUILD_TREE, bud: DISBAND_TREE });
+
+  it("colours every owned supply centre even when no unit occupies it", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(ADJUSTMENT_STATE, emptyPlan("Austria", "adjustment"));
+
+    const owned = document.querySelector<SVGCircleElement>('#owned-centres [data-province="rom"]');
+    expect(owned?.getAttribute("fill")).toBe(powerColor("Austria"));
+    expect(document.querySelector('#unit-overlay [data-province="rom"]')).toBeNull();
+    seat.board.destroy();
+  });
 
   it("reads the build count from the options filter", () => {
     expect(planFor("adjustment", "Austria", { rom: BUILD_TREE }).duty).toEqual({

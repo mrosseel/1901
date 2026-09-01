@@ -7,8 +7,8 @@ kind, and a capture taken against a server whose shapes have moved fails here
 rather than rendering a page full of blanks.
 
 The naming rule is the test's only convention: a file called seat-* holds a
-SeatState, gm-* a GmState, watch-* a WatchState, options-* a book of option
-trees, datc-* the published compliance report. Anything else is a fixture
+SeatState, gm-* a GmState, sandbox-* a SandboxState, watch-* a WatchState,
+options-* a book of option trees, datc-* the published compliance report. Anything else is a fixture
 nobody claims, which is also a failure.
 */
 
@@ -20,6 +20,7 @@ import {
   isOptionBook,
   isOptionTree,
   isPublicState,
+  isSandboxState,
   isSeatState,
   isWatchState,
 } from "./guards";
@@ -27,6 +28,7 @@ import {
 const guards: Array<[string, (value: unknown) => boolean]> = [
   ["seat-", isSeatState],
   ["gm-", isGmState],
+  ["sandbox-", isSandboxState],
   ["watch-", isWatchState],
   ["options-", isOptionBook],
   ["datc-", isDatcReport],
@@ -103,6 +105,35 @@ describe("fixtures", () => {
     const ended = raw("watch-ended") as { result?: { kind: string; year: number } };
     expect(ended.result?.kind).toBe("endYear");
     expect(ended.result?.year).toBe(1901);
+  });
+
+  /* The sandbox (ADR-047). Its two captures carry the two facts the screen
+     is for: every power's orders in one answer, and a board that walked past
+     a phase nobody could order. */
+  it("keeps a sandbox holding every power's orders at once", () => {
+    const box = raw("sandbox-movement") as {
+      orderPowers: Record<string, string>;
+      illegal: string[];
+      nothingToOrder: string[];
+    };
+    const powers = new Set(Object.values(box.orderPowers));
+    expect(powers.size).toBeGreaterThan(5);
+    // ADR-029 applies in a sandbox too: the misorder is kept and struck.
+    expect(box.illegal).toContain("con");
+  });
+
+  it("keeps a sandbox that walked past the phase nobody could order", () => {
+    const box = raw("sandbox-review") as {
+      phaseIndex: number;
+      phase: { season: string; type: string };
+      previousPhase: { resolutions: Record<string, string> };
+    };
+    // Spring movement is 0 and the empty Spring retreat is 1, so the board
+    // the driver is handed back is 2.
+    expect(box.phaseIndex).toBe(2);
+    expect([box.phase.season, box.phase.type]).toEqual(["Fall", "Movement"]);
+    const failed = Object.values(box.previousPhase.resolutions).filter((one) => one !== "OK");
+    expect(failed.some((one) => one.startsWith("ErrBounce"))).toBe(true);
   });
 
   /* The DATC report is the page (ADR-045): a copy with no cases in it would

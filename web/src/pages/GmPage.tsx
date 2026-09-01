@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   GmClient,
+  fetchVariants,
   mintHandover,
   resultsUrl,
   watchPath,
@@ -32,6 +33,7 @@ import { RefereeGuide } from "../components/RefereeGuide";
 import { ModalLayer } from "../components/ModalLayer";
 import { refereeGuide } from "../referee";
 import { dismiss, isDismissed, reviewKey, reviewPlan } from "../review";
+import { EndYearField } from "../components/EndYearField";
 
 /*
 The game master's screen: the rules, the invite, how many have joined, who has
@@ -720,7 +722,9 @@ function SettingsCard({
   const allowIllegal = illegalAllowed(settings);
   const [illegal, setIllegal] = useState(allowIllegal);
   const savedEndYear = settings.endYear || 0;
-  const [endYear, setEndYear] = useState(savedEndYear);
+  const [endYearEnabled, setEndYearEnabled] = useState(savedEndYear > 0);
+  const [endYear, setEndYear] = useState<number | "">(savedEndYear || "");
+  const [startYear, setStartYear] = useState(0);
 
   // A change made from another device wins over an untouched form.
   useEffect(() => setMinutes(settings.deadlineMinutes), [settings.deadlineMinutes]);
@@ -730,7 +734,20 @@ function SettingsCard({
   useEffect(() => setPressMode(settings.pressMode ?? "ftf"), [settings.pressMode]);
   useEffect(() => setPlays(settings.gmPlays), [settings.gmPlays]);
   useEffect(() => setIllegal(allowIllegal), [allowIllegal]);
-  useEffect(() => setEndYear(savedEndYear), [savedEndYear]);
+  useEffect(() => {
+    setEndYearEnabled(savedEndYear > 0);
+    setEndYear(savedEndYear || "");
+  }, [savedEndYear]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchVariants()
+      .then((variants) => {
+        const variant = variants.find((one) => one.key === (settings.variant || "classical"));
+        if (!cancelled) setStartYear(variant?.startYear || 0);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [settings.variant]);
 
   const dirty =
     minutes !== settings.deadlineMinutes ||
@@ -739,8 +756,13 @@ function SettingsCard({
     firstExtra !== (settings.firstTurnExtraMinutes ?? 0) ||
     pressMode !== (settings.pressMode ?? "ftf") ||
     plays !== settings.gmPlays ||
-    endYear !== savedEndYear ||
+    (endYearEnabled ? Number(endYear) || 0 : 0) !== savedEndYear ||
     illegal !== allowIllegal;
+  const endYearValid = !endYearEnabled || (
+    Number.isFinite(Number(endYear)) &&
+    Number(endYear) >= (startYear || 1) &&
+    Number(endYear) <= 9999
+  );
 
   return (
     <section className="card">
@@ -783,24 +805,21 @@ function SettingsCard({
         <span>Negotiation rule</span>
         <select value={pressMode} disabled={started} onChange={(event) =>
           setPressMode(event.target.value as NonNullable<Settings["pressMode"]>)}>
-          <option value="ftf">Face to face — negotiate out loud</option>
+          <option value="ftf">Face-to-face negotiations</option>
           <option value="gunboat">Gunboat — no negotiation</option>
-          <option value="rulebook">Movement phases only</option>
+          {pressMode !== "ftf" && pressMode !== "gunboat" ? (
+            <option value={pressMode}>Legacy negotiation rule</option>
+          ) : null}
         </select>
-        <small>{started ? "Fixed once the game has started." : "This app does not provide in-app press."}</small>
+        <small>{started ? "Fixed once the game has started." : "Negotiation happens in person; this app has no online press."}</small>
       </label>
-      <label className="field">
-        <span>Stop after the year</span>
-        <input
-          type="number"
-          min={0}
-          max={9999}
-          inputMode="numeric"
-          value={endYear}
-          onChange={(event) => setEndYear(Number(event.target.value))}
-        />
-        <small>Zero plays on until a solo or a draw.</small>
-      </label>
+      <EndYearField
+        enabled={endYearEnabled}
+        year={endYear}
+        startYear={startYear}
+        onEnabledChange={setEndYearEnabled}
+        onYearChange={setEndYear}
+      />
       <label className="field check">
         <input
           type="checkbox"
@@ -822,7 +841,7 @@ function SettingsCard({
       </label>
       <button
         type="button"
-        disabled={!dirty}
+        disabled={!dirty || !endYearValid}
         onClick={() =>
           onSave(
             started
@@ -832,7 +851,7 @@ function SettingsCard({
                   graceMinutes: Math.max(0, Math.floor(grace) || 0),
                   firstTurnExtraMinutes: Math.max(0, Math.floor(firstExtra) || 0),
                   illegalMoves: illegal,
-                  endYear: Math.max(0, Math.floor(endYear) || 0),
+                  endYear: endYearEnabled ? Math.max(0, Math.floor(Number(endYear)) || 0) : 0,
                 }
               : {
                   deadlineMinutes: Math.max(0, Math.floor(minutes) || 0),
@@ -842,7 +861,7 @@ function SettingsCard({
                   pressMode: pressMode,
                   gmPlays: plays,
                   illegalMoves: illegal,
-                  endYear: Math.max(0, Math.floor(endYear) || 0),
+                  endYear: endYearEnabled ? Math.max(0, Math.floor(Number(endYear)) || 0) : 0,
                 },
           )
         }

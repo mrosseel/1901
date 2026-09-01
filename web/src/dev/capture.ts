@@ -29,7 +29,7 @@ import type { OptionTree } from "../board/types";
 import { getJSON, parseRoute } from "../api";
 import { isSeatState } from "./guards";
 
-type Kind = "seat" | "gm" | "watch" | "public" | "options";
+type Kind = "seat" | "gm" | "sandbox" | "watch" | "public" | "options";
 
 function prefix(): string {
   const route = parseRoute(window.location.pathname);
@@ -37,14 +37,17 @@ function prefix(): string {
     return "/game/" + route.gameId + "/seat/" + route.seatToken + "/";
   }
   if (route.kind === "gm") return "/game/" + route.gameId + "/gm/" + route.gmToken + "/";
+  if (route.kind === "sandbox") {
+    return "/game/" + route.gameId + "/sandbox/" + route.sandboxToken + "/";
+  }
   if (route.kind === "watch") return "/game/" + route.gameId + "/";
   throw new Error("open a seat, game master or spectator page first");
 }
 
 function guess(): Kind {
   const kind = parseRoute(window.location.pathname).kind;
-  if (kind === "seat" || kind === "gm" || kind === "watch") return kind;
-  throw new Error("open a seat, game master or spectator page first");
+  if (kind === "seat" || kind === "gm" || kind === "sandbox" || kind === "watch") return kind;
+  throw new Error("open a seat, sandbox, game master or spectator page first");
 }
 
 /*

@@ -157,6 +157,7 @@ search measured and neither this file nor the board may choose another. The
 halo is the same rim the codes above get: paint-order puts the stroke down
 first and the fill over it.
 */
+#owned-centres,
 #data-centres,
 #data-labels {
   pointer-events: none;

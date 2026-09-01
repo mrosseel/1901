@@ -897,6 +897,7 @@ export function mount(
   and the halo width all arrive resolved, because the styling pass that
   rewrites a names layer has nothing to work on when there is no layer.
   */
+  const OWNED_CENTRE_LAYER = "owned-centres";
   const DATA_CENTRE_LAYER = "data-centres";
   const DATA_LABEL_LAYER = "data-labels";
 
@@ -953,6 +954,7 @@ export function mount(
   a name is never read through a marker, and a glyph never through a name.
   */
   const DRAWN_LAYERS = [
+    OWNED_CENTRE_LAYER,
     DATA_CENTRE_LAYER,
     DATA_LABEL_LAYER,
     BRIEF_LAYER,
@@ -1010,6 +1012,38 @@ export function mount(
         String(spot.centreStroke || radius * CENTRE_STROKE_RATIO),
       );
       layer.appendChild(ring);
+    });
+  }
+
+  /*
+  Supply-centre ownership is board state, not map decoration. Map files draw
+  the neutral SC glyph, but that cannot say who took it in the last Fall. A
+  small power-coloured face therefore rides over every owned centre on every
+  map, whether its neutral ring came from the SVG or from placement records.
+  Units remain above it, so ownership and occupation stay separate facts.
+  */
+  function renderSupplyOwnership(): void {
+    if (!svgRoot) return;
+    const layer = drawnLayer(OWNED_CENTRE_LAYER);
+    const owned = state?.supplyCenters || {};
+    Object.keys(owned).forEach((province) => {
+      const spot = placementOf(province);
+      const recorded = spot?.centre;
+      const point = Array.isArray(recorded)
+        ? { x: recorded[0], y: recorded[1] }
+        : centerOf(province);
+      if (!point) return;
+      const ringRadius = spot?.centreRadius || markerRadius() * 0.42;
+      const face = document.createElementNS(SVG_NS, "circle");
+      face.setAttribute("class", "owned-centre");
+      face.setAttribute("data-province", province);
+      face.setAttribute("cx", String(point.x));
+      face.setAttribute("cy", String(point.y));
+      face.setAttribute("r", String(Math.max(2, ringRadius * 0.62)));
+      face.setAttribute("fill", powerColor(owned[province]));
+      face.setAttribute("stroke", "#14161a");
+      face.setAttribute("stroke-width", String(Math.max(0.75, ringRadius * 0.12)));
+      layer.appendChild(face);
     });
   }
 
@@ -1513,7 +1547,7 @@ export function mount(
         /* Two provinces that touch are a short span at fit-all zoom, and the
            clearance around the two markers does not shrink with it. Both ends
            give way rather than leaving nothing to draw (scale.ts). */
-        const fit = fitEnds(distance(from, to), rp * 1.0, rAt(order[1]) * 1.4);
+        const fit = fitEnds(distance(from, to), rp * 0.5, rAt(order[1]) * 1.3);
         const tail = towards(from, to, fit.start);
         const end = towards(to, from, fit.end);
         const cap = fitHead(fit.body, r * 0.95, r * 0.5);
@@ -1532,8 +1566,15 @@ export function mount(
            fixed in map units, so on screen it shrinks with the zoom while the
            clearance around the markers does not. Granting both clearances in
            full left nothing to draw and turned the arrow outline inside out.
-           Now they give way in proportion and the head follows (scale.ts). */
-        const fit = fitEnds(distance(from, to), rp * 1.15, rAt(order[1]) * 1.6);
+           Now they give way in proportion and the head follows (scale.ts).
+
+           The tail is granted less than a marker radius on purpose. jDip
+           starts a move at the unit's own centre and lets the piece cover the
+           first stretch of it; the shaft then leaves the piece with no gap,
+           and a move between two provinces that touch still has a shaft to
+           show. A tail cleared past the marker drew that move as a dart of
+           almost pure head. */
+        const fit = fitEnds(distance(from, to), rp * 0.55, rAt(order[1]) * 1.35);
         const tail = towards(from, to, fit.start);
         const tip = towards(to, from, fit.end);
         shapes.push(arrow(tail, tip, fitHead(fit.body, r * 1.15, r * 0.62)));
@@ -1590,7 +1631,7 @@ export function mount(
         const target = holdSupport ? src : midpoint(src, anchorOf(order[2]) || src);
         const fit = fitEnds(
           distance(from, target),
-          rp * 1.2,
+          rp * 0.6,
           holdSupport ? rAt(order[1] || "") * 2.6 : 0,
           0.45,
         );
@@ -2394,9 +2435,18 @@ export function mount(
 
     if (mode === "support") {
       const src = builder!.support!.src;
+      /*
+      The hold is offered only where the rules allow it: a support of a hold
+      asks the supporting unit to reach the province the supported unit stands
+      in, and Marseilles cannot reach Paris. The tree says so — the supported
+      unit's own province is among its destinations only then — and the line
+      has to say the same, because the province it named was not highlighted
+      and a tap on it wrote a bluff nobody asked for.
+      */
+      const holdable = matchingKey(builder!.support!.dests, src) !== null;
       return (
-        "Supporting " + unitLabel(state, src) + " — tap where you are helping it go, " +
-        "or tap " + provinceName(src) + " again to back its hold."
+        "Supporting " + unitLabel(state, src) + " — tap where you are helping it go" +
+        (holdable ? ", or tap " + provinceName(src) + " again to back its hold." : ".")
       );
     }
     const atRoot = builder!.parts.length === 0;
@@ -2531,6 +2581,7 @@ export function mount(
     if (!svgRoot) return;
     renderOrders();
     renderUnits();
+    renderSupplyOwnership();
     renderDataCentres();
     renderDataNames();
     renderBriefLabels();

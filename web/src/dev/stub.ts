@@ -22,7 +22,14 @@ states, not for playing, and a half-simulated server would be a lie of a
 different kind. The README says so too.
 */
 
-import type { GameSummary, GmState, PublicState, SeatState, WatchState } from "../api";
+import type {
+  GameSummary,
+  GmState,
+  PublicState,
+  SandboxState,
+  SeatState,
+  WatchState,
+} from "../api";
 import type { DatcReport } from "../pages/DatcPage";
 import type { OptionTree } from "../board/types";
 import { gameIdOf } from "./fixtures";
@@ -32,6 +39,8 @@ export interface Scenario {
   variantKey: string;
   seat?: SeatState;
   gm?: GmState;
+  /** A board with no players (ADR-047), driven from one link. */
+  sandbox?: SandboxState;
   /** The live phase of the spectator feed. */
   watch?: WatchState;
   /** Resolved phases, by index, for the spectator page's prev and next. */
@@ -48,6 +57,7 @@ export interface Scenario {
    reads are not, which is the whole point of the split. */
 const SEAT = /^\/api\/v1\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|lock|unlock|reveal)$/;
 const GM = /^\/api\/v1\/game\/[^/]+\/gm\/[^/]+\/(state|settings|start|adjudicate|extend|draw)$/;
+const SANDBOX = /^\/api\/v1\/game\/[^/]+\/sandbox\/[^/]+\/(state|options|order|adjudicate)$/;
 const WATCH = /^\/game\/[^/]+\/watch(?:\/(\d+))?$/;
 const PUBLIC = /^\/game\/[^/]+\/public$/;
 const MAP = /\/map\.svg$/;
@@ -73,10 +83,32 @@ through a reload every three seconds.
 */
 function summary(scene: Scenario): PublicState | null {
   const source = scene.seat || scene.gm || scene.watch;
-  if (!source) return null;
+  /* A sandbox has no seats and no clock, so it answers the two fields the
+     summary reads for those with what a board with no players holds. */
+  const box = scene.sandbox;
+  if (!source && !box) return null;
   const seat = scene.seat;
   const gm = scene.gm;
   const watch = scene.watch;
+  if (!source) {
+    const only = box as SandboxState;
+    return {
+      gameId: gameIdOf(only),
+      phase: only.phase,
+      started: true,
+      joinedCount: 0,
+      totalSeats: 0,
+      locked: {},
+      settings: only.settings,
+      settingsVersion: only.settingsVersion,
+      deadlineAt: null,
+      now: only.now,
+      variant: only.variant,
+      provinceNames: only.provinceNames,
+      placements: only.placements,
+      labels: only.labels,
+    };
+  }
   return {
     gameId: gameIdOf(gm || watch || seat),
     phase: source.phase,
@@ -112,6 +144,17 @@ function answer(scene: Scenario, url: URL, method: string): Response | null {
   if (gm) {
     if (!scene.gm) return missing("a game master on this screen");
     return json(gm[1] === "state" ? scene.gm : {});
+  }
+
+  const box = SANDBOX.exec(path);
+  if (box) {
+    if (!scene.sandbox) return missing("a sandbox on this screen");
+    if (box[1] === "options") {
+      const province = url.searchParams.get("province") || "";
+      return json((scene.options || {})[province] || {});
+    }
+    // As everywhere here, a write comes back as the state was captured.
+    return json(scene.sandbox);
   }
 
   const watch = WATCH.exec(path);

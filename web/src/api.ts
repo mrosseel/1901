@@ -47,6 +47,13 @@ export interface Settings {
   solo or a draw (ADR-044). A tournament round with a hard stop sets it.
   */
   endYear?: number;
+  /*
+  A board with no players (ADR-047): one person holds the link, orders every
+  power and adjudicates. Settable only when the game is made — the server
+  ignores it on any later settings post, because a table cannot become a
+  sandbox without its players' orders changing hands.
+  */
+  sandbox?: boolean;
 }
 
 /*
@@ -187,12 +194,21 @@ export interface WatchState extends VariantAware {
   /** Seats filled, and how many the invite still may hand out. Counts only. */
   joinedCount?: number;
   seatsToFill?: number;
+  /*
+  This board had no players (ADR-047). A reader citing the link is entitled to
+  know which one they are looking at: a board one person drove is not a board
+  seven people played.
+  */
+  sandbox?: boolean;
   deadlineAt: string | null;
 }
 
 export interface CreatedGame {
   gameId: string;
+  /** Empty for a sandbox: there are no seats to hand out. */
   inviteUrl: string;
+  /** Set only for a sandbox (ADR-047): the one link that drives the board. */
+  sandboxUrl?: string;
 }
 
 export interface GmSeat {
@@ -297,6 +313,31 @@ export interface SeatState extends BoardState, VariantAware, SealedPhase {
 	drawProposal?: DrawProposal | null;
 }
 
+/*
+The whole board, for the one person driving it (ADR-047).
+
+It is the seat state with the filtering taken out: every power's drafted
+orders are here, and `orderPowers` says whose each one is. Nothing is leaked
+by that — the reader of this answer wrote every order in it.
+*/
+export interface SandboxState extends BoardState, VariantAware {
+  gameId: string;
+  /** Every power of the variant, in a stable order: the switcher's list. */
+  nations: string[];
+  /** The provinces whose drafted order the engine refuses (ADR-029). */
+  illegal?: string[];
+  /** province → the power that entered the drafted order there. */
+  orderPowers: Record<string, string>;
+  settings: Settings;
+  settingsVersion: number;
+  /** Which phase this is, counting resolved phases from zero. */
+  phaseIndex: number;
+  turns?: number;
+  createdAt?: string;
+  /** The powers this phase asks nothing of, so the switcher can say so. */
+  nothingToOrder: string[];
+}
+
 /**
  * One row of the main-page list. Everything here is what a bare game id may
  * already show on its public pages; no token of any kind rides with it.
@@ -314,6 +355,8 @@ export interface GameSummary {
   turns: number;
   deadlineAt: string | null;
   createdAt: string;
+  /** A board with no players (ADR-047). Its seat counts mean nothing. */
+  sandbox?: boolean;
   referee: boolean;
 }
 
@@ -381,7 +424,13 @@ export type Route =
   | { kind: "faq" }
   /* What this build scored against DATC (ADR-045). Generated, never typed. */
   | { kind: "datc" }
-  | { kind: "new" }
+  /* The create form. `sandbox` is the same form asked for a board with no
+     players (ADR-047), which is /sandbox: the clock and the seats go away
+     and the answer is one link instead of an invite. */
+  | { kind: "new"; sandbox: boolean }
+  /* Driving a sandbox. The token in the address is the whole credential,
+     exactly as a seat token is, and it drives every power. */
+  | { kind: "sandbox"; gameId: string; sandboxToken: string }
   | { kind: "join"; gameId: string; inviteToken: string }
   | { kind: "gm"; gameId: string; gmToken: string }
   | { kind: "seat"; gameId: string; seatToken: string }
@@ -393,7 +442,8 @@ export type Route =
 export function parseRoute(pathname: string): Route {
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length === 0) return { kind: "index" };
-  if (parts.length === 1 && parts[0] === "new") return { kind: "new" };
+  if (parts.length === 1 && parts[0] === "new") return { kind: "new", sandbox: false };
+  if (parts.length === 1 && parts[0] === "sandbox") return { kind: "new", sandbox: true };
   if (parts.length === 1 && parts[0] === "games") return { kind: "games" };
   if (parts.length === 1 && parts[0] === "faq") return { kind: "faq" };
   if (parts.length === 1 && parts[0] === "datc") return { kind: "datc" };
@@ -424,6 +474,9 @@ export function parseRoute(pathname: string): Route {
   if (parts.length === 4 && parts[0] === "game") {
     if (parts[2] === "gm") return { kind: "gm", gameId: parts[1], gmToken: parts[3] };
     if (parts[2] === "seat") return { kind: "seat", gameId: parts[1], seatToken: parts[3] };
+    if (parts[2] === "sandbox") {
+      return { kind: "sandbox", gameId: parts[1], sandboxToken: parts[3] };
+    }
   }
   return { kind: "unknown", path: pathname };
 }
@@ -785,6 +838,55 @@ export class SeatClient {
   /** The role's link, for the seat that is the game master's own. */
   roleHandover(): Promise<Handover> {
     return getJSON<Handover>(this.base + "handover-role");
+  }
+}
+
+// --- sandbox --------------------------------------------------------------
+
+/*
+Driving a board with no players (ADR-047).
+
+It is SeatClient with the power moved from the credential into the call: the
+same board, the same options, the same order post, asked for whichever power
+the driver is currently playing. There is no lock and no reveal, because there
+is nobody to lock against.
+*/
+export class SandboxClient {
+  readonly base: string;
+
+  constructor(gameId: string, sandboxToken: string) {
+    this.base = api(
+      "/game/" + encodeURIComponent(gameId) + "/sandbox/" +
+        encodeURIComponent(sandboxToken) + "/",
+    );
+  }
+
+  get mapUrl(): string {
+    return this.base + "map.svg";
+  }
+
+  state(): Promise<SandboxState> {
+    return getJSON<SandboxState>(this.base + "state");
+  }
+
+  options(power: string, province: string): Promise<OptionTree> {
+    return getJSON<OptionTree>(
+      this.base + "options?power=" + encodeURIComponent(power) +
+        "&province=" + encodeURIComponent(province),
+    );
+  }
+
+  order(power: string, province: string, parts: string[]): Promise<SandboxState> {
+    return postJSON<SandboxState>(this.base + "order", {
+      power: power,
+      province: province,
+      parts: parts,
+    });
+  }
+
+  /** Resolve the phase. Nothing is dropped: an unordered unit holds. */
+  adjudicate(): Promise<SandboxState> {
+    return postJSON<SandboxState>(this.base + "adjudicate");
   }
 }
 

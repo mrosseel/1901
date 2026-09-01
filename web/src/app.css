@@ -193,6 +193,20 @@ details.card > summary::marker { color: var(--muted); }
 .field > span { color: var(--muted); font-size: 13px; }
 .field small { color: var(--muted); font-size: 12px; }
 
+/* Form selects are real tap targets, but do not stretch to the width of their
+   longest sentence. The compact map-toolbar selects have their own rules. */
+.field > select {
+  align-self: flex-start;
+  width: min(100%, 18em);
+  min-height: 42px;
+  padding: 9px 34px 9px 10px;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
 .field.check {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -205,6 +219,18 @@ details.card > summary::marker { color: var(--muted); }
 .field.check small { grid-column: 2; }
 
 .field.inline { flex-direction: row; align-items: center; gap: 8px; }
+
+.end-year-toggle,
+.end-year-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.end-year-toggle input { width: 20px; height: 20px; }
+.end-year-range > span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.end-year-range input { width: 8em; }
+.end-year-range input:disabled { opacity: 0.45; cursor: default; }
 
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
@@ -2268,3 +2294,53 @@ colour, which is the point: it is the one screen a table will photograph.
   word-break: break-all;
   font-size: 12px;
 }
+
+/*
+The sandbox panel (ADR-047).
+
+One switch that the seat page has no use for: which power you are ordering.
+A seat's power is fixed by its credential and is announced; here it is a
+choice, so it is drawn as a row of buttons rather than as a heading. The chip
+carries the name on its own colour, which is what ties a button to the pieces
+on the map, and the number beside it is that power's orders so far — the one
+thing a driver keeps losing track of while working through seven of them.
+*/
+.sandbox-title {
+  margin: 2px 0 0;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.power-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.power-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: var(--panel, #1b2432);
+}
+
+.power-pick.picked { border-color: #7db0ff; }
+.power-pick:hover { border-color: var(--line); }
+.power-pick.picked:hover { border-color: #b9d5ff; }
+
+/* The count, and the dash that says this phase asks this power for nothing.
+   A driver who taps such a power finds an empty board, so the panel says so
+   before they do. */
+.power-pick-count {
+  min-width: 12px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.sandbox-share { margin-top: 14px; }

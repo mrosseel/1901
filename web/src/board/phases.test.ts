@@ -121,7 +121,7 @@ describe("the line that says what this phase wants", () => {
         {
           kind: "adjustment",
           power: "Italy",
-          actionable: { rom: {} },
+          actionable: { rom: {}, nap: {} },
           duty: { type: "Build", count: 2 },
         },
         state,
@@ -138,6 +138,20 @@ describe("the line that says what this phase wants", () => {
         state,
       ),
     ).toBe("Disband 1: tap a unit to remove.");
+  });
+
+  it("says when too few legal sites exist to use every build", () => {
+    expect(
+      dutyLine(
+        {
+          kind: "adjustment",
+          power: "NATO",
+          actionable: { lon: { Build: {} }, nyk: { Build: {} }, par: { Build: {} } },
+          duty: { type: "Build", count: 4 },
+        },
+        state,
+      ),
+    ).toBe("Build 4, but only 3 legal build sites are open; the remaining build is waived.");
   });
 
   it("stays quiet in a movement phase", () => {

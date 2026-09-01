@@ -63,6 +63,9 @@ import {
   reviewPlan,
 } from "../review";
 
+const NORMAL_POLL_MS = 3000;
+const REVEAL_POLL_MS = 500;
+
 /*
 One player's board.
 
@@ -230,9 +233,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   The cheap public endpoint is the liveness poll. The seat state — which is the
   bigger answer and the one that can move the board under a player's fingers —
   is only re-read when that summary actually changed.
+
+  Once this phone has entered the reveal window, poll briefly at table speed:
+  the final reveal adjudicates synchronously, and the players who revealed
+  earlier should see that result within half a second rather than waiting for
+  another ordinary three-second tick. The normal cadence resumes with the new
+  phase, so this does not add traffic while players are writing orders.
   */
   usePoll(
-    3000,
+    state?.sealed && state.revealOpen ? REVEAL_POLL_MS : NORMAL_POLL_MS,
     async () => {
       let summary;
       try {
@@ -481,14 +490,14 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       const warnings: string[] = [];
       if (orderCount < expected) {
         const missing = expected - orderCount;
-        warnings.push(
-          `${missing} ${missing === 1 ? "required order is" : "required orders are"} missing. ` +
+        warnings.push(kind === "adjustment" && plan.duty?.type === "Build"
+          ? `${missing} ${missing === 1 ? "build is" : "builds are"} unused. Unused builds are waived.`
+          : `${missing} ${missing === 1 ? "required order is" : "required orders are"} missing. ` +
             (kind === "movement"
               ? "Any unordered unit will hold."
               : kind === "retreat"
                 ? "Any unit without a valid retreat will be disbanded."
-                : "Normal adjustment rules will apply to anything missing."),
-        );
+                : "Normal adjustment rules will apply to anything missing."));
       }
       if (state.lockedCount === state.totalSeats - 1) {
         warnings.push("You are the last player. Marking ready may resolve the phase immediately.");

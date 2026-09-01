@@ -32,7 +32,14 @@ afterEach(() => vi.unstubAllGlobals());
 describe("routes", () => {
   it("reads the four page addresses", () => {
     expect(parseRoute("/")).toEqual({ kind: "index" });
-    expect(parseRoute("/new")).toEqual({ kind: "new" });
+    expect(parseRoute("/new")).toEqual({ kind: "new", sandbox: false });
+    // The same form, asked for a board with no players (ADR-047).
+    expect(parseRoute("/sandbox")).toEqual({ kind: "new", sandbox: true });
+    expect(parseRoute("/game/abc/sandbox/tok")).toEqual({
+      kind: "sandbox",
+      gameId: "abc",
+      sandboxToken: "tok",
+    });
     // The root is the landing page and the list has its own address (ADR-043).
     expect(parseRoute("/games")).toEqual({ kind: "games" });
     expect(parseRoute("/games/")).toEqual({ kind: "games" });

@@ -36,6 +36,15 @@ const PIECES = [
   { power: "Austria", color: "#e05252", x: 790.47, y: 876.82, fleet: false },
 ];
 
+/* The sandbox panel's power list, in the same colours the board paints. The
+   counts are what a driver sees: how many orders each power has in so far. */
+const SANDBOX_POWERS = [
+  { power: "Austria", color: "#e05252", orders: "3 in" },
+  { power: "England", color: "#7c5cd6", orders: "3 in" },
+  { power: "France", color: "#4fa3e0", orders: "2 in" },
+  { power: "Germany", color: "#8d8d8d", orders: "none yet" },
+];
+
 function pieceStyle(piece: (typeof PIECES)[number]): CSSProperties {
   return {
     left: (piece.x - CROP.x) * SCALE - 11,
@@ -55,6 +64,7 @@ export function LandingPage() {
         <nav className="lp-nav">
           <a href="#turn">How a turn runs</a>
           <a href="/new">Variants</a>
+          <a href="/sandbox">Sandbox</a>
           <a href="/games">Watch a game</a>
           <a href="/recover">Return to a game</a>
           <a href="/faq">Questions</a>
@@ -233,6 +243,40 @@ export function LandingPage() {
         </div>
       </section>
 
+      <section className="lp-section lp-split">
+        <div>
+          <h2 className="lp-head small">A board you can play on your own</h2>
+          <p className="lp-body">
+            A sandbox is a game with no players. You hold one link, you order every
+            power, and you press adjudicate. No seats, no clock, nobody to wait for.
+          </p>
+          <p className="note">
+            Work through an opening. Check what a convoy really does. Type in a
+            tournament board and hand somebody the link. The game id on its own is
+            the same public, permanent spectator page every played game gets, so a
+            sandbox can be cited and read by anyone, forever.
+          </p>
+          <div className="lp-actions">
+            <a className="lp-primary" href="/sandbox">
+              Open a sandbox
+            </a>
+          </div>
+        </div>
+        <div className="lp-sheet">
+          <p className="lp-sheet-head">Ordering as</p>
+          <ul className="lp-sheet-list">
+            {SANDBOX_POWERS.map((one) => (
+              <li key={one.power}>
+                <span className="dot" style={{ background: one.color }} />
+                <span>{one.power}</span>
+                <span className="lp-why">{one.orders}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="note">Every power is yours. Tap one and order it.</p>
+        </div>
+      </section>
+
       <section className="lp-section lp-band">
         <h2 className="lp-head small">Built for any room</h2>
         <div className="lp-cards two">
@@ -286,6 +330,7 @@ export function LandingPage() {
         <span className="lp-mark">1901</span>
         <a href="/games">Games</a>
         <a href="/new">New game</a>
+        <a href="/sandbox">Sandbox</a>
         <a href="/faq">Questions</a>
         <span className="note">
           GPL-3.0. Adjudication by godip. Diplomacy is a trademark of Hasbro / Avalon

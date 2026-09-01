@@ -11,10 +11,17 @@ over. A file that has drifted from the server's shape throws where it is read,
 with its own name in the message, instead of rendering a page full of blanks.
 */
 
-import type { GameSummary, GmState, SeatState, WatchState } from "../../api";
+import type { GameSummary, GmState, SandboxState, SeatState, WatchState } from "../../api";
 import type { OptionTree } from "../../board/types";
 import type { DatcReport } from "../../pages/DatcPage";
-import { isDatcReport, isGmState, isOptionBook, isSeatState, isWatchState } from "../guards";
+import {
+  isDatcReport,
+  isGmState,
+  isOptionBook,
+  isSandboxState,
+  isSeatState,
+  isWatchState,
+} from "../guards";
 
 const files = import.meta.glob("./*.json", { eager: true, import: "default" }) as Record<
   string,
@@ -51,6 +58,7 @@ export function gameIdOf(state: unknown): string {
 
 export const seat = (name: string): SeatState => checked(name, isSeatState);
 export const gm = (name: string): GmState => checked(name, isGmState);
+export const sandbox = (name: string): SandboxState => checked(name, isSandboxState);
 export const watch = (name: string): WatchState => checked(name, isWatchState);
 export const options = (name: string): Record<string, OptionTree> =>
   checked(name, isOptionBook);
