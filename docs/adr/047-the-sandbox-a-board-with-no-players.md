@@ -4,6 +4,9 @@ status: accepted
 
 # ADR-047 — The sandbox: a board with no players
 
+A sandbox is a Diplomacy board you play alone, with no other players, so
+you can set up any position and try things out.
+
 **Status:** accepted, r48 (owner decision, closes Q-008). Extends ADR-028.
 Not built.
 
