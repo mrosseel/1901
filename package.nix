@@ -98,7 +98,7 @@ let
     pname = "1901-server";
     inherit version;
     src = goSrc;
-    vendorHash = "sha256-UFbEJ+D1lizdtj5pDarrGOO/+RVk8nOGX4DAt4PmgLk=";
+    vendorHash = "sha256-do4x2jWIsFDymOCm5kCJF3ZFQ4pvjN9BZTL8Zxhb5+M=";
 
     # The DATC corpus is data, not code: `go mod vendor` keeps godip's Go
     # files and drops the .txt case files the test reads from the module
