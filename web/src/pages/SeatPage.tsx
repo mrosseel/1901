@@ -268,6 +268,9 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         // Without it this seat would learn the window had opened only when
         // something else about the game happened to change.
         summary.revealOpen,
+        // A draw the GM proposed asks this seat a question. Nothing else in
+        // this list moves when it opens, closes, or gains a reply.
+        summary.drawProposal,
       ]);
       if (mark === fingerprint.current) return;
       fingerprint.current = mark;
@@ -791,33 +794,53 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           </div>
         ) : null}
 
-        {state?.drawProposal?.required.includes(power) ? (
+        {state?.drawProposal ? (
           <section className="card draw-confirm">
             <h2>Draw proposal</h2>
-            <p>
-              The proposed result includes <strong>{state.drawProposal.powers.join(", ")}</strong>
-              {" "}and excludes {power}.
-            </p>
-            {state.drawProposal.confirmed.includes(power) ? (
-              <p className="notice">You confirmed this exclusion. Waiting for the other replies.</p>
-            ) : (
+            {state.drawProposal.required.includes(power) ? (
               <>
-                <p className="note">
-                  Accept only if you consent to the game ending without {power} in the result.
-                  Rejecting cancels the proposal; play continues either way until all exclusions agree.
+                <p>
+                  The proposed result includes{" "}
+                  <strong>{state.drawProposal.powers.join(", ")}</strong> and excludes {power}.
                 </p>
-                <button type="button" onClick={() => {
-                  client.drawResponse(true).then(takeState).catch((err) => {
-                    setStatus(err instanceof Error ? err.message : String(err));
-                    setIsError(true);
-                  });
-                }}>Accept exclusion</button>{" "}
-                <button type="button" onClick={() => {
-                  client.drawResponse(false).then(takeState).catch((err) => {
-                    setStatus(err instanceof Error ? err.message : String(err));
-                    setIsError(true);
-                  });
-                }}>Reject proposal</button>
+                {state.drawProposal.confirmed.includes(power) ? (
+                  <p className="notice">
+                    You confirmed this exclusion. Waiting for the other replies.
+                  </p>
+                ) : (
+                  <>
+                    <p className="note">
+                      Accept only if you consent to the game ending without {power} in the result.
+                      Rejecting cancels the proposal; play continues either way until all
+                      exclusions agree.
+                    </p>
+                    <button type="button" onClick={() => {
+                      client.drawResponse(true).then(takeState).catch((err) => {
+                        setStatus(err instanceof Error ? err.message : String(err));
+                        setIsError(true);
+                      });
+                    }}>Accept exclusion</button>{" "}
+                    <button type="button" onClick={() => {
+                      client.drawResponse(false).then(takeState).catch((err) => {
+                        setStatus(err instanceof Error ? err.message : String(err));
+                        setIsError(true);
+                      });
+                    }}>Reject proposal</button>
+                  </>
+                )}
+              </>
+            ) : (
+              /* A power inside the proposal is asked nothing, and still needs
+                 to see that the table is deciding whether the game ends. */
+              <>
+                <p>
+                  The GM proposed a result of{" "}
+                  <strong>{state.drawProposal.powers.join(", ")}</strong>.
+                </p>
+                <p className="note">
+                  The game ends when {state.drawProposal.required.join(", ")} accept the
+                  exclusion. Play continues until they answer.
+                </p>
               </>
             )}
           </section>

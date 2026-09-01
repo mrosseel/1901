@@ -259,6 +259,8 @@ export interface PublicState extends VariantAware, SealedPhase {
   settingsVersion: number;
   deadlineAt: string | null;
   graceUntil?: string | null;
+  /** An open draw proposal. Every seat may see it, so the summary carries it. */
+  drawProposal?: DrawProposal | null;
 }
 
 /*

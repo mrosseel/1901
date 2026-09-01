@@ -1705,6 +1705,7 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 		Dislodged:       g.dislodgedMap(),
 		PreviousPhase:   g.previousPhase,
 		Result:          f.result,
+		DrawProposal:    f.drawProposal,
 		Sealed:          f.sealed,
 		RevealOpen:      f.revealOpen(),
 		Now:             serverNow(),
