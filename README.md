@@ -14,9 +14,9 @@ What that looks like in practice:
 - The GM creates a game and shares one QR code. Scanning it assigns a random
   power. No accounts, no names, no passwords.
 - Each player sees only their own orders. Tap your unit, tap where it goes.
-  Supports and convoys build the same way. Illegal orders are allowed by
-  default, since claiming you misordered is a time-honoured way to lie.
-- When everyone has locked in, the turn resolves. A review screen shows every
+  Supports and convoys build the same way. Orders may be accepted exactly as
+  entered, with invalid ones marked before readiness.
+- When everyone is ready, the phase resolves. A review screen shows every
   order with failures struck in red, and a "Move the pieces" list tells
   whoever keeps the physical board what to do.
 - A login-free spectator URL exists for every phase, forever, for beamers and
@@ -77,6 +77,7 @@ scan the invite QR from the phones. Useful environment variables:
 | `ADDR` | `:8190` | Listen address, when running the binary directly |
 | `DB` | `1901.db` | SQLite file; delete it for a clean slate |
 | `BASE_URL` | derived from the request | Pin the origin used in invite links (set this behind a proxy) |
+| `MAX_GAMES` | `100` | Cap on live games |
 
 A link to `localhost` cannot open on a phone. When `BASE_URL` is unset and the
 GM reaches the server on localhost, the server puts its own LAN address in the
@@ -85,7 +86,17 @@ packet would leave from, so a laptop running docker still gets the right one.
 It takes IPv4 only. With no default route it reads the interfaces instead, and
 it declines when that leaves more than one candidate. The startup log states
 which address it will hand out. Set `BASE_URL` when it declines.
-| `MAX_GAMES` | `100` | Cap on live games |
+
+Before seating the table, create a temporary game and scan its invite from a
+phone with mobile data turned off. If it does not open, check that both devices
+are on the same network, allow the program on Windows “Private networks”, and
+set `BASE_URL` to the laptop address the phone can reach (for example
+`http://192.168.1.20:8190`). A `localhost` or `127.0.0.1` invite works only on
+the laptop and the referee screen deliberately withholds its QR code.
+
+Published binaries are unsigned. Windows may show SmartScreen and a firewall
+prompt; allow the firewall prompt for Private networks. On macOS, use the
+included `1901.command` launcher if Finder refuses the quarantined binary.
 
 ## One file for a table
 

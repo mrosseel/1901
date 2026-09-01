@@ -4,7 +4,14 @@ status: proposed
 
 # ADR-052 — One way to ask the table, and one way to tell it
 
-**Status:** proposed. Extends ADR-044, ADR-007, ADR-013, ADR-022.
+**Status:** proposed; the excluded-survivor draw consent slice was accepted
+and built at r55. Extends ADR-044, ADR-007, ADR-013, ADR-022.
+
+The r55 slice is deliberately smaller than the prompt framework below. A DIAS
+draw is direct; a non-DIAS result persists the included powers, excluded
+survivors, and confirmations. Only excluded authenticated seats answer. A no,
+withdrawal, or phase resolution cancels it. More-time, pause, and general
+notice prompts remain proposed.
 
 Three questions arrived together: how does the table agree a draw, how do the
 players ask for more time, and how does the game master call a pause. Three

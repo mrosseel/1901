@@ -86,8 +86,8 @@ type settings struct {
 	// IllegalMoves lets a player enter an order the engine refuses (ADR-029).
 	// Bluffing by misordering is part of Diplomacy, so this is ON by
 	// default, in every press mode. The order is stored and shown as
-	// written; at adjudication it is left out of the engine's order set,
-	// the unit holds, and the review shows it struck.
+	// written; at adjudication it is left out of the engine's order set and
+	// the phase's ordinary missing/invalid-order consequence applies.
 	IllegalMoves bool `json:"illegalMoves"`
 
 	// EndYear stops the game after the last phase of that year (ADR-044).
@@ -215,6 +215,9 @@ type flow struct {
 	// result is how the game ended, nil while it runs (ADR-044). Everything
 	// that could move the board reads flow.over() before it does.
 	result *gameResult
+	// A non-DIAS draw needs the explicit consent of every survivor it would
+	// exclude (ADR-052). It remains pending until all reply or play moves on.
+	drawProposal *drawProposal
 
 	seats       map[godip.Nation]*seat
 	bySeatToken map[string]godip.Nation
@@ -377,15 +380,6 @@ func (self *flow) canForce() bool {
 	if done >= active {
 		// Auto-adjudication already covers this case (ADR-008).
 		return false
-	}
-	// All but one player is in and the table is waiting on the straggler.
-	// A seat the server locked was never something the table waited for, so
-	// it is left out of both counts here (ADR-034) — otherwise a retreat phase
-	// with a single dislodged unit would arm the button the instant it
-	// opened, before its one player had read the screen.
-	asked, in := self.pendingCounts()
-	if in > 0 && in >= asked-1 {
-		return true
 	}
 	// The grace period, where the settings allow one: orders are still taken
 	// after the deadline, so the GM may not force the phase until it ends.
@@ -1201,10 +1195,11 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 // gmSeatJSON is one seat, as the game master's screen may show it. Booleans
 // only: no device, no identity, and in a sealed game no order (ADR-013).
 type gmSeatJSON struct {
-	Power  string `json:"power"`
-	Joined bool   `json:"joined"`
-	Locked bool   `json:"locked"`
-	IsGM   bool   `json:"isGm"`
+	Power   string `json:"power"`
+	Joined  bool   `json:"joined"`
+	Locked  bool   `json:"locked"`
+	IsGM    bool   `json:"isGm"`
+	Centres int    `json:"centres"`
 	// Revealed says this seat has released the orders behind its lock
 	// (ADR-004). False on every seat of an unsealed game.
 	Revealed bool `json:"revealed"`
@@ -1234,7 +1229,8 @@ type gmStateJSON struct {
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
 	// Result is how the game ended, null while it runs (ADR-044).
-	Result *gameResult `json:"result"`
+	Result       *gameResult   `json:"result"`
+	DrawProposal *drawProposal `json:"drawProposal,omitempty"`
 	// Sealed says this game keeps its orders on the phones until every power
 	// has locked in (ADR-004). RevealOpen says that moment has come, and
 	// AwaitingReveal names the seats that have not sent theirs — the flag
@@ -1283,6 +1279,7 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		Now:            serverNow(),
 		HasGMKey:       f.gmPublicKey != "",
 		Result:         f.result,
+		DrawProposal:   f.drawProposal,
 		Sealed:         f.sealed,
 		RevealOpen:     f.revealOpen(),
 		AwaitingReveal: nations(f.awaitingReveal()),
@@ -1295,6 +1292,7 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 			Joined:   s.claimed(),
 			Locked:   s.locked,
 			IsGM:     s.isGM,
+			Centres:  self.centreCounts()[string(p)],
 			Revealed: s.revealed,
 		})
 	}
@@ -1456,7 +1454,7 @@ func handleGMForce(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	}
 	if !f.canForce() {
 		writeErr(w, http.StatusConflict,
-			"force adjudication is locked until the deadline passes or all but one power has locked")
+			"force adjudication is locked until the deadline and grace period have passed")
 		return
 	}
 	if err := g.adjudicate(id, true); err != nil {
@@ -1524,7 +1522,8 @@ type publicStateJSON struct {
 	Dislodged       map[string]unitJSON `json:"dislodged"`
 	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
 	// Result is how the game ended, null while it runs (ADR-044).
-	Result *gameResult `json:"result"`
+	Result       *gameResult   `json:"result"`
+	DrawProposal *drawProposal `json:"drawProposal,omitempty"`
 	// Sealed and RevealOpen say how this game takes orders and whether the
 	// phones should be sending theirs (ADR-004). Both are counts of nobody:
 	// a seat's own orders are not here and never were.
@@ -1618,6 +1617,9 @@ type seatStateJSON struct {
 	PreviousPhase    *phaseReviewJSON  `json:"previousPhase"`
 	// Result is how the game ended, null while it runs (ADR-044).
 	Result *gameResult `json:"result"`
+	// A non-DIAS proposal is visible to every seat; excluded survivors answer
+	// it from their own authenticated board.
+	DrawProposal *drawProposal `json:"drawProposal,omitempty"`
 	// PhaseIndex is which phase this is, counting resolved phases from zero.
 	// A phone needs it to hash a commitment, because a hash is bound to the
 	// phase it was made in (ADR-004).
@@ -1699,6 +1701,7 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 		Labels:           self.labels(),
 		PreviousPhase:    self.previousPhase,
 		Result:           f.result,
+		DrawProposal:     f.drawProposal,
 		PhaseIndex:       f.phaseIndex,
 		Sealed:           f.sealed,
 		RevealOpen:       f.revealOpen(),
@@ -1864,7 +1867,7 @@ func (self *game) seatLock(id string, power godip.Nation, want bool, w http.Resp
 
 // adjudicate resolves the phase and settles the one that follows it. With
 // dropUnlocked set, powers that have not locked lose their orders and
-// their units hold — an NMR (ADR-010). The caller must hold g.mu.
+// they submit no orders — an NMR (ADR-010). The caller must hold g.mu.
 func (self *game) adjudicate(id string, dropUnlocked bool) error {
 	if err := self.advance(id, dropUnlocked); err != nil {
 		return err
@@ -1877,6 +1880,12 @@ func (self *game) adjudicate(id string, dropUnlocked bool) error {
 // caller wants the auto-lock that goes with a new phase.
 func (self *game) advance(id string, dropUnlocked bool) error {
 	f := self.flow
+	// A proposal belongs to the position in which it was made. Once play
+	// moves on, both its survivor list and the consent behind it are stale.
+	if f.drawProposal != nil {
+		f.logEvent(id, "draw proposal expired when the phase resolved")
+		f.drawProposal = nil
+	}
 
 	// What is still on the clock as this phase resolves. When every power
 	// locked early it is carried onto the next phase, so resolving early
@@ -1914,7 +1923,7 @@ func (self *game) advance(id string, dropUnlocked bool) error {
 				}
 			}
 			nmr = append(nmr, string(p))
-			f.logEvent(id, "NMR for %v — no lock, %v draft order(s) dropped, units hold", p, dropped)
+			f.logEvent(id, "NMR for %v — no readiness, %v draft order(s) dropped", p, dropped)
 		}
 		f.logEvent(id, "GM forced adjudication")
 	} else {
@@ -1970,6 +1979,7 @@ var gmRoutes = map[string]gameHandler{
 	"start":         handleGMStart,
 	"adjudicate":    handleGMForce,
 	"draw":          handleGMDraw,
+	"draw-withdraw": handleGMDrawWithdraw,
 	"extend":        handleGMExtend,
 	"map.svg":       handleMap,
 }
@@ -1982,6 +1992,7 @@ var seatRoutes = map[string]seatHandler{
 	"order":         handleSeatOrder,
 	"lock":          handleSeatLock,
 	"unlock":        handleSeatUnlock,
+	"draw-response": handleSeatDrawResponse,
 	// Only a sealed game answers this (ADR-004). The phone sends what it
 	// locked in, once every power has.
 	"reveal": handleSeatReveal,

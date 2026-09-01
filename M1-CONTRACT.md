@@ -49,8 +49,8 @@ New game flow lives under /game/ (server) and new pages:
      leftover power to the GM seat when gmPlays; starts phase 1 and the
      deadline clock.
   - `POST .../adjudicate` → force adjudication; only when `canForce`
-     (deadline passed, or all-but-one locked — ADR-007). Unlocked
-     seats resolve as NMR (units hold), event-logged.
+     (deadline plus any grace period passed — ADR-007). Seats without
+     submitted orders resolve as NMR under that phase's rules, event-logged.
   - `POST .../extend` `{minutes}` → push deadlineAt; event-logged.
 - Join:
   - `GET  /join/{id}/{inviteToken}` → join page (frontend).
@@ -159,8 +159,8 @@ identity-mode setting, event-log UI. Keep the M0 sandbox working.
   Immutable after start, like `gmPlays`.
 - `illegalMoves: bool` (default **true**, ADR-029). With it on, an order that
   parses but fails engine validation is stored as the player wrote it and
-  marked illegal. It never enters the engine, so the unit holds, and the
-  review gives it the resolution `IllegalOrder`. With it off, such an order
+  marked illegal. It never enters the engine, so the phase's ordinary invalid
+  order rule applies, and the review gives it the resolution `IllegalOrder`. With it off, such an order
   is a 400, which is the strict behaviour this server had.
 
 A settings body is a patch: a field nobody sends keeps the value it had.

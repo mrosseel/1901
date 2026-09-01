@@ -153,7 +153,7 @@ input[type="text"] {
 .page.wide { max-width: 760px; }
 /* The gallery is a wall of maps, so it gets the room for a third column on a
    laptop. Every other page stays a column of text. */
-.page.gallery { max-width: 1100px; }
+.page.variant-gallery-page { max-width: 1100px; }
 
 .page-head { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: baseline; }
 
@@ -1157,13 +1157,28 @@ map draws.
   margin-bottom: 12px;
 }
 
-/* The tick beside a variant whose board art is verified. Nothing marks the
-   others: silence is the honest default. */
+/* Compact screens use the tick; the creation gallery labels both states. */
 .supported-mark {
   color: var(--good);
   font-size: 14px;
   line-height: 1;
   flex: 0 0 auto;
+}
+
+.supported-mark.explicit {
+  display: inline-flex;
+  padding: 3px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.supported-mark.unverified { color: var(--warn); }
+
+.cta.disabled {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 /* --- the gallery lightbox ------------------------------------------------- */
@@ -1343,7 +1358,7 @@ kbd {
    text baseline rather than starting a row of its own. */
 .review-head .notation-toggle { vertical-align: baseline; }
 
-/* Two ways into the last turn, side by side under the phase name. */
+/* Two ways into the previous phase, side by side under the phase name. */
 .head-links { display: flex; gap: 14px; align-items: baseline; margin: 4px 0 0; }
 
 /*

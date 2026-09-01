@@ -209,6 +209,10 @@ var gameColumns = []struct{ name, definition string }{
 	{"result_powers", `TEXT NOT NULL DEFAULT ''`},
 	{"result_year", `INTEGER NOT NULL DEFAULT 0`},
 	{"result_phase", `INTEGER NOT NULL DEFAULT 0`},
+	// The pending proposal and its consent trail (ADR-052).
+	{"draw_powers", `TEXT NOT NULL DEFAULT ''`},
+	{"draw_required", `TEXT NOT NULL DEFAULT ''`},
+	{"draw_confirmed", `TEXT NOT NULL DEFAULT ''`},
 	// Whether this game keeps its orders on the phones (ADR-004). The default
 	// is 0 and it is deliberate: every game written before commit-reveal
 	// existed keeps writing its drafts to the server, because migrating a
@@ -366,6 +370,12 @@ func (self *game) persistErr(id string) error {
 		resultYear = f.result.Year
 		resultPhase = f.result.PhaseIndex
 	}
+	drawPowers, drawRequired, drawConfirmed := "", "", ""
+	if f.drawProposal != nil {
+		drawPowers = strings.Join(f.drawProposal.Powers, ",")
+		drawRequired = strings.Join(f.drawProposal.Required, ",")
+		drawConfirmed = strings.Join(f.drawProposal.Confirmed, ",")
+	}
 	_, err = tx.Exec(`
         INSERT INTO game (id, gm_token, invite_token, gm_device, deadline_minutes, gm_plays,
                           settings_version, started, deadline_at, gm_power,
@@ -374,8 +384,8 @@ func (self *game) persistErr(id string) error {
                           first_turn_extra_minutes, press_mode, illegal_moves,
                           variant_hash, name, gm_epoch, gm_public_key,
                           end_year, result_kind, result_powers, result_year, result_phase,
-                          sealed)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          sealed, draw_powers, draw_required, draw_confirmed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             -- The role can be handed on (ADR-041), which rotates the token, so
             -- unlike the invite it is not write-once.
@@ -409,14 +419,18 @@ func (self *game) persistErr(id string) error {
             result_phase             = excluded.result_phase,
             -- Fixed when the game is made and written back unchanged, so a
             -- game cannot become sealed or unsealed under a table.
-            sealed                   = excluded.sealed`,
+            sealed                   = excluded.sealed,
+			draw_powers              = excluded.draw_powers,
+			draw_required            = excluded.draw_required,
+			draw_confirmed           = excluded.draw_confirmed`,
 		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
 		f.settings.RetreatBuildPercent, f.settings.GraceMinutes,
 		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves,
 		variantHash(self.variantKey), f.settings.Name, f.gmEpoch, f.gmPublicKey,
-		f.settings.EndYear, resultKind, resultPowers, resultYear, resultPhase, f.sealed)
+		f.settings.EndYear, resultKind, resultPowers, resultYear, resultPhase, f.sealed,
+		drawPowers, drawRequired, drawConfirmed)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
@@ -527,7 +541,9 @@ func loadAll() error {
                COALESCE(name, ''), COALESCE(gm_epoch, 0), COALESCE(gm_public_key, ''),
                COALESCE(end_year, 0), COALESCE(result_kind, ''),
                COALESCE(result_powers, ''), COALESCE(result_year, 0),
-               COALESCE(result_phase, 0), COALESCE(sealed, 0)
+               COALESCE(result_phase, 0), COALESCE(sealed, 0),
+			   COALESCE(draw_powers, ''), COALESCE(draw_required, ''),
+			   COALESCE(draw_confirmed, '')
         FROM game`, defaultVariant, defaultPressMode)
 	if err != nil {
 		return err
@@ -551,6 +567,7 @@ func loadAll() error {
 		var deadline sql.NullString
 		var phaseIndex int
 		var resultKind, resultPowers string
+		var drawPowers, drawRequired, drawConfirmed string
 		var resultYear, resultPhase int
 		if err := rows.Scan(&id, &f.gmToken, &f.inviteToken, &f.gmDevice, &f.settings.DeadlineMinutes,
 			&f.settings.GMPlays, &f.settingsVersion, &f.started, &deadline, &gmPower,
@@ -559,7 +576,7 @@ func loadAll() error {
 			&f.settings.PressMode, &f.settings.IllegalMoves, &recordedHash,
 			&f.settings.Name, &f.gmEpoch, &f.gmPublicKey,
 			&f.settings.EndYear, &resultKind, &resultPowers, &resultYear,
-			&resultPhase, &f.sealed); err != nil {
+			&resultPhase, &f.sealed, &drawPowers, &drawRequired, &drawConfirmed); err != nil {
 			rows.Close()
 			return err
 		}
@@ -601,6 +618,17 @@ func loadAll() error {
 				Powers:     powers,
 				Year:       resultYear,
 				PhaseIndex: resultPhase,
+			}
+		}
+		if drawPowers != "" {
+			f.drawProposal = &drawProposal{
+				Powers:   strings.Split(drawPowers, ","),
+				Required: strings.Split(drawRequired, ","),
+			}
+			if drawConfirmed != "" {
+				f.drawProposal.Confirmed = strings.Split(drawConfirmed, ",")
+			} else {
+				f.drawProposal.Confirmed = []string{}
 			}
 		}
 		loaded = append(loaded, row{id: id, f: f, key: key, variant: v})

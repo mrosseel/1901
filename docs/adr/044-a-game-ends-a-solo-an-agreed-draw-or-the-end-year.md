@@ -19,11 +19,12 @@ variant's number and nobody ties them. Otherwise it returns the empty nation.
 So the check is one call after every adjudication, and the number it uses is
 already on the variant card as `soloSCCount`.
 
-**A draw is an act, not a computation.** The table agrees out loud, and the
-game master records what was agreed by naming the surviving powers. It is an
-enumerated, logged game master power (ADR-007), like forcing adjudication and
-for the same reason: nothing prevents a game master ending a game early, and
-the log is what makes it visible.
+**A draw is an act, not a computation.** The game master may directly record
+a DIAS result, naming every survivor. Naming a proper subset opens a durable
+proposal; every excluded survivor must explicitly consent from their own seat
+before the result is written. A rejection, withdrawal, or phase resolution
+cancels it. This is enumerated and logged under ADR-007, but the audit is not a
+substitute for consent.
 
 Backstabbr's design is better and we cannot have it yet. There, every player
 sets a victory condition of their own and may lie about it, so a draw is
@@ -58,3 +59,5 @@ Decisions this record changed, and alternatives it refused. Anything that was
 only progress, a correction to the document, or a bug is gone.
 
 - **r51, 2026-08-31** — Persisted as four columns rather than recomputed: a draw is an act and replaying the order rows would never find it. The counts are the exception and are counted from the replayed board.
+- **r55, 2026-09-01** — DIAS may be recorded directly. A result excluding a
+  survivor is a persisted proposal until every excluded survivor consents.

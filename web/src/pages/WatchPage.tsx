@@ -340,7 +340,7 @@ export function WatchPage({
                counts every claimed seat, the one above counts the seats an
                invite may still hand out. Naming what was locked ends it. */
             <p className="muted">
-              {lockedCount} of {totalSeats} players have locked in their orders
+              {lockedCount} of {totalSeats} players are ready
             </p>
           ) : null}
         </header>
@@ -404,7 +404,7 @@ export function WatchPage({
                 {plan.nmr.map((power) => (
                   <li key={power}>
                     <PowerChip power={power} small />
-                    {nmrLine(power)}
+                    {nmrLine(power, plan.kind)}
                   </li>
                 ))}
               </ul>
@@ -415,7 +415,7 @@ export function WatchPage({
                 <OrderNotationToggle value={briefMoves} onChange={setBriefMoves} />
               </div>
               <p className="muted">
-                {plan.succeeded} of {plan.ordered} orders came off.
+                {plan.ordered} orders submitted · {Object.keys(plan.dislodged).length} units dislodged.
               </p>
               <ul className="review-list">
                 {plan.rows.map((row) => (

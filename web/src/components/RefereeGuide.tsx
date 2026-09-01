@@ -69,7 +69,7 @@ export function RefereeGuide({
       </header>
 
       {guide.sections.length === 0 ? (
-        <p className="referee-empty">Nothing on the board moves. Deal the next phase.</p>
+        <p className="referee-empty">Nothing on the board moves. The next phase is already open.</p>
       ) : (
         guide.sections.map((section) => (
           <section key={section.id} className={"referee-group " + section.id}>
@@ -108,7 +108,7 @@ export function RefereeGuide({
 
       <p className="note">
         {allDone
-          ? "Every piece is where it should be. Close the guide and deal the next phase."
+          ? "Every piece is where it should be. Close the guide; the next phase is already open."
           : "Tick each line as you do it on the physical board."}
       </p>
     </section>

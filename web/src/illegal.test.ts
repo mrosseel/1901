@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { ILLEGAL_RESOLUTION, illegalAllowed, isIllegal } from "./illegal";
+import {
+  ILLEGAL_RESOLUTION,
+  illegalAllowed,
+  illegalDraftNote,
+  illegalReason,
+  isIllegal,
+} from "./illegal";
 
 describe("illegalAllowed", () => {
   it("is on when the table turned it on", () => {
@@ -17,6 +23,15 @@ describe("illegalAllowed", () => {
   it("is on where nothing says otherwise", () => {
     expect(illegalAllowed({})).toBe(true);
     expect(illegalAllowed(undefined)).toBe(true);
+  });
+});
+
+describe("invalid-order consequences", () => {
+  it("does not claim every phase turns an invalid order into a hold", () => {
+    expect(illegalReason("movement")).toContain("held");
+    expect(illegalReason("retreat")).toContain("disbanded");
+    expect(illegalReason("adjustment")).toContain("adjustment rules");
+    expect(illegalDraftNote("retreat")).toContain("will be disbanded");
   });
 });
 

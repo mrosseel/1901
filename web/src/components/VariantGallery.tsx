@@ -174,7 +174,7 @@ function VariantCardView({
           onChange={onPick}
         />
         <span className="variant-name">{card.name}</span>
-        <SupportedMark supported={card.supported} />
+        <SupportedMark supported={card.supported} explicit />
         {/* The card is outside the filter and stays anyway, so it says so. A
             tag on the one card, not a notice over the gallery. */}
         {aside ? <span className="variant-aside">Your pick</span> : null}

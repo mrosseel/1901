@@ -8,11 +8,16 @@ could have meant — this map's start positions have not been checked — is not
 something a warning next to a name can usefully say. The tick marks the one
 that HAS been checked, and silence is the honest default for the rest.
 */
-export function SupportedMark({ supported }: { supported: boolean }) {
-  if (!supported) return null;
+export function SupportedMark({ supported, explicit = false }: { supported: boolean; explicit?: boolean }) {
+  if (!supported && !explicit) return null;
   return (
-    <span className="supported-mark" title="Board art verified" aria-label="Board art verified">
-      ✓
+    <span
+      className={
+        "supported-mark" + (explicit ? " explicit" : "") + (supported ? "" : " unverified")
+      }
+      title={supported ? "Positions and board art verified" : "Positions not yet verified for live play"}
+    >
+      {explicit ? (supported ? "Verified" : "Not yet verified") : "✓"}
     </span>
   );
 }

@@ -29,7 +29,7 @@ export function FaqPage() {
             Your phone makes the seat's key itself and keeps it. The server is given a
             public half that opens nothing, so a copy of its database is not a set of
             seats. To play the same power on a second device, open the seat menu and use{" "}
-            <strong>This seat, on another device</strong>: the key rides in the part of the
+            <strong>Back up or open this seat on another device</strong>: the key rides in the part of the
             address after the #, which no browser ever sends to a server.
           </p>
         </section>
@@ -73,13 +73,14 @@ export function FaqPage() {
         <section className="card">
           <h2>Can the game master read my orders?</h2>
           <p>
-            Today, yes, if they go looking: the orders are on the server and the game master
-            runs the server. Nothing on any screen shows them another player's draft, but
-            that is a matter of what the screens draw, not of what is possible.
+            Not from the server while the phase is open. Your draft stays on your phone.
+            Marking ready sends an encrypted envelope; the key is released only after every
+            required power is ready, when orders become public for adjudication.
           </p>
           <p className="note">
-            Commit-reveal order secrecy, which would make it impossible rather than merely
-            impolite, is designed and not built.
+            This protects against ordinary server-side peeking. A game master who controls
+            the server could still serve altered browser code, so use a server and network
+            the table trusts.
           </p>
         </section>
 
@@ -91,7 +92,7 @@ export function FaqPage() {
           </p>
           <p>
             If you are playing on a real board, the game master's screen prints one line per
-            act after each turn resolves, in big type, with a tick box, so whoever pushes
+            act after each phase resolves, in big type, with a tick box, so whoever pushes
             the pieces can read it at a glance.
           </p>
         </section>
@@ -99,9 +100,9 @@ export function FaqPage() {
         <section className="card">
           <h2>Can I write an order the rules do not allow?</h2>
           <p>
-            Yes, and it is on by default. Claiming you misordered is a time-honoured way to
-            lie, so the server takes the order as written, marks it, and resolves it as a
-            hold. Your own device warns you in amber before you lock it in.
+            Yes, by default. The server accepts the order as entered and your device marks
+            it before you declare readiness. An invalid movement order holds, an invalid
+            retreat disbands, and the normal adjustment rules handle an invalid build or removal.
           </p>
         </section>
 
@@ -109,8 +110,8 @@ export function FaqPage() {
           <h2>Which variants are there?</h2>
           <p>
             Twenty-six, from Classical through Sail Ho!, in four map styles. The gallery on
-            the <a href="/new">New game</a> screen shows every board, and a tick marks the
-            ones whose piece placement has been checked.
+            the <a href="/new">New game</a> screen shows every board. Each card says whether
+            its starting positions and board art have been verified for live play.
           </p>
         </section>
 
@@ -127,8 +128,9 @@ export function FaqPage() {
           <h2>How does a game end?</h2>
           <p>
             On a solo, when one power holds enough supply centres — eighteen on
-            the classical board. On a draw or a concession, which the table
-            agrees out loud and the game master records. Or at an end year, if
+            the classical board. On an inclusive draw, which the table agrees and the game
+            master records. A proposal excluding a survivor ends only after every excluded
+            survivor confirms it from their own seat. Or at an end year, if
             the game was created with one, which is how a tournament round with
             a hard stop finishes. An ended game freezes: the result and the
             supply centre counts stay on the spectator link forever.

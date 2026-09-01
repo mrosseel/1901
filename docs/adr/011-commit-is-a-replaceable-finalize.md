@@ -12,11 +12,15 @@ on the server — drafts live only in the client.
 
 Commit means finalize: the moment the last power commits, the reveal window
 opens (ADR-008) and auto-reveal fires (ADR-009). The UI must label the action
-accordingly ("Finalize orders — the turn resolves when all powers have
-finalized"), because the last committer ends editing for the whole table.
+as readiness ("Mark my orders ready" / "Withdraw readiness"), because the
+commit remains replaceable. Before accepting it, the UI warns about missing
+orders and warns the last required seat that the phase may resolve immediately.
 ## Revisions
 
 Decisions this record changed, and alternatives it refused. Anything that was
 only progress, a correction to the document, or a bug is gone.
 
 - **r40, 2026-08-30** — Finalize was never true, because ADR-011 makes the commit replaceable until the phase resolves, and a lock is a thing you can open again.
+- **r55, 2026-09-01** — The player-facing word is readiness. Missing-order and
+  last-seat confirmations make the consequences explicit without calling a
+  replaceable state final.

@@ -33,7 +33,8 @@ unlocking deletes it, right up until the reveal window opens.
 sees the window open on its next poll and sends. What that buys is the answer
 to the obvious failure: a phone that committed and then died holds the only
 key to its envelope, so the server flags the seat and the game master decides —
-wait, extend, or force, in which case that power is an NMR and its units hold.
+wait, extend, or force, in which case that power is an NMR and the phase's
+ordinary no-order rules apply.
 No timer races a human, which is ADR-010's rule as well.
 
 **What binds an envelope.** XChaCha20-Poly1305, with the game, the phase and

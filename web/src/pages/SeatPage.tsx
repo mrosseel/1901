@@ -33,7 +33,7 @@ import { useMapStyle } from "../components/StylePicker";
 import { MapToolbar } from "../components/MapToolbar";
 import { OrderNotationToggle } from "../components/OrderNotationToggle";
 import { abbreviateOrders, unitsOf } from "../notation";
-import { ILLEGAL_DRAFT_NOTE, illegalAllowed } from "../illegal";
+import { illegalAllowed, illegalDraftNote } from "../illegal";
 import { PhaseName } from "../components/PhaseName";
 import { SupportedMark } from "../components/SupportedMark";
 import { styledMapUrl } from "../style";
@@ -45,6 +45,7 @@ import { RefereeGuide } from "../components/RefereeGuide";
 import { SeatWaiting } from "../components/SeatWaiting";
 import { useBriefLabels, useBriefMoves, useHideOrders } from "../prefs";
 import {
+  discardInheritedEnvelopeKey,
   forgetOldDrafts,
   readDraft,
   sealDraft,
@@ -89,6 +90,9 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const [selected, setSelected] = useState<string | null>(null);
   const [rulesChanged, setRulesChanged] = useState(false);
   const [gone, setGone] = useState(false);
+  const [connectionLost, setConnectionLost] = useState(() =>
+    typeof navigator !== "undefined" ? !navigator.onLine : false,
+  );
   const [plan, setPlan] = useState<PhasePlan>(emptyPlan(""));
   const [reviewing, setReviewing] = useState(false);
   /* The review with the sheet put away, so the map behind it can be read and
@@ -187,6 +191,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       noteServerTime(next.now);
       noteBuild(next.build);
       takeState(next);
+      setConnectionLost(false);
       if (knownVersion.current !== null && next.settingsVersion !== knownVersion.current) {
         setRulesChanged(true);
       }
@@ -194,6 +199,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       return next;
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) setGone(true);
+      else setConnectionLost(true);
       throw err;
     }
   }, [client, takeState]);
@@ -206,6 +212,20 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     });
   }, [refresh, heldSeat]);
 
+  useEffect(() => {
+    const lost = () => setConnectionLost(true);
+    const restored = () => {
+      setConnectionLost(false);
+      refresh().catch(() => setConnectionLost(true));
+    };
+    window.addEventListener("offline", lost);
+    window.addEventListener("online", restored);
+    return () => {
+      window.removeEventListener("offline", lost);
+      window.removeEventListener("online", restored);
+    };
+  }, [refresh]);
+
   /*
   The cheap public endpoint is the liveness poll. The seat state — which is the
   bigger answer and the one that can move the board under a player's fingers —
@@ -214,7 +234,14 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   usePoll(
     3000,
     async () => {
-      const summary = await fetchPublic(gameId);
+      let summary;
+      try {
+        summary = await fetchPublic(gameId);
+        setConnectionLost(false);
+      } catch (err) {
+        setConnectionLost(true);
+        throw err;
+      }
       noteServerTime(summary.now);
       noteBuild(summary.build);
       if (!summary.started) setBeat((n) => n + 1);
@@ -422,7 +449,10 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     let cancelled = false;
     (async () => {
       try {
-        const next = await client.reveal(draft.current.key);
+        // A handover may inherit the key to an envelope the former holder
+        // wrote. It opens that commitment only; any envelope this device
+        // writes uses its fresh key instead.
+        const next = await client.reveal(draft.current.revealKey || draft.current.key);
         if (!cancelled) takeState(next);
       } catch (err) {
         if (cancelled) return;
@@ -438,6 +468,35 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const toggleLock = async () => {
     if (!state) return;
     const wanted = !state.youLocked;
+    if (wanted) {
+      const orderCount = Object.keys(state.orderParts || {}).length;
+      let expected = 0;
+      if (kind === "movement") {
+        expected = Object.values(state.units || {}).filter((unit) => unit.nation === power).length;
+      } else if (plan.duty) {
+        expected = plan.duty.count;
+      } else {
+        expected = Object.keys(plan.actionable).length;
+      }
+      const warnings: string[] = [];
+      if (orderCount < expected) {
+        const missing = expected - orderCount;
+        warnings.push(
+          `${missing} ${missing === 1 ? "required order is" : "required orders are"} missing. ` +
+            (kind === "movement"
+              ? "Any unordered unit will hold."
+              : kind === "retreat"
+                ? "Any unit without a valid retreat will be disbanded."
+                : "Normal adjustment rules will apply to anything missing."),
+        );
+      }
+      if (state.lockedCount === state.totalSeats - 1) {
+        warnings.push("You are the last player. Marking ready may resolve the phase immediately.");
+      }
+      if (warnings.length && !window.confirm(warnings.join("\n\n") + "\n\nMark ready anyway?")) {
+        return;
+      }
+    }
     try {
       /*
       In a sealed game the lock is the commitment (ADR-011): what goes up is
@@ -449,23 +508,31 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         state.sealed && wanted
           ? sealDraft(gameId, state.phaseIndex ?? 0, power, draft.current)
           : undefined;
-      const next = takeState(await client.lock(wanted, sealedOrders));
+      const answer = await client.lock(wanted, sealedOrders);
+      // Unlocking removes the inherited envelope; locking replaces it. In
+      // either case the former holder's phase key has no further job and must
+      // not remain the key used for this device's future commitment.
+      if (state.sealed && draft.current.revealKey) {
+        draft.current = discardInheritedEnvelopeKey(draft.current);
+        writeDraft(gameId, draftPhase.current, draft.current);
+      }
+      const next = takeState(answer);
       /*
       Locking last resolves the phase at once (ADR-008) — through the reveal,
       in a sealed game — and that clears every flag, so a false flag after
       asking to lock means "it adjudicated", not "it did not take".
       */
       if (wanted && !next.youLocked) {
-        setStatus("Every power locked in. The phase was adjudicated.");
+        setStatus("Every power was ready. The phase was adjudicated.");
       } else if (next.youLocked && next.sealed) {
         setStatus(
-          "Locked in. The server has your orders sealed, and no key to them. "
-            + "You can still change them until every power has locked in.",
+          "Ready. The server has your orders sealed, and no key to them. "
+            + "You can withdraw readiness while the others are still ordering.",
         );
       } else if (next.youLocked) {
-        setStatus("Orders locked in. You can still change them until the phase resolves.");
+        setStatus("Ready. You can withdraw readiness until the phase resolves.");
       } else {
-        setStatus("Orders unlocked. Lock them in again before the deadline.");
+        setStatus("Readiness withdrawn. Mark ready again before the deadline.");
       }
       setIsError(false);
     } catch (err) {
@@ -485,7 +552,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         </p>
         <p>
           If another device still has the seat, open its menu and use{" "}
-          <strong>This seat, on another device</strong>. Otherwise ask the game master to
+          <strong>Back up or open this seat on another device</strong>. Otherwise ask the game master to
           hand the power over, which gives it to whichever phone scans the code.
         </p>
       </main>
@@ -529,12 +596,34 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           ]),
       );
   const orderRows = Object.keys(orders).sort();
+  const expectedOrders =
+    kind === "movement"
+      ? Object.values(state?.units || {}).filter((unit) => unit.nation === power).length
+      : plan.duty?.count ?? Object.keys(plan.actionable).length;
+  const missingOrders = Math.max(0, expectedOrders - orderRows.length);
   /* Only while the rule is on: a server that refuses illegal orders has none
      to mark, and a stale mark would be a lie about a live draft. */
   const illegalHere = illegalAllowed(state?.settings)
     ? new Set(illegalDrafts)
     : new Set<string>();
   const duty = dutyLine(plan, state);
+  /*
+  The reveal window is open (ADR-009), so this phase takes no more locks.
+
+  The envelopes on the server are what the keys are checked against from this
+  moment, and the server refuses a lock, a relock and an unlock alike. The
+  button says that instead of sending a tap that comes back as a refusal.
+  */
+  const revealClosed = Boolean(state?.sealed && state?.revealOpen);
+  /* The deadline ran out with this seat unlocked (ADR-009). It has no envelope
+     to release, so it is waiting for nothing: the way out is the game master. */
+  const missedLock = revealClosed && !state?.youLocked;
+  const missedOutcome =
+    kind === "movement"
+      ? power + " gives no orders and its units hold."
+      : kind === "retreat"
+        ? power + " gives no retreat orders and its dislodged units are disbanded."
+        : power + " gives no adjustment orders and normal adjustment rules apply.";
   // Idle means this power was asked for nothing at all — not that it has
   // already given the orders it owed.
   const idle =
@@ -598,6 +687,18 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       </main>
 
       <aside className="side" inert={reading || undefined}>
+        {connectionLost ? (
+          <div className="banner">
+            <div>
+              <strong>{navigator.onLine ? "Game server unreachable." : "You are offline."}</strong>
+              <div>Your saved draft remains on this device. This page will reconnect automatically.</div>
+            </div>
+            <button type="button" className="link" onClick={() =>
+              refresh().catch(() => setConnectionLost(true))}>
+              Try now
+            </button>
+          </div>
+        ) : null}
         {!started ? <SeatWaiting state={state} beat={beat} /> : (
           <header className="seat-head">
             {/* The phase is what the whole table is playing. It is read across a
@@ -636,7 +737,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             {review && !reviewing ? (
               <span className="head-links">
                 <button type="button" className="link" onClick={() => setReviewing(true)}>
-                  Review last turn
+                  Review last phase
                 </button>
                 {guide ? (
                   <button type="button" className="link" onClick={() => setRefereeing(true)}>
@@ -679,6 +780,38 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           </div>
         ) : null}
 
+        {state?.drawProposal?.required.includes(power) ? (
+          <section className="card draw-confirm">
+            <h2>Draw proposal</h2>
+            <p>
+              The proposed result includes <strong>{state.drawProposal.powers.join(", ")}</strong>
+              {" "}and excludes {power}.
+            </p>
+            {state.drawProposal.confirmed.includes(power) ? (
+              <p className="notice">You confirmed this exclusion. Waiting for the other replies.</p>
+            ) : (
+              <>
+                <p className="note">
+                  Accept only if you consent to the game ending without {power} in the result.
+                  Rejecting cancels the proposal; play continues either way until all exclusions agree.
+                </p>
+                <button type="button" onClick={() => {
+                  client.drawResponse(true).then(takeState).catch((err) => {
+                    setStatus(err instanceof Error ? err.message : String(err));
+                    setIsError(true);
+                  });
+                }}>Accept exclusion</button>{" "}
+                <button type="button" onClick={() => {
+                  client.drawResponse(false).then(takeState).catch((err) => {
+                    setStatus(err instanceof Error ? err.message : String(err));
+                    setIsError(true);
+                  });
+                }}>Reject proposal</button>
+              </>
+            )}
+          </section>
+        ) : null}
+
         {state?.started && state.nothingToOrder ? (
           <section className="lock">
             {/*
@@ -687,7 +820,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             */}
             <div className="lock-btn locked auto">
               <span className="lock-main">
-                Nothing to order — {state.lockedCount} of {state.totalSeats} players in
+                Nothing to order — {state.lockedCount} of {state.totalSeats} players ready
               </span>
               <span className="lock-sub">
                 {power} has no order to give this phase, so this seat is locked for you.
@@ -696,6 +829,12 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           </section>
         ) : state?.started ? (
           <section className="lock">
+            {expectedOrders > 0 ? (
+              <p className={missingOrders ? "notice" : "muted"}>
+                {orderRows.length} of {expectedOrders} expected {expectedOrders === 1 ? "order" : "orders"} entered
+                {missingOrders ? " · " + missingOrders + " missing" : " · complete"}
+              </p>
+            ) : null}
             {/*
             The one control on this page that commits this power to the phase.
             It is the loudest thing in the panel on purpose: a first-time
@@ -705,32 +844,37 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
               type="button"
               className={state.youLocked ? "lock-btn locked" : "lock-btn"}
               aria-pressed={state.youLocked}
+              disabled={revealClosed}
               onClick={toggleLock}
             >
               <span className="lock-main">
                 {state.youLocked
-                  ? "Orders locked — " +
+                  ? "Ready — " +
                     state.lockedCount +
                     " of " +
                     state.totalSeats +
-                    " players in"
-                  : idle
-                    ? "Nothing to order — lock in"
-                    : "Lock in my orders"}
+                    " players ready"
+                  : missedLock
+                    ? "Orders closed — the phase is being revealed"
+                    : idle
+                      ? "Nothing to order — mark ready"
+                      : "Mark my orders ready"}
               </span>
               <span className="lock-sub">
                 {state.youLocked
                   ? state.revealOpen
                     ? "Everybody is in · the orders are going up now"
-                    : "Tap to unlock · locked in"
-                  : state.sealed
-                    ? "Sent sealed · you can still change them"
-                    : "Lock this phase · you can still change them"}
+                    : "Tap to withdraw readiness"
+                  : missedLock
+                    ? "The deadline passed with this seat unlocked"
+                    : state.sealed
+                      ? "Orders stay on this device until you mark them ready"
+                      : "Mark ready when your orders are complete"}
               </span>
             </button>
             {state.youLocked ? null : (
               <p className="muted">
-                {state.lockedCount} of {state.totalSeats} players locked in
+                {state.lockedCount} of {state.totalSeats} players ready
               </p>
             )}
             {/*
@@ -741,10 +885,14 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             */}
             {state.revealOpen && (state.awaitingReveal || []).length ? (
               <p className="muted reveal-wait">
-                {state.youRevealed
-                  ? "Waiting for " + (state.awaitingReveal || []).join(", ")
-                    + " to send their orders."
-                  : "Sending your orders…"}
+                {missedLock
+                  ? "This seat has nothing to send: it never locked in. Ask the game"
+                    + " master to extend the deadline, or to force the phase — then"
+                    + " " + missedOutcome
+                  : state.youRevealed
+                    ? "Waiting for " + (state.awaitingReveal || []).join(", ")
+                      + " to send their orders."
+                    : "Sending your orders…"}
               </p>
             ) : null}
           </section>
@@ -799,7 +947,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
                       {/* Said, not only coloured: the player is bluffing on
                           purpose and is owed both halves of what that costs. */}
                       {illegalHere.has(province) ? (
-                        <span className="illegal-note">{ILLEGAL_DRAFT_NOTE}</span>
+                        <span className="illegal-note">{illegalDraftNote(kind)}</span>
                       ) : null}
                     </span>
                     <span className="row-actions">
@@ -843,7 +991,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
                   <span className="order-text">
                     {isFailure(resolutions[province])
                       ? failureReason(resolutions[province])
-                      : "came off"}
+                      : "resolved without an order error"}
                   </span>
                 </li>
               ))}

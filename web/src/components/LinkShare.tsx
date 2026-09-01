@@ -47,7 +47,7 @@ export function LinkShare({
               {url}
             </a>
           ) : (
-            <p className="share-hidden">Hidden. This screen may be on a shared display.</p>
+            <p className="share-hidden">Don't show on a shared display!</p>
           )}
           <div className="share-actions">
             <button type="button" onClick={copy}>

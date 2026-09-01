@@ -60,6 +60,15 @@ type gameResult struct {
 	PhaseIndex int `json:"phaseIndex"`
 }
 
+// drawProposal is a draw that excludes one or more surviving powers. Powers
+// are the proposed participants; Required are the survivors whose explicit
+// consent is needed, and Confirmed is the durable audit trail of those replies.
+type drawProposal struct {
+	Powers    []string `json:"powers"`
+	Required  []string `json:"required"`
+	Confirmed []string `json:"confirmed"`
+}
+
 // over reports whether the game has ended. Everything that could change the
 // board asks this first.
 func (self *flow) over() bool {
@@ -121,6 +130,7 @@ func (self *game) endGame(id, kind string, powers []godip.Nation, year int) {
 		Year:       year,
 		PhaseIndex: f.phaseIndex,
 	}
+	f.drawProposal = nil
 	f.deadlineAt = nil
 	f.logEvent(id, "the game is over: %v in %v, %v", kind, year, strings.Join(names, ", "))
 }
@@ -163,13 +173,22 @@ type drawRequest struct {
 	Powers []string `json:"powers"`
 }
 
-/*
-handleGMDraw ends the game in a draw the table agreed (ADR-044, ADR-007).
+func (self *drawProposal) allConfirmed() bool {
+	seen := map[string]bool{}
+	for _, power := range self.Confirmed {
+		seen[power] = true
+	}
+	for _, power := range self.Required {
+		if !seen[power] {
+			return false
+		}
+	}
+	return true
+}
 
-The powers must be named, must be real, and must each still hold a centre: a
-draw among the eliminated is a typo, not an agreement. One power is allowed
-and is a concession, which happens at tables and is not the server's business
-to forbid.
+/*
+handleGMDraw records a DIAS draw immediately, or opens a proposal that needs
+the explicit consent of every surviving power it excludes (ADR-052).
 */
 func handleGMDraw(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -220,7 +239,102 @@ func handleGMDraw(g *game, id string, w http.ResponseWriter, r *http.Request) {
 		powers = append(powers, p)
 	}
 
-	g.endGame(id, resultDraw, powers, g.state.Phase().Year())
+	sort.Slice(powers, func(i, j int) bool { return powers[i] < powers[j] })
+	survivors := g.survivors()
+	if len(powers) == len(survivors) {
+		g.endGame(id, resultDraw, powers, g.state.Phase().Year())
+	} else {
+		required := []string{}
+		for _, power := range survivors {
+			if !seen[power] {
+				required = append(required, string(power))
+			}
+		}
+		names := nations(powers)
+		sort.Strings(names)
+		sort.Strings(required)
+		f.drawProposal = &drawProposal{Powers: names, Required: required, Confirmed: []string{}}
+		f.logEvent(id, "GM proposed draw for %v; awaiting consent from %v",
+			strings.Join(names, ", "), strings.Join(required, ", "))
+	}
 	g.persist(id)
 	writeJSON(w, http.StatusOK, g.gmState(id, r))
+}
+
+// handleGMDrawWithdraw cancels an unresolved proposal. It cannot undo a draw.
+func handleGMDrawWithdraw(g *game, id string, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.flow.drawProposal == nil {
+		writeErr(w, http.StatusConflict, "there is no draw proposal to withdraw")
+		return
+	}
+	g.flow.logEvent(id, "GM withdrew the draw proposal")
+	g.flow.drawProposal = nil
+	g.persist(id)
+	writeJSON(w, http.StatusOK, g.gmState(id, r))
+}
+
+// handleSeatDrawResponse accepts or rejects exclusion from a proposed draw.
+func handleSeatDrawResponse(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	body := struct {
+		Accept bool `json:"accept"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	f := g.flow
+	proposal := f.drawProposal
+	if proposal == nil || f.over() {
+		writeErr(w, http.StatusConflict, "there is no draw proposal to answer")
+		return
+	}
+	name := string(power)
+	required := false
+	for _, candidate := range proposal.Required {
+		if candidate == name {
+			required = true
+			break
+		}
+	}
+	if !required {
+		writeErr(w, http.StatusForbidden, "%v is included in this draw and has no exclusion to confirm", power)
+		return
+	}
+	if !body.Accept {
+		f.logEvent(id, "%v rejected the draw proposal", power)
+		f.drawProposal = nil
+		g.persist(id)
+		writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+		return
+	}
+	for _, confirmed := range proposal.Confirmed {
+		if confirmed == name {
+			writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+			return
+		}
+	}
+	proposal.Confirmed = append(proposal.Confirmed, name)
+	sort.Strings(proposal.Confirmed)
+	f.logEvent(id, "%v consented to exclusion from the draw", power)
+	if proposal.allConfirmed() {
+		powers := make([]godip.Nation, 0, len(proposal.Powers))
+		for _, included := range proposal.Powers {
+			powers = append(powers, godip.Nation(included))
+		}
+		g.endGame(id, resultDraw, powers, g.state.Phase().Year())
+	}
+	g.persist(id)
+	writeJSON(w, http.StatusOK, g.seatState(id, power, r))
 }

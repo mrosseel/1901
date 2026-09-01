@@ -241,9 +241,10 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 		g.persist(id)
 		setSessionCookie(w, id, session)
 		writeJSON(w, http.StatusOK, claimResponse{
-			Power:   string(power),
-			SeatURL: keyedSeatURL(r, id),
-			Keyed:   true,
+			Power:      string(power),
+			SeatURL:    keyedSeatURL(r, id),
+			Keyed:      true,
+			PhaseIndex: f.phaseIndex,
 		})
 		return
 	}
@@ -264,18 +265,25 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 	g.persist(id)
 
 	writeJSON(w, http.StatusOK, claimResponse{
-		Power:   string(power),
-		SeatURL: seatURL(r, id, token),
+		Power:      string(power),
+		SeatURL:    seatURL(r, id, token),
+		PhaseIndex: f.phaseIndex,
 	})
 }
 
 // claimResponse is what taking a seat answers with. `keyed` tells the page
 // which kind of seat it just took: a keyed one has to write its seed to this
 // device's storage before the board is any use (ADR-049).
+//
+// PhaseIndex lets a player-issued handover preserve an already-sealed order:
+// the link carries the former seed in its fragment, the recipient derives only
+// this phase's order key from it, then authenticates the seat with a fresh seed.
+// The server never receives either seed or the derived order key.
 type claimResponse struct {
-	Power   string `json:"power"`
-	SeatURL string `json:"seatUrl"`
-	Keyed   bool   `json:"keyed,omitempty"`
+	Power      string `json:"power"`
+	SeatURL    string `json:"seatUrl"`
+	Keyed      bool   `json:"keyed,omitempty"`
+	PhaseIndex int    `json:"phaseIndex"`
 }
 
 /*
@@ -351,6 +359,10 @@ func handleGMRoleClaim(g *game, id string, rest []string, w http.ResponseWriter,
 	}
 	f.gmToken = token
 	f.gmDevice = ""
+	// Recovery belongs to the role holder, not to the game forever. Keeping
+	// this key would let the former game master use their twelve words to take
+	// the role straight back after handing it over.
+	f.gmPublicKey = ""
 	f.gmEpoch++
 
 	f.logEvent(id, "the game master role was handed to another device")

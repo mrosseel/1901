@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TopBar } from "../components/TopBar";
 import { claimSeat, fetchPublic, type PublicState } from "../api";
 import { countdown, settingsLines, usePoll, useTicker } from "../hooks";
-import { makeSeatSeed, seatPublicKey, writeSeatSeed } from "../seatkey";
+import { makeSeatSeed, readSeatSeed, seatPublicKey, writeSeatSeed } from "../seatkey";
 import { SupportedMark } from "../components/SupportedMark";
 import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
@@ -35,6 +35,14 @@ export function JoinPage({
     setBusy(true);
     setError(null);
     try {
+      // A returning keyed seat does not claim again. This works after the
+      // device cookie or in-memory session is gone: /seat/me challenges the
+      // key this browser still holds and opens a fresh session.
+      const existing = readSeatSeed(gameId);
+      if (existing) {
+        location.replace("/game/" + encodeURIComponent(gameId) + "/seat/me");
+        return;
+      }
       // This device makes the seat's key before it asks for a power, and
       // sends only the public half (ADR-049). The seed is written here, one
       // step before the board opens, so a refused claim leaves nothing
@@ -52,6 +60,7 @@ export function JoinPage({
   };
 
   const full = Boolean(game && game.joinedCount >= game.totalSeats);
+  const heldHere = Boolean(readSeatSeed(gameId));
 
   return (
     <>
@@ -94,19 +103,24 @@ export function JoinPage({
 
         {error ? <p className="error">{error}</p> : null}
 
-        {/* The button stays live even when every power is taken: a phone that
-          already holds one is sent back to its own board by the same call. */}
         <button
           type="button"
           className="primary"
           onClick={claim}
-          disabled={busy}
+          disabled={busy || (full && !heldHere)}
         >
-          {busy ? "Claiming…" : full ? "Open my board" : "Claim a power"}
+          {busy
+            ? "Claiming…"
+            : full
+              ? heldHere ? "Open my board" : "All powers claimed"
+              : heldHere ? "Open my board" : "Claim a power"}
         </button>
         <p className="note">
-          Already claimed on this phone? The same button takes you back to your
-          own board.
+          {heldHere
+            ? "This phone already holds a seat key for the game."
+            : full
+              ? "Use the original phone, a seat backup link, or ask the game master for a replacement link."
+              : "A new seat is bound to this browser. Back it up from the seat menu if you may change devices."}
         </p>
       </main>
     </>

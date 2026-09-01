@@ -4,9 +4,8 @@ Orders that are not legal, and are written anyway (ADR-029).
 Face-to-face Diplomacy is played on paper, and paper takes any order you can
 spell. "A Par → Mos" is not a move Paris can make, and writing it is not a
 mistake: it is a claim that costs a unit's turn and buys a rumour. The
-adjudicator throws it out and the unit holds, and — this is the whole of the
-value — nobody else at the table can tell it apart from an order that was
-tried and bounced.
+adjudicator throws it out and the phase's ordinary invalid-order consequence
+applies.
 
 An app that refuses the order at the keyboard takes that away, so the server
 stores anything that parses and marks what it refused (settings.illegalMoves).
@@ -37,11 +36,21 @@ export function isIllegal(resolution: string | undefined): boolean {
 }
 
 /** What the review says about one. Short, because it sits after the order. */
-export const ILLEGAL_REASON = "illegal — the unit held";
+export type IllegalPhase = "movement" | "retreat" | "adjustment";
+
+export function illegalReason(kind: IllegalPhase): string {
+  if (kind === "retreat") return "invalid retreat — the unit was disbanded";
+  if (kind === "adjustment") return "invalid adjustment — normal adjustment rules applied";
+  return "invalid order — the unit held";
+}
 
 /*
 The line a player sees under their OWN illegal draft, before anything has
 resolved. It says both halves: the order will not happen, and nobody else can
 see that it will not.
 */
-export const ILLEGAL_DRAFT_NOTE = "illegal — will hold; opponents cannot tell";
+export function illegalDraftNote(kind: IllegalPhase): string {
+  if (kind === "retreat") return "invalid retreat — this unit will be disbanded";
+  if (kind === "adjustment") return "invalid adjustment — normal adjustment rules will apply";
+  return "invalid order — this unit will hold";
+}

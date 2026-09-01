@@ -37,6 +37,10 @@ line above the button, so the choice is read back where it is acted on.
 export function NewGame() {
   const [name, setName] = useState("");
   const [deadlineMinutes, setDeadlineMinutes] = useState(15);
+  const [retreatBuildPercent, setRetreatBuildPercent] = useState(50);
+  const [graceMinutes, setGraceMinutes] = useState(0);
+  const [firstTurnExtraMinutes, setFirstTurnExtraMinutes] = useState(0);
+  const [pressMode, setPressMode] = useState<"ftf" | "gunboat" | "rulebook">("ftf");
   const [gmPlays, setGmPlays] = useState(true);
   /* On by default: the paper game takes any order you can spell, and taking
      that away is the change, not leaving it (ADR-029, illegal.ts). */
@@ -80,6 +84,10 @@ export function NewGame() {
       const created = await createGame({
         name: name.trim(),
         deadlineMinutes: Math.max(0, Math.floor(deadlineMinutes) || 0),
+        retreatBuildPercent: Math.max(1, Math.min(100, Math.floor(retreatBuildPercent) || 50)),
+        graceMinutes: Math.max(0, Math.floor(graceMinutes) || 0),
+        firstTurnExtraMinutes: Math.max(0, Math.floor(firstTurnExtraMinutes) || 0),
+        pressMode: pressMode,
         gmPlays: gmPlays,
         illegalMoves: illegalMoves,
         endYear: Math.max(0, Math.floor(endYear) || 0),
@@ -99,7 +107,7 @@ export function NewGame() {
   return (
     <>
       <TopBar here="new" />
-      <main className="page gallery">
+      <main className="page variant-gallery-page">
         <h1>New game</h1>
         <p className="lead">
           Name the table, set the clock, and pass the invite around it.
@@ -123,7 +131,7 @@ export function NewGame() {
             </label>
 
             <label className="field">
-              <span>Minutes for each phase</span>
+              <span>Minutes for movement phases</span>
               <input
                 type="number"
                 min={0}
@@ -135,6 +143,42 @@ export function NewGame() {
                 }
               />
               <small>Zero runs the game with no deadline.</small>
+            </label>
+
+            <details>
+              <summary>Clock details</summary>
+              <label className="field">
+                <span>Retreat and adjustment clock</span>
+                <input type="number" min={1} max={100} inputMode="numeric"
+                  value={retreatBuildPercent}
+                  onChange={(event) => setRetreatBuildPercent(Number(event.target.value))} />
+                <small>Percentage of the movement clock; 50% gives 7½ minutes from a 15-minute movement phase.</small>
+              </label>
+              <label className="field">
+                <span>Grace after the deadline (minutes)</span>
+                <input type="number" min={0} max={600} inputMode="numeric"
+                  value={graceMinutes}
+                  onChange={(event) => setGraceMinutes(Number(event.target.value))} />
+                <small>Orders remain open during grace; force adjudication stays unavailable.</small>
+              </label>
+              <label className="field">
+                <span>Extra time for Spring 1901 (minutes)</span>
+                <input type="number" min={0} max={600} inputMode="numeric"
+                  value={firstTurnExtraMinutes}
+                  onChange={(event) => setFirstTurnExtraMinutes(Number(event.target.value))} />
+              </label>
+            </details>
+
+            <label className="field">
+              <span>Negotiation rule</span>
+              <select value={pressMode} onChange={(event) =>
+                setPressMode(event.target.value as "ftf" | "gunboat" | "rulebook")}
+              >
+                <option value="ftf">Face to face — negotiate out loud</option>
+                <option value="gunboat">Gunboat — no negotiation</option>
+                <option value="rulebook">Movement phases only</option>
+              </select>
+              <small>This app does not provide in-app press.</small>
             </label>
 
             <label className="field">
@@ -162,7 +206,8 @@ export function NewGame() {
               <span>I play a power as well</span>
               <small>
                 One power is held back for you and revealed when the game
-                starts.
+                starts. “Game master” means this table's host/referee, not the
+                tournament director.
               </small>
             </label>
 
@@ -172,10 +217,9 @@ export function NewGame() {
                 checked={illegalMoves}
                 onChange={(event) => setIllegalMoves(event.target.checked)}
               />
-              <span>Allow illegal orders</span>
+              <span>Accept orders exactly as entered</span>
               <small>
-                Players may write illegal orders to bluff; they resolve as
-                holds.
+                Invalid orders fail under the rules instead of being blocked during entry.
               </small>
             </label>
 
@@ -183,10 +227,13 @@ export function NewGame() {
               button is: the choice is out of sight from the button, so it is
               read back beside it. */}
             {picked ? (
-              <p className="muted">
+              <p className={picked.supported ? "muted" : "notice"}>
                 {picked.name}
                 {picked.powerCount
                   ? " — " + claimLine(picked.powerCount, gmPlays)
+                  : ""}
+                {!picked.supported
+                  ? " — its starting positions and board art have not yet been verified for live play."
                   : ""}
               </p>
             ) : null}
@@ -216,6 +263,11 @@ export function NewGame() {
                 onStyle={setStyle}
               />
             )}
+            {picked ? (
+              <button type="submit" className="primary" disabled={busy}>
+                {busy ? "Creating…" : "Create game with " + picked.name}
+              </button>
+            ) : null}
           </section>
         </form>
       </main>

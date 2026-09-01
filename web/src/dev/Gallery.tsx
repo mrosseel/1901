@@ -178,7 +178,7 @@ export function buildCatalogue(): Entry[] {
     ),
     seatEntry(
       "review",
-      "Review of last turn",
+      "Review of last phase",
       "Fall 1901: Burgundy bounced, Trieste was dislodged, Turkey gave no orders.",
       "seat-retreat",
       "options-retreat",
@@ -255,19 +255,19 @@ export function buildCatalogue(): Entry[] {
     gmEntry(
       "midphase",
       "Mid-phase",
-      "Spring 1901 running, some powers locked in, the clock counting down.",
+      "Spring 1901 running, some players ready, the clock counting down.",
       "gm-midphase",
     ),
     gmEntry(
       "force-armed",
       "Force armed",
-      "Six of seven locked in, so the forced adjudication is live before the deadline.",
+      "Six of seven players ready; force remains unavailable until the deadline and grace period pass.",
       "gm-force-armed",
     ),
     gmEntry(
       "deadline-passed",
       "Deadline passed",
-      "The clock has run out with nobody locked in. Forcing writes an NMR for each.",
+      "The clock and grace period have run out with nobody ready. Forcing applies the phase-appropriate default for each power.",
       "gm-deadline-passed",
     ),
     gmEntry(

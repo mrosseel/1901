@@ -149,7 +149,8 @@ describe("the plan a review draws", () => {
     const plan = reviewPlan(PHASE)!;
     expect(plan.dislodged).toEqual({ gal: { type: "Army", nation: "Russia" } });
     expect(plan.nmr).toEqual(["Turkey"]);
-    expect(nmrLine("Turkey")).toBe("Turkey: no orders — units hold.");
+    expect(nmrLine("Turkey", "movement")).toBe("Turkey: no orders submitted — units hold.");
+    expect(nmrLine("Turkey", "retreat")).toContain("disband");
   });
 
   it("writes a sentence itself when the server sent only the parts", () => {
@@ -228,7 +229,7 @@ describe("an illegal order in the review", () => {
     const bur = plan.rows.find((row) => row.province === "bur")!;
     expect(par.failed).toBe(true);
     expect(par.illegal).toBe(true);
-    expect(par.reason).toBe("illegal — the unit held");
+    expect(par.reason).toBe("invalid order — the unit held");
     expect(bur.failed).toBe(true);
     expect(bur.illegal).toBe(false);
     expect(bur.reason).not.toBe(par.reason);

@@ -131,3 +131,4 @@ only progress, a correction to the document, or a bug is gone.
 
 - **r49, 2026-08-30** — The key is write-once, because the token is not the credential it protects.
 - **r49, 2026-08-30** — HKDF-SHA256 and not BIP-39's PBKDF2 seed, a vendored curve and not crypto.subtle, because run.sh serves plain http on a LAN.
+- **r54, 2026-09-01** — A role handover retires the outgoing game master's recovery public key. The incoming holder enrolls a fresh one; otherwise the former holder's twelve words remained a permanent way to take the role back.

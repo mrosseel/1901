@@ -1055,6 +1055,39 @@ describe("an order the rules refuse", () => {
     expect(marked[marked.length - 1]).toEqual([]);
     seat.board.destroy();
   });
+
+  /* The province keeps an order, so nothing is removed: the illegal draft is
+     overwritten by a legal one. The mark belongs to the draft, not to the
+     province, so it goes when the draft does. */
+  it("forgets the mark once a legal order replaces it", async () => {
+    const marked: string[][] = [];
+    const seat = setup("Austria", { vie: MOVEMENT_TREE }, (provinces) => marked.push(provinces));
+    await seat.board.ready;
+    seat.board.update(ALLOWED, emptyPlan("Austria"));
+
+    tap("vie");
+    await settle();
+    tap("rom");
+    await settle();
+    expect(marked[marked.length - 1]).toEqual(["vie"]);
+    seat.board.update(
+      { ...ALLOWED, orderParts: { vie: ["Move", "rom"] }, orders: { vie: "x" } },
+      emptyPlan("Austria"),
+    );
+
+    // Vienna is ordered again, this time to a province its tree offers.
+    tap("vie");
+    await settle();
+    tap("tri");
+    await settle();
+
+    expect(seat.posted[seat.posted.length - 1]).toEqual({
+      province: "vie",
+      parts: ["Move", "tri"],
+    });
+    expect(marked[marked.length - 1]).toEqual([]);
+    seat.board.destroy();
+  });
 });
 
 describe("province codes on the map", () => {

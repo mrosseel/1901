@@ -163,16 +163,31 @@ func gmRequest(g *game, id, route, body string) *httptest.ResponseRecorder {
 	return rec
 }
 
-func TestADrawIsRecordedAndNamesItsPowers(t *testing.T) {
+func TestANonDIASDrawNeedsEveryExcludedSurvivor(t *testing.T) {
 	g := watchTestGame(t)
 
 	rec := gmRequest(g, "game", "draw", `{"powers":["France","England"]}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("draw refused: %v %v", rec.Code, rec.Body.String())
 	}
+	if g.flow.result != nil {
+		t.Fatal("the proposal ended the game before excluded survivors consented")
+	}
+	proposal := g.flow.drawProposal
+	if proposal == nil || len(proposal.Required) != 5 {
+		t.Fatalf("proposal is %#v, want five excluded survivors", proposal)
+	}
+	for _, power := range proposal.Required {
+		req := httptest.NewRequest(http.MethodPost, "/draw-response", strings.NewReader(`{"accept":true}`))
+		rec := httptest.NewRecorder()
+		handleSeatDrawResponse(g, "game", godip.Nation(power), rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%v could not confirm: %v %v", power, rec.Code, rec.Body.String())
+		}
+	}
 	result := g.flow.result
 	if result == nil {
-		t.Fatal("the draw did not end the game")
+		t.Fatal("the draw did not end after every excluded survivor consented")
 	}
 	if result.Kind != resultDraw {
 		t.Errorf("kind is %q, want %q", result.Kind, resultDraw)
@@ -186,6 +201,26 @@ func TestADrawIsRecordedAndNamesItsPowers(t *testing.T) {
 	rec = gmRequest(g, "game", "draw", `{"powers":["Italy"]}`)
 	if rec.Code != http.StatusConflict {
 		t.Errorf("a second draw answered %v, want 409", rec.Code)
+	}
+}
+
+func TestADIASDrawIsRecordedDirectly(t *testing.T) {
+	g := watchTestGame(t)
+	rec := gmRequest(g, "game", "draw",
+		`{"powers":["Austria","England","France","Germany","Italy","Russia","Turkey"]}`)
+	if rec.Code != http.StatusOK || g.flow.result == nil {
+		t.Fatalf("DIAS draw was not recorded: %v %v", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAnExcludedSurvivorCanRejectTheProposal(t *testing.T) {
+	g := watchTestGame(t)
+	gmRequest(g, "game", "draw", `{"powers":["France","England"]}`)
+	req := httptest.NewRequest(http.MethodPost, "/draw-response", strings.NewReader(`{"accept":false}`))
+	rec := httptest.NewRecorder()
+	handleSeatDrawResponse(g, "game", "Austria", rec, req)
+	if rec.Code != http.StatusOK || g.flow.drawProposal != nil || g.flow.result != nil {
+		t.Fatalf("rejection did not cancel proposal: %v %v", rec.Code, rec.Body.String())
 	}
 }
 
@@ -275,9 +310,8 @@ func TestTheResultIsOnEveryAnswer(t *testing.T) {
 	}
 }
 
-// TestTheResultSurvivesARestart: a draw is an act, not a computation, so no
-// amount of replaying the order rows would find it again. It has to come back
-// from the row it was written to.
+// TestTheResultSurvivesARestart: both pending consent and the resulting draw
+// are acts, not computations. Replaying orders cannot recover either one.
 func TestTheResultSurvivesARestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ended.db")
 	handle, err := openDB(path)
@@ -310,7 +344,7 @@ func TestTheResultSurvivesARestart(t *testing.T) {
 	f.started = true
 	f.settings.EndYear = 1908
 
-	if rec := gmRequest(g, id, "draw", `{"powers":["France","England"]}`); rec.Code != http.StatusOK {
+	if rec := gmRequest(g, id, "draw", `{"powers":["England","France"]}`); rec.Code != http.StatusOK {
 		t.Fatalf("draw refused: %v %v", rec.Code, rec.Body.String())
 	}
 
@@ -324,10 +358,32 @@ func TestTheResultSurvivesARestart(t *testing.T) {
 	if !found {
 		t.Fatal("the finished game did not come back")
 	}
-	result := restored.flow.result
-	if result == nil {
-		t.Fatal("the game came back running")
+	if restored.flow.result != nil || restored.flow.drawProposal == nil {
+		t.Fatal("the pending draw proposal did not survive the restart")
 	}
+	for _, power := range append([]string(nil), restored.flow.drawProposal.Required...) {
+		req := httptest.NewRequest(http.MethodPost, "/draw-response", strings.NewReader(`{"accept":true}`))
+		rec := httptest.NewRecorder()
+		handleSeatDrawResponse(restored, id, godip.Nation(power), rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%v could not confirm after restart: %v", power, rec.Body.String())
+		}
+	}
+	if restored.flow.result == nil {
+		t.Fatal("confirmations after restart did not end the game")
+	}
+
+	games.mu.Lock()
+	games.games = map[string]*game{}
+	games.mu.Unlock()
+	if err := loadAll(); err != nil {
+		t.Fatalf("second loadAll: %v", err)
+	}
+	restored, found = games.lookup(id)
+	if !found || restored.flow.result == nil {
+		t.Fatal("the finished game did not come back")
+	}
+	result := restored.flow.result
 	if result.Kind != resultDraw {
 		t.Errorf("kind came back %q, want %q", result.Kind, resultDraw)
 	}

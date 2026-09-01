@@ -53,7 +53,14 @@ to reach for the seed. What being derived buys is that it can be made again
 somewhere else, not that it is kept anywhere different.
 */
 export interface Draft {
+  /** The key for any envelope this device writes. */
   key: string;
+  /**
+   * The former holder's key for an envelope inherited in a handover. It is
+   * used only to reveal that existing commitment and is discarded when the
+   * recipient unlocks or replaces it.
+   */
+  revealKey?: string;
   orders: Record<string, string[]>;
 }
 
@@ -128,6 +135,37 @@ export function writeDraft(gameId: string, phaseIndex: number, draft: Draft): vo
     // A phone with no storage still plays. What it loses is the way back
     // after a reload, and the game master's force is the way out of that.
   }
+}
+
+/*
+Keep the one secret from the former seat that a handover still needs.
+
+The outgoing player's link carries their seat seed in its fragment. Reusing
+that seed as the recipient's signing identity would let the outgoing player
+sign back in after the handover. Instead the recipient authenticates with a
+fresh seed and retains only the phase-specific order key derived here. That
+key can release the envelope already on the server, but cannot open a session
+or derive any future phase's key.
+*/
+export function inheritSealedOrderKey(
+  gameId: string,
+  phaseIndex: number,
+  formerSeed: Uint8Array,
+  recipientSeed: Uint8Array,
+): Draft {
+  const draft = {
+    key: toBase64Url(deriveOrderKey(recipientSeed, gameId, phaseIndex)),
+    revealKey: toBase64Url(deriveOrderKey(formerSeed, gameId, phaseIndex)),
+    orders: {},
+  };
+  writeDraft(gameId, phaseIndex, draft);
+  return draft;
+}
+
+/** The inherited envelope was removed or replaced; only this device's key remains. */
+export function discardInheritedEnvelopeKey(draft: Draft): Draft {
+  if (!draft.revealKey) return draft;
+  return { key: draft.key, orders: draft.orders };
 }
 
 /*

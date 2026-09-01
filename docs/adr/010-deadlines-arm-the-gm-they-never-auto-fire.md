@@ -7,8 +7,10 @@ status: accepted
 **Status:** accepted, r2
 A deadline passing changes nothing by itself. It unlocks the GM's
 force-adjudication action (the gate already defined in ADR-007). When the GM
-forces, a power with no commit is adjudicated with no orders (units hold)
-and the event log records an NMR for that seat — the same terminal state as
+forces, a power with no commit is adjudicated with no orders and the phase's
+normal no-order consequence applies (movement holds, retreats disband,
+adjustments follow their ordinary rules). The event log records an NMR for
+that seat — the same terminal state as
 ADR-009's grace path.
 
 Rationale: at a physical table the late player is usually still negotiating

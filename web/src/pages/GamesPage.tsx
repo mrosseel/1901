@@ -52,6 +52,7 @@ export function GamesPage() {
           <a className="cta" href="/new">
             New game
           </a>
+          {" "}<a className="link" href="/recover">Return to a game</a>
         </p>
 
         {error ? <p className="error">{error}</p> : null}
@@ -85,15 +86,8 @@ export function GamesPage() {
   );
 }
 
-/*
-One game on the list.
-
-The id never appears. It is a ten-character token nobody reads off a screen
-and nobody types twice, and printing it beside a name only makes the row
-harder to scan. It is still what a game master needs when something has to be
-looked up, so the row carries it in two quiet places: the title, for a hover,
-and the clipboard, for a click on the name.
-*/
+/* One game on the list. The id stays visible because recovery and support
+   flows need a durable, speakable way to identify the game. */
 function GameRow({ game }: { game: GameSummary }) {
   const [copied, setCopied] = useState(false);
 
@@ -105,15 +99,8 @@ function GameRow({ game }: { game: GameSummary }) {
   return (
     <li>
       <div className="row-main">
-        <button
-          type="button"
-          className="game-id-copy"
-          title={"Game " + game.gameId + " — click to copy the id"}
-          onClick={copyId}
-        >
-          <strong>{game.name || "Unnamed game"}</strong>
-        </button>
-        {copied ? <span className="note">Id copied</span> : null}
+        <strong>{game.name || "Unnamed game"}</strong>
+        <span className="muted">Game {game.gameId}</span>
         <span className="muted">
           {game.variant ? game.variant.name : ""}
           {game.variant ? (
@@ -124,11 +111,14 @@ function GameRow({ game }: { game: GameSummary }) {
           {" · "}
           {game.joinedCount} of {game.totalSeats} seated
           {game.started && game.turns
-            ? " · " + game.turns + " turn(s) played"
+            ? " · " + game.turns + (game.turns === 1 ? " phase resolved" : " phases resolved")
             : ""}
         </span>
       </div>
       <span className="row-actions">
+        <button type="button" className="link" onClick={copyId}>
+          {copied ? "Id copied" : "Copy id"}
+        </button>
         <a className="link" href={watchPath(game.gameId, null)}>
           Watch
         </a>

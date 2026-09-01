@@ -68,7 +68,7 @@ function sentence(result: GameResult): string {
   }
   if (result.kind === "draw") {
     return result.powers.length === 1
-      ? "The table conceded. The game master recorded it."
+      ? "The other surviving powers confirmed a concession to this power."
       : "The table agreed a draw. The game master recorded it.";
   }
   return "The game was set to stop after this year. Everybody still holding a supply centre is listed.";

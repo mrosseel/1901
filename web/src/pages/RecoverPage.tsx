@@ -2,6 +2,8 @@ import { useState } from "react";
 import { recoverChallenge, recoverClaim } from "../api";
 import { TopBar } from "../components/TopBar";
 import { entropyFor, signMessage, writeStoredKey } from "../gmkey";
+import { readRecentGame } from "../recent";
+import { readSeatSeed } from "../seatkey";
 
 /*
 Taking the game master role back with twelve words (ADR-048).
@@ -25,6 +27,9 @@ export function RecoverPage({ gameId }: { gameId: string | null }) {
 
   const typed = words.trim().split(/\s+/).filter(Boolean).length;
   const ready = id.trim() !== "" && typed === 12;
+  const recent = readRecentGame();
+  const playerId = id.trim();
+  const heldSeat = playerId !== "" && Boolean(readSeatSeed(playerId));
 
   const recover = async () => {
     setError(null);
@@ -59,15 +64,23 @@ export function RecoverPage({ gameId }: { gameId: string | null }) {
     <>
       <TopBar />
       <main className="page">
-        <h1>Take a game back</h1>
+        <h1>Return to a game</h1>
         <p className="lead">
-          For a game master who has lost the address. Type the twelve words that were
-          shown when the game's key was made.
+          Reopen a seat held on this device, use a saved backup link on a new device,
+          or recover the game-master role with its twelve words.
         </p>
 
         {error ? <p className="error">{error}</p> : null}
 
         <section className="card">
+          <h2>Return as a player</h2>
+          {recent ? (
+            <p>
+              <a className="cta" href={recent.url}>
+                Back to {recent.label}{recent.power ? " as " + recent.power : ""}
+              </a>
+            </p>
+          ) : null}
           <label className="field">
             <span>Game id</span>
             <input
@@ -78,7 +91,29 @@ export function RecoverPage({ gameId }: { gameId: string | null }) {
               value={id}
               onChange={(event) => setId(event.target.value)}
             />
+            <small>The id is shown on the game list and can be copied by the game master.</small>
           </label>
+          <a
+            className={heldSeat ? "cta" : "cta disabled"}
+            aria-disabled={!heldSeat}
+            href={heldSeat ? "/game/" + encodeURIComponent(playerId) + "/seat/me" : undefined}
+          >
+            {heldSeat ? "Open my seat" : "No seat key for this game on this device"}
+          </a>
+          <p className="note">
+            After a connection loss, the same seat signs itself back in automatically.
+            On a replacement device, open the backup link you saved earlier. With neither
+            the old device nor a backup link, ask the game master for a replacement link;
+            that action is recorded and may be subject to tournament rules.
+          </p>
+        </section>
+
+        <section className="card">
+          <h2>Recover the game-master role</h2>
+          <p>
+            Type the twelve words shown when the game's recovery key was made. The words
+            stay in this browser; the server receives only a signed challenge.
+          </p>
           <label className="field">
             <span>The twelve words</span>
             <textarea
@@ -96,7 +131,7 @@ export function RecoverPage({ gameId }: { gameId: string | null }) {
             </small>
           </label>
           <button type="button" className="primary" disabled={!ready || busy} onClick={recover}>
-            {busy ? "Checking…" : "Take the game back"}
+            {busy ? "Checking…" : "Recover game-master access"}
           </button>
           <p className="note">
             This ends the game master's old address. Whoever was running the game with it
@@ -106,7 +141,7 @@ export function RecoverPage({ gameId }: { gameId: string | null }) {
         </section>
 
         <section className="card">
-          <h2>If there are no words</h2>
+          <h2>If there are no game-master words</h2>
           <p>
             Then there is no recovery. A game with no key is a game whose role lives only
             on the device that created it, and the server holds nothing that can give it

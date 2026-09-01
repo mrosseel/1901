@@ -69,14 +69,26 @@ export function settingsLines(
         illegalMoves?: boolean;
         pressMode?: string;
         endYear?: number;
+        retreatBuildPercent?: number;
+        graceMinutes?: number;
+        firstTurnExtraMinutes?: number;
       }
     | undefined,
 ): string[] {
   const rules = settings || { deadlineMinutes: 0, gmPlays: false };
   return [
     rules.deadlineMinutes > 0
-      ? "Deadline: " + rules.deadlineMinutes + " minutes for each phase."
+      ? "Movement clock: " + rules.deadlineMinutes + " minutes. Retreats and adjustments: " +
+        (rules.retreatBuildPercent ?? 50) + "% (" +
+        Math.round(rules.deadlineMinutes * (rules.retreatBuildPercent ?? 50) / 100 * 10) / 10 +
+        " minutes)."
       : "No deadline.",
+    rules.deadlineMinutes > 0 && (rules.firstTurnExtraMinutes ?? 0) > 0
+      ? "Spring 1901 gets " + rules.firstTurnExtraMinutes + " extra minutes."
+      : "",
+    rules.deadlineMinutes > 0 && (rules.graceMinutes ?? 0) > 0
+      ? "Orders stay open for " + rules.graceMinutes + " grace minutes after the deadline."
+      : "",
     rules.gmPlays
       ? "The game master plays a power as well."
       : "The game master does not play a power.",
@@ -84,7 +96,7 @@ export function settingsLines(
        does, so it is the quiet case; refusing them is the rule a table has
        chosen and the one a player needs told (ADR-029). */
     illegalAllowed(rules)
-      ? "Illegal orders may be written; they resolve as holds."
+      ? "Orders are accepted as entered; invalid orders fail under the rules for that phase."
       : "Only legal orders are accepted.",
     // A mode the server does not know is a mode this build cannot describe,
     // so it says nothing rather than guessing (filtered below).

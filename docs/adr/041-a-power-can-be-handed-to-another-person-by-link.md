@@ -22,11 +22,12 @@ theirs.
 carries `HMAC(salt, power, game id, epoch)`. Nothing about a handover needs a
 row in a table, and a link cannot be forged without the salt.
 
-**A handover invalidates the seat it came from.** The epoch is a counter per
-seat. When the new person opens the link the server raises it, and every link
-and every token minted under the old epoch stops working, including the phone
-that just gave the power away. That is the point: a power belongs to one person
-at a time, and the previous holder must not keep a live seat.
+**A handover invalidates the seat it came from.** When the new person opens the
+link, the server replaces the seat token or public key, drops every open
+session and device claim for the power, and raises its epoch. The epoch kills
+every link minted before the transfer; the replaced credential stops the old
+phone signing back in. That is the point: a power belongs to one person at a
+time, and the previous holder must not keep a live seat.
 
 This is the mechanism ADR-012's hard claim was missing. A seat could be claimed
 and never released, so a phone that died took a power with it.
@@ -61,20 +62,29 @@ the trust honest.
 between devices and the game stays anonymous (ADR-020). The menu shows the
 holder nothing about who the other players are.
 
-**Orders written before the handover stand, and there is nothing to decide.**
-The signed value is what authenticates a command to the server, so an order the
-server accepted was accepted under an epoch that was valid at the time. It is
-server state from that moment. Raising the epoch stops the old holder sending
-anything further; it does not reach back into what the server already holds.
+**Orders written before the handover stand.** In an old unsealed game they are
+already server state. In a sealed game, a player-issued handover carries the
+old seat seed in the URL fragment. The taking phone derives and retains only
+the current phase's order key from it, then generates a fresh seed for seat
+authentication. The former holder still knows the envelope key, but the
+server no longer accepts their signatures, so they cannot reveal or change
+anything after the transfer.
 
 So the new holder inherits the seat exactly as it stands, orders included, and
 may change them like any other holder while the phase is open (ADR-011). A
 handover is usually a dead phone, and the person taking over wants the seat as
 it was, not an empty one.
 
-This is also why the epoch belongs on the command path rather than on the
-orders. There is no draft living on a device to rescue or discard: a device
-holds a token, and the orders are already here.
+A handover minted by the game master for a dead phone cannot carry that seed,
+because the server has never held it. The new holder gets the power but cannot
+recover an envelope the dead device locked in; forcing the phase makes that
+power an NMR. That is the unavoidable edge of keeping draft keys off the
+server.
+
+Player-facing wording calls the ordinary operation “move this seat to another
+device”. A game-master-minted replacement is labelled for device recovery or
+a substitution permitted by the table's tournament or house rules; the app
+does not silently normalize player swaps where tournament policies differ.
 ## Revisions
 
 Decisions this record changed, and alternatives it refused. Anything that was
@@ -83,5 +93,7 @@ only progress, a correction to the document, or a bug is gone.
 - **r43, 2026-08-30** — The signed value authenticates commands, so an order the server accepted was accepted under a valid epoch and is server state from that moment.
 - **r43, 2026-08-30** — Raising the epoch stops the old holder sending anything further and reaches back into nothing.
 - **r43, 2026-08-30** — The new holder inherits the seat as it stands, orders included.
-- **r53, 2026-08-31** — A handover minted by the seat carries that seat's seed, appended by the phone in the fragment and never by the server, which has none (ADR-049). Without it the taking phone made a fresh key and could not open orders the seat had already sealed under the old one (ADR-004), so handing a power over mid-phase turned it into an NMR — against the line above. The epoch still stops the old device ordering; what the seed changes is what the new one can read.
+- **r53, 2026-08-31** — A handover minted by the seat carries that seat's seed, appended by the phone in the fragment and never by the server, which has none (ADR-049). The taking phone retains only the current phase's derived order key, then makes a fresh signing seed. Reusing the carried seed for authentication let the former holder sign back in after the handover; separating the two jobs preserves the locked envelope while actually revoking the old seat.
 - **r53, 2026-08-31** — A link the game master mints for a dead phone cannot carry a seed, because the server has never held one. That link returns the power and not the orders locked in under it. It is the one case commit-reveal cannot recover, and it follows from the server being unable to read anything.
+- **r55, 2026-09-01** — Replacement wording distinguishes device recovery
+  from a player substitution and defers the latter to the applicable rules.

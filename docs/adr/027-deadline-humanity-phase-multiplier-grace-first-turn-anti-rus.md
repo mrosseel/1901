@@ -35,3 +35,7 @@ nothing, because its clock had run out or the GM chose to spend it.
 Not taken here, and still worth taking later: the weekend skip, the per-game
 timezone, and a wall-clock deadline that does not drift daily. None of them
 matters for a table in a room. All of them matter for hosted mode (ADR-018).
+
+The creation and referee forms expose all four clock inputs and state their
+actual effects. “Minutes for each phase” is forbidden wording when retreats
+and adjustments use a multiplier.

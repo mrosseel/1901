@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { makeSeatSeed, seatPublicKey, seedInAddress, writeSeatSeed } from "../seatkey";
+import {
+  replacementSeatSeed,
+  seatPublicKey,
+  seedInAddress,
+  writeSeatSeed,
+} from "../seatkey";
+import { inheritSealedOrderKey } from "../sealed";
 import { TopBar } from "../components/TopBar";
 
 import { claimGmHandover, claimHandover } from "../api";
@@ -33,6 +39,7 @@ export function HandoverPage({
 }) {
   const [taking, setTaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const carriesOrders = power !== null && Boolean(seedInAddress());
 
   const take = async () => {
     setTaking(true);
@@ -40,26 +47,40 @@ export function HandoverPage({
     try {
       if (power === null) {
         const gm = await claimGmHandover(gameId, epoch, signature);
-        window.location.href = gm.gmUrl;
+        window.location.replace(gm.gmUrl);
       } else {
         /*
         The seat's own key, where the link carries one (ADR-004).
 
         A seat that has already locked in this phase has sealed its orders
-        under a key derived from that seed, so a taking phone that made a
-        fresh one could not open them and the power would take an NMR — which
-        contradicts ADR-041's rule that the new holder inherits the seat as it
-        stands, orders included. So the seed travels, and the epoch is what
-        stops the old device from ordering (ADR-041).
+        under a key derived from that seed. The taking phone retains only that
+        phase's order key and makes a fresh signing seed of its own. Reusing
+        the former signing seed would let the old device take the seat back.
 
         A link minted by the game master carries no seed, because the server
         has none. Then this makes one, and whatever that seat had locked in is
         beyond reach.
         */
-        const seed = seedInAddress() || makeSeatSeed();
-        const seat = await claimHandover(gameId, power, epoch, signature, seatPublicKey(seed));
-        if (seat.keyed) writeSeatSeed(gameId, seed);
-        window.location.href = seat.seatUrl;
+        const formerSeed = seedInAddress();
+        // Authentication must rotate even when the old seed travels with the
+        // link. The old seed is retained only long enough to recover this
+        // phase's envelope key; reusing it here would leave the former holder
+        // able to sign back in after the handover.
+        const seatSeed = replacementSeatSeed(formerSeed);
+        const seat = await claimHandover(
+          gameId,
+          power,
+          epoch,
+          signature,
+          seatPublicKey(seatSeed),
+        );
+        if (seat.keyed) {
+          writeSeatSeed(gameId, seatSeed);
+          if (formerSeed && typeof seat.phaseIndex === "number") {
+            inheritSealedOrderKey(gameId, seat.phaseIndex, formerSeed, seatSeed);
+          }
+        }
+        window.location.replace(seat.seatUrl);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -76,8 +97,8 @@ export function HandoverPage({
           <section className="card">
             <p>
               This link makes you the game master of game {gameId}. You set the
-              deadline, start the game, force a phase when the room is waiting
-              on one person, and hand out seats.
+              deadline, start the game, force a phase after its deadline, and
+              hand out replacement seats.
             </p>
             <p className="note">
               The rights travel; a power does not. Whoever runs the game now
@@ -107,12 +128,14 @@ export function HandoverPage({
         <h1>Take the {power} seat</h1>
         <section className="card">
           <p>
-            This link hands you {power} in game {gameId}. The orders already
-            given stand, and you may change them while the phase is open.
+            This link hands you {power} in game {gameId}. {carriesOrders
+              ? "The current locked orders travel with the seat, and you may change them while the phase is open."
+              : "Orders kept only on the previous device cannot be recovered; you may enter new ones while the phase is open."}
           </p>
           <p className="note">
             The phone that holds {power} now loses it the moment you take it. A
-            power belongs to one person at a time.
+            power belongs to one person at a time. Continue only for device recovery
+            or a replacement allowed by your house or tournament rules.
           </p>
           {error ? <p className="error">{error}</p> : null}
           <p>

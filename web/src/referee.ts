@@ -232,7 +232,12 @@ export function refereeGuide(previous: PreviousPhase | null | undefined): Refere
       id: "nmr:" + power,
       power: power,
       text: power + " sent no orders",
-      note: "all of " + power + "'s units hold.",
+      note:
+        kind === "movement"
+          ? "all of " + power + "'s units hold."
+          : kind === "retreat"
+            ? "any dislodged units without a retreat are removed."
+            : "apply the normal adjustment rules for missing orders.",
     });
   });
 

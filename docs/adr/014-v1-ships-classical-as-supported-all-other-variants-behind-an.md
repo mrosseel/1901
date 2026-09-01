@@ -8,10 +8,10 @@ status: accepted
 The placement-table generator (ADR-003) runs over all godip variants with an
 `svg/` dir (17 as of 2026-08-28). Classical is hand-checked, playtested,
 and presented as supported. The rest are selectable at game creation.
-UI presentation (changed r15, owner call): supported variants show a
-green checkmark; unverified ones show nothing — no experimental badge or
-warning text. The supported flag itself remains in the API and still
-gates the checkmark. Promoting a
+UI presentation: every creation card says **Verified** or **Not yet
+verified**. Choosing an unverified map repeats the warning beside the create
+action. Other screens may keep the compact green checkmark. The supported
+flag remains in the API. Promoting a
 variant to supported is data work only: check its generated table, remove
 the flag.
 ## Revisions
@@ -20,3 +20,5 @@ Decisions this record changed, and alternatives it refused. Anything that was
 only progress, a correction to the document, or a bug is gone.
 
 - **r15, 2026-08-28** — ADR-014 presentation: checkmark for supported, no experimental badge.
+- **r55, 2026-09-01** — Creation no longer treats silence as disclosure.
+  Unsupported variants are explicit where the choice is made.

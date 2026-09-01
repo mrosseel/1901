@@ -2002,6 +2002,11 @@ export function mount(
     builder = null;
     try {
       const next = await api.order(province, parts);
+      /* This order came off the options tree, so it is legal, and it replaces
+         whatever the province held. An illegal mark left over from the draft
+         before it would say a legal order will hold, which is a lie about the
+         draft on the board. */
+      if (knownIllegal.delete(province)) reportIllegal();
       state = next;
       callbacks.state(next);
       setStatus(sentence);
@@ -2018,6 +2023,8 @@ export function mount(
     setSelected(null);
     try {
       const next = await api.order(province, []);
+      // The order is gone, so the mark on it goes too.
+      if (knownIllegal.delete(province)) reportIllegal();
       state = next;
       callbacks.state(next);
       setStatus("Order for " + provinceName(province) + " removed.");

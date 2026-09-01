@@ -172,7 +172,7 @@ func TestTheSessionCookieOpensTheSeat(t *testing.T) {
 func TestHandoverRekeysAndClosesTheSession(t *testing.T) {
 	id := makeGame(t)
 	g, _ := games.lookup(id)
-	_, _, joined := joinWithKey(t, g, id)
+	oldPrivate, _, joined := joinWithKey(t, g, id)
 	cookie := sessionCookie(t, id, joined)
 
 	var power godip.Nation
@@ -195,6 +195,13 @@ func TestHandoverRekeysAndClosesTheSession(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("handover: got %v: %v", rec.Code, rec.Body.String())
 	}
+	var answer map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &answer); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := answer["phaseIndex"]; !present {
+		t.Error("handover answer omitted the phase needed to retain sealed orders")
+	}
 
 	if g.flow.seats[power].signPub == oldPub {
 		t.Error("the seat still answers to the key it was handed away from")
@@ -207,6 +214,32 @@ func TestHandoverRekeysAndClosesTheSession(t *testing.T) {
 	}
 	if g.flow.seats[power].epoch != epoch+1 {
 		t.Errorf("epoch %v, want %v", g.flow.seats[power].epoch, epoch+1)
+	}
+
+	// Dropping the old session is not enough: a keyed seat can always ask for
+	// another one. The former signing key must fail that complete path too.
+	challengeRec := httptest.NewRecorder()
+	handleSeatSession(g, id, challengeRec,
+		httptest.NewRequest(http.MethodGet, "/session", nil))
+	var challenge struct {
+		Nonce   string `json:"nonce"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(challengeRec.Body.Bytes(), &challenge); err != nil {
+		t.Fatal(err)
+	}
+	oldPublic := oldPrivate.Public().(ed25519.PublicKey)
+	oldBody, _ := json.Marshal(map[string]string{
+		"signPub": base64.RawURLEncoding.EncodeToString(oldPublic),
+		"nonce":   challenge.Nonce,
+		"signature": base64.RawURLEncoding.EncodeToString(
+			ed25519.Sign(oldPrivate, []byte(challenge.Message))),
+	})
+	reopened := httptest.NewRecorder()
+	handleSeatSession(g, id, reopened,
+		httptest.NewRequest(http.MethodPost, "/session", bytes.NewReader(oldBody)))
+	if reopened.Code != http.StatusForbidden {
+		t.Errorf("the former holder signed back in: got %v, want 403", reopened.Code)
 	}
 }
 

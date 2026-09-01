@@ -78,6 +78,17 @@ the server? Can an attacker on the network redirect the links the GM shares?
    pins go1.26.7. CI runs `govulncheck ./...` and fails the build on a
    reachable vulnerability.
 
+6. A player-issued seat handover reused the outgoing holder's seed so the new
+   phone could release an already-sealed envelope. That same seed was also the
+   seat's signing identity, so the former holder could immediately sign back
+   in after the server dropped their session. Fix: the recipient authenticates
+   with a fresh seed and retains only the current phase's derived order key.
+
+7. A game-master role handover rotated the URL token and referee cookie but
+   kept the outgoing holder's recovery public key. Their twelve words could
+   therefore take the role straight back. Fix: role handover retires that key;
+   the incoming game master may enroll a fresh recovery key.
+
 ## Changes since the review
 
 Two changes landed on the same day, both with a bearing on this file.

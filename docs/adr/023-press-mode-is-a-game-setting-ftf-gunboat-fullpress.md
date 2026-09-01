@@ -30,9 +30,15 @@ creation and by the GM before start, validated against the four names,
 event-logged, persisted in `game.press_mode` and returned in the GM, seat and
 public views. No behaviour is attached to it, and the app carries no messages
 in any mode.
+
+The creation and referee forms expose `ftf`, `gunboat`, and `rulebook`.
+`fullpress` remains accepted for stored compatibility but is not offered until
+in-app messaging exists; marketing and join copy must not imply otherwise.
 ## Revisions
 
 Decisions this record changed, and alternatives it refused. Anything that was
 only progress, a correction to the document, or a bug is gone.
 
 - **r18, 2026-08-28** — ADR-023 gains the rulebook press mode and is implemented as data.
+- **r55, 2026-09-01** — The forms expose only modes the present app can
+  honestly support. Full press remains data, not a product claim.

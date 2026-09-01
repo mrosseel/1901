@@ -5,10 +5,12 @@ import {
   mintHandover,
   resultsUrl,
   watchPath,
+  type DrawProposal,
   type GameResult,
   type GmSeat,
   type GmState,
   type Handover,
+  type Settings,
 } from "../api";
 import { GmKeyCard } from "../components/GmKeyCard";
 import { LinkShare } from "../components/LinkShare";
@@ -60,20 +62,19 @@ phase follows it.
 Only powers still holding a supply centre may be named, which the server
 enforces too. One power is a concession, and that is a real thing at a table.
 */
-function DrawCard({
-  seats,
-  result,
-  onDraw,
-}: {
+function DrawCard({ seats, result, proposal, onDraw, onWithdraw }: {
   seats: GmSeat[];
   result?: GameResult | null;
+  proposal?: DrawProposal | null;
   onDraw: (powers: string[]) => void;
+  onWithdraw: () => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [confirming, setConfirming] = useState(false);
 
   if (result) return null;
 
+  const survivors = seats.filter((seat) => (seat.centres ?? 1) > 0);
   const toggle = (power: string) =>
     setPicked((was) =>
       was.includes(power) ? was.filter((p) => p !== power) : was.concat(power),
@@ -82,12 +83,26 @@ function DrawCard({
   return (
     <details className="card">
       <summary>End the game</summary>
+      {proposal ? (
+        <div className="draw-confirm">
+          <p>Proposed result: <strong>{proposal.powers.join(", ")}</strong>.</p>
+          <p className="note">
+            Waiting for the excluded {proposal.required.length === 1 ? "power" : "powers"}: {" "}
+            {proposal.required.map((power) =>
+              proposal.confirmed.includes(power) ? power + " (confirmed)" : power,
+            ).join(", ")}.
+          </p>
+          <button type="button" onClick={onWithdraw}>Withdraw proposal</button>
+        </div>
+      ) : (
+        <>
       <p className="note">
-        For a draw the table has agreed, or a concession. Name everybody who is
-        in it. A solo ends the game on its own and needs nothing here.
+        Include every surviving power for an agreed draw. Leaving a survivor out
+        asks that power to confirm the exclusion on their own board. A solo is
+        detected automatically.
       </p>
       <ul className="draw-picks">
-        {seats.map((seat) => (
+        {survivors.map((seat) => (
           <li key={seat.power}>
             <label>
               <input
@@ -102,8 +117,13 @@ function DrawCard({
       </ul>
       {confirming ? (
         <p className="draw-confirm">
-          <button type="button" onClick={() => onDraw(picked)}>
-            Yes, end the game
+          <span>
+            {picked.length === survivors.length
+              ? "This freezes the board and records the draw immediately."
+              : "The game continues until every excluded survivor confirms."}
+          </span>{" "}
+          <button type="button" onClick={() => { onDraw(picked); setConfirming(false); }}>
+            {picked.length === survivors.length ? "Record draw" : "Send proposal"}
           </button>{" "}
           <button type="button" onClick={() => setConfirming(false)}>
             Cancel
@@ -111,13 +131,14 @@ function DrawCard({
         </p>
       ) : (
         <button type="button" disabled={!picked.length} onClick={() => setConfirming(true)}>
-          {picked.length === 1 ? "Record a concession" : "Record a draw"}
+          {picked.length === survivors.length ? "Record agreed draw" : "Propose this result"}
         </button>
       )}
       <p className="note">
-        This cannot be undone. The board freezes where it stands and the result
-        goes on every screen, including the spectator link.
+        A recorded result cannot be undone. Eliminated powers are not part of a draw.
       </p>
+        </>
+      )}
     </details>
   );
 }
@@ -141,6 +162,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
      row is the game master's own. It is its own piece of state so the card
      above and the row below never fight over one box. */
   const [rowRole, setRowRole] = useState<Handover | null>(null);
+  const [confirmingForce, setConfirmingForce] = useState(false);
 
   /* The way back to this screen, for the bar on every ordinary page (ADR-043).
      A game master is the one person who cannot be handed their link again. */
@@ -237,7 +259,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
     return (
       <main className="page">
         <h1>Game not found</h1>
-        <p>This link is wrong, or the game is gone. Games live only as long as the server runs.</p>
+        <p>This link is wrong, the game is not on this server, or your game-master access has changed.</p>
       </main>
     );
   }
@@ -254,11 +276,29 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
   const lockedCount = game.seats.filter((seat) => seat.locked).length;
   const allJoined = game.joinedCount >= game.totalSeats;
 
+  /*
+  The two halves of awaitingReveal, which the game master acts on differently
+  (ADR-009).
+
+  A seat that locked in holds the only key to an envelope the server already
+  has, so waking that phone still saves its orders. A seat that never locked
+  has nothing to wake: the window opened on the deadline instead, and the only
+  way past it is to extend or to force, which makes that power an NMR.
+  */
+  const awaiting = new Set(game.awaitingReveal || []);
+  const waiting = game.seats.filter((seat) => awaiting.has(seat.power));
+  const asleep = waiting.filter((seat) => seat.locked).map((seat) => seat.power);
+  const silent = waiting.filter((seat) => !seat.locked).map((seat) => seat.power);
+
   // The review and the guide are read, not acted on. While one is open the
   // controls behind it — the start, the extend, the forced adjudication — are
   // inert, so the only button on screen is the one that closes what is open.
   const reading = (refereeing && Boolean(guide)) || (reviewing && Boolean(review));
   const inviteUrl = new URL(game.inviteUrl, location.href).toString();
+  const inviteHost = new URL(inviteUrl).hostname;
+  const localOnlyInvite =
+    inviteHost === "localhost" || inviteHost === "::1" || inviteHost === "::" ||
+    inviteHost === "0.0.0.0" || /^127\./.test(inviteHost);
   const spectatorUrl = new URL(watchPath(gameId, null), location.origin).toString();
 
   return (
@@ -318,7 +358,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       {review && !reviewing && !refereeing ? (
         <p className="head-links">
           <button type="button" className="link" onClick={() => setReviewing(true)}>
-            Review last turn
+            Review last phase
           </button>
           {guide ? (
             <button type="button" className="link" onClick={() => setRefereeing(true)}>
@@ -352,11 +392,18 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           >
             {allJoined ? "Start the game" : "Waiting for every power"}
           </button>
-          <LinkShare
-            title="Invite link"
-            url={inviteUrl}
-            note="Pass the phone around, or let the players scan this. Each one gets a power."
-          />
+          {localOnlyInvite ? (
+            <p className="banner error">
+              This invite only opens on this computer. Restart with BASE_URL set to an
+              address that players' phones can reach before seating the table.
+            </p>
+          ) : (
+            <LinkShare
+              title="Invite link"
+              url={inviteUrl}
+              note="Scan it once from a player's phone before seating the table. Each phone gets a power."
+            />
+          )}
           {/*
           The one handover that exists before the start. There is no list of
           powers yet, so this is the only place the role can be given away;
@@ -390,7 +437,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
                 {seat.isGm ? <span className="badge gm">Game master</span> : null}
                 {game.started ? (
                   <span className={seat.locked ? "badge done" : "badge out"}>
-                    {seat.locked ? "Locked in" : "Still ordering"}
+                    {seat.locked ? "Ready" : "Still ordering"}
                   </span>
                 ) : null}
                 <button
@@ -430,11 +477,11 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
                 url={handover.url}
                 note={
                   <>
-                    Whoever opens this takes {handover.power}. The phone holding it now
-                    loses the seat the moment they do. This link carries no key
-                    (ADR-004), so orders that seat had already locked in this phase are
-                    lost and the power holds. A player handing their own seat on, from
-                    their own menu, keeps them.
+                    Whoever opens this takes {handover.power}. The device holding it now
+                    loses the seat the moment they do. Any orders {handover.power} entered
+                    on the old device this phase are lost. When the player initiates the
+                    move from their own seat, locked orders can travel with it. Use this
+                    for device recovery or a replacement allowed by your house or tournament rules.
                   </>
                 }
               />
@@ -446,8 +493,8 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
                 url={rowRole.url}
                 note={
                   <>
-                    That row is your own, and it holds two things. This one hands on the
-                    rights; the code beside it hands on the seat.
+                    Whoever opens this becomes the table's game master. They may already
+                    hold a power; the role and the power remain separate.
                   </>
                 }
               />
@@ -458,7 +505,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           {game.started ? (
             <p className="muted">
               {game.seats.filter((seat) => seat.joined).length} powers in play ·{" "}
-              {lockedCount} players locked in
+              {lockedCount} players ready
             </p>
           ) : null}
         </section>
@@ -526,17 +573,29 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           <h2>The clock</h2>
           <p>{countdown(game.deadlineAt)}</p>
           <ExtendRow onExtend={(minutes) => act("The deadline moved.", () => client.extend(minutes))} />
-          <button
-            type="button"
-            disabled={!game.canForce}
-            onClick={() => act("The phase was adjudicated.", () => client.force())}
-          >
-            Force adjudication
-          </button>
+          {confirmingForce ? (
+            <p className="draw-confirm">
+              <span>
+                This resolves now. Every unrevealed or unready power records an NMR and
+                receives no submitted orders.
+              </span>{" "}
+              <button type="button" onClick={() => {
+                setConfirmingForce(false);
+                act("The phase was adjudicated.", () => client.force());
+              }}>
+                Force this phase
+              </button>{" "}
+              <button type="button" onClick={() => setConfirmingForce(false)}>Cancel</button>
+            </p>
+          ) : (
+            <button type="button" disabled={!game.canForce} onClick={() => setConfirmingForce(true)}>
+              Force adjudication
+            </button>
+          )}
           <p className="note">
             {game.canForce
-              ? "Powers that have not locked in keep no orders: their units hold."
-              : "Possible once the deadline passes, or when every power but one has locked in."}
+              ? "Powers that are not ready or have not revealed record an NMR."
+              : "Available after the deadline and any grace period have passed."}
           </p>
           {/*
           A phone that locked in and then died holds the only copy of its
@@ -544,11 +603,25 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           master's three ways out are wait, extend, and force — and forcing
           writes an NMR against exactly the seats named here (ADR-009).
           */}
-          {game.revealOpen && (game.awaitingReveal || []).length ? (
+          {game.revealOpen && asleep.length ? (
             <p className="note reveal-wait">
-              Every power has locked in. Still waiting for{" "}
-              {(game.awaitingReveal || []).join(", ")} to send their orders — ask them
-              to wake the phone, or force the phase and their units hold.
+              {silent.length
+                ? "The deadline has passed and the orders are going up."
+                : "Every power is ready."}{" "}
+              Still waiting for {asleep.join(", ")} to send their orders — ask them to
+              wake the phone, or force the phase and record an NMR.
+            </p>
+          ) : null}
+          {/*
+          A seat that never locked in has no envelope on the server, so no
+          phone can save it. Waking it is not the way out; extending the
+          deadline or forcing the phase is.
+          */}
+          {game.revealOpen && silent.length ? (
+            <p className="note reveal-wait">
+              {silent.join(", ")} was not ready before the deadline, so there is
+              nothing to send for {silent.length === 1 ? "that seat" : "those seats"}.
+              Extend the deadline, or force the phase and record an NMR.
             </p>
           ) : null}
         </section>
@@ -558,7 +631,9 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         <DrawCard
           seats={game.seats}
           result={game.result}
-          onDraw={(powers) => act("The game is over.", () => client.draw(powers))}
+          proposal={game.drawProposal}
+          onDraw={(powers) => act("The draw decision was recorded.", () => client.draw(powers))}
+          onWithdraw={() => act("The draw proposal was withdrawn.", () => client.drawWithdraw())}
         />
       ) : null}
 
@@ -632,21 +707,15 @@ function SettingsCard({
   started,
   onSave,
 }: {
-  settings: {
-    deadlineMinutes: number;
-    gmPlays: boolean;
-    illegalMoves?: boolean;
-    endYear?: number;
-  };
+  settings: Settings;
   started: boolean;
-  onSave: (patch: {
-    deadlineMinutes: number;
-    gmPlays?: boolean;
-    illegalMoves?: boolean;
-    endYear?: number;
-  }) => void;
+  onSave: (patch: Partial<Settings> & { deadlineMinutes: number }) => void;
 }) {
   const [minutes, setMinutes] = useState(settings.deadlineMinutes);
+  const [retreatPercent, setRetreatPercent] = useState(settings.retreatBuildPercent ?? 50);
+  const [grace, setGrace] = useState(settings.graceMinutes ?? 0);
+  const [firstExtra, setFirstExtra] = useState(settings.firstTurnExtraMinutes ?? 0);
+  const [pressMode, setPressMode] = useState(settings.pressMode ?? "ftf");
   const [plays, setPlays] = useState(settings.gmPlays);
   const allowIllegal = illegalAllowed(settings);
   const [illegal, setIllegal] = useState(allowIllegal);
@@ -655,12 +724,20 @@ function SettingsCard({
 
   // A change made from another device wins over an untouched form.
   useEffect(() => setMinutes(settings.deadlineMinutes), [settings.deadlineMinutes]);
+  useEffect(() => setRetreatPercent(settings.retreatBuildPercent ?? 50), [settings.retreatBuildPercent]);
+  useEffect(() => setGrace(settings.graceMinutes ?? 0), [settings.graceMinutes]);
+  useEffect(() => setFirstExtra(settings.firstTurnExtraMinutes ?? 0), [settings.firstTurnExtraMinutes]);
+  useEffect(() => setPressMode(settings.pressMode ?? "ftf"), [settings.pressMode]);
   useEffect(() => setPlays(settings.gmPlays), [settings.gmPlays]);
   useEffect(() => setIllegal(allowIllegal), [allowIllegal]);
   useEffect(() => setEndYear(savedEndYear), [savedEndYear]);
 
   const dirty =
     minutes !== settings.deadlineMinutes ||
+    retreatPercent !== (settings.retreatBuildPercent ?? 50) ||
+    grace !== (settings.graceMinutes ?? 0) ||
+    firstExtra !== (settings.firstTurnExtraMinutes ?? 0) ||
+    pressMode !== (settings.pressMode ?? "ftf") ||
     plays !== settings.gmPlays ||
     endYear !== savedEndYear ||
     illegal !== allowIllegal;
@@ -674,7 +751,7 @@ function SettingsCard({
         </p>
       ))}
       <label className="field">
-        <span>Minutes for each phase</span>
+        <span>Minutes for movement phases</span>
         <input
           type="number"
           min={0}
@@ -683,6 +760,34 @@ function SettingsCard({
           value={minutes}
           onChange={(event) => setMinutes(Number(event.target.value))}
         />
+      </label>
+      <details>
+        <summary>Clock details</summary>
+        <label className="field">
+          <span>Retreat and adjustment clock (%)</span>
+          <input type="number" min={1} max={100} inputMode="numeric" value={retreatPercent}
+            onChange={(event) => setRetreatPercent(Number(event.target.value))} />
+        </label>
+        <label className="field">
+          <span>Grace after deadline (minutes)</span>
+          <input type="number" min={0} max={600} inputMode="numeric" value={grace}
+            onChange={(event) => setGrace(Number(event.target.value))} />
+        </label>
+        <label className="field">
+          <span>Extra time for Spring 1901 (minutes)</span>
+          <input type="number" min={0} max={600} inputMode="numeric" value={firstExtra}
+            onChange={(event) => setFirstExtra(Number(event.target.value))} />
+        </label>
+      </details>
+      <label className="field">
+        <span>Negotiation rule</span>
+        <select value={pressMode} disabled={started} onChange={(event) =>
+          setPressMode(event.target.value as NonNullable<Settings["pressMode"]>)}>
+          <option value="ftf">Face to face — negotiate out loud</option>
+          <option value="gunboat">Gunboat — no negotiation</option>
+          <option value="rulebook">Movement phases only</option>
+        </select>
+        <small>{started ? "Fixed once the game has started." : "This app does not provide in-app press."}</small>
       </label>
       <label className="field">
         <span>Stop after the year</span>
@@ -712,8 +817,8 @@ function SettingsCard({
           checked={illegal}
           onChange={(event) => setIllegal(event.target.checked)}
         />
-        <span>Allow illegal orders</span>
-        <small>Players may write illegal orders to bluff; they resolve as holds.</small>
+        <span>Accept orders exactly as entered</span>
+        <small>Invalid orders fail under the rules instead of being blocked during entry.</small>
       </label>
       <button
         type="button"
@@ -723,11 +828,18 @@ function SettingsCard({
             started
               ? {
                   deadlineMinutes: Math.max(0, Math.floor(minutes) || 0),
+                  retreatBuildPercent: Math.max(1, Math.min(100, Math.floor(retreatPercent) || 50)),
+                  graceMinutes: Math.max(0, Math.floor(grace) || 0),
+                  firstTurnExtraMinutes: Math.max(0, Math.floor(firstExtra) || 0),
                   illegalMoves: illegal,
                   endYear: Math.max(0, Math.floor(endYear) || 0),
                 }
               : {
                   deadlineMinutes: Math.max(0, Math.floor(minutes) || 0),
+                  retreatBuildPercent: Math.max(1, Math.min(100, Math.floor(retreatPercent) || 50)),
+                  graceMinutes: Math.max(0, Math.floor(grace) || 0),
+                  firstTurnExtraMinutes: Math.max(0, Math.floor(firstExtra) || 0),
+                  pressMode: pressMode,
                   gmPlays: plays,
                   illegalMoves: illegal,
                   endYear: Math.max(0, Math.floor(endYear) || 0),

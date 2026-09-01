@@ -58,11 +58,9 @@ export function SeatMenu({
     setPortable(seed ? seatLink(gameId, seed) : null);
     /*
     The handover carries this seat's seed, appended here and never by the
-    server (ADR-004). Without it the taking phone makes a fresh key, and the
-    orders this seat has already locked in are sealed under a key nobody can
-    make again — so handing a power over mid-phase would turn it into an NMR,
-    against ADR-041's own rule that the new holder inherits the seat as it
-    stands, orders included.
+    server (ADR-004). The taking phone derives this phase's order key from it,
+    then makes a fresh signing seed for the seat. Keeping those jobs separate
+    preserves locked orders without leaving this device able to sign back in.
 
     A game master minting a link for a dead phone cannot do this. The server
     has no seed, and that link still costs the locked orders.
@@ -96,7 +94,9 @@ export function SeatMenu({
                 <PowerChip power={power} />
               </p>
               <p className="muted">
-                {turns === undefined ? "" : turns + (turns === 1 ? " turn" : " turns") + " played"}
+                {turns === undefined
+                  ? ""
+                  : turns + (turns === 1 ? " phase resolved" : " phases resolved")}
                 {turns !== undefined && createdAt ? " · " : ""}
                 {createdAt ? elapsed(createdAt) : ""}
               </p>
@@ -106,7 +106,7 @@ export function SeatMenu({
             <div className="handovers">
               {link ? (
                 <LinkShare
-                  title={isGameMaster ? "Your power · " + power : "Hand this power to somebody else"}
+                  title={isGameMaster ? "Your power · " + power : "Move this seat to another device"}
                   url={link.url}
                   note={
                     <>
@@ -145,7 +145,7 @@ export function SeatMenu({
             {portable ? (
               <LinkShare
                 private
-                title="This seat, on another device"
+                title="Back up or open this seat on another device"
                 url={portable}
                 note={
                   <>

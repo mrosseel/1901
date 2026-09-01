@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { deriveOrderKey, fromBase64Url, toBase64Url } from "./keys";
-import { canonicalOrders, draftOrders, sealOrders, type DraftOrder } from "./sealed";
+import {
+  canonicalOrders,
+  discardInheritedEnvelopeKey,
+  draftOrders,
+  inheritSealedOrderKey,
+  readDraft,
+  sealOrders,
+  type DraftOrder,
+} from "./sealed";
 
 /*
 The envelope has to be one the server can open (ADR-004).
@@ -127,5 +135,20 @@ describe("the key for a phase", () => {
     const spare = deriveOrderKey(seed, "g1", 0);
     expect(toBase64Url(spare)).toBe(toBase64Url(dead));
     expect(envelope.length).toBeGreaterThan(0);
+  });
+
+  it("hands over only the current order key, not the former signing seed", () => {
+    const recipient = new Uint8Array(32).fill(9);
+    const inherited = inheritSealedOrderKey("handed-over", 6, seed, recipient);
+    expect(inherited.key).toBe(toBase64Url(deriveOrderKey(recipient, "handed-over", 6)));
+    expect(inherited.revealKey).toBe(toBase64Url(deriveOrderKey(seed, "handed-over", 6)));
+    expect(inherited.key).not.toBe(inherited.revealKey);
+    expect(inherited.orders).toEqual({});
+    expect(readDraft("handed-over", 6)).toEqual(inherited);
+    expect(discardInheritedEnvelopeKey(inherited)).toEqual({
+      key: inherited.key,
+      orders: {},
+    });
+    window.localStorage.removeItem("1901.draft.handed-over.6");
   });
 });

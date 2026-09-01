@@ -26,15 +26,15 @@ describe("countdown", () => {
 describe("the rules, in words", () => {
   it("names the deadline and who plays", () => {
     expect(settingsLines({ deadlineMinutes: 15, gmPlays: true })).toEqual([
-      "Deadline: 15 minutes for each phase.",
+      "Movement clock: 15 minutes. Retreats and adjustments: 50% (7.5 minutes).",
       "The game master plays a power as well.",
-      "Illegal orders may be written; they resolve as holds.",
+      "Orders are accepted as entered; invalid orders fail under the rules for that phase.",
       "Negotiate out loud, at the table.",
     ]);
     expect(settingsLines({ deadlineMinutes: 0, gmPlays: false })).toEqual([
       "No deadline.",
       "The game master does not play a power.",
-      "Illegal orders may be written; they resolve as holds.",
+      "Orders are accepted as entered; invalid orders fail under the rules for that phase.",
       "Negotiate out loud, at the table.",
     ]);
   });
@@ -59,10 +59,10 @@ describe("the rules, in words", () => {
      absent setting reads as the permissive one (ADR-029). */
   it("says illegal orders are allowed when nothing says otherwise", () => {
     expect(settingsLines({ deadlineMinutes: 0, gmPlays: false })[2]).toBe(
-      "Illegal orders may be written; they resolve as holds.",
+      "Orders are accepted as entered; invalid orders fail under the rules for that phase.",
     );
     expect(settingsLines(undefined)[2]).toBe(
-      "Illegal orders may be written; they resolve as holds.",
+      "Orders are accepted as entered; invalid orders fail under the rules for that phase.",
     );
   });
 

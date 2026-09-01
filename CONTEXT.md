@@ -118,8 +118,9 @@ _Avoid_: scratch game, practice game, private board
 
 **NMR**:
 "No moves received": a power resolved with no orders because nothing was
-committed or revealed in time; its units hold. Event-log and GM-view term;
-player-facing text says "no orders — units hold".
+committed or revealed in time. The phase's normal no-order rule applies:
+movement units hold, unordered retreats disband, and adjustments follow their
+ordinary rules. Event-log and GM-view term.
 _Avoid_: civil disorder (reserved for the real rulebook state, which we do
 not implement)
 
@@ -142,7 +143,7 @@ The per-order outcome of an adjudication (`OK`, `ErrBounce:tri`).
 > **Dev:** England locks in but their phone dies before the reveal.
 > **Domain expert:** Their commit is on the server, their orders are not.
 > The GM waits, extends, or forces adjudication — then England is an NMR:
-> no orders, units hold, one line in the event log.
+> no submitted orders, the phase's ordinary rule, one line in the event log.
 > **Dev:** Can the commentator at the spectator screen sketch England's
 > best move?
 > **Domain expert:** As an Annotation, yes. It draws on the glass, never

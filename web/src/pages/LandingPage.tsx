@@ -56,6 +56,7 @@ export function LandingPage() {
           <a href="#turn">How a turn runs</a>
           <a href="/new">Variants</a>
           <a href="/games">Watch a game</a>
+          <a href="/recover">Return to a game</a>
           <a href="/faq">Questions</a>
           <a className="cta" href="/new">
             Create a game
@@ -73,10 +74,10 @@ export function LandingPage() {
               <br />
               face-to-face.
             </h1>
-            <p className="lp-tagline">FTF, gunboat or full press.</p>
+            <p className="lp-tagline">Face-to-face or gunboat play.</p>
             <p className="lp-lead">
               Everyone at the table enters orders on their own phone, at the same time.
-              The server resolves the turn and prints the list of pieces to push.
+              The server resolves the phase and prints the list of pieces to push.
             </p>
             <div className="lp-actions">
               <a className="lp-primary" href="/new">
@@ -128,7 +129,7 @@ export function LandingPage() {
                   <li>F Bre &rarr; MAO</li>
                 </ul>
                 <div className="lp-screen-lock">
-                  <span className="lock-main">Lock in orders</span>
+                  <span className="lock-main">Mark orders ready</span>
                   <span className="lock-sub">4 of 7 players ready</span>
                 </div>
               </div>
@@ -179,7 +180,7 @@ export function LandingPage() {
           </article>
           <article className="lp-card">
             <ResolveIcon />
-            <p className="lp-card-head">Everyone locks, the turn resolves</p>
+            <p className="lp-card-head">Everyone is ready, the phase resolves</p>
             <p className="note">
               A review screen shows every order, with the failures struck out and the
               reason beside them.
@@ -193,7 +194,7 @@ export function LandingPage() {
           <h2 className="lp-head small">A list for whoever pushes the pieces</h2>
           <p className="lp-body">
             Playing with a physical board is optional. If you do, whoever keeps it gets
-            one line per act after the turn resolves, in big type, with a tick box. Read
+            one line per act after the phase resolves, in big type, with a tick box. Read
             it, move it, tick it. The pieces that stay put are listed too, quietly, so
             none of them gets missed.
           </p>
@@ -236,10 +237,10 @@ export function LandingPage() {
         <h2 className="lp-head small">Built for any room</h2>
         <div className="lp-cards two">
           <article className="lp-card">
-            <p className="lp-card-head">Illegal orders are allowed</p>
+            <p className="lp-card-head">Orders are accepted as entered</p>
             <p className="note">
-              Claiming you misordered is a time-honoured way to lie, so the server takes
-              the order and marks it. Your own device warns you in amber first.
+              The server can accept an invalid order instead of blocking entry. Your own
+              device marks it and says what the rules will do before you are ready.
             </p>
           </article>
           <article className="lp-card">
@@ -261,8 +262,8 @@ export function LandingPage() {
             <p className="note">
               Your orders never reach the server unsealed. Locking sends them encrypted
               under a key your phone keeps, and the key goes up only once every power has
-              locked in. A game master who also plays holds seven envelopes and no key to
-              any of them. No other platform does this.
+              ready. A game master who also plays holds the encrypted envelopes and no key
+              to any of them while ordering remains open.
             </p>
           </article>
         </div>

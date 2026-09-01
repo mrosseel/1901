@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -170,6 +171,7 @@ func TestGMMintsForAnyPowerAndLogsIt(t *testing.T) {
 func TestGMRoleHandoverRotatesTheTokenAndTheRefereeDoor(t *testing.T) {
 	id := makeGame(t)
 	g, _ := games.lookup(id)
+	oldRecoveryKey := registerKey(t, g, id)
 	before, device, epoch := g.flow.gmToken, g.flow.gmDevice, g.flow.gmEpoch
 	if device == "" {
 		t.Fatal("the created game has no referee cookie secret to lose")
@@ -193,6 +195,9 @@ func TestGMRoleHandoverRotatesTheTokenAndTheRefereeDoor(t *testing.T) {
 	if g.flow.gmEpoch != epoch+1 {
 		t.Errorf("gm epoch %v, want %v", g.flow.gmEpoch, epoch+1)
 	}
+	if g.flow.gmPublicKey != "" {
+		t.Error("the former game master's recovery key survived the handover")
+	}
 	if g.flow.gmPower != power {
 		t.Error("handing over the role moved a power with it")
 	}
@@ -202,5 +207,23 @@ func TestGMRoleHandoverRotatesTheTokenAndTheRefereeDoor(t *testing.T) {
 		httptest.NewRequest(http.MethodPost, "/game/"+id+"/handover-gm/0/"+sig, nil))
 	if replay.Code != http.StatusConflict {
 		t.Errorf("replayed role link: got %v, want a refusal", replay.Code)
+	}
+
+	// The twelve words are another door into the role. Once their public half
+	// is retired, the former game master cannot even obtain a challenge.
+	recover := httptest.NewRecorder()
+	handleRecover(g, id, recover, httptest.NewRequest(http.MethodGet, "/recover", nil))
+	if recover.Code != http.StatusNotFound {
+		t.Errorf("old recovery door: got %v, want 404", recover.Code)
+	}
+
+	// The incoming holder can establish recovery again, under a new key. The
+	// former words remain invalid after that new door exists.
+	registerKey(t, g, id)
+	nonce, message := challenge(t, g, id)
+	oldClaim := claimRecovery(g, id, nonce,
+		ed25519.Sign(oldRecoveryKey, []byte(message)))
+	if oldClaim.Code != http.StatusForbidden {
+		t.Errorf("former recovery key after re-enrolment: got %v, want 403", oldClaim.Code)
 	}
 }

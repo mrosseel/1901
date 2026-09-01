@@ -15,6 +15,12 @@ import { readVariants, type Variant } from "./variants";
 export interface Settings {
   deadlineMinutes: number;
   gmPlays: boolean;
+	/** Percentage of the movement clock used for retreats and adjustments. */
+	retreatBuildPercent?: number;
+	/** Orders remain open this many minutes after the displayed deadline. */
+	graceMinutes?: number;
+	/** Extra minutes added only to Spring 1901 movement. */
+	firstTurnExtraMinutes?: number;
   /*
   What the table calls this game. Optional, and empty is the ordinary case:
   an unnamed game is known by its id. It names the table, never a person, so
@@ -25,8 +31,8 @@ export interface Settings {
   variant?: string;
   /*
   Whether a player may write an order the rules do not allow (ADR-029). The
-  server keeps it, the adjudicator throws it out, and the unit holds — which
-  is what paper does and what makes a bluff possible. Absent means yes: a
+  server keeps it, the adjudicator throws it out, and that phase's ordinary
+  invalid-order consequence applies. Absent means yes: a
   server that predates the setting accepted whatever it was sent (illegal.ts).
   */
   illegalMoves?: boolean;
@@ -58,6 +64,14 @@ export interface GameResult {
   year: number;
   /** How many phases had resolved: the last one a /watch link can show. */
   phaseIndex: number;
+}
+
+export interface DrawProposal {
+  /** Powers included in the proposed result. */
+  powers: string[];
+  /** Surviving powers asked to consent to being excluded. */
+  required: string[];
+  confirmed: string[];
 }
 
 /** What a running game says about the variant it was created with. */
@@ -186,6 +200,8 @@ export interface GmSeat {
   joined: boolean;
   locked: boolean;
   isGm?: boolean;
+	/** Supply centres currently held; zero means eliminated. */
+	centres?: number;
   /** This seat has released the orders behind its lock (ADR-004). */
   revealed?: boolean;
 }
@@ -211,6 +227,7 @@ export interface GmState extends VariantAware, SealedPhase {
    * predates keys, which is the same thing as not having one.
    */
   hasGmKey?: boolean;
+	drawProposal?: DrawProposal | null;
 }
 
 export interface PublicState extends VariantAware, SealedPhase {
@@ -254,7 +271,7 @@ export interface SeatState extends BoardState, VariantAware, SealedPhase {
   youLocked: boolean;
   /** True when this seat is the game master's own (ADR-021). */
   youAreGm?: boolean;
-  /** How many turns the game has played, for the seat menu (ADR-041). */
+  /** How many phases have resolved, for the seat menu (ADR-041). */
   turns?: number;
   /** When the game was made, for the seat menu's elapsed line. */
   createdAt?: string;
@@ -277,6 +294,7 @@ export interface SeatState extends BoardState, VariantAware, SealedPhase {
    * so the GM can switch between the board and the referee view.
    */
   refereeUrl?: string;
+	drawProposal?: DrawProposal | null;
 }
 
 /**
@@ -547,6 +565,8 @@ export interface SeatClaim {
   keyed?: boolean;
   /** Set when a handover answered: the power that was taken. */
   power?: string;
+  /** Current phase, so a handover can retain only its sealed-order key. */
+  phaseIndex?: number;
 }
 
 /*
@@ -609,6 +629,10 @@ export class GmClient {
   draw(powers: string[]): Promise<unknown> {
     return postJSON(this.base + "draw", { powers: powers });
   }
+
+	drawWithdraw(): Promise<unknown> {
+		return postJSON(this.base + "draw-withdraw");
+	}
 
   /** The link that hands the game master role to another device (ADR-041). */
   roleHandover(): Promise<Handover> {
@@ -735,6 +759,13 @@ export class SeatClient {
       postJSON<SeatState>(this.base + (on ? "lock" : "unlock"), on ? { sealed: sealed } : {}),
     );
   }
+
+	/** Accept or reject being excluded from the pending draw proposal. */
+	drawResponse(accept: boolean): Promise<SeatState> {
+		return this.withSession(() =>
+			postJSON<SeatState>(this.base + "draw-response", { accept: accept }),
+		);
+	}
 
   /*
   Releasing what this phone locked in (ADR-004): the key, and only the key.

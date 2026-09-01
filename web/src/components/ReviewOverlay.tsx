@@ -5,10 +5,9 @@ import { Clock } from "./Clock";
 import { PhaseName } from "./PhaseName";
 import { OrderNotationToggle } from "./OrderNotationToggle";
 import { useBriefMoves } from "../prefs";
-import { ILLEGAL_REASON } from "../illegal";
 
 /*
-What happened last turn, read while the next one is already running.
+What happened last phase, read while the next one is already running.
 
 The map behind this sheet is drawing the same thing — every power's orders,
 the failed ones crossed — so the sheet stays a sheet and never covers the
@@ -44,7 +43,7 @@ export function ReviewOverlay({
   const [brief, setBrief] = useBriefMoves();
 
   return (
-    <section className="review-sheet" aria-label="What happened last turn">
+    <section className="review-sheet" aria-label="What happened last phase">
       <header className="review-head">
         <div>
           <h2>
@@ -52,8 +51,9 @@ export function ReviewOverlay({
           </h2>
           <p className="muted">
             {plan.ordered === 0
-              ? "No orders were given."
-              : plan.succeeded + " of " + plan.ordered + " orders came off."}{" "}
+              ? "No orders were submitted."
+              : plan.ordered + " orders submitted · " +
+                Object.keys(plan.dislodged).length + " units dislodged."}{" "}
             {/* The list below is what this rewrites, so the switch sits with
                 the line that counts it. */}
             <OrderNotationToggle value={brief} onChange={setBrief} />
@@ -67,7 +67,7 @@ export function ReviewOverlay({
           {plan.nmr.map((power) => (
             <li key={power}>
               <PowerChip power={power} small />
-              {nmrLine(power)}
+              {nmrLine(power, plan.kind)}
             </li>
           ))}
         </ul>
@@ -85,7 +85,7 @@ export function ReviewOverlay({
             <span className="order-text">{brief ? row.brief : row.text}</span>
             {row.failed ? (
               <span className={row.illegal ? "review-why illegal" : "review-why"}>
-                {row.illegal ? ILLEGAL_REASON : row.reason}
+                {row.reason}
               </span>
             ) : null}
           </li>
@@ -157,7 +157,7 @@ export function ReviewPeekBar({
   }, [onClose]);
 
   return (
-    <div className="review-bar" role="dialog" aria-label="What happened last turn">
+    <div className="review-bar" role="dialog" aria-label="What happened last phase">
       <p className="review-bar-title">
         <PhaseName label={title} />
       </p>

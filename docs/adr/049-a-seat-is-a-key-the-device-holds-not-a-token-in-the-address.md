@@ -44,6 +44,14 @@ device signs back in without being asked, because the seed is on the device.
 What a restart must never do is leave a credential in a file that can be
 copied, which is the whole point.
 
+**A handover rotates the key.** A portable seat link deliberately lets every
+device holding its seed play the same power; a handover promises the opposite.
+The recipient therefore makes a fresh signing seed and the server replaces the
+stored public half. Where the outgoing player supplied the link, its fragment
+also carries the former seed long enough to derive the current phase's sealed
+order key. Only that phase key is retained; using the former seed for the new
+signing identity would let the outgoing player sign back in.
+
 **No migration.** A seat row holds a token or a public key, never both. Games
 made before this keep their tokens and keep working; games made after it get
 keys. A game lasts an evening, so the token path can be deleted when the last
@@ -64,3 +72,11 @@ of seats. That is worth having on its own.
 who wants the orders can serve a page that posts them twice. The claim this
 earns is *the server does not need your orders, and no copy of the database
 gives them up later* — not "nobody can read them".
+
+**Returning is a first-class path.** The return/recovery screen opens the most
+recent game, or a keyed seat by game id. A lost in-memory session is renewed by
+challenge automatically. While the server or network is unavailable, the seat
+states that its saved draft remains local and retries; coming back online does
+not turn a temporary transport failure into “seat not found”. A replacement
+device still needs the fragment-bearing backup link or a logged game-master
+replacement, because the server cannot reconstruct the private seed.

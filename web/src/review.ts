@@ -17,7 +17,7 @@ import type { PreviousPhase } from "./api";
 import { describeOrder, phaseLabel, provinceName } from "./board/provinces";
 import { describeInPhase, phaseKind, type PhaseKind } from "./board/phases";
 import { abbreviateOrder, proseUnits, unitsOf } from "./notation";
-import { ILLEGAL_REASON, isIllegal } from "./illegal";
+import { illegalReason, isIllegal } from "./illegal";
 import type { Unit } from "./board/types";
 
 /** One order as the review lists it. */
@@ -162,7 +162,7 @@ export function reviewPlan(previous: PreviousPhase | null | undefined): ReviewPl
       brief: abbreviateOrder(province, orderParts[province] || [], kind, unitAt),
       resolution: resolution,
       failed: bad,
-      reason: never ? ILLEGAL_REASON : failureReason(resolution),
+      reason: never ? illegalReason(kind) : failureReason(resolution),
       illegal: never,
     };
   });
@@ -182,9 +182,11 @@ export function reviewPlan(previous: PreviousPhase | null | undefined): ReviewPl
   };
 }
 
-/** "Russia: no orders received — units held." */
-export function nmrLine(power: string): string {
-  return power + ": no orders — units hold.";
+/** What a phase does when a power submits nothing. */
+export function nmrLine(power: string, kind: PhaseKind): string {
+  if (kind === "retreat") return power + ": no retreat orders — dislodged units disband.";
+  if (kind === "adjustment") return power + ": no adjustment orders — normal adjustment rules apply.";
+  return power + ": no orders submitted — units hold.";
 }
 
 // --- what this device has already read ------------------------------------

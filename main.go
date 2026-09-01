@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -44,6 +45,20 @@ func listenAddr() string {
 	return defaultAddr
 }
 
+func localOpenURL(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		if strings.HasPrefix(addr, ":") {
+			return "http://localhost" + addr
+		}
+		return "http://" + addr
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "localhost"
+	}
+	return "http://" + net.JoinHostPort(host, port)
+}
+
 // game holds one in-memory game and guards it against concurrent requests.
 type game struct {
 	mu    sync.Mutex
@@ -55,8 +70,8 @@ type game struct {
 	owner map[godip.Province]godip.Nation
 	// illegal marks the provinces whose stored order the engine refuses
 	// (ADR-029). The order is kept as the player wrote it and is shown back
-	// to them, but it is never in the engine's order set, so the unit holds
-	// and the review shows the order struck.
+	// to them, but it is never in the engine's order set, so the phase's
+	// ordinary invalid-order consequence applies and the review marks it.
 	illegal map[godip.Province]bool
 	// flow carries the GM, seat, and phase state.
 	flow *flow
@@ -137,7 +152,8 @@ An order that parses but does not VALIDATE is a misorder — Vienna ordered to
 Paris, a support for a move nobody is making. Bluffing by misordering is part
 of Diplomacy, so with illegalMoves on it is stored as the player wrote it and
 marked illegal: it never enters the engine's order set, so at adjudication
-the unit holds and the review shows the order struck (ADR-029). With the
+the phase's ordinary invalid-order consequence applies and the review shows
+the order struck (ADR-029). With the
 setting off it is refused, which is the strict behaviour this server had.
 
 An order that validates goes into the engine, as always.
@@ -730,8 +746,15 @@ func main() {
 	default:
 		origin = "each request — set BASE_URL to pin it"
 	}
-	log.Printf("1901 %v listening on http://localhost%v (app from %v, database %v, links %v, cap %v game(s))",
-		version, addr, spaSource(), dbPath(), origin, games.limit)
+	log.Printf("1901 %v listening (app from %v, database %v, cap %v game(s))",
+		version, spaSource(), dbPath(), games.limit)
+	log.Printf("open on this computer: %v", localOpenURL(addr))
+	log.Printf("phone invite links: %v", origin)
+	if baseURLFixed == "" && lanHost == "" {
+		log.Printf("WARNING: no unambiguous phone-reachable address was found; set BASE_URL and test one invite from a phone before seating the table")
+	} else {
+		log.Printf("test one invite from a phone before seating the table")
+	}
 	// Timeouts, so a slow or stalled client holds one connection, not the
 	// server. Requests here are small JSON and a few megabytes of SVG at
 	// most, so these bounds are generous.

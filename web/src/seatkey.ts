@@ -47,6 +47,23 @@ export function makeSeatSeed(): Uint8Array {
   return randomBytes(SEED_BYTES);
 }
 
+/*
+A handover is revocation, so the recipient must never authenticate with the
+seed the outgoing holder still knows. The former seed may travel long enough
+to recover one sealed-order key, but the seat itself always gets fresh random
+bytes. The equality check makes that invariant explicit rather than resting it
+on the negligible chance of a 256-bit collision.
+*/
+export function replacementSeatSeed(
+  formerSeed: Uint8Array | null,
+  generate: () => Uint8Array = makeSeatSeed,
+): Uint8Array {
+  for (;;) {
+    const seed = generate();
+    if (!formerSeed || seed.some((byte, index) => byte !== formerSeed[index])) return seed;
+  }
+}
+
 export function seatPublicKey(seed: Uint8Array): string {
   return publicKeyOf(deriveSigningKey(seed, KEY_NAME));
 }

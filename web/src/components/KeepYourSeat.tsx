@@ -75,11 +75,10 @@ export function KeepYourSeat({ gameId, power }: { gameId: string; power: string 
 
   return (
     <section className="card keep-seat">
-      <h2>Keep this seat</h2>
+      <h2>Back up this seat (optional)</h2>
       <p>
-        Your orders are sealed with a key that lives on this phone. Keep a copy of the
-        seat somewhere else now. If this phone dies, that copy is what lets you finish
-        the turn you locked in.
+        A backup link lets another device recover this seat and release locked orders if
+        this phone dies.
       </p>
       {/* Drawn, because a bookmark needs a link to be made from. This is the
           player's own screen and never the one on the beamer. */}
@@ -88,19 +87,22 @@ export function KeepYourSeat({ gameId, power }: { gameId: string; power: string 
       </a>
       <div className="keep-seat-actions">
         <button type="button" onClick={copy}>
-          Copy this seat
+          Copy backup link
         </button>
         <button type="button" className="link" onClick={dismiss}>
-          Not now
+          Skip
         </button>
       </div>
       {said ? <p className="note">{said}</p> : null}
-      <p className="note">
-        Copy it into a note, or bookmark the link above. Do not open it and then
-        bookmark the board: the key is taken out of the address as the board loads, so
-        that bookmark would hold nothing. The same seat, as a QR code, is always in
-        the {power} menu.
-      </p>
+      <details>
+        <summary>How it works</summary>
+        <p className="note">
+          Copy it into a note, or bookmark the link above. The recovery key is after the
+          # and is never sent to the server. Do not open it and then bookmark the board:
+          the key is removed from the address as the board loads. The same backup QR code
+          stays available in the {power} menu.
+        </p>
+      </details>
     </section>
   );
 }

@@ -153,6 +153,21 @@ func TestGracePeriodMovesTheForceButNotTheDeadline(t *testing.T) {
 	}
 }
 
+func TestAllButOneReadyDoesNotArmForceBeforeTheDeadline(t *testing.T) {
+	f := testFlow(t, settings{DeadlineMinutes: 20})
+	for i, power := range f.powers {
+		f.seats[power].token = string(rune('a' + i))
+		if i < len(f.powers)-1 {
+			f.seats[power].locked = true
+		}
+	}
+	future := time.Now().Add(15 * time.Minute)
+	f.deadlineAt = &future
+	if f.canForce() {
+		t.Error("all but one ready armed force before the published deadline")
+	}
+}
+
 func TestSettingsDefaultsAndPressModes(t *testing.T) {
 	got := settings{}.normalised()
 	if got.RetreatBuildPercent != 50 {

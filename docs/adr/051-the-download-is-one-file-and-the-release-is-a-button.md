@@ -91,5 +91,8 @@ decide whether the evening works:
   in the first case and a surprise in the second. When the folder is read-only
   the server now says which directory it failed in and names DB, because the
   sqlite error alone does not.
+- The referee lobby withholds a loopback invite QR and says to set `BASE_URL`.
+  Startup logs separate the local address from phone-link status, and the
+  operator guide requires a real-phone scan before the table is seated.
 - M5's acceptance test now has an artifact to run: take the release file to a
   machine with no internet and play a game.

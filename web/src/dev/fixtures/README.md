@@ -79,7 +79,7 @@ beside their state.
 | `gm-prestart.json` | A second game where the game master plays: six seats on offer, three joined, invite and QR open. Unnamed, and no power is listed — the count is all the page shows while seats are open |
 | `gm-lobby-full.json` | A fourth game, named "Thursday table at the Ostend", with all six seats claimed and the game not started. The one moment the list of powers appears before the start |
 | `gm-midphase.json` | Spring 1901 running, the clock counting down |
-| `gm-force-armed.json` | Six of seven locked in, so the forced adjudication is live |
+| `gm-force-armed.json` | A legacy six-of-seven snapshot used to verify that force stays unavailable before the deadline |
 | `gm-deadline-passed.json` | A third game with a one-minute deadline, snapshotted after it ran out with nobody locked in |
 | `gm-adjustment.json` | After Fall 1901, with the event log filled in |
 | `gm-ended-draw.json` | A fifth game, played through 1901 and then drawn among England, France and Russia (ADR-044). The clock is gone and `canForce` is false for good |
