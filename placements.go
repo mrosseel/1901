@@ -12,24 +12,18 @@
 //	variants/generated/<key>/placements.json  the approved table, which travels
 //	                                          with the variant and is the only
 //	                                          one this server reads (generated.go)
-//	placements/<key>.hand.json                a hand-corrected table, an INPUT to
-//	                                          dipmap and never read here
+//
+// There was a placements/ directory beside it until ADR-051 moved map
+// authoring to dipmap. It held the hand-corrected files, which were that
+// tool's input and were never read here, and a loader that looked for tables
+// the variant directories did not carry. Nothing set it, no deployment used
+// it, and it left with the tools.
 //
 // A variant with no file falls back to the map's anchors, which is what every
 // unverified variant does and what classical did before this table existed.
 // The fallback is per province, not per variant: a table missing one key
 // leaves that one province on its anchor and serves the rest.
 package main
-
-import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io/fs"
-	"log"
-	"sort"
-	"strings"
-)
 
 // placementJSON is one province's marker, in map units — the SVG's own user
 // coordinates, which is the space the board draws in.
@@ -123,62 +117,6 @@ type placementTable map[string]placementJSON
 // written once before any request is served and only read afterwards, so it
 // needs no lock.
 var placements = map[string]placementTable{}
-
-// loadPlacements reads any table still kept in the placements directory.
-//
-// A variant's own table arrives with the variant, so this normally finds
-// nothing but the hand files it skips. It stays because the directory is where
-// a table for something that is not a variant directory would go.
-//
-// A missing directory is not an error: a checkout with no approved table is a
-// working server, it just draws on the map's own anchors. A malformed file IS
-// an error worth failing on, because serving half a table silently would put
-// markers in two different coordinate systems on the same board.
-func loadPlacements() error {
-	fsys := placementFS()
-	entries, err := fs.ReadDir(fsys, ".")
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		return fmt.Errorf("read %v: %w", placementDir(), err)
-	}
-	loaded := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".json") {
-			continue
-		}
-		key := strings.TrimSuffix(name, ".json")
-		// The hand-corrected files are the tool's input, not the server's.
-		if strings.HasSuffix(key, ".hand") {
-			continue
-		}
-		b, err := fs.ReadFile(fsys, name)
-		if err != nil {
-			return fmt.Errorf("read %v: %w", name, err)
-		}
-		var table placementTable
-		if err := json.Unmarshal(b, &table); err != nil {
-			return fmt.Errorf("parse %v: %w", name, err)
-		}
-		for prov, spot := range table {
-			// A scale of zero is an absent field, not a request for an
-			// invisible marker.
-			if spot.Scale <= 0 {
-				spot.Scale = 1
-				table[prov] = spot
-			}
-		}
-		placements[key] = table
-		loaded = append(loaded, fmt.Sprintf("%v (%d provinces)", key, len(table)))
-	}
-	sort.Strings(loaded)
-	if len(loaded) > 0 {
-		log.Printf("placement tables: %v", strings.Join(loaded, ", "))
-	}
-	return nil
-}
 
 // placementFor returns the approved table for a variant, or nil when it has
 // none. Nil is meaningful and is serialised as JSON null: the board reads it

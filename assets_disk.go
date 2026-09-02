@@ -1,6 +1,6 @@
 //go:build !standalone
 
-// The three asset directories, read from the working directory.
+// The two asset directories, read from the working directory.
 //
 // This is the file a development build compiles: `npm run build` writes
 // web/dist and the running server picks it up, and a corrected placement
@@ -15,7 +15,6 @@ import (
 
 func spaFS() fs.FS       { return os.DirFS(spaDirPath()) }
 func generatedFS() fs.FS { return os.DirFS(generatedDir()) }
-func placementFS() fs.FS { return os.DirFS(placementDir()) }
 
 // spaSource is what the start-up line says the app is being served from.
 func spaSource() string { return absPath(spaDirPath()) }

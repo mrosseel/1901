@@ -8,35 +8,36 @@ import (
 	"testing"
 )
 
-// A table on disk has to reach the board unchanged. The server does not read
-// a single field of it — it is the placement tool's answer, handed through —
-// so the only thing worth testing is that nothing is dropped on the way.
+/*
+A table on disk has to reach the board unchanged.
+
+The server reads not one field of it: the table is dipmap's answer, handed
+through to the board. So the only thing worth testing is that nothing is
+dropped on the way, and that a missing scale is read as an absent field rather
+than as a request for an invisible marker.
+
+It arrives with its variant (ADR-051). There was a placements directory and a
+loader of its own until 2026-09-02; nothing set it and nothing used it, and
+this test followed the table to where it actually comes from.
+*/
 func TestPlacementsLoadAndPassThrough(t *testing.T) {
-	dir := t.TempDir()
+	dir := copyVariant(t, "demo7")
 	written := `{
 	  "vie": {"unit": [712, 812], "scale": 1, "dislodged": [750, 780], "brief": [640, 770]},
 	  "bud": {"unit": [812, 812], "dislodged": [850, 780]}
 	}`
-	if err := os.WriteFile(filepath.Join(dir, "toy.json"), []byte(written), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(dir, "demo7", "placements.json"), []byte(written), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// The hand file is the placement tool's input and must never be served.
-	if err := os.WriteFile(filepath.Join(dir, "toy.hand.json"), []byte(`{"vie": {}}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PLACEMENTS", dir)
-	// The loaded tables are process-wide and written once at startup, so a
-	// test that reloads them has to put back what it found.
-	held := placements
-	t.Cleanup(func() { placements = held })
-	placements = map[string]placementTable{}
-	if err := loadPlacements(); err != nil {
-		t.Fatalf("loadPlacements: %v", err)
+	withGeneratedDir(t, dir)
+	if err := loadGeneratedVariants(); err != nil {
+		t.Fatalf("loadGeneratedVariants: %v", err)
 	}
 
-	table := placementFor("toy")
+	table := placementFor("demo7")
 	if len(table) != 2 {
-		t.Fatalf("loaded %d provinces, wanted 2 — the hand file must be skipped", len(table))
+		t.Fatalf("loaded %d provinces, wanted 2", len(table))
 	}
 	if placementFor("nosuch") != nil {
 		t.Error("a variant with no table must answer nil, which serialises as null")

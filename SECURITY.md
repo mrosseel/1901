@@ -213,5 +213,5 @@ head -c 100000 /dev/zero | tr '\0' a | \
   new. Every other host is passed through as before.
 - `MAX_GAMES` caps live games. Default 100.
 - `ADDR` and `DB` set the listen address and the database path.
-- `SPADIR` and `PLACEMENTS` point at the frontend build and the placement
-  tables. The nix package sets both.
+- `SPADIR` and `GENERATED_VARIANTS` point at the frontend build and the
+  variant directories. The nix package sets both.

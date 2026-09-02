@@ -109,9 +109,9 @@ cd web && npm run build && cd ..
 CGO_ENABLED=0 go build -tags standalone -o 1901 .
 ```
 
-Without the tag the server reads `web/dist`, `variants/generated` and
-`placements` from the working directory, which is what a development session
-wants. `SPADIR`, `GENERATED_VARIANTS` and `PLACEMENTS` override either build.
+Without the tag the server reads `web/dist` and `variants/generated` from the
+working directory, which is what a development session wants. `SPADIR` and
+`GENERATED_VARIANTS` override either build.
 
 The published binaries come from the Release workflow: Actions, Release, Run
 workflow, type the version. It builds seven platforms from one runner and

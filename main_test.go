@@ -14,9 +14,6 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if err := loadPlacements(); err != nil {
-		log.Fatalf("load placements: %v", err)
-	}
 	if err := loadGeneratedVariants(); err != nil {
 		log.Fatalf("load generated variants: %v", err)
 	}

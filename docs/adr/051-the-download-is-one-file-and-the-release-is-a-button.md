@@ -96,3 +96,13 @@ decide whether the evening works:
   operator guide requires a real-phone scan before the table is seated.
 - M5's acceptance test now has an artifact to run: take the release file to a
   machine with no internet and play a game.
+
+
+## Revisions
+
+- **2026-09-02** — The placements directory is gone, and so is the code that
+  read it. This decision moved a variant's approved table into
+  variants/generated/<key>/ and moved map authoring to dipmap, which left the
+  directory with nothing in it and nothing looking for it. The embed directive
+  outlived the directory and broke every release build until CI said so; only
+  `-tags standalone` compiles that file, so nothing anybody ran noticed.

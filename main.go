@@ -668,9 +668,6 @@ func limitBody(next http.Handler) http.Handler {
 // Every step is fatal on failure. Serving half a placement table, or a variant
 // whose descriptor only half parsed, is worse than not starting.
 func loadState() error {
-	if err := loadPlacements(); err != nil {
-		return fmt.Errorf("load placements: %w", err)
-	}
 	if err := loadGeneratedVariants(); err != nil {
 		return fmt.Errorf("load generated variants: %w", err)
 	}

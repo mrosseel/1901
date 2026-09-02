@@ -1,13 +1,16 @@
 /*
 Where the server reads its own files (ADR-051).
 
-Three directories are not code and are not the database:
+Two directories are not code and are not the database:
 
 	web/dist              the vite build              SPADIR
 	variants/generated    descriptors, art, tables    GENERATED_VARIANTS
-	placements            the approved tables         PLACEMENTS
 
-A development build reads all three from the working directory, so a frontend
+A third, placements, was here until ADR-051 moved map authoring to dipmap. A
+variant's table travels with its art now, so nothing looked in that directory
+any more and it went with the tools that wrote it.
+
+A development build reads both from the working directory, so a frontend
 change needs a reload and not a recompile. A release build is compiled with
 `-tags standalone` and carries them inside the binary, because the thing a game
 master downloads has to run in a room with no toolchain and no internet
@@ -44,15 +47,6 @@ func generatedDir() string {
 		return p
 	}
 	return filepath.Join("variants", "generated")
-}
-
-// placementDir can be pointed elsewhere with PLACEMENTS, which is what the
-// tests and a run from another working directory need.
-func placementDir() string {
-	if p := os.Getenv("PLACEMENTS"); p != "" {
-		return p
-	}
-	return "placements"
 }
 
 // generatedPath names a file for an error message. The reader has a path
