@@ -446,41 +446,41 @@ details.card > summary::marker { color: var(--muted); }
   justify-content: center;
 }
 
-/* The preview is a button, so it has to shed the button chrome and keep the
-   box the card was laid out around. */
-button.variant-map {
-  width: 100%;
-  padding: 0;
-  cursor: zoom-in;
-  font: inherit;
-  color: inherit;
-}
-button.variant-map:disabled { cursor: default; }
-
-/* The corner chip says what a tap on the map does; the rest of the card
-   selects, and its saturated picked surface says so. */
+/* The glass in the corner, and the only thing on the map that is not the
+   card. Tapping the map picks the variant; tapping this looks at it closely.
+   It is 34px because it is the one control on a card a thumb has to find, and
+   because it now has to be told apart from the picture it sits on. */
 .map-zoom-chip {
   position: absolute;
-  bottom: 6px;
-  right: 6px;
-  width: 24px;
-  height: 24px;
+  bottom: 7px;
+  right: 7px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
   border: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 14px;
-  pointer-events: none;
+  color: var(--text);
+  cursor: zoom-in;
 }
-button.variant-map:hover:not(:disabled) .map-zoom-chip { color: var(--text); border-color: var(--accent); }
+
+.map-zoom-chip:hover:not(:disabled),
+.map-zoom-chip:focus-visible {
+  background: var(--bg);
+  border-color: var(--accent);
+}
+
+/* Nothing to look at yet: the card has not been scrolled into view, so the
+   map has not been fetched. */
+.map-zoom-chip:disabled { opacity: 0.35; cursor: default; }
 
 /* Every card's notes toggle sits on the same baseline: the card stretches to
    its grid row, and the toggle takes the slack. */
 .notes-toggle { margin-top: auto; align-self: flex-start; }
-button.variant-map:hover:not(:disabled) { border-color: var(--accent); }
+.variant:hover .variant-map { border-color: var(--accent); }
 
 /* A thumb has to be able to hit it, so the link gets a row of its own. */
 .variant button.link { align-self: flex-start; padding: 9px 0; }

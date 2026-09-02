@@ -79,23 +79,19 @@ function MapPreview({
     );
   }
   /*
-  The map is its own tap target, and it is a button.
+  The map picks the card. The glass on it opens it big.
 
-  Tapping the card picks the variant; tapping the map opens it big. Those are
-  two different things to want from a card, so they are two different targets
-  — and data-no-select is what keeps the map's tap from also picking the card
-  it sits in. A button rather than a div, so a keyboard reaches it too.
+  The map used to be the button, and it was the wrong one: a card whose one
+  picture cannot be tapped to choose it makes the picture look like it is not
+  part of the card. Looking closely is the rarer thing to want, so it is the
+  thing that gets its own control, and the control is big enough to hit with
+  a thumb without hunting.
+
+  data-no-select on the glass alone is what keeps its tap from also picking
+  the card underneath it.
   */
   return (
-    <button
-      type="button"
-      className="variant-map"
-      data-no-select="yes"
-      disabled={!load}
-      title={"Look at the " + name + " map"}
-      aria-label={"Look at the " + name + " map"}
-      onClick={onOpen}
-    >
+    <div className="variant-map">
       {load ? (
         <img
           className="variant-map-img"
@@ -106,13 +102,21 @@ function MapPreview({
           onError={() => setFailed(true)}
         />
       ) : null}
-      <span className="map-zoom-chip" aria-hidden="true">
-        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <button
+        type="button"
+        className="map-zoom-chip"
+        data-no-select="yes"
+        disabled={!load}
+        title={"Look at the " + name + " map"}
+        aria-label={"Look at the " + name + " map"}
+        onClick={onOpen}
+      >
+        <svg viewBox="0 0 16 16" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
           <circle cx="6.5" cy="6.5" r="4.5" />
           <line x1="10" y1="10" x2="14.2" y2="14.2" strokeLinecap="round" />
         </svg>
-      </span>
-    </button>
+      </button>
+    </div>
   );
 }
 
