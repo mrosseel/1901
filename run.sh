@@ -41,7 +41,7 @@ echo "run.sh: building the frontend"
 (cd web && npm_run run build)
 
 echo "run.sh: building the server"
-go_run build -o 1901srv .
+go_run build -o 1901srv ./cmd/1901
 
 # An empty HOST listens on every interface, which is what a table needs: the
 # invite QR names this machine's LAN address and the phones dial it.

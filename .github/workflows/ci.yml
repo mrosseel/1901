@@ -50,7 +50,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-      - run: go build -tags standalone -o /dev/null .
+      - run: go build -tags standalone -o /dev/null ./cmd/1901
         working-directory: ${{ github.workspace }}
 
   datc:
@@ -68,7 +68,7 @@ jobs:
       # The same corpus, adjudicated on the classical board this server loads
       # from variants/generated. godip's run proves the adjudicator; this one
       # proves the descriptor the adjudicator is handed.
-      - run: go test -run TestDATCOnTheLoadedClassicalBoard -v . 2>&1 | tee -a datc-results.txt
+      - run: go test -run TestDATCOnTheLoadedClassicalBoard -v ./internal/app 2>&1 | tee -a datc-results.txt
       - uses: actions/upload-artifact@v4
         with:
           name: datc-results
