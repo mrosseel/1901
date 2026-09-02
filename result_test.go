@@ -425,3 +425,28 @@ func TestTheResultSurvivesARestart(t *testing.T) {
 		t.Errorf("France came back with %v centres, want its opening 3", result.Centres["France"])
 	}
 }
+
+// The summary every phone polls is what a seat on the fallback path reads, so
+// an open proposal has to be in it. It carries no orders and names only powers.
+func TestThePublicSummaryCarriesAnOpenDrawProposal(t *testing.T) {
+	g := watchTestGame(t)
+	if rec := gmRequest(g, "game", "draw", `{"powers":["France","England"]}`); rec.Code != http.StatusOK {
+		t.Fatalf("draw refused: %v %v", rec.Code, rec.Body.String())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/public", nil)
+	rec := httptest.NewRecorder()
+	handlePublic(g, "game", rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("public summary answered %v", rec.Code)
+	}
+	body := struct {
+		DrawProposal *drawProposal `json:"drawProposal"`
+	}{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("public summary is not JSON: %v", err)
+	}
+	if body.DrawProposal == nil || len(body.DrawProposal.Required) != 5 {
+		t.Fatalf("the summary carries %#v, want the open proposal", body.DrawProposal)
+	}
+}
