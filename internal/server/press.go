@@ -9,6 +9,9 @@
 package server
 
 import (
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/base64"
 	"sort"
 	"strings"
 	"time"
@@ -28,6 +31,10 @@ const gmHolder = "*gm"
 
 // pressKeyBytes is the length of a public box key, X25519, base64url.
 const pressKeyBytes = 32
+
+// pressThreadIDBytes is the length of a room id. The opener makes it and signs
+// it (ADR-056), so this server checks its shape and never its value.
+const pressThreadIDBytes = 16
 
 // maxPressBody is the biggest envelope a message may carry. A boxed sentence
 // is a few hundred bytes; this is room for a long one and a bound on what a
@@ -67,8 +74,19 @@ type pressThread struct {
 	openedBy string
 	// members are the powers in the room, sorted, and never the game
 	// master. A room with one member is that power's own notes.
-	members  []godip.Nation
-	openedAt time.Time
+	members []godip.Nation
+	// openedAt is the time the opener stamped and signed, kept exactly as it
+	// was written. Reformatting it would leave a manifest nothing can check.
+	openedAt string
+	// openerBoxPub is the opener's press key at the moment the room opened,
+	// which is what every reader derives the wrap key from (ADR-056).
+	openerBoxPub string
+	// openerSignPub is the opener's signing key then, so a room opened before
+	// a handover is still checked against the key that opened it.
+	openerSignPub string
+	// manifestSig is the opener's signature over the whole room. This server
+	// checks it for consistency; the reading device is what decides.
+	manifestSig string
 	// keys is the room key wrapped once per holder: each member, plus
 	// gmHolder when the game master reads press.
 	keys map[string]string
@@ -279,6 +297,65 @@ func (f *flow) pressUnread(actor pressActor) int {
 		}
 	}
 	return total
+}
+
+// openerSignPub is the signing key the opener holds right now, kept on the
+// room so that a handover later does not leave the room unverifiable
+// (ADR-056). A game master opener signs with the key of ADR-048.
+func (f *flow) openerSignPub(actor pressActor) string {
+	if actor.isGM {
+		return f.gmPublicKey
+	}
+	if s := f.seats[actor.power]; s != nil {
+		return s.signPub
+	}
+	return ""
+}
+
+/*
+pressManifestBody is the sentence the opener signs over a room.
+
+It is the room's whole immutable description plus a digest of every wrap in it,
+so a wrap that was replaced, moved to another holder or lifted out of another
+room with the same members changes the sentence and breaks the signature. The
+same string is built in web/src/press.ts, and the two must not drift.
+*/
+func pressManifestBody(id string, t *pressThread) string {
+	holders := make([]string, 0, len(t.keys))
+	for holder := range t.keys {
+		holders = append(holders, holder)
+	}
+	sort.Strings(holders)
+	digests := make([]string, 0, len(holders))
+	for _, holder := range holders {
+		sum := sha256.Sum256([]byte(t.keys[holder]))
+		digests = append(digests,
+			holder+"="+base64.RawURLEncoding.EncodeToString(sum[:]))
+	}
+	return "1901 press room v1|" + strings.Join([]string{
+		id,
+		t.id,
+		t.openedBy,
+		t.openerBoxPub,
+		t.openedAt,
+		t.memberKey(),
+		strings.Join(digests, ","),
+	}, "|")
+}
+
+// checkPressManifest verifies the opener's signature over a room. It is a
+// consistency check and not the security boundary: the reading device runs the
+// same check against the key it pinned, which is the one that counts.
+func checkPressManifest(id string, t *pressThread) bool {
+	key, err := base64.RawURLEncoding.DecodeString(t.openerSignPub)
+	if err != nil || len(key) != ed25519.PublicKeySize {
+		return false
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(t.manifestSig)
+	if err != nil || len(sig) != ed25519.SignatureSize {
+		return false
+	}
+	return ed25519.Verify(ed25519.PublicKey(key), []byte(pressManifestBody(id, t)), sig)
 }
 
 // parseMembers turns names from a request into powers of this variant,

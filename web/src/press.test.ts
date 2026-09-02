@@ -5,7 +5,10 @@ import {
   findRoom,
   holdersFor,
   keyBody,
+  makeRoom,
   newRoomKey,
+  newThreadId,
+  openRoomKey,
   pinSignKeys,
   openMessage,
   pressPublicKey,
@@ -20,7 +23,9 @@ import {
   wrapsFor,
   type PressMessage,
   type PressPlace,
+  type PressState,
   type PressThread,
+  type RoomBinding,
 } from "./press";
 
 const GAME = "g1";
@@ -45,14 +50,71 @@ const place = (over: Partial<PressPlace> = {}): PressPlace => ({
   ...over,
 });
 
+/* A seat's signing seed, from bytes that stand in for a seat seed. */
+function signSeedFor(name: string): Uint8Array {
+  const seed = new Uint8Array(32);
+  new TextEncoder().encodeInto("sign " + name, seed);
+  return seed;
+}
+
+/* What the server publishes about a set of holders, honestly. */
+function tableFor(names: string[]): Pick<PressState, "keys" | "keySigs" | "signKeys"> {
+  const keys: Record<string, string> = {};
+  const keySigs: Record<string, string> = {};
+  const signKeys: Record<string, string> = {};
+  for (const name of names) {
+    const boxPub = publicOf(secretFor(name));
+    keys[name] = boxPub;
+    keySigs[name] = signMessage(signSeedFor(name), keyBody(GAME, name, boxPub));
+    signKeys[name] = publicKeyOf(signSeedFor(name));
+  }
+  return { keys: keys, keySigs: keySigs, signKeys: signKeys };
+}
+
+function signerFor(name: string): (body: string) => string {
+  return (body: string) => signMessage(signSeedFor(name), body);
+}
+
+const binding = (over: Partial<RoomBinding> = {}): RoomBinding => ({
+  threadId: "AAAAAAAAAAAAAAAAAAAAAA",
+  opener: "France",
+  openerBoxPub: publicOf(secretFor("France")),
+  openedAt: "2026-09-02T10:00:00Z",
+  members: ROOM,
+  ...over,
+});
+
+/* A room as the server hands it back, built from what an opener made. */
+function threadOf(
+  made: ReturnType<typeof makeRoom>,
+  over: Partial<PressThread> = {},
+): PressThread {
+  return {
+    id: made.room.threadId,
+    members: made.room.members,
+    openedBy: made.room.opener,
+    openedAt: made.room.openedAt,
+    openerBoxPub: made.room.openerBoxPub,
+    sig: made.sig,
+    wraps: made.wraps,
+    wrapped: "",
+    notes: false,
+    unread: 0,
+    lastSeq: 0,
+    lastAt: "",
+    ...over,
+  };
+}
+
 describe("a room key travels to its members and to nobody else", () => {
   it("unwraps for the member it was wrapped for", () => {
     const france = secretFor("France");
     const italy = secretFor("Italy");
     const roomKey = newRoomKey();
 
-    const wrapped = wrapRoomKey(GAME, ROOM, france, publicOf(italy), roomKey);
-    expect(Array.from(unwrapRoomKey(GAME, ROOM, italy, wrapped) || [])).toEqual(
+    const room = binding();
+    const wrapped = wrapRoomKey(GAME, room, "Italy", france, publicOf(italy), roomKey);
+    expect(Array.from(unwrapRoomKey(GAME, room, "Italy", italy, wrapped) || [])).toEqual(
       Array.from(roomKey),
     );
   });
@@ -61,31 +123,42 @@ describe("a room key travels to its members and to nobody else", () => {
     const france = secretFor("France");
     const italy = secretFor("Italy");
     const austria = secretFor("Austria");
-    const wrapped = wrapRoomKey(GAME, ROOM, france, publicOf(italy), newRoomKey());
-    expect(unwrapRoomKey(GAME, ROOM, austria, wrapped)).toBeNull();
+    const room = binding();
+    const wrapped = wrapRoomKey(GAME, room, "Italy", france, publicOf(italy), newRoomKey());
+    expect(unwrapRoomKey(GAME, room, "Italy", austria, wrapped)).toBeNull();
   });
 
-  /* A wrap carries the game and the room's membership, so one lifted out of
-     a stored database cannot be dropped into another game or another room. */
-  it("does not unwrap in another game or another membership", () => {
+  /* A wrap carries the whole room, so one lifted out of a stored database
+     cannot be dropped into another game, another room with the same members,
+     another holder's mailbox, or a room claiming a different opener. */
+  it("does not unwrap anywhere but the room and the mailbox it was made for", () => {
     const france = secretFor("France");
     const italy = secretFor("Italy");
-    const wrapped = wrapRoomKey(GAME, ROOM, france, publicOf(italy), newRoomKey());
-    expect(unwrapRoomKey("g2", ROOM, italy, wrapped)).toBeNull();
-    expect(unwrapRoomKey(GAME, ["Austria", "France", "Italy"], italy, wrapped)).toBeNull();
+    const room = binding();
+    const wrapped = wrapRoomKey(GAME, room, "Italy", france, publicOf(italy), newRoomKey());
+
+    expect(unwrapRoomKey("g2", room, "Italy", italy, wrapped)).toBeNull();
+    expect(
+      unwrapRoomKey(GAME, binding({ threadId: "BBBBBBBBBBBBBBBBBBBBBB" }), "Italy", italy, wrapped),
+    ).toBeNull();
+    expect(unwrapRoomKey(GAME, binding({ opener: "Austria" }), "Italy", italy, wrapped)).toBeNull();
+    expect(
+      unwrapRoomKey(GAME, binding({ members: ["Austria", "France", "Italy"] }), "Italy", italy, wrapped),
+    ).toBeNull();
+    // The same wrap, offered as somebody else's mailbox.
+    expect(unwrapRoomKey(GAME, room, "Austria", italy, wrapped)).toBeNull();
   });
 
   it("treats noise as an unreadable room rather than an empty one", () => {
-    expect(unwrapRoomKey(GAME, ROOM, secretFor("France"), "not-a-wrap")).toBeNull();
-    expect(
-      unwrapRoomKey(GAME, ROOM, secretFor("France"), publicOf(secretFor("Italy")) + ".AAAA"),
-    ).toBeNull();
+    const room = binding();
+    expect(unwrapRoomKey(GAME, room, "France", secretFor("France"), "not-a-wrap")).toBeNull();
+    expect(unwrapRoomKey(GAME, room, "France", secretFor("France"), "AAAA")).toBeNull();
   });
 
   it("wraps for the whole room and names who has no key yet", () => {
     const france = secretFor("France");
     const keys = { France: publicOf(france), Italy: publicOf(secretFor("Italy")) };
-    const out = wrapsFor(GAME, ROOM, france, newRoomKey(), ["France", "Italy", "Austria"], {
+    const out = wrapsFor(GAME, binding(), france, newRoomKey(), ["France", "Italy", "Austria"], {
       keys: keys,
       keySigs: {},
       signKeys: {},
@@ -107,10 +180,10 @@ describe("a room key travels to its members and to nobody else", () => {
       keySigs: { Italy: signMessage(signing, keyBody(GAME, "Italy", honest)) },
       signKeys: { Italy: publicKeyOf(signing) },
     };
-    expect(wrapsFor(GAME, ROOM, france, newRoomKey(), ["Italy"], state).unverified).toEqual([]);
+    expect(wrapsFor(GAME, binding(), france, newRoomKey(), ["Italy"], state).unverified).toEqual([]);
 
     const lying = { ...state, keys: { Italy: swapped } };
-    const out = wrapsFor(GAME, ROOM, france, newRoomKey(), ["Italy"], lying);
+    const out = wrapsFor(GAME, binding(), france, newRoomKey(), ["Italy"], lying);
     expect(out.unverified).toEqual(["Italy"]);
     expect(out.wraps).toEqual({});
   });
@@ -118,6 +191,125 @@ describe("a room key travels to its members and to nobody else", () => {
   it("accepts an unsigned key from a seat that has no signing key", () => {
     expect(verifyBoxKey(GAME, "Italy", "whatever", undefined, undefined)).toBe(true);
     expect(verifyBoxKey(GAME, "Italy", "whatever", undefined, "a-signing-key")).toBe(false);
+  });
+
+  it("makes a room id nothing else has", () => {
+    expect(newThreadId()).not.toBe(newThreadId());
+    expect(newThreadId().length).toBe(22);
+  });
+});
+
+/*
+A room is the opener's, or it is nothing (ADR-056).
+
+The attack this closes is a server that makes up a room: it can read every
+member's public key, wrap a key it chose for each of them, and claim an honest
+power opened it. What it cannot do is sign the manifest, so a reader that has
+pinned that power's signing key refuses the room instead of writing into it.
+*/
+describe("a signed room manifest", () => {
+  const table = tableFor(["Austria", "France"]);
+
+  const opened = () =>
+    makeRoom(GAME, "France", secretFor("France"), ROOM, ROOM, table, signerFor("France"));
+
+  it("opens for every member of the room it names", () => {
+    const made = opened();
+    for (const member of ROOM) {
+      const read = openRoomKey(
+        GAME,
+        member,
+        threadOf(made),
+        secretFor(member),
+        table.signKeys,
+      );
+      expect(read.reason).toBeUndefined();
+      expect(Array.from(read.key || [])).toEqual(Array.from(made.roomKey));
+      expect(read.unverified).toBe(false);
+    }
+  });
+
+  it("refuses a room the server made up with a key it chose", () => {
+    // Everything the server has: the members' public keys, and its own secret.
+    const attacker = secretFor("the server");
+    const fabricated = makeRoom(GAME, "France", attacker, ROOM, ROOM, table, () => "");
+    const read = openRoomKey(
+      GAME,
+      "Austria",
+      threadOf(fabricated),
+      secretFor("Austria"),
+      table.signKeys,
+    );
+    expect(read.key).toBeNull();
+    expect(read.reason).toContain("France");
+  });
+
+  it("refuses a room whose signature is somebody else's", () => {
+    const made = opened();
+    const read = openRoomKey(
+      GAME,
+      "Austria",
+      threadOf(made, { sig: signerFor("Austria")("anything") }),
+      secretFor("Austria"),
+      table.signKeys,
+    );
+    expect(read.key).toBeNull();
+  });
+
+  it("refuses every change to what the opener signed", () => {
+    const made = opened();
+    const changes: Partial<PressThread>[] = [
+      { id: newThreadId() },
+      { openedBy: "Austria" },
+      { openedAt: "2026-09-02T11:00:00Z" },
+      { members: ["Austria", "France", "Italy"] },
+      { openerBoxPub: publicOf(secretFor("the server")) },
+      { wraps: { ...made.wraps, Austria: made.wraps.France } },
+      { sig: "" },
+    ];
+    for (const change of changes) {
+      const read = openRoomKey(
+        GAME,
+        "Austria",
+        threadOf(made, change),
+        secretFor("Austria"),
+        table.signKeys,
+      );
+      expect(read.key, JSON.stringify(change)).toBeNull();
+    }
+  });
+
+  /* Two rooms with the same members and the same opener. The wraps still do
+     not move: each one names its own room id, and the manifest names each
+     wrap by its digest. */
+  it("refuses a wrap lifted out of another room with the same members", () => {
+    const first = opened();
+    const second = opened();
+    const read = openRoomKey(
+      GAME,
+      "Austria",
+      threadOf(second, { wraps: { ...second.wraps, Austria: first.wraps.Austria } }),
+      secretFor("Austria"),
+      table.signKeys,
+    );
+    expect(read.key).toBeNull();
+  });
+
+  /* An opener that holds no signing key cannot sign, and no pin exists for
+     it either. The room opens and is marked as unchecked, which is what the
+     panel then says out loud. */
+  it("opens a room from a holder with no signing key at all, and says so", () => {
+    const bare = { keys: table.keys, keySigs: {}, signKeys: {} };
+    const made = makeRoom(GAME, "France", secretFor("France"), ROOM, ROOM, bare, () => "");
+    const read = openRoomKey(GAME, "Austria", threadOf(made), secretFor("Austria"), {});
+    expect(read.key).not.toBeNull();
+    expect(read.unverified).toBe(true);
+  });
+
+  it("refuses a room opened before manifests existed", () => {
+    const made = opened();
+    const old = threadOf(made, { openerBoxPub: undefined, wraps: undefined });
+    expect(openRoomKey(GAME, "Austria", old, secretFor("Austria"), table.signKeys).key).toBeNull();
   });
 });
 
@@ -289,7 +481,7 @@ describe("the signing keys this device has seen", () => {
     expect(gone.pinned.Italy).toBe("b");
     // And the pin is what a later wrap is checked against, so the key the
     // server is now offering for Italy cannot pass unverified.
-    const out = wrapsFor(GAME, ROOM, secretFor("France"), newRoomKey(), ["Italy"], {
+    const out = wrapsFor(GAME, binding(), secretFor("France"), newRoomKey(), ["Italy"], {
       keys: { Italy: publicOf(secretFor("the server")) },
       keySigs: {},
       signKeys: gone.pinned,

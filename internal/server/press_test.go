@@ -2,6 +2,8 @@
 package server
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -39,6 +41,37 @@ func pressGame(t *testing.T, mode string) *game {
 	return g
 }
 
+// openBody is a room-open request with the shape fields filled in the way a
+// device fills them, so a test that is about something else does not have to.
+func openBody(t *testing.T, body pressOpenRequest) string {
+	t.Helper()
+	if body.Thread == "" {
+		body.Thread = newThreadID(t)
+	}
+	if body.OpenedAt == "" {
+		body.OpenedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	if body.OpenerBoxPub == "" {
+		body.OpenerBoxPub = fakeBoxPub("opener")
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
+// newThreadID is a room id in the shape the opener's device makes one: 16
+// random bytes, base64url. The server checks the shape and nothing else.
+func newThreadID(t *testing.T) string {
+	t.Helper()
+	raw := make([]byte, pressThreadIDBytes)
+	if _, err := rand.Read(raw); err != nil {
+		t.Fatal(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw)
+}
+
 // fakeBoxPub is 32 bytes that look like a public key. Nothing on this side
 // ever does arithmetic with one, which is the property being tested.
 func fakeBoxPub(name string) string {
@@ -72,11 +105,14 @@ func openRoom(t *testing.T, g *game, id string, opener godip.Nation, members ...
 	if g.flow.settings.GMReadsPress {
 		keys[gmHolder] = "wrapped-for-the-referee"
 	}
-	body, err := json.Marshal(pressOpenRequest{Members: names, Keys: keys})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rec := postPress(g, id, seatActor(opener), handlePressOpen, string(body))
+	body := openBody(t, pressOpenRequest{
+		Members:      names,
+		Thread:       newThreadID(t),
+		OpenedAt:     time.Now().UTC().Format(time.RFC3339),
+		OpenerBoxPub: fakeBoxPub("opener"),
+		Keys:         keys,
+	})
+	rec := postPress(g, id, seatActor(opener), handlePressOpen, body)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("open room: %v %v", rec.Code, rec.Body.String())
 	}
@@ -180,11 +216,11 @@ func TestTheSameMembersAreTheSameRoom(t *testing.T) {
 // started in somebody else's name.
 func TestAPowerIsAlwaysInItsOwnRooms(t *testing.T) {
 	g := pressGame(t, "fullpress")
-	body, _ := json.Marshal(pressOpenRequest{
+	body := openBody(t, pressOpenRequest{
 		Members: []string{"Italy", "Austria"},
 		Keys:    map[string]string{"Italy": "a", "Austria": "b"},
 	})
-	rec := postPress(g, "game", seatActor("France"), handlePressOpen, string(body))
+	rec := postPress(g, "game", seatActor("France"), handlePressOpen, body)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("got %v %v, want 403", rec.Code, rec.Body.String())
 	}
@@ -193,18 +229,18 @@ func TestAPowerIsAlwaysInItsOwnRooms(t *testing.T) {
 // Every member needs a key, and nobody else may be given one.
 func TestARoomKeyIsWrappedForItsMembersAndNobodyElse(t *testing.T) {
 	g := pressGame(t, "fullpress")
-	missing, _ := json.Marshal(pressOpenRequest{
+	missing := openBody(t, pressOpenRequest{
 		Members: []string{"France", "Italy"},
 		Keys:    map[string]string{"France": "a"},
 	})
-	if rec := postPress(g, "game", seatActor("France"), handlePressOpen, string(missing)); rec.Code != http.StatusBadRequest {
+	if rec := postPress(g, "game", seatActor("France"), handlePressOpen, missing); rec.Code != http.StatusBadRequest {
 		t.Errorf("a member with no key: got %v, want 400", rec.Code)
 	}
-	extra, _ := json.Marshal(pressOpenRequest{
+	extra := openBody(t, pressOpenRequest{
 		Members: []string{"France", "Italy"},
 		Keys:    map[string]string{"France": "a", "Italy": "b", "Austria": "c"},
 	})
-	if rec := postPress(g, "game", seatActor("France"), handlePressOpen, string(extra)); rec.Code != http.StatusBadRequest {
+	if rec := postPress(g, "game", seatActor("France"), handlePressOpen, extra); rec.Code != http.StatusBadRequest {
 		t.Errorf("a key for somebody outside the room: got %v, want 400", rec.Code)
 	}
 }
@@ -217,11 +253,11 @@ func TestAnFtfGameHasNoPressRoutesAtAll(t *testing.T) {
 		if rec := getPress(g, "game", seatActor("France"), handlePress, ""); rec.Code != http.StatusNotFound {
 			t.Errorf("%v press list: got %v, want 404", mode, rec.Code)
 		}
-		body, _ := json.Marshal(pressOpenRequest{
+		body := openBody(t, pressOpenRequest{
 			Members: []string{"France", "Italy"},
 			Keys:    map[string]string{"France": "a", "Italy": "b"},
 		})
-		if rec := postPress(g, "game", seatActor("France"), handlePressOpen, string(body)); rec.Code != http.StatusNotFound {
+		if rec := postPress(g, "game", seatActor("France"), handlePressOpen, body); rec.Code != http.StatusNotFound {
 			t.Errorf("%v press open: got %v, want 404", mode, rec.Code)
 		}
 		if rec := postPress(g, "game", seatActor("France"), handlePressKey,
@@ -410,11 +446,11 @@ func TestTheRefereeReadsEveryRoomAndSpeaksInNoneOfThem(t *testing.T) {
 	}
 
 	// A room the referee opened is the referee's to speak in.
-	body, _ := json.Marshal(pressOpenRequest{
+	body := openBody(t, pressOpenRequest{
 		Members: []string{"France"},
 		Keys:    map[string]string{"France": "a", gmHolder: "b"},
 	})
-	made := postPress(g, "game", gmActor(), handlePressOpen, string(body))
+	made := postPress(g, "game", gmActor(), handlePressOpen, body)
 	if made.Code != http.StatusOK {
 		t.Fatalf("referee opening a room: got %v %v", made.Code, made.Body.String())
 	}
@@ -434,11 +470,11 @@ func TestARoomMustCarryTheRefereesKeyWhenTheRefereeReads(t *testing.T) {
 	g.flow.settings.GMReadsPress = true
 	g.flow.gmBoxPub = fakeBoxPub("referee")
 
-	body, _ := json.Marshal(pressOpenRequest{
+	body := openBody(t, pressOpenRequest{
 		Members: []string{"France", "Italy"},
 		Keys:    map[string]string{"France": "a", "Italy": "b"},
 	})
-	rec := postPress(g, "game", seatActor("France"), handlePressOpen, string(body))
+	rec := postPress(g, "game", seatActor("France"), handlePressOpen, body)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("got %v %v, want 400", rec.Code, rec.Body.String())
 	}
@@ -627,11 +663,11 @@ func TestARefereesRoomIsNotAPowersNotepad(t *testing.T) {
 	g.flow.settings.GMReadsPress = true
 	g.flow.gmBoxPub = fakeBoxPub("referee")
 
-	body, _ := json.Marshal(pressOpenRequest{
+	body := openBody(t, pressOpenRequest{
 		Members: []string{"France"},
 		Keys:    map[string]string{"France": "a", gmHolder: "b"},
 	})
-	made := postPress(g, "game", gmActor(), handlePressOpen, string(body))
+	made := postPress(g, "game", gmActor(), handlePressOpen, body)
 	if made.Code != http.StatusOK {
 		t.Fatalf("referee opening a room: %v %v", made.Code, made.Body.String())
 	}
@@ -766,12 +802,12 @@ func TestARoomCanBeStartedAgainAfterAHandover(t *testing.T) {
 	g := pressGame(t, "fullpress")
 	first := openRoom(t, g, "game", "France", "France", "Italy")
 
-	body, _ := json.Marshal(pressOpenRequest{
+	body := openBody(t, pressOpenRequest{
 		Members: []string{"France", "Italy"},
 		Keys:    map[string]string{"France": "new-a", "Italy": "new-b"},
 		Fresh:   true,
 	})
-	rec := postPress(g, "game", seatActor("France"), handlePressOpen, string(body))
+	rec := postPress(g, "game", seatActor("France"), handlePressOpen, body)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("a fresh room: %v %v", rec.Code, rec.Body.String())
 	}
@@ -786,5 +822,139 @@ func TestARoomCanBeStartedAgainAfterAHandover(t *testing.T) {
 	again := openRoom(t, g, "game", "Italy", "Italy", "France")
 	if again.ID != second.ID {
 		t.Errorf("reuse found %v, want the newest room %v", again.ID, second.ID)
+	}
+}
+
+/*
+A room id comes from the device that opened the room (ADR-056).
+
+The opener signs it, so this server cannot mint one. What it can do is refuse
+a shape that is not an id and refuse an id a room already has: two rooms
+sharing an id would let a wrap signed for one be presented as the other's.
+*/
+func TestARoomIdIsTheOpenersAndCannotBeTakenTwice(t *testing.T) {
+	g := pressGame(t, "fullpress")
+	keys := map[string]string{"France": "a", "Italy": "b"}
+	members := []string{"France", "Italy"}
+
+	short := openBody(t, pressOpenRequest{
+		Members: members, Keys: keys, Thread: "too-short",
+	})
+	if rec := postPress(g, "game", seatActor("France"), handlePressOpen, short); rec.Code != http.StatusBadRequest {
+		t.Errorf("a room id that is not 16 bytes: got %v, want 400", rec.Code)
+	}
+
+	taken := newThreadID(t)
+	first := openBody(t, pressOpenRequest{Members: members, Keys: keys, Thread: taken})
+	if rec := postPress(g, "game", seatActor("France"), handlePressOpen, first); rec.Code != http.StatusOK {
+		t.Fatalf("opening a room: %v %v", rec.Code, rec.Body.String())
+	}
+	again := openBody(t, pressOpenRequest{
+		Members: members, Keys: keys, Thread: taken, Fresh: true,
+	})
+	if rec := postPress(g, "game", seatActor("France"), handlePressOpen, again); rec.Code != http.StatusBadRequest {
+		t.Errorf("a room id that is already taken: got %v, want 400", rec.Code)
+	}
+}
+
+// The time a room was opened is signed, so it is checked the way a message's
+// time is: one spelling, and close to this server's clock.
+func TestARoomsTimeIsCheckedTheWayAMessagesIs(t *testing.T) {
+	g := pressGame(t, "fullpress")
+	for _, at := range []string{
+		"not a time",
+		time.Now().UTC().Format(time.RFC3339Nano),
+		time.Now().Add(-time.Hour).UTC().Format(time.RFC3339),
+	} {
+		body := openBody(t, pressOpenRequest{
+			Members:  []string{"France", "Italy"},
+			Keys:     map[string]string{"France": "a", "Italy": "b"},
+			OpenedAt: at,
+		})
+		rec := postPress(g, "game", seatActor("France"), handlePressOpen, body)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("openedAt %q: got %v, want 400", at, rec.Code)
+		}
+	}
+}
+
+/*
+The room a reader is handed is the room the opener signed.
+
+The signature is checked on the reading device, which is where it matters. This
+server checks it too, so a client that builds the manifest wrongly is told at
+the moment it happens rather than leaving a room nobody can open.
+*/
+func TestARoomsSignatureMustMatchWhatItSays(t *testing.T) {
+	g := pressGame(t, "fullpress")
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.flow.seats["France"].signPub = base64.RawURLEncoding.EncodeToString(public)
+
+	sign := func(body pressOpenRequest) pressOpenRequest {
+		t.Helper()
+		room := &pressThread{
+			id:           body.Thread,
+			openedBy:     "France",
+			openedAt:     body.OpenedAt,
+			openerBoxPub: body.OpenerBoxPub,
+			keys:         body.Keys,
+		}
+		for _, name := range body.Members {
+			room.members = append(room.members, godip.Nation(name))
+		}
+		body.Sig = base64.RawURLEncoding.EncodeToString(
+			ed25519.Sign(private, []byte(pressManifestBody("game", room))))
+		return body
+	}
+
+	body := sign(pressOpenRequest{
+		Members:      []string{"France", "Italy"},
+		Thread:       newThreadID(t),
+		OpenedAt:     time.Now().UTC().Format(time.RFC3339),
+		OpenerBoxPub: fakeBoxPub("France"),
+		Keys:         map[string]string{"France": "a", "Italy": "b"},
+	})
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := postPress(g, "game", seatActor("France"), handlePressOpen, string(raw))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("a signed room: %v %v", rec.Code, rec.Body.String())
+	}
+	made := pressThreadJSON{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &made); err != nil {
+		t.Fatal(err)
+	}
+	// Every reader needs every wrap, because the manifest names each one by
+	// its digest and a reader with only its own could not recompute it.
+	if len(made.Wraps) != 2 || made.Wraps["Italy"] != "b" {
+		t.Errorf("the room came back with wraps %v", made.Wraps)
+	}
+	if made.OpenerBoxPub != body.OpenerBoxPub || made.Sig != body.Sig {
+		t.Error("the room came back without the manifest it was opened with")
+	}
+	// The signing key of the moment, so a handover later does not leave this
+	// room checked against a key that never opened it.
+	if made.OpenerSignPub != g.flow.seats["France"].signPub {
+		t.Errorf("opener sign key: got %q", made.OpenerSignPub)
+	}
+
+	// One wrap replaced. The digest in the manifest no longer matches, so the
+	// signature is over a room that is not this one.
+	swapped := body
+	swapped.Thread = newThreadID(t)
+	swapped.Fresh = true
+	swapped.Keys = map[string]string{"France": "a", "Italy": "the server's"}
+	raw, err = json.Marshal(swapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec = postPress(g, "game", seatActor("France"), handlePressOpen, string(raw))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("a room whose wraps were changed: got %v, want 400", rec.Code)
 	}
 }

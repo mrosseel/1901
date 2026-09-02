@@ -37,14 +37,14 @@ import { ModalLayer } from "../components/ModalLayer";
 import { PressPanel } from "../components/PressPanel";
 import { SeatClient } from "../api";
 import {
-  newRoomKey,
+  makeRoom,
   pressPublicKey,
   pressSecret,
   sealMessage,
   seatSigner,
-  wrapRoomKey,
   type PressState,
 } from "../press";
+import { publicKeyOf, signMessage } from "../keys";
 import { RefereeGuide } from "../components/RefereeGuide";
 import { refereeGuide } from "../referee";
 import { dismiss, reviewKey } from "../review";
@@ -507,19 +507,35 @@ from it, and the lines are boxed under it exactly as a phone would box them.
 What the screen shows is the result of the same code a player runs.
 */
 const PRESS_GAME = "gallery-press";
-const PRESS_ROOM = "room-fra-ita-aut";
-const PRESS_NOTES = "room-notes";
+/* The rooms are signed the way a real one is (ADR-056), with a seed that is
+   this file's and nobody's seat, so the panel draws a room it could check. */
+const PRESS_SIGN_SEED = new Uint8Array(32).fill(11);
 
 function pressScene(): Scenario {
   return { variantKey: VARIANT, seat: fx.seat("seat-movement"), press: pressFixture() };
 }
 
+/* Built once and kept, so the room the demo opens at is the room the fixture
+   made: the ids are random now, because the opener signs them. */
+let pressState: PressState | null = null;
+
 function pressFixture(): PressState {
+  if (!pressState) pressState = buildPress();
+  return pressState;
+}
+
+function buildPress(): PressState {
   const secret = pressSecret(PRESS_GAME);
   const mine = pressPublicKey(secret);
-  const roomKey = newRoomKey();
-  const notesKey = newRoomKey();
   const members = ["Austria", "France", "Italy"];
+  const sign = (body: string) => signMessage(PRESS_SIGN_SEED, body);
+  const table = {
+    keys: { France: mine, Italy: mine, Austria: mine, Germany: mine },
+    keySigs: {},
+    signKeys: {},
+  };
+  const talk = makeRoom(PRESS_GAME, "France", secret, members, members, table, sign);
+  const notes = makeRoom(PRESS_GAME, "France", secret, ["France"], ["France"], table, sign);
   const said: Array<[string, string]> = [
     ["Italy", "Piedmont is yours if Trieste is mine in the autumn."],
     ["Austria", "Trieste is not on the table. Ask Turkey."],
@@ -527,6 +543,13 @@ function pressFixture(): PressState {
   ];
   const when = (minutesAgo: number) =>
     new Date(Date.now() - minutesAgo * 60_000).toISOString().replace(/\.\d+Z$/, "Z");
+  const notesAt = {
+    threadId: notes.room.threadId,
+    seq: 1,
+    sender: "France",
+    phaseIndex: 0,
+    at: when(25),
+  };
   return {
     enabled: true,
     open: true,
@@ -535,25 +558,28 @@ function pressFixture(): PressState {
     mode: "fullpress",
     you: "France",
     gmReads: false,
-    keys: { France: mine, Italy: mine, Austria: mine, Germany: mine },
+    keys: table.keys,
     keySigs: {},
-    signKeys: {},
+    signKeys: { France: publicKeyOf(PRESS_SIGN_SEED) },
     eliminated: [],
     unread: 2,
     threads: [
       {
-        id: PRESS_ROOM,
-        members: members,
+        id: talk.room.threadId,
+        members: talk.room.members,
         openedBy: "France",
-        openedAt: when(20),
-        wrapped: wrapRoomKey(PRESS_GAME, members, secret, mine, roomKey),
+        openedAt: talk.room.openedAt,
+        openerBoxPub: talk.room.openerBoxPub,
+        sig: talk.sig,
+        wraps: talk.wraps,
+        wrapped: talk.wraps.France,
         notes: false,
         unread: 2,
         lastSeq: said.length,
         lastAt: when(4),
         messages: said.map(([sender, text], index) => {
           const at = {
-            threadId: PRESS_ROOM,
+            threadId: talk.room.threadId,
             seq: index + 1,
             sender: sender,
             phaseIndex: index === 0 ? 0 : 1,
@@ -563,18 +589,21 @@ function pressFixture(): PressState {
             seq: at.seq,
             sender: at.sender,
             phaseIndex: at.phaseIndex,
-            box: sealMessage(PRESS_GAME, at, roomKey, text),
+            box: sealMessage(PRESS_GAME, at, talk.roomKey, text),
             sig: "",
             at: at.at,
           };
         }),
       },
       {
-        id: PRESS_NOTES,
+        id: notes.room.threadId,
         members: ["France"],
         openedBy: "France",
-        openedAt: when(30),
-        wrapped: wrapRoomKey(PRESS_GAME, ["France"], secret, mine, notesKey),
+        openedAt: notes.room.openedAt,
+        openerBoxPub: notes.room.openerBoxPub,
+        sig: notes.sig,
+        wraps: notes.wraps,
+        wrapped: notes.wraps.France,
         notes: true,
         unread: 0,
         lastSeq: 1,
@@ -586,18 +615,12 @@ function pressFixture(): PressState {
             phaseIndex: 0,
             box: sealMessage(
               PRESS_GAME,
-              {
-                threadId: PRESS_NOTES,
-                seq: 1,
-                sender: "France",
-                phaseIndex: 0,
-                at: when(25),
-              },
-              notesKey,
+              notesAt,
+              notes.roomKey,
               "Italy wants Piedmont. Do not give it before Munich is settled.",
             ),
             sig: "",
-            at: when(25),
+            at: notesAt.at,
           },
         ],
       },
@@ -626,7 +649,7 @@ function PressDemo({ room }: { room?: boolean }) {
           sign={sign}
           phaseIndex={1}
           powers={["Austria", "England", "France", "Germany", "Italy", "Russia", "Turkey"]}
-          initialThread={room ? PRESS_ROOM : undefined}
+          initialThread={room ? pressFixture().threads[0].id : undefined}
         />
       </aside>
     </main>

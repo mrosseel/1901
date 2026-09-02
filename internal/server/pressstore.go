@@ -10,7 +10,6 @@ package server
 import (
 	"log"
 	"strings"
-	"time"
 
 	"github.com/zond/godip"
 )
@@ -33,9 +32,12 @@ func persistPressThread(id string, t *pressThread) error {
 	}
 	defer tx.Rollback()
 	if _, err := tx.Exec(`
-        INSERT OR IGNORE INTO press_thread (game_id, thread_id, opened_by, members, opened_at)
-        VALUES (?, ?, ?, ?, ?)`,
-		id, t.id, t.openedBy, t.memberKey(), t.openedAt.UTC().Format(time.RFC3339Nano)); err != nil {
+        INSERT OR IGNORE INTO press_thread
+            (game_id, thread_id, opened_by, members, opened_at,
+             opener_box_pub, opener_sign_pub, manifest_sig)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, t.id, t.openedBy, t.memberKey(), t.openedAt,
+		t.openerBoxPub, t.openerSignPub, t.manifestSig); err != nil {
 		return err
 	}
 	for holder, wrapped := range t.keys {
@@ -85,7 +87,9 @@ func persistPressRead(id, threadID, holder string, seq int) {
 // while the game is being built and before anybody can reach it.
 func loadPress(id string, f *flow) error {
 	rows, err := db.Query(`
-        SELECT thread_id, opened_by, members, opened_at
+        SELECT thread_id, opened_by, members, opened_at,
+               COALESCE(opener_box_pub, ''), COALESCE(opener_sign_pub, ''),
+               COALESCE(manifest_sig, '')
         FROM press_thread WHERE game_id = ? ORDER BY rowid`, id)
 	if err != nil {
 		return err
@@ -93,22 +97,25 @@ func loadPress(id string, f *flow) error {
 	defer rows.Close()
 	for rows.Next() {
 		var threadID, openedBy, members, openedAt string
-		if err := rows.Scan(&threadID, &openedBy, &members, &openedAt); err != nil {
+		var openerBoxPub, openerSignPub, manifestSig string
+		if err := rows.Scan(&threadID, &openedBy, &members, &openedAt,
+			&openerBoxPub, &openerSignPub, &manifestSig); err != nil {
 			return err
 		}
 		t := &pressThread{
-			id:       threadID,
-			openedBy: openedBy,
-			keys:     map[string]string{},
-			read:     map[string]int{},
+			id:            threadID,
+			openedBy:      openedBy,
+			openedAt:      openedAt,
+			openerBoxPub:  openerBoxPub,
+			openerSignPub: openerSignPub,
+			manifestSig:   manifestSig,
+			keys:          map[string]string{},
+			read:          map[string]int{},
 		}
 		for _, name := range strings.Split(members, ",") {
 			if name != "" {
 				t.members = append(t.members, godip.Nation(name))
 			}
-		}
-		if at, err := time.Parse(time.RFC3339Nano, openedAt); err == nil {
-			t.openedAt = at
 		}
 		f.press = append(f.press, t)
 		f.pressByID[t.id] = t

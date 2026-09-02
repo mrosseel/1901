@@ -113,6 +113,18 @@ func handlePressKey(g *game, id string, actor pressActor, w http.ResponseWriter,
 type pressOpenRequest struct {
 	Members []string `json:"members"`
 	/*
+		The room as its opener made it (ADR-056).
+
+		The id and the time come from the device, not from here, because the
+		opener's signature covers them and a value this server chose could not
+		be signed before it was sent. This server checks their shape, refuses
+		an id a room already has, and stores what it was given.
+	*/
+	Thread       string `json:"thread"`
+	OpenedAt     string `json:"openedAt"`
+	OpenerBoxPub string `json:"openerBoxPub"`
+	Sig          string `json:"sig"`
+	/*
 		Do not hand back the room these members already have.
 
 		A handover gives a seat new bytes (ADR-049), so every room the previous
@@ -192,6 +204,11 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 		return
 	}
 
+	if reason := f.checkRoomShape(body); reason != "" {
+		httpx.WriteErr(w, http.StatusBadRequest, "%v", reason)
+		return
+	}
+
 	/*
 		The same members is the same room, so three players who keep talking keep
 		one conversation. A room the game master opened is not one of those: it
@@ -251,21 +268,31 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 		}
 	}
 
-	threadID, err2 := newToken()
-	if err2 != nil {
-		httpx.WriteErr(w, http.StatusInternalServerError, "random: %v", err2)
-		return
-	}
 	t := &pressThread{
-		id:       threadID,
-		openedBy: actor.holder,
-		members:  members,
-		openedAt: time.Now().UTC(),
-		keys:     map[string]string{},
-		read:     map[string]int{},
+		id:            body.Thread,
+		openedBy:      actor.holder,
+		members:       members,
+		openedAt:      body.OpenedAt,
+		openerBoxPub:  body.OpenerBoxPub,
+		openerSignPub: f.openerSignPub(actor),
+		manifestSig:   body.Sig,
+		keys:          map[string]string{},
+		read:          map[string]int{},
 	}
 	for holder, wrapped := range body.Keys {
 		t.keys[holder] = wrapped
+	}
+	/*
+		Checked here for consistency and nowhere near the security boundary.
+
+		The reading device is what decides whether a room is the opener's own,
+		because a server that wanted to hand out a room it made up would simply
+		not run this. What refusing here buys is that a client bug shows up at
+		the moment it happens rather than as a room nobody can open.
+	*/
+	if t.openerSignPub != "" && !checkPressManifest(id, t) {
+		httpx.WriteErr(w, http.StatusBadRequest, "the room's signature does not match what it says")
+		return
 	}
 	f.press = append(f.press, t)
 	f.pressByID[t.id] = t
@@ -287,6 +314,39 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 	}
 	g.persist(id)
 	httpx.WriteJSON(w, http.StatusOK, t.summary(actor))
+}
+
+/*
+checkRoomShape is everything this server can say about a room being opened
+without holding any key to it.
+
+The id, the time and the opener's press key are the opener's to choose and this
+server's to store, so what is checked is that they are the right shape and that
+the id is not one a room already has. Two rooms sharing an id would let a wrap
+signed for one be presented as the other's.
+*/
+func (f *flow) checkRoomShape(body pressOpenRequest) string {
+	raw, err := base64.RawURLEncoding.DecodeString(body.Thread)
+	if err != nil || len(raw) != pressThreadIDBytes {
+		return "a room id is 16 base64url bytes"
+	}
+	if f.pressByID[body.Thread] != nil {
+		return "that room id is taken"
+	}
+	if !checkBoxPub(body.OpenerBoxPub) {
+		return "openerBoxPub must be 32 base64url bytes"
+	}
+	at, err := time.Parse(time.RFC3339, body.OpenedAt)
+	if err != nil {
+		return "openedAt must be an RFC3339 time"
+	}
+	if body.OpenedAt != at.UTC().Format(time.RFC3339) {
+		return "openedAt must be UTC with no fractional seconds, as 2026-09-02T10:00:00Z"
+	}
+	if skew := time.Since(at); skew > pressClockSkew || skew < -pressClockSkew {
+		return "openedAt is too far from this server's clock"
+	}
+	return ""
 }
 
 // handlePressThread is GET: one room's messages, optionally only what is new.

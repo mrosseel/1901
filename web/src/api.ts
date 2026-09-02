@@ -702,14 +702,27 @@ a second copy of the panel for the referee's mailbox, which would have drifted.
 export interface PressApi {
   press(): Promise<PressState>;
   pressKey(boxPub: string, sig: string): Promise<{ boxPub: string }>;
-  pressOpen(
-    members: string[],
-    keys: Record<string, string>,
-    fresh?: boolean,
-  ): Promise<PressThread>;
+  pressOpen(room: PressOpen): Promise<PressThread>;
   pressThread(thread: string, since?: number): Promise<PressThread>;
   pressSend(message: PressSend): Promise<PressMessage>;
   pressRead(thread: string, seq: number): Promise<PressThread>;
+}
+
+/*
+A room being opened, as the opener signed it (ADR-056).
+
+The id and the time come from the device rather than from the server, because
+the opener's signature covers both. The server checks their shape, refuses a
+duplicate id, and stores what it was given.
+*/
+export interface PressOpen {
+  thread: string;
+  members: string[];
+  openedAt: string;
+  openerBoxPub: string;
+  sig: string;
+  keys: Record<string, string>;
+  fresh: boolean;
 }
 
 /** One message on the wire: the box, and where its sender sealed it. */
@@ -752,16 +765,8 @@ export class GmClient {
     return postJSON<{ boxPub: string }>(this.base + "press/key", { boxPub: boxPub, sig: sig });
   }
 
-  pressOpen(
-    members: string[],
-    keys: Record<string, string>,
-    fresh = false,
-  ): Promise<PressThread> {
-    return postJSON<PressThread>(this.base + "press/open", {
-      members: members,
-      keys: keys,
-      fresh: fresh,
-    });
+  pressOpen(room: PressOpen): Promise<PressThread> {
+    return postJSON<PressThread>(this.base + "press/open", room);
   }
 
   pressThread(thread: string, since = 0): Promise<PressThread> {
@@ -975,18 +980,8 @@ export class SeatClient {
   asks for a new one anyway, which is what a device does when it cannot open
   the room a handover left behind (ADR-053).
   */
-  pressOpen(
-    members: string[],
-    keys: Record<string, string>,
-    fresh = false,
-  ): Promise<PressThread> {
-    return this.withSession(() =>
-      postJSON<PressThread>(this.base + "press/open", {
-        members: members,
-        keys: keys,
-        fresh: fresh,
-      }),
-    );
+  pressOpen(room: PressOpen): Promise<PressThread> {
+    return this.withSession(() => postJSON<PressThread>(this.base + "press/open", room));
   }
 
   pressThread(thread: string, since = 0): Promise<PressThread> {

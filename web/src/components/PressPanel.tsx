@@ -8,17 +8,16 @@ import {
   findRoom,
   holdersFor,
   keyBody,
-  newRoomKey,
+  makeRoom,
   openMessage,
+  openRoomKey,
   pinSignKeys,
   pressPublicKey,
   readPins,
   roomTitle,
   sealMessage,
   signedBody,
-  unwrapRoomKey,
   verifyPress,
-  wrapsFor,
   type PressPlace,
   type PressState,
   type PressThread,
@@ -172,7 +171,8 @@ export function PressPanel({
       */
       const existing = findRoom(state.threads, members, you === GM_HOLDER);
       const readable =
-        existing && unwrapRoomKey(gameId, existing.members, secret, existing.wrapped) !== null;
+        existing &&
+        openRoomKey(gameId, you, existing, secret, { ...pins, ...state.signKeys }).key !== null;
       if (existing && readable) {
         setComposing(false);
         setPicked([]);
@@ -185,32 +185,40 @@ export function PressPanel({
          seat's key, so a pin that refused the new one would end that seat's
          press; a key that has gone missing is the attack, and the pin is what
          catches it. */
-      const wrapped = wrapsFor(gameId, members, secret, newRoomKey(), holders, {
+      const made = makeRoom(gameId, you, secret, members, holders, {
         keys: state.keys,
         keySigs: state.keySigs,
         signKeys: { ...pins, ...state.signKeys },
-      });
-      if (wrapped.unverified.length) {
+      }, sign);
+      if (made.unverified.length) {
         /* A key that does not check is not a slow player; it is a room
            somebody else could read. Nothing is sent. */
         setError(
-          "The key this server gave for " + wrapped.unverified.join(" and ") +
+          "The key this server gave for " + made.unverified.join(" and ") +
             " is not signed by that power. Nothing was sent.",
         );
         return;
       }
-      if (wrapped.missing.length) {
+      if (made.missing.length) {
         setError(
-          wrapped.missing.join(" and ") +
+          made.missing.join(" and ") +
             " has not opened this game on a device yet, so there is nobody to send to.",
         );
         return;
       }
-      const made = await api.pressOpen(members, wrapped.wraps, Boolean(existing));
+      const opened = await api.pressOpen({
+        thread: made.room.threadId,
+        members: made.room.members,
+        openedAt: made.room.openedAt,
+        openerBoxPub: made.room.openerBoxPub,
+        sig: made.sig,
+        keys: made.wraps,
+        fresh: Boolean(existing),
+      });
       setComposing(false);
       setPicked([]);
       await refresh();
-      setOpenThread(made.id);
+      setOpenThread(opened.id);
     } catch (err) {
       setError(message(err));
     }
@@ -401,11 +409,17 @@ function PressRoom({
   /* The member list decides the room key, and it arrives as a fresh array on
      every poll. Keyed on its contents, so an answer that says the same thing
      does not re-derive the key and re-run everything that depends on it. */
-  const members = thread.members.join(",");
-  const roomKey = useMemo(
-    () => (thread.wrapped ? unwrapRoomKey(gameId, members.split(","), secret, thread.wrapped) : null),
-    [gameId, members, secret, thread.wrapped],
+  /* The room's whole description decides the key, and it arrives as fresh
+     objects on every poll. Keyed on what those objects say, so an answer that
+     repeats itself does not re-check a signature and re-run everything that
+     depends on the key. */
+  const described = JSON.stringify([thread, keys]);
+  const read = useMemo(
+    () => openRoomKey(gameId, you, thread, secret, keys),
+    // The room and the keys are compared by what they hold, above.
+    [gameId, you, secret, described],
   );
+  const roomKey = read.key;
 
   const load = useCallback(async () => {
     if (!roomKey) return;
@@ -502,12 +516,16 @@ function PressRoom({
         </h2>
       </header>
 
-      {roomKey ? null : (
+      {roomKey ? null : <p className="notice">{read.reason}</p>}
+      {/* A room whose opener holds no signing key at all: a seat with a token,
+          or a game made before ADR-049. It opens and it is not checked, and
+          the reader is told which. */}
+      {roomKey && read.unverified ? (
         <p className="notice">
-          This device cannot open this conversation. The key was wrapped for a
-          different device, which is what a handover leaves behind.
+          Nobody has a signing key for {thread.openedBy}, so this device could
+          not check who opened this room.
         </p>
-      )}
+      ) : null}
 
       <div className="press-log">
         {(messages || []).map((line, index) => (

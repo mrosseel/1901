@@ -19,9 +19,18 @@ open. The phase and the time are in there because the panel draws with them: it
 rules off where a phase resolved and it sorts by time, so a server free to
 change either could rearrange a conversation without touching a word of it.
 
-**What binds a wrap.** The same cipher, with `<gameId>|<members>` as associated
-data, so a wrap cannot be replayed into another game or into a room with a
-different membership.
+**What binds a wrap.** The same cipher, with the room's whole immutable
+description as associated data: the game, the thread id, the opener, the
+opener's press key, the holder this copy is for, and the member list. So a wrap
+cannot be replayed into another game, another room with the same members,
+another holder's mailbox, or a room whose opener is claimed to be somebody else.
+
+**What binds the room.** The opener signs a manifest over those same fields,
+the time the room was opened, and a digest of every wrap in it (ADR-056). A
+reader checks that signature against the signing key it has pinned for the
+opener before it unwraps anything. That is what makes a room the server made up
+fail: the server can wrap a key it chose for every member, and it cannot sign
+the manifest that says who opened the room.
 
 **Why the signature as well as the box.** The box says the writer held the room
 key. Every member holds it, so inside a room of three the box alone does not
@@ -40,10 +49,15 @@ seat key raises the bar to lying about both halves at once, and pinning what
 this device has already seen (pinSignKeys) makes a later swap visible. Neither
 makes a first contact with a lying server safe, and ADR-054 says so plainly
 rather than implying otherwise.
+
+**What the server still sees.** Who is in every room, who opened it, when, how
+often each member writes, and how far each of them has read. Press is
+content-encrypted and metadata-visible, and ADR-054 says which is which.
 */
 
 import { xchacha20poly1305 } from "@noble/ciphers/chacha.js";
 import { ed25519 } from "@noble/curves/ed25519.js";
+import { sha256 } from "@noble/hashes/sha256";
 
 import {
   boxPublicKeyOf,
@@ -66,6 +80,8 @@ const GM_SIGN_KEY_NAME = "1901 game master key v1";
 
 const NONCE_BYTES = 24;
 const KEY_BYTES = 32;
+/** A thread id, made here so the opener can sign it (ADR-056). */
+const THREAD_ID_BYTES = 16;
 const BOX_STORE_PREFIX = "1901.press.box.";
 
 /** The game master in a member list, matching gmHolder on the server. */
@@ -77,6 +93,14 @@ export interface PressThread {
   members: string[];
   openedBy: string;
   openedAt: string;
+  /** The opener's press key at the moment the room was opened. */
+  openerBoxPub?: string;
+  /** The opener's signing key then, so a handover does not break old rooms. */
+  openerSignPub?: string;
+  /** The opener's signature over this room's manifest (ADR-056). */
+  sig?: string;
+  /** Every wrap in the room, so a reader can recompute the signed digest. */
+  wraps?: Record<string, string>;
   /** This reader's own wrapped copy of the room key. */
   wrapped: string;
   notes: boolean;
@@ -210,9 +234,91 @@ export function keyBody(gameId: string, holder: string, boxPub: string): string 
   return "1901 press key|" + gameId + "|" + holder + "|" + boxPub;
 }
 
-/** What binds a wrap: the game and the room's membership. */
-function wrapAssociated(gameId: string, members: string[]): Uint8Array {
-  return new TextEncoder().encode(gameId + "|" + members.slice().sort().join(","));
+/*
+A room, in the fields that are fixed the moment it opens (ADR-056).
+
+Everything here is signed by the opener and covered by every wrap in the room,
+so none of it can be changed afterwards by the server that stores it.
+*/
+export interface RoomBinding {
+  threadId: string;
+  opener: string;
+  openerBoxPub: string;
+  openedAt: string;
+  members: string[];
+}
+
+/** A room id, made on the opener's device so the opener can sign it. */
+export function newThreadId(): string {
+  return toBase64Url(randomBytes(THREAD_ID_BYTES));
+}
+
+/** The room's fixed description, read off what the server sent back. */
+export function roomBinding(thread: PressThread): RoomBinding {
+  return {
+    threadId: thread.id,
+    opener: thread.openedBy,
+    openerBoxPub: thread.openerBoxPub || "",
+    openedAt: thread.openedAt,
+    members: thread.members,
+  };
+}
+
+/*
+What binds one wrap: the whole room, and the holder this copy is for.
+
+The holder is in there because a wrap moved to another mailbox would otherwise
+open, and the opener's press key is in there because a reader that took it from
+the wrap instead would believe whatever the server put in front of it.
+*/
+function wrapAssociated(gameId: string, room: RoomBinding, holder: string): Uint8Array {
+  return new TextEncoder().encode(
+    "1901 press wrap v2|" +
+      [
+        gameId,
+        room.threadId,
+        room.opener,
+        room.openerBoxPub,
+        holder,
+        room.members.slice().sort().join(","),
+      ].join("|"),
+  );
+}
+
+/** One wrap, as the manifest names it. */
+function wrapDigest(wrapped: string): string {
+  return toBase64Url(sha256(new TextEncoder().encode(wrapped)));
+}
+
+/*
+What the opener signs: the room, and a digest of every wrap in it.
+
+The digests are what stop a wrap being replaced, moved between holders, or
+lifted out of another room with the same members. A reader recomputes them from
+the wraps the server handed over, so a changed wrap breaks the signature rather
+than quietly opening under a key somebody else chose.
+*/
+export function manifestBody(
+  gameId: string,
+  room: RoomBinding,
+  wraps: Record<string, string>,
+): string {
+  const digests = Object.keys(wraps)
+    .sort()
+    .map((holder) => holder + "=" + wrapDigest(wraps[holder]))
+    .join(",");
+  return (
+    "1901 press room v1|" +
+    [
+      gameId,
+      room.threadId,
+      room.opener,
+      room.openerBoxPub,
+      room.openedAt,
+      room.members.slice().sort().join(","),
+      digests,
+    ].join("|")
+  );
 }
 
 /** A new room's key. Nothing derives it: a room is not a phase. */
@@ -224,46 +330,128 @@ export function newRoomKey(): Uint8Array {
 The room key, wrapped for one holder.
 
 The wrap is itself an envelope: nonce, ciphertext, tag, under the key the two
-press keys agree on. The opener's public key travels with it, because the
-reader needs it to compute the same agreement and the server is not asked to
-remember who wrapped what.
+press keys agree on. Nothing travels with it. A reader takes the opener's
+public key from the room's manifest, which the opener signed, and never from
+the wrap, which is where the server used to be able to put its own.
 */
 export function wrapRoomKey(
   gameId: string,
-  members: string[],
+  room: RoomBinding,
+  holder: string,
   ourSecret: Uint8Array,
   theirPublic: string,
   roomKey: Uint8Array,
 ): string {
   const key = wrapKeyFor(ourSecret, theirPublic);
   const nonce = randomBytes(NONCE_BYTES);
-  const body = xchacha20poly1305(key, nonce, wrapAssociated(gameId, members)).encrypt(roomKey);
+  const body = xchacha20poly1305(key, nonce, wrapAssociated(gameId, room, holder)).encrypt(roomKey);
   const out = new Uint8Array(nonce.length + body.length);
   out.set(nonce);
   out.set(body, nonce.length);
-  return boxPublicKeyOf(ourSecret) + "." + toBase64Url(out);
+  return toBase64Url(out);
 }
 
 /** The room key back, or null when this wrap was not made for us. */
 export function unwrapRoomKey(
   gameId: string,
-  members: string[],
+  room: RoomBinding,
+  holder: string,
   ourSecret: Uint8Array,
   wrapped: string,
 ): Uint8Array | null {
-  const dot = wrapped.indexOf(".");
-  if (dot < 0) return null;
   try {
-    const theirPublic = wrapped.slice(0, dot);
-    const raw = fromBase64Url(wrapped.slice(dot + 1));
+    const raw = fromBase64Url(wrapped);
     if (raw.length <= NONCE_BYTES) return null;
-    const key = wrapKeyFor(ourSecret, theirPublic);
-    return xchacha20poly1305(key, raw.slice(0, NONCE_BYTES), wrapAssociated(gameId, members))
+    const key = wrapKeyFor(ourSecret, room.openerBoxPub);
+    return xchacha20poly1305(key, raw.slice(0, NONCE_BYTES), wrapAssociated(gameId, room, holder))
       .decrypt(raw.slice(NONCE_BYTES));
   } catch {
     // A wrap made for somebody else, or noise from a modified client. The
     // room shows as unreadable rather than as empty.
     return null;
+  }
+}
+
+/*
+What a reader could establish about a room before opening it.
+
+`key` is null unless every check passed. `unverified` marks the one case where
+a room opens without a signature: an opener that has no signing key at all,
+which is a seat holding a token and every seat of a game made before ADR-049.
+The panel draws that differently rather than pretending it was checked.
+*/
+export interface RoomRead {
+  key: Uint8Array | null;
+  reason?: string;
+  unverified?: boolean;
+}
+
+/*
+The room key, once the room has been shown to be the opener's own (ADR-056).
+
+The order matters. The signature is checked first, because everything else in
+the room is only worth checking if the opener put it there. Then this reader's
+own wrap, which the manifest already named by its digest, is opened under the
+key this seat and the opener agree on.
+
+A room that fails any of it is unreadable and says why. It is never shown as an
+empty room: a reader who is being lied to has to see the lie.
+*/
+export function openRoomKey(
+  gameId: string,
+  you: string,
+  thread: PressThread,
+  ourSecret: Uint8Array,
+  signKeys: Record<string, string>,
+): RoomRead {
+  const wraps = thread.wraps;
+  if (!thread.openerBoxPub || !wraps) {
+    return { key: null, reason: "This room was opened before this version and cannot be checked." };
+  }
+  const room = roomBinding(thread);
+  const body = manifestBody(gameId, room, wraps);
+  const signPub = signKeys[thread.openedBy];
+  let unverified = false;
+  if (signPub) {
+    if (!thread.sig) {
+      return { key: null, reason: "This room carries no signature from " + thread.openedBy + "." };
+    }
+    if (!verifySignature(thread.sig, body, signPub)) {
+      return {
+        key: null,
+        reason: "This room was not opened by " + thread.openedBy + ". Nothing here can be trusted.",
+      };
+    }
+  } else {
+    // Nobody has a key for this holder, neither the server nor this device's
+    // pins, so there is nothing a signature could be checked against.
+    unverified = true;
+  }
+  const mine = wraps[you];
+  if (!mine) {
+    return { key: null, reason: "This room holds no key for you." };
+  }
+  const key = unwrapRoomKey(gameId, room, you, ourSecret, mine);
+  if (!key) {
+    return {
+      key: null,
+      reason:
+        "This device cannot open this conversation. The key was wrapped for a " +
+        "different device, which is what a handover leaves behind.",
+    };
+  }
+  return { key: key, unverified: unverified };
+}
+
+function verifySignature(sig: string, body: string, signPub: string): boolean {
+  try {
+    return ed25519.verify(
+      fromBase64Url(sig),
+      new TextEncoder().encode(body),
+      fromBase64Url(signPub),
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -352,15 +540,7 @@ export function verifyBoxKey(
   // own seat and every seat of a game made before ADR-049.
   if (!signPub) return true;
   if (!sig) return false;
-  try {
-    return ed25519.verify(
-      fromBase64Url(sig),
-      new TextEncoder().encode(keyBody(gameId, holder, boxPub)),
-      fromBase64Url(signPub),
-    );
-  } catch {
-    return false;
-  }
+  return verifySignature(sig, keyBody(gameId, holder, boxPub), signPub);
 }
 
 /*
@@ -379,23 +559,16 @@ export function verifyPress(
 ): PressProof {
   if (!message.sig) return "unsigned";
   if (!senderSignPub) return "bad";
-  try {
-    const place: PressPlace = {
-      threadId: threadId,
-      seq: message.seq,
-      sender: message.sender,
-      phaseIndex: message.phaseIndex,
-      at: message.at,
-    };
-    const ok = ed25519.verify(
-      fromBase64Url(message.sig),
-      new TextEncoder().encode(signedBody(gameId, place, message.box)),
-      fromBase64Url(senderSignPub),
-    );
-    return ok ? "ok" : "bad";
-  } catch {
-    return "bad";
-  }
+  const place: PressPlace = {
+    threadId: threadId,
+    seq: message.seq,
+    sender: message.sender,
+    phaseIndex: message.phaseIndex,
+    at: message.at,
+  };
+  return verifySignature(message.sig, signedBody(gameId, place, message.box), senderSignPub)
+    ? "ok"
+    : "bad";
 }
 
 /*
@@ -408,7 +581,7 @@ on and a silent missing key is not.
 */
 export function wrapsFor(
   gameId: string,
-  members: string[],
+  room: RoomBinding,
   ourSecret: Uint8Array,
   roomKey: Uint8Array,
   holders: string[],
@@ -429,9 +602,57 @@ export function wrapsFor(
       unverified.push(holder);
       continue;
     }
-    wraps[holder] = wrapRoomKey(gameId, members, ourSecret, publicKey, roomKey);
+    wraps[holder] = wrapRoomKey(gameId, room, holder, ourSecret, publicKey, roomKey);
   }
   return { wraps: wraps, missing: missing, unverified: unverified };
+}
+
+/*
+Everything a device needs to send to open a room: the room, its wraps, and the
+opener's signature over both.
+
+The manifest is built from the wraps that were actually made, so a room that
+could not be wrapped for everybody is refused by the caller before this is
+ever signed.
+*/
+export interface NewRoom {
+  room: RoomBinding;
+  roomKey: Uint8Array;
+  wraps: Record<string, string>;
+  sig: string;
+  missing: string[];
+  unverified: string[];
+}
+
+export function makeRoom(
+  gameId: string,
+  opener: string,
+  ourSecret: Uint8Array,
+  members: string[],
+  holders: string[],
+  state: Pick<PressState, "keys" | "keySigs" | "signKeys">,
+  sign: (body: string) => string,
+): NewRoom {
+  const room: RoomBinding = {
+    threadId: newThreadId(),
+    opener: opener,
+    openerBoxPub: pressPublicKey(ourSecret),
+    // The same spelling the server checks and the same one a message uses:
+    // UTC, no fractional seconds. The opener signs the spelling, not the
+    // instant, so nothing may reformat it afterwards.
+    openedAt: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+    members: members.slice().sort(),
+  };
+  const roomKey = newRoomKey();
+  const wrapped = wrapsFor(gameId, room, ourSecret, roomKey, holders, state);
+  return {
+    room: room,
+    roomKey: roomKey,
+    wraps: wrapped.wraps,
+    sig: sign(manifestBody(gameId, room, wrapped.wraps)),
+    missing: wrapped.missing,
+    unverified: wrapped.unverified,
+  };
 }
 
 /*

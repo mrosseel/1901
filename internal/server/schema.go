@@ -104,6 +104,13 @@ CREATE TABLE IF NOT EXISTS press_thread (
     -- same members are the same room, and this is the comparison.
     members   TEXT NOT NULL,
     opened_at TEXT NOT NULL,
+    -- The room as its opener signed it (ADR-056): their press key, their
+    -- signing key at the time, and the signature over the whole room. Empty
+    -- on a room opened before manifests existed, which reads as unverifiable
+    -- rather than as trustworthy.
+    opener_box_pub  TEXT NOT NULL DEFAULT '',
+    opener_sign_pub TEXT NOT NULL DEFAULT '',
+    manifest_sig    TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (game_id, thread_id)
 );
 
@@ -231,6 +238,15 @@ var seatColumns = []struct{ name, definition string }{
 	{"box_sig", `TEXT NOT NULL DEFAULT ''`},
 }
 
+// pressThreadColumns are the columns a room row has grown, in the same shape
+// as gameColumns. A room written before ADR-056 has none of them, and a reader
+// shows it as a room it cannot check rather than opening it.
+var pressThreadColumns = []struct{ name, definition string }{
+	{"opener_box_pub", `TEXT NOT NULL DEFAULT ''`},
+	{"opener_sign_pub", `TEXT NOT NULL DEFAULT ''`},
+	{"manifest_sig", `TEXT NOT NULL DEFAULT ''`},
+}
+
 // renamedColumns are columns that changed name. The rename must run before
 // addColumns, or a database holding only the old name would gain an empty
 // column under the new one and lose what it stored.
@@ -254,6 +270,9 @@ func migrate(handle *sql.DB) error {
 		return err
 	}
 	if err := addColumns(handle, "game_order", orderColumns); err != nil {
+		return err
+	}
+	if err := addColumns(handle, "press_thread", pressThreadColumns); err != nil {
 		return err
 	}
 	return addColumns(handle, "seat", seatColumns)

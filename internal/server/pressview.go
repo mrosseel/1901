@@ -8,7 +8,6 @@ package server
 
 import (
 	"sort"
-	"time"
 )
 
 type pressThreadJSON struct {
@@ -16,6 +15,17 @@ type pressThreadJSON struct {
 	Members  []string `json:"members"`
 	OpenedBy string   `json:"openedBy"`
 	OpenedAt string   `json:"openedAt"`
+	// The room as its opener signed it (ADR-056). A reader checks the
+	// signature against the signing key it pinned for that holder before it
+	// opens anything, so these three travel with every room.
+	OpenerBoxPub  string `json:"openerBoxPub,omitempty"`
+	OpenerSignPub string `json:"openerSignPub,omitempty"`
+	Sig           string `json:"sig,omitempty"`
+	// Wraps is every holder's copy of the room key. A reader needs them all,
+	// because the manifest names each one by its digest and a reader that saw
+	// only its own could not recompute what was signed. They are ciphertext
+	// to everybody but their own holder.
+	Wraps map[string]string `json:"wraps,omitempty"`
 	// Wrapped is this reader's own copy of the room key and nobody else's.
 	Wrapped string `json:"wrapped"`
 	// Notes marks the reader's own single-member room, which the panel pins.
@@ -128,13 +138,21 @@ func (self *game) pressView(actor pressActor) pressStateJSON {
 }
 
 func (t *pressThread) summary(actor pressActor) pressThreadJSON {
+	wraps := map[string]string{}
+	for holder, wrapped := range t.keys {
+		wraps[holder] = wrapped
+	}
 	row := pressThreadJSON{
-		ID:       t.id,
-		Members:  nations(t.members),
-		OpenedBy: t.openedBy,
-		OpenedAt: t.openedAt.UTC().Format(time.RFC3339),
-		Wrapped:  t.keys[actor.holder],
-		Notes:    isNotes(actor, t.openedBy, t.members),
+		ID:            t.id,
+		Members:       nations(t.members),
+		OpenedBy:      t.openedBy,
+		OpenedAt:      t.openedAt,
+		OpenerBoxPub:  t.openerBoxPub,
+		OpenerSignPub: t.openerSignPub,
+		Sig:           t.manifestSig,
+		Wraps:         wraps,
+		Wrapped:       t.keys[actor.holder],
+		Notes:         isNotes(actor, t.openedBy, t.members),
 	}
 	seen := t.read[actor.holder]
 	for _, m := range t.messages {
