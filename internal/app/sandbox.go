@@ -26,6 +26,9 @@ package app
 import (
 	"encoding/json"
 	"net/http"
+	"spring1901/spike/internal/assets"
+	"spring1901/spike/internal/httpx"
+	"spring1901/spike/internal/variant"
 	"strings"
 	"time"
 
@@ -46,14 +49,14 @@ type sandboxStateJSON struct {
 	Settings        settings          `json:"settings"`
 	SettingsVersion int               `json:"settingsVersion"`
 	// PhaseIndex is which phase this is, counting resolved phases from zero.
-	PhaseIndex    int               `json:"phaseIndex"`
-	Turns         int               `json:"turns"`
-	CreatedAt     string            `json:"createdAt"`
-	Variant       variantRefJSON    `json:"variant"`
-	ProvinceNames map[string]string `json:"provinceNames"`
-	Placements    placementTable    `json:"placements"`
-	Labels        *labelPlanJSON    `json:"labels,omitempty"`
-	PreviousPhase *phaseReviewJSON  `json:"previousPhase"`
+	PhaseIndex    int                    `json:"phaseIndex"`
+	Turns         int                    `json:"turns"`
+	CreatedAt     string                 `json:"createdAt"`
+	Variant       variant.RefJSON        `json:"variant"`
+	ProvinceNames map[string]string      `json:"provinceNames"`
+	Placements    variant.PlacementTable `json:"placements"`
+	Labels        *variant.LabelPlan     `json:"labels,omitempty"`
+	PreviousPhase *phaseReviewJSON       `json:"previousPhase"`
 	// Result is how the game ended, null while it runs (ADR-044). A sandbox
 	// declares a solo like any other board, which is what a director
 	// replaying a finished round wants to see.
@@ -95,14 +98,14 @@ func (self *game) sandboxState(id string) sandboxStateJSON {
 		Result:          f.result,
 		NothingToOrder:  idle,
 		Now:             serverNow(),
-		Build:           buildStamp(),
+		Build:           assets.BuildStamp(),
 	}
 }
 
 func handleSandboxState(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	writeJSON(w, http.StatusOK, g.sandboxState(id))
+	httpx.WriteJSON(w, http.StatusOK, g.sandboxState(id))
 }
 
 /*
@@ -115,7 +118,7 @@ sentence rather than with somebody else's options.
 func handleSandboxOptions(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	prov := godip.Province(r.URL.Query().Get("province"))
 	if prov == "" {
-		writeErr(w, http.StatusBadRequest, "province query parameter is required")
+		httpx.WriteErr(w, http.StatusBadRequest, "province query parameter is required")
 		return
 	}
 	g.mu.Lock()
@@ -123,11 +126,11 @@ func handleSandboxOptions(g *game, id string, w http.ResponseWriter, r *http.Req
 
 	power, ok := g.sandboxPower(r.URL.Query().Get("power"))
 	if !ok {
-		writeErr(w, http.StatusBadRequest, "unknown power %q", r.URL.Query().Get("power"))
+		httpx.WriteErr(w, http.StatusBadRequest, "unknown power %q", r.URL.Query().Get("power"))
 		return
 	}
 	if !g.ownsProvince(power, prov) {
-		writeErr(w, http.StatusForbidden, "%v is not %v's to order", prov, power)
+		httpx.WriteErr(w, http.StatusForbidden, "%v is not %v's to order", prov, power)
 		return
 	}
 	all := g.state.Phase().Options(g.state, power)
@@ -135,7 +138,7 @@ func handleSandboxOptions(g *game, id string, w http.ResponseWriter, r *http.Req
 	if !found {
 		opts = godip.Options{}
 	}
-	writeJSON(w, http.StatusOK, opts)
+	httpx.WriteJSON(w, http.StatusOK, opts)
 }
 
 // sandboxOrderRequest is orderRequest plus the power giving the order. The
@@ -147,16 +150,16 @@ type sandboxOrderRequest struct {
 
 func handleSandboxOrder(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	req := sandboxOrderRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 	if req.Province == "" {
-		writeErr(w, http.StatusBadRequest, "province is required")
+		httpx.WriteErr(w, http.StatusBadRequest, "province is required")
 		return
 	}
 	prov := godip.Province(req.Province)
@@ -165,33 +168,33 @@ func handleSandboxOrder(g *game, id string, w http.ResponseWriter, r *http.Reque
 	defer g.mu.Unlock()
 
 	if g.flow.over() {
-		writeErr(w, http.StatusConflict, "the game is over")
+		httpx.WriteErr(w, http.StatusConflict, "the game is over")
 		return
 	}
 	power, ok := g.sandboxPower(req.Power)
 	if !ok {
-		writeErr(w, http.StatusBadRequest, "unknown power %q", req.Power)
+		httpx.WriteErr(w, http.StatusBadRequest, "unknown power %q", req.Power)
 		return
 	}
 	if !g.ownsProvince(power, prov) {
-		writeErr(w, http.StatusForbidden, "%v is not %v's to order", prov, power)
+		httpx.WriteErr(w, http.StatusForbidden, "%v is not %v's to order", prov, power)
 		return
 	}
 	if len(req.Parts) == 0 {
 		g.clearOrder(prov)
 		g.persist(id)
-		writeJSON(w, http.StatusOK, g.sandboxState(id))
+		httpx.WriteJSON(w, http.StatusOK, g.sandboxState(id))
 		return
 	}
 	// ADR-029 applies here as everywhere: an illegal order is stored and
 	// struck rather than refused. The sandbox is where somebody checks what
 	// a move does, and refusing to draw the bad one defeats that.
 	if err := g.setOrder(prov, req.Parts); err != nil {
-		writeErr(w, http.StatusBadRequest, "%v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "%v", err)
 		return
 	}
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.sandboxState(id))
+	httpx.WriteJSON(w, http.StatusOK, g.sandboxState(id))
 }
 
 /*
@@ -203,21 +206,21 @@ left unordered holds, which is the phase's own rule for a unit with no order.
 */
 func handleSandboxAdjudicate(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	if g.flow.over() {
-		writeErr(w, http.StatusConflict, "the game is over")
+		httpx.WriteErr(w, http.StatusConflict, "the game is over")
 		return
 	}
 	if err := g.adjudicate(id, false); err != nil {
-		writeErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, g.sandboxState(id))
+	httpx.WriteJSON(w, http.StatusOK, g.sandboxState(id))
 }
 
 // sandboxPower resolves a power name from the request against the variant's

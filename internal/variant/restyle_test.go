@@ -1,4 +1,4 @@
-package app
+package variant
 
 import (
 	"bytes"
@@ -106,17 +106,17 @@ func layerText(svg, name string) (string, bool) {
 }
 
 func TestStyledMapsKeepEveryElementWhereItWas(t *testing.T) {
-	if err := loadStyles(); err != nil {
+	if err := LoadStyles(); err != nil {
 		t.Fatal(err)
 	}
-	if err := loadPlans(); err != nil {
+	if err := ReportPlans(); err != nil {
 		t.Fatal(err)
 	}
 	// One map of each kind: classical is godip's own art, restyled by
 	// substituting fill values; sailho is converted from jDip and restyled by
 	// replacing its stylesheet. They exercise the two appliers.
 	for _, key := range []string{"classical", "sailho"} {
-		v, found := lookupVariant(key)
+		v, found := Lookup(key)
 		if !found {
 			t.Fatalf("%v is not registered", key)
 		}
@@ -140,7 +140,7 @@ func TestStyledMapsKeepEveryElementWhereItWas(t *testing.T) {
 			allowed := map[string]bool{}
 			if plans[key].Kind == "jdip" {
 				allowed["paper-grain"] = true
-				for _, province := range supplyCentreKeys(v) {
+				for _, province := range SupplyCentreKeys(v) {
 					allowed["sc-"+province] = true
 				}
 			}
@@ -212,13 +212,13 @@ func TestStyledMapsActuallyCarryTheStyle(t *testing.T) {
 	// The structural check above passes trivially on a map that was not
 	// styled at all, so the other half is checked too: the style's own
 	// terrain tones have to be in the file, and the map's must be gone.
-	if err := loadStyles(); err != nil {
+	if err := LoadStyles(); err != nil {
 		t.Fatal(err)
 	}
-	if err := loadPlans(); err != nil {
+	if err := ReportPlans(); err != nil {
 		t.Fatal(err)
 	}
-	v, _ := lookupVariant("classical")
+	v, _ := Lookup("classical")
 	plan := plans["classical"]
 	for _, style := range []string{"midnight", "flat"} {
 		styled, err := styledMapBytes("classical", v, style)
@@ -244,17 +244,17 @@ func TestStyledMapsActuallyCarryTheStyle(t *testing.T) {
 // all. An HTML parser forgives the same file, so a check that renders the art
 // inside a page cannot see this.
 func TestAStyledMapIsWellFormedXML(t *testing.T) {
-	if err := loadStyles(); err != nil {
+	if err := LoadStyles(); err != nil {
 		t.Fatal(err)
 	}
-	if err := loadPlans(); err != nil {
+	if err := ReportPlans(); err != nil {
 		t.Fatal(err)
 	}
 	for key, plan := range plans {
 		if !plan.styleable() {
 			continue
 		}
-		v, found := lookupVariant(key)
+		v, found := Lookup(key)
 		if !found {
 			continue
 		}
@@ -283,10 +283,10 @@ func TestAStyledMapIsWellFormedXML(t *testing.T) {
 // centre, so without these rings a player cannot see which provinces are worth
 // taking.
 func TestAConvertedMapIsGivenItsSupplyCentres(t *testing.T) {
-	if err := loadStyles(); err != nil {
+	if err := LoadStyles(); err != nil {
 		t.Fatal(err)
 	}
-	if err := loadPlans(); err != nil {
+	if err := ReportPlans(); err != nil {
 		t.Fatal(err)
 	}
 	converted := 0
@@ -294,12 +294,12 @@ func TestAConvertedMapIsGivenItsSupplyCentres(t *testing.T) {
 		if plan.Kind != "jdip" || !plan.styleable() {
 			continue
 		}
-		v, found := lookupVariant(key)
+		v, found := Lookup(key)
 		if !found {
 			continue
 		}
 		converted++
-		centres := supplyCentreKeys(v)
+		centres := SupplyCentreKeys(v)
 		if len(centres) == 0 {
 			t.Fatalf("%v: the variant names no supply centre", key)
 		}
@@ -343,17 +343,17 @@ func TestAConvertedMapIsGivenItsSupplyCentres(t *testing.T) {
 // overlay's fill rather than dimming it: the pattern nothing points at any
 // more is pruned, and the bitmap inside it goes with it.
 func TestAGrainlessStyleShipsNoPaperPhotograph(t *testing.T) {
-	if err := loadStyles(); err != nil {
+	if err := LoadStyles(); err != nil {
 		t.Fatal(err)
 	}
-	if err := loadPlans(); err != nil {
+	if err := ReportPlans(); err != nil {
 		t.Fatal(err)
 	}
 	for key, plan := range plans {
 		if plan.Kind != "godip" || !plan.styleable() || plan.Godip.GrainPattern == "" {
 			continue
 		}
-		v, found := lookupVariant(key)
+		v, found := Lookup(key)
 		if !found {
 			continue
 		}
@@ -427,14 +427,14 @@ func TestLabelLayerScaleReadsTheNameLayerRatherThanTheArtLayer(t *testing.T) {
 // checks the two agree for every jDip map, so a stated value cannot drift
 // away from the art it was measured on.
 func TestEveryJDipPlanStatesTheLabelScaleItsArtDraws(t *testing.T) {
-	if err := loadPlans(); err != nil {
+	if err := ReportPlans(); err != nil {
 		t.Fatal(err)
 	}
 	for key, plan := range plans {
 		if plan.Kind != "jdip" || plan.JDip == nil || plan.JDip.LabelScale == 0 {
 			continue
 		}
-		v, found := lookupVariant(key)
+		v, found := Lookup(key)
 		if !found {
 			t.Fatalf("%v is not registered", key)
 		}
@@ -461,10 +461,10 @@ func TestSetStylePropsReplacesRatherThanRepeats(t *testing.T) {
 // Anything above it has to survive untouched, because a placement was
 // measured against the box it produces.
 func TestNoLabelClassIsStyledUnderTheLegibilityFloor(t *testing.T) {
-	if err := loadPlans(); err != nil {
+	if err := ReportPlans(); err != nil {
 		t.Fatal(err)
 	}
-	if err := loadStyles(); err != nil {
+	if err := LoadStyles(); err != nil {
 		t.Fatal(err)
 	}
 	sizeRule := regexp.MustCompile(`#FullLabelLayer \.([A-Za-z0-9_-]+),[^{]*\{[^}]*font-size:\s*([0-9.]+)px`)
@@ -472,7 +472,7 @@ func TestNoLabelClassIsStyledUnderTheLegibilityFloor(t *testing.T) {
 		if plan.Kind != "jdip" || plan.JDip == nil {
 			continue
 		}
-		v, found := lookupVariant(key)
+		v, found := Lookup(key)
 		if !found {
 			t.Fatalf("%v is not registered", key)
 		}

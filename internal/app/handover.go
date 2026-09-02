@@ -36,6 +36,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"spring1901/spike/internal/httpx"
 	"strconv"
 
 	"github.com/zond/godip"
@@ -91,7 +92,7 @@ type handoverJSON struct {
 // own power on: they scan nothing, they show a code.
 func handleSeatHandover(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeErr(w, http.StatusMethodNotAllowed, "GET only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET only")
 		return
 	}
 	g.mu.Lock()
@@ -101,7 +102,7 @@ func handleSeatHandover(g *game, id string, power godip.Nation, w http.ResponseW
 		http.NotFound(w, r)
 		return
 	}
-	writeJSON(w, http.StatusOK, handoverJSON{
+	httpx.WriteJSON(w, http.StatusOK, handoverJSON{
 		Power: string(power),
 		URL:   handoverURL(r, id, power, s.epoch),
 	})
@@ -120,19 +121,19 @@ what makes it visible afterwards.
 */
 func handleGMHandover(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeErr(w, http.StatusMethodNotAllowed, "GET only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET only")
 		return
 	}
 	power := godip.Nation(r.URL.Query().Get("power"))
 	if power == "" {
-		writeErr(w, http.StatusBadRequest, "power is required")
+		httpx.WriteErr(w, http.StatusBadRequest, "power is required")
 		return
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	s, found := g.flow.seats[power]
 	if !found {
-		writeErr(w, http.StatusNotFound, "%v is not a power in this game", power)
+		httpx.WriteErr(w, http.StatusNotFound, "%v is not a power in this game", power)
 		return
 	}
 	// Minting for somebody else's seat is the enumerated, logged act (ADR-007):
@@ -143,7 +144,7 @@ func handleGMHandover(g *game, id string, w http.ResponseWriter, r *http.Request
 	if power != g.flow.gmPower {
 		g.flow.logEvent(id, "the game master minted a handover link for %v", power)
 	}
-	writeJSON(w, http.StatusOK, handoverJSON{
+	httpx.WriteJSON(w, http.StatusOK, handoverJSON{
 		Power: string(power),
 		URL:   handoverURL(r, id, power, s.epoch),
 	})
@@ -160,7 +161,7 @@ The GET is a page with a button; this is what the button posts to.
 */
 func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	if len(rest) != 3 {
@@ -187,7 +188,7 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 	if body.SignPub != "" && !checkSignPub(body.SignPub) {
-		writeErr(w, http.StatusBadRequest, "signPub must be 32 base64url bytes")
+		httpx.WriteErr(w, http.StatusBadRequest, "signPub must be 32 base64url bytes")
 		return
 	}
 
@@ -209,7 +210,7 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 	// minted after it. Say which, because the person holding it is standing
 	// at a table wondering whether to ask for another.
 	if epoch != s.epoch {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"this link has been used — ask for a new one")
 		return
 	}
@@ -235,13 +236,13 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 		f.bindSeatKey(s, body.SignPub)
 		session, err := f.openSession(power)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
 			return
 		}
 		f.logEvent(id, "%v was handed to another device", power)
 		g.persist(id)
 		setSessionCookie(w, id, session)
-		writeJSON(w, http.StatusOK, claimResponse{
+		httpx.WriteJSON(w, http.StatusOK, claimResponse{
 			Power:      string(power),
 			SeatURL:    keyedSeatURL(r, id),
 			Keyed:      true,
@@ -252,7 +253,7 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 
 	token, err := newToken()
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
 		return
 	}
 	if s.signPub != "" {
@@ -265,7 +266,7 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 	f.logEvent(id, "%v was handed to another device", power)
 	g.persist(id)
 
-	writeJSON(w, http.StatusOK, claimResponse{
+	httpx.WriteJSON(w, http.StatusOK, claimResponse{
 		Power:      string(power),
 		SeatURL:    seatURL(r, id, token),
 		PhaseIndex: f.phaseIndex,
@@ -297,7 +298,7 @@ over separately, or not at all.
 */
 func handleGMRoleHandover(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeErr(w, http.StatusMethodNotAllowed, "GET only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET only")
 		return
 	}
 	// Not logged on the mint: the game master's screen shows this code
@@ -306,7 +307,7 @@ func handleGMRoleHandover(g *game, id string, w http.ResponseWriter, r *http.Req
 	// it happens.
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	writeJSON(w, http.StatusOK, handoverJSON{
+	httpx.WriteJSON(w, http.StatusOK, handoverJSON{
 		Power: "",
 		URL:   gmHandoverURL(r, id, g.flow.gmEpoch),
 	})
@@ -327,7 +328,7 @@ able to take the game away from the person running it.
 */
 func handleGMRoleClaim(g *game, id string, rest []string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	if len(rest) != 2 {
@@ -349,13 +350,13 @@ func handleGMRoleClaim(g *game, id string, rest []string, w http.ResponseWriter,
 	f := g.flow
 
 	if epoch != f.gmEpoch {
-		writeErr(w, http.StatusConflict, "this link has been used — ask for a new one")
+		httpx.WriteErr(w, http.StatusConflict, "this link has been used — ask for a new one")
 		return
 	}
 
 	token, err := newToken()
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
 		return
 	}
 	f.gmToken = token
@@ -370,7 +371,7 @@ func handleGMRoleClaim(g *game, id string, rest []string, w http.ResponseWriter,
 	f.logEvent(id, "the game master role was handed to another device")
 	g.persist(id)
 
-	writeJSON(w, http.StatusOK, struct {
+	httpx.WriteJSON(w, http.StatusOK, struct {
 		GMURL string `json:"gmUrl"`
 	}{GMURL: gmURL(r, id, token)})
 }
@@ -390,7 +391,7 @@ learn whether a link exists for something they do not hold.
 */
 func handleSeatRoleHandover(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeErr(w, http.StatusMethodNotAllowed, "GET only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET only")
 		return
 	}
 	g.mu.Lock()
@@ -400,5 +401,5 @@ func handleSeatRoleHandover(g *game, id string, power godip.Nation, w http.Respo
 		http.NotFound(w, r)
 		return
 	}
-	writeJSON(w, http.StatusOK, handoverJSON{URL: gmHandoverURL(r, id, g.flow.gmEpoch)})
+	httpx.WriteJSON(w, http.StatusOK, handoverJSON{URL: gmHandoverURL(r, id, g.flow.gmEpoch)})
 }

@@ -30,6 +30,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"spring1901/spike/internal/httpx"
 
 	"github.com/zond/godip"
 )
@@ -148,10 +149,10 @@ func handleSeatSession(g *game, id string, w http.ResponseWriter, r *http.Reques
 	case http.MethodGet:
 		nonce, err := nonceFor(id, "session")
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "nonce: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "nonce: %v", err)
 			return
 		}
-		writeJSON(w, http.StatusOK, struct {
+		httpx.WriteJSON(w, http.StatusOK, struct {
 			Nonce   string `json:"nonce"`
 			Message string `json:"message"`
 		}{Nonce: nonce, Message: sessionMessage(id, nonce)})
@@ -162,21 +163,21 @@ func handleSeatSession(g *game, id string, w http.ResponseWriter, r *http.Reques
 			Signature string `json:"signature"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+			httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 			return
 		}
 		if !checkNonce(id, "session", body.Nonce) {
-			writeErr(w, http.StatusForbidden, "this challenge has expired — try again")
+			httpx.WriteErr(w, http.StatusForbidden, "this challenge has expired — try again")
 			return
 		}
 		public, err := base64.RawURLEncoding.DecodeString(body.SignPub)
 		if err != nil || len(public) != ed25519.PublicKeySize {
-			writeErr(w, http.StatusBadRequest, "signPub must be 32 base64url bytes")
+			httpx.WriteErr(w, http.StatusBadRequest, "signPub must be 32 base64url bytes")
 			return
 		}
 		signature, err := base64.RawURLEncoding.DecodeString(body.Signature)
 		if err != nil || len(signature) != ed25519.SignatureSize {
-			writeErr(w, http.StatusBadRequest, "signature must be 64 base64url bytes")
+			httpx.WriteErr(w, http.StatusBadRequest, "signature must be 64 base64url bytes")
 			return
 		}
 
@@ -190,20 +191,20 @@ func handleSeatSession(g *game, id string, w http.ResponseWriter, r *http.Reques
 		// used to ask which keys are seated.
 		valid := ed25519.Verify(public, []byte(sessionMessage(id, body.Nonce)), signature)
 		if !valid || !seated {
-			writeErr(w, http.StatusForbidden, "this key holds no seat in this game")
+			httpx.WriteErr(w, http.StatusForbidden, "this key holds no seat in this game")
 			return
 		}
 
 		token, err := f.openSession(power)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
 			return
 		}
 		setSessionCookie(w, id, token)
-		writeJSON(w, http.StatusOK, struct {
+		httpx.WriteJSON(w, http.StatusOK, struct {
 			Power string `json:"power"`
 		}{Power: string(power)})
 	default:
-		writeErr(w, http.StatusMethodNotAllowed, "GET or POST")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET or POST")
 	}
 }

@@ -65,6 +65,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"spring1901/spike/internal/httpx"
 	"time"
 
 	"golang.org/x/crypto/chacha20poly1305"
@@ -249,7 +250,7 @@ exists to prevent.
 */
 func handleSeatCommit(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	// Decoded leniently, and checked after the state is. A lock on a game
@@ -266,27 +267,27 @@ func handleSeatCommit(g *game, id string, power godip.Nation, w http.ResponseWri
 	f := g.flow
 
 	if !f.started {
-		writeErr(w, http.StatusConflict, "the game has not started")
+		httpx.WriteErr(w, http.StatusConflict, "the game has not started")
 		return
 	}
 	if f.over() {
-		writeErr(w, http.StatusConflict, "the game is over")
+		httpx.WriteErr(w, http.StatusConflict, "the game is over")
 		return
 	}
 	if f.revealOpen() {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"every power has locked in — this phase is being revealed")
 		return
 	}
 
 	s := f.seats[power]
 	if s.autoLocked {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"%v has no order to give this phase, so this seat stays locked", power)
 		return
 	}
 	if body.Sealed == "" || len(body.Sealed) > maxEnvelope {
-		writeErr(w, http.StatusBadRequest, "a sealed order list is required")
+		httpx.WriteErr(w, http.StatusBadRequest, "a sealed order list is required")
 		return
 	}
 	again := s.sealed != ""
@@ -299,7 +300,7 @@ func handleSeatCommit(g *game, id string, power godip.Nation, w http.ResponseWri
 		f.logEvent(id, "%v locked", power)
 	}
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+	httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
 }
 
 /*
@@ -311,7 +312,7 @@ phone reveal against a hash it had already abandoned.
 */
 func handleSeatUncommit(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	g.mu.Lock()
@@ -319,21 +320,21 @@ func handleSeatUncommit(g *game, id string, power godip.Nation, w http.ResponseW
 	f := g.flow
 
 	if !f.started {
-		writeErr(w, http.StatusConflict, "the game has not started")
+		httpx.WriteErr(w, http.StatusConflict, "the game has not started")
 		return
 	}
 	if f.over() {
-		writeErr(w, http.StatusConflict, "the game is over")
+		httpx.WriteErr(w, http.StatusConflict, "the game is over")
 		return
 	}
 	s := f.seats[power]
 	if s.autoLocked {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"%v has no order to give this phase, so this seat stays locked", power)
 		return
 	}
 	if f.revealOpen() {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"every power has locked in — this phase can no longer be unlocked")
 		return
 	}
@@ -342,7 +343,7 @@ func handleSeatUncommit(g *game, id string, power godip.Nation, w http.ResponseW
 	s.locked = false
 	f.logEvent(id, "%v withdrew its lock", power)
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+	httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
 }
 
 /*
@@ -363,14 +364,14 @@ for a sealed game.
 */
 func handleSeatReveal(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	body := struct {
 		Key string `json:"key"`
 	}{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 
@@ -379,42 +380,42 @@ func handleSeatReveal(g *game, id string, power godip.Nation, w http.ResponseWri
 	f := g.flow
 
 	if !f.started || f.over() {
-		writeErr(w, http.StatusConflict, "the game is not taking orders")
+		httpx.WriteErr(w, http.StatusConflict, "the game is not taking orders")
 		return
 	}
 	if !f.revealOpen() {
-		writeErr(w, http.StatusConflict, "not every power has locked in yet")
+		httpx.WriteErr(w, http.StatusConflict, "not every power has locked in yet")
 		return
 	}
 	s := f.seats[power]
 	if s.sealed == "" {
-		writeErr(w, http.StatusConflict, "%v committed nothing this phase", power)
+		httpx.WriteErr(w, http.StatusConflict, "%v committed nothing this phase", power)
 		return
 	}
 	if s.revealed {
 		// Already in. Answering with the state rather than an error keeps a
 		// phone that polled twice from showing the player a failure.
-		writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+		httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
 		return
 	}
 
 	key, err := base64.RawURLEncoding.DecodeString(body.Key)
 	if err != nil || len(key) != chacha20poly1305.KeySize {
-		writeErr(w, http.StatusBadRequest, "a key is %v base64url bytes",
+		httpx.WriteErr(w, http.StatusBadRequest, "a key is %v base64url bytes",
 			chacha20poly1305.KeySize)
 		return
 	}
 	orders, err := openOrders(id, f.phaseIndex, power, key, s.sealed)
 	if err != nil {
 		f.logEvent(id, "%v sent a key that does not open what it locked in", power)
-		writeErr(w, http.StatusConflict, "%v", err)
+		httpx.WriteErr(w, http.StatusConflict, "%v", err)
 		return
 	}
 
 	for _, one := range orders {
 		prov := godip.Province(one.Province)
 		if !g.ownsProvince(power, prov) {
-			writeErr(w, http.StatusForbidden, "%v is not yours to order", prov)
+			httpx.WriteErr(w, http.StatusForbidden, "%v is not yours to order", prov)
 			return
 		}
 		if len(one.Parts) == 0 {
@@ -424,7 +425,7 @@ func handleSeatReveal(g *game, id string, power godip.Nation, w http.ResponseWri
 			// The hash matched, so these are the orders the seat meant. One
 			// the parser cannot read at all is a client bug, and refusing it
 			// here leaves the seat unrevealed for the game master to force.
-			writeErr(w, http.StatusBadRequest, "%v: %v", prov, err)
+			httpx.WriteErr(w, http.StatusBadRequest, "%v: %v", prov, err)
 			return
 		}
 	}
@@ -434,11 +435,11 @@ func handleSeatReveal(g *game, id string, power godip.Nation, w http.ResponseWri
 	if len(f.awaitingReveal()) == 0 {
 		f.logEvent(id, "every power revealed — adjudicating")
 		if err := g.adjudicate(id, false); err != nil {
-			writeErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
 			return
 		}
 	} else {
 		g.persist(id)
 	}
-	writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+	httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
 }

@@ -9,7 +9,7 @@
 // top of the repository and not inside either program. Everything a style can
 // say is a presentation property; a style that could say more would no longer
 // be a restyle.
-package app
+package variant
 
 import (
 	"encoding/json"
@@ -160,9 +160,9 @@ func loadStyle(name string) (*loadedStyle, error) {
 	return out, nil
 }
 
-// loadStyles reads every style once. A broken style file is a startup error:
+// LoadStyles reads every style once. A broken style file is a startup error:
 // a server that serves three of four styles is worse than one that says so.
-func loadStyles() error {
+func LoadStyles() error {
 	stylesOnce.Do(func() {
 		entries, err := fs.ReadDir(mapstyles.FS, ".")
 		if err != nil {
@@ -194,14 +194,17 @@ type styleCard struct {
 	Description string `json:"description"`
 }
 
+// DefaultStyle is the style a map is served in when nobody asks for one.
+const DefaultStyle = "parchment"
+
 // styleCards lists the styles for the picker: the default first, then the
 // rest alphabetically. A picker is drawn in this order, and the style a map
 // already has belongs at the top of it.
 func styleCards() []styleCard {
 	ordered := append([]string{}, styleNames...)
 	sort.Slice(ordered, func(i, j int) bool {
-		if (ordered[i] == defaultMapStyle) != (ordered[j] == defaultMapStyle) {
-			return ordered[i] == defaultMapStyle
+		if (ordered[i] == DefaultStyle) != (ordered[j] == DefaultStyle) {
+			return ordered[i] == DefaultStyle
 		}
 		return ordered[i] < ordered[j]
 	})

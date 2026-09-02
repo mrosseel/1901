@@ -13,7 +13,7 @@
 // knows and which would be a second copy free to drift. A province is a sea
 // name when the graph says water and only water. A coast carries both flags
 // and takes the land face, which is what the layer it replaces did.
-package app
+package variant
 
 import (
 	"sort"
@@ -46,11 +46,11 @@ type labelFacesJSON struct {
 	Sea  labelFaceJSON `json:"sea"`
 }
 
-// labelPlanJSON is what the board needs to draw a data-mode map's names.
+// LabelPlan is what the board needs to draw a data-mode map's names.
 //
 // It is absent on an art-mode map, which is every map today: the art draws its
 // own names and the board must not draw a second set over them.
-type labelPlanJSON struct {
+type LabelPlan struct {
 	// Mode is "records" and nothing else. It exists so a board reading a
 	// state from a newer server can tell a mode it does not know from the
 	// mode it does, rather than drawing on a guess.
@@ -83,8 +83,8 @@ type labelPlanJSON struct {
 // not this one, so it carries a lock of its own.
 var labelPlans = struct {
 	mu sync.Mutex
-	by map[string]*labelPlanJSON
-}{by: map[string]*labelPlanJSON{}}
+	by map[string]*LabelPlan
+}{by: map[string]*LabelPlan{}}
 
 // seaNames returns the provinces whose name is set in the sea face: the ones
 // godip's graph marks as water and not also as land.
@@ -120,17 +120,17 @@ func labelFace(face styleTypography, carry func(float64) float64) labelFaceJSON 
 
 // labelPlanFor builds one variant's plan, or nil when its art still draws its
 // own names.
-func labelPlanFor(key string, graph godip.Graph) *labelPlanJSON {
+func labelPlanFor(key string, graph godip.Graph) *LabelPlan {
 	plan, found := plans[key]
 	if !found || !plan.DataMode {
 		return nil
 	}
 	width := plan.Map.ViewBoxWidth
-	out := &labelPlanJSON{
+	out := &LabelPlan{
 		Mode:         "records",
 		Sea:          seaNames(graph),
 		Typography:   map[string]labelFacesJSON{},
-		DefaultStyle: defaultMapStyle,
+		DefaultStyle: DefaultStyle,
 	}
 	if plan.Godip != nil {
 		out.Original = plan.Godip.Names.Typography
@@ -147,14 +147,15 @@ func labelPlanFor(key string, graph godip.Graph) *labelPlanJSON {
 	return out
 }
 
-func (self *game) labels() *labelPlanJSON {
-	key := self.variantKey
+// Labels is one variant's label plan, built on first ask and kept. The
+// caller holds the game; this package holds the plan.
+func Labels(key string, graph godip.Graph) *LabelPlan {
 	labelPlans.mu.Lock()
 	defer labelPlans.mu.Unlock()
 	if plan, built := labelPlans.by[key]; built {
 		return plan
 	}
-	plan := labelPlanFor(key, self.state.Graph())
+	plan := labelPlanFor(key, graph)
 	labelPlans.by[key] = plan
 	return plan
 }

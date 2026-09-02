@@ -35,6 +35,8 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"spring1901/spike/internal/httpx"
+	"spring1901/spike/internal/variant"
 	"strconv"
 )
 
@@ -55,9 +57,9 @@ type resultsJSON struct {
 	Powers []string          `json:"powers"`
 	Years  []resultsYearJSON `json:"years"`
 	// Result is how the game ended, null while it runs (ADR-044).
-	Result  *gameResult    `json:"result"`
-	Variant variantRefJSON `json:"variant"`
-	Now     string         `json:"now"`
+	Result  *gameResult     `json:"result"`
+	Variant variant.RefJSON `json:"variant"`
+	Now     string          `json:"now"`
 }
 
 /*
@@ -140,7 +142,7 @@ func (self *game) results(id string) resultsJSON {
 func handleResults(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	writeJSON(w, http.StatusOK, g.results(id))
+	httpx.WriteJSON(w, http.StatusOK, g.results(id))
 }
 
 /*

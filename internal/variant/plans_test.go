@@ -1,4 +1,4 @@
-package app
+package variant
 
 // The two shapes a style plan comes in (ADR-038). Version 1 is every plan
 // checked in here; version 2 is what the exporter writes for a map whose names
@@ -99,8 +99,8 @@ func TestOnlyTheTwoKnownPlanVersionsAreRead(t *testing.T) {
 // is re-authored (ADR-039). If this fails because a plan moved to version 2, the
 // byte-for-byte promise below it is what has to be re-checked.
 func TestEveryCheckedInPlanIsStillVersionOne(t *testing.T) {
-	if err := loadPlans(); err != nil {
-		t.Fatalf("loadPlans: %v", err)
+	if err := ReportPlans(); err != nil {
+		t.Fatalf("ReportPlans: %v", err)
 	}
 	for key, plan := range plans {
 		if plan.Version != 1 {
@@ -121,14 +121,14 @@ func TestEveryCheckedInPlanIsStillVersionOne(t *testing.T) {
 // map has no names" would hand the board no label plan and the map would be
 // served with nothing written on it at all.
 func TestFoundFalseAndDataModeTrueMeanTheMapHasNames(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
-	if err := loadStyles(); err != nil {
-		t.Fatalf("loadStyles: %v", err)
+	if err := LoadStyles(); err != nil {
+		t.Fatalf("LoadStyles: %v", err)
 	}
-	state, err := generatedVariants["demo7"].Variant.Start()
+	state, err := Generated["demo7"].Variant.Start()
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestFoundFalseAndDataModeTrueMeanTheMapHasNames(t *testing.T) {
 		t.Error("no sea names on a map that has 22 of them")
 	}
 	named := 0
-	for _, spot := range placementFor("demo7") {
+	for _, spot := range PlacementFor("demo7") {
 		if spot.Label != nil {
 			named++
 		}
@@ -193,14 +193,14 @@ func TestFoundFalseAndDataModeTrueMeanTheMapHasNames(t *testing.T) {
 // the board is given instead; the default style's faces stay the answer for a
 // plan that carries none.
 func TestTheArtsOwnTypographyReachesTheBoard(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
-	if err := loadStyles(); err != nil {
-		t.Fatalf("loadStyles: %v", err)
+	if err := LoadStyles(); err != nil {
+		t.Fatalf("LoadStyles: %v", err)
 	}
-	state, err := generatedVariants["demo7"].Variant.Start()
+	state, err := Generated["demo7"].Variant.Start()
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestTheArtsOwnTypographyReachesTheBoard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := `"defaultStyle":"` + defaultMapStyle + `"`; !strings.Contains(string(b), want) {
+	if want := `"defaultStyle":"` + DefaultStyle + `"`; !strings.Contains(string(b), want) {
 		t.Errorf("the default style is what the board falls back to: %v", string(b))
 	}
 	if strings.Contains(string(b), `"original"`) {

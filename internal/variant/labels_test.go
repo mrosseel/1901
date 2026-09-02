@@ -1,10 +1,9 @@
-package app
+package variant
 
 // The label plan the server hands the board, against the map the exporter
 // actually wrote (testdata/generated/demo7).
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -21,11 +20,11 @@ var nameTextRe = regexp.MustCompile(`<text id="(\w+)Name"`)
 // the art itself gives: the style plan's kinds, one per <text> in document
 // order, measured in a browser from what each name stands on.
 func TestSeaVerdictMatchesTheArtsOwnMeasurement(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
-	state, err := generatedVariants["demo7"].Variant.Start()
+	state, err := Generated["demo7"].Variant.Start()
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -67,18 +66,18 @@ func TestSeaVerdictMatchesTheArtsOwnMeasurement(t *testing.T) {
 // whose art still draws its names must hand the board no plan at all, or the
 // board draws a second set of names over the first.
 func TestLabelPlanFollowsTheFlagAndNotTheRecords(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
-	if err := loadStyles(); err != nil {
-		t.Fatalf("loadStyles: %v", err)
+	if err := LoadStyles(); err != nil {
+		t.Fatalf("LoadStyles: %v", err)
 	}
-	state, err := generatedVariants["demo7"].Variant.Start()
+	state, err := Generated["demo7"].Variant.Start()
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	if table := placementFor("demo7"); table["dod"].Label == nil {
+	if table := PlacementFor("demo7"); table["dod"].Label == nil {
 		t.Fatal("the fixture is meant to carry label records")
 	}
 
@@ -103,7 +102,7 @@ func TestLabelPlanFollowsTheFlagAndNotTheRecords(t *testing.T) {
 	if plan == nil {
 		t.Fatal("the flag is set and no plan came back")
 	}
-	if plan.Mode != "records" || plan.DefaultStyle != defaultMapStyle {
+	if plan.Mode != "records" || plan.DefaultStyle != DefaultStyle {
 		t.Errorf("plan came back as %+v", plan)
 	}
 	if len(plan.Sea) == 0 {
@@ -128,25 +127,6 @@ func TestLabelPlanFollowsTheFlagAndNotTheRecords(t *testing.T) {
 	}
 }
 
-// Every map served today is an art-mode map, so every state served today must
-// be the state that was served before this field existed — to the byte.
-func TestAnArtModeStateCarriesNoLabelField(t *testing.T) {
-	b, err := json.Marshal(publicStateJSON{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(b, []byte(`"labels"`)) {
-		t.Errorf("a map that draws its own names still pays for the field: %v", string(b))
-	}
-	b, err = json.Marshal(publicStateJSON{Labels: &labelPlanJSON{Mode: "records"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Contains(b, []byte(`"labels":{"mode":"records"`)) {
-		t.Errorf("the plan did not reach the wire: %v", string(b))
-	}
-}
-
 /*
 The board's land-or-sea verdict comes from the variant graph, never from the
 plan's kinds (ADR-038). The two normally agree, which is why nothing would
@@ -158,11 +138,11 @@ So this contradicts them on purpose. It states the wrong verdict for every
 province in the plan and asserts the board is unmoved.
 */
 func TestTheSeaVerdictIgnoresThePlansKinds(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
-	state, err := generatedVariants["demo7"].Variant.Start()
+	state, err := Generated["demo7"].Variant.Start()
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}

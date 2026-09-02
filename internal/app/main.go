@@ -7,7 +7,6 @@
 package app
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -16,10 +15,11 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"sort"
+	"spring1901/spike/internal/assets"
 	"spring1901/spike/internal/httpx"
+	"spring1901/spike/internal/variant"
 	"strconv"
 	"strings"
 	"sync"
@@ -516,33 +516,21 @@ func (self *game) longName(p godip.Province) string {
 	return string(p)
 }
 
-func writeJSON(w http.ResponseWriter, code int, body interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		log.Printf("encode: %v", err)
-	}
-}
-
-func writeErr(w http.ResponseWriter, code int, format string, args ...interface{}) {
-	writeJSON(w, code, map[string]string{"error": fmt.Sprintf(format, args...)})
-}
-
 // handleMap serves this game's variant map. It is board art, the same for
 // every game on that variant, and carries no game state.
 //
 // This is the route the board actually loads its map from, so it has to make
 // the same styled-or-original choice /variants/{key}/map.svg makes — sharing
-// serveMapArt is what stops a restyle from reaching the gallery and never
+// variant.ServeMapArt is what stops a restyle from reaching the gallery and never
 // reaching a board.
 func handleMap(g *game, id string, w http.ResponseWriter, r *http.Request) {
-	err := serveMapArt(w, r, g.variantKey, g.variant)
-	if errors.Is(err, errUnknownStyle) {
+	err := variant.ServeMapArt(w, r, g.variantKey, g.variant)
+	if errors.Is(err, variant.ErrUnknownStyle) {
 		http.NotFound(w, r)
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "svg map: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "svg map: %v", err)
 	}
 }
 
@@ -583,7 +571,7 @@ type server struct {
 // serveSPA serves the built single page application shell. The client
 // routes itself from location.pathname, so every page gets this file.
 func (self *server) serveSPA(w http.ResponseWriter, r *http.Request) {
-	if !isFileIn(self.spa, "index.html") {
+	if !assets.IsFileIn(self.spa, "index.html") {
 		http.Error(w,
 			"the frontend is not built yet — run `npm install && npm run build` in web/ to create web/dist",
 			http.StatusServiceUnavailable)
@@ -601,7 +589,7 @@ func (self *server) serveSPAAsset(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !isFileIn(self.spa, name) {
+	if !assets.IsFileIn(self.spa, name) {
 		http.NotFound(w, r)
 		return
 	}
@@ -616,15 +604,6 @@ func (self *server) serveRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	self.serveSPAAsset(w, r)
-}
-
-// absPath resolves a path against the working directory, leaving it as
-// given when that fails.
-func absPath(path string) string {
-	if abs, err := filepath.Abs(path); err == nil {
-		return abs
-	}
-	return path
 }
 
 // maxBodyBytes caps every request body. The largest body the app expects
@@ -669,16 +648,16 @@ func limitBody(next http.Handler) http.Handler {
 // Every step is fatal on failure. Serving half a placement table, or a variant
 // whose descriptor only half parsed, is worse than not starting.
 func loadState() error {
-	if err := loadGeneratedVariants(); err != nil {
+	if err := variant.LoadGenerated(); err != nil {
 		return fmt.Errorf("load generated variants: %w", err)
 	}
 	if err := loadAll(); err != nil {
 		return fmt.Errorf("load games: %w", err)
 	}
-	if err := loadStyles(); err != nil {
+	if err := variant.LoadStyles(); err != nil {
 		return fmt.Errorf("load map styles: %w", err)
 	}
-	if err := loadPlans(); err != nil {
+	if err := variant.ReportPlans(); err != nil {
 		return fmt.Errorf("load style plans: %w", err)
 	}
 	return nil
@@ -702,7 +681,7 @@ func Main() {
 		log.Fatal(err)
 	}
 
-	srv := &server{spa: spaFS()}
+	srv := &server{spa: assets.SPA()}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", srv.serveRoot)
@@ -728,9 +707,9 @@ func Main() {
 	// data and the page is one more route of the same shell.
 	mux.HandleFunc("/datc.json", handleDATC)
 	mux.HandleFunc("/datc", srv.serveSPA)
-	mux.HandleFunc("/variants", handleVariants)
-	mux.HandleFunc("/styles", handleStyles)
-	mux.HandleFunc("/variants/", handleVariantMap)
+	mux.HandleFunc("/variants", variant.HandleVariants)
+	mux.HandleFunc("/styles", variant.HandleStyles)
+	mux.HandleFunc("/variants/", variant.HandleVariantMap)
 	mux.HandleFunc("/game/", srv.serveFlow)
 	mux.HandleFunc("/join/", srv.serveJoinPage)
 	mux.HandleFunc("/watch/", srv.serveWatchPage)
@@ -753,7 +732,7 @@ func Main() {
 		origin = "each request — set BASE_URL to pin it"
 	}
 	log.Printf("1901 %v listening (app from %v, database %v, cap %v game(s))",
-		version, spaSource(), dbPath(), games.limit)
+		version, assets.SPASource(), dbPath(), games.limit)
 	log.Printf("open on this computer: %v", localOpenURL(addr))
 	log.Printf("phone invite links: %v", origin)
 	if baseURLFixed == "" && lanHost == "" {

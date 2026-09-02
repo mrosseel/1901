@@ -34,6 +34,8 @@ package app
 
 import (
 	"net/http"
+	"spring1901/spike/internal/httpx"
+	"spring1901/spike/internal/variant"
 	"strconv"
 	"strings"
 )
@@ -141,11 +143,11 @@ type watchJSON struct {
 	// person drove is not a board that seven people played.
 	Sandbox bool `json:"sandbox,omitempty"`
 
-	Variant       variantRefJSON    `json:"variant"`
-	ProvinceNames map[string]string `json:"provinceNames"`
-	Placements    placementTable    `json:"placements"`
-	Labels        *labelPlanJSON    `json:"labels,omitempty"`
-	Now           string            `json:"now"`
+	Variant       variant.RefJSON        `json:"variant"`
+	ProvinceNames map[string]string      `json:"provinceNames"`
+	Placements    variant.PlacementTable `json:"placements"`
+	Labels        *variant.LabelPlan     `json:"labels,omitempty"`
+	Now           string                 `json:"now"`
 }
 
 // watchState renders one phase for the public. The caller must hold g.mu.
@@ -233,7 +235,7 @@ func handleWatch(g *game, id string, rest []string, w http.ResponseWriter, r *ht
 		http.NotFound(w, r)
 		return
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // serveWatchPage serves /watch/{id}/ and /watch/{id}/{phaseIndex}: the SPA

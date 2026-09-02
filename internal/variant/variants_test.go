@@ -1,4 +1,4 @@
-package app
+package variant
 
 import (
 	"bytes"
@@ -23,13 +23,13 @@ func fakeVariant(art string) common.Variant {
 // tested and it needs the art the plan was measured on.
 func styledTestVariant(t *testing.T) common.Variant {
 	t.Helper()
-	if err := loadStyles(); err != nil {
+	if err := LoadStyles(); err != nil {
 		t.Fatal(err)
 	}
-	if err := loadPlans(); err != nil {
+	if err := ReportPlans(); err != nil {
 		t.Fatal(err)
 	}
-	v, found := lookupVariant("classical")
+	v, found := Lookup("classical")
 	if !found {
 		t.Fatal("classical is not registered")
 	}
@@ -107,8 +107,8 @@ func TestVariantMapBytesRefusesAStyleNobodyDrew(t *testing.T) {
 	// preference look exactly like a style that exists.
 	v := styledTestVariant(t)
 	r := httptest.NewRequest("GET", "/variants/classical/map.svg?style=sepia", nil)
-	if _, err := variantMapBytes("classical", v, r); !errors.Is(err, errUnknownStyle) {
-		t.Fatalf("got %v, want errUnknownStyle", err)
+	if _, err := variantMapBytes("classical", v, r); !errors.Is(err, ErrUnknownStyle) {
+		t.Fatalf("got %v, want ErrUnknownStyle", err)
 	}
 }
 
@@ -129,7 +129,7 @@ func TestStalePlanIsNotApplied(t *testing.T) {
 	// The plan names the SHA-256 of the art it was measured on. Art that no
 	// longer matches it is served in its own colours: a fill value measured
 	// on a picture that has been redrawn may now paint something else.
-	if err := loadPlans(); err != nil {
+	if err := ReportPlans(); err != nil {
 		t.Fatal(err)
 	}
 	// The cache is keyed by variant, and in a running server one variant has
@@ -142,14 +142,14 @@ func TestStalePlanIsNotApplied(t *testing.T) {
 		delete(styledArt.by, "classical/midnight")
 		styledArt.mu.Unlock()
 	})
-	if _, err := styledMapBytes("classical", fakeVariant("<svg>redrawn</svg>"), "midnight"); !errors.Is(err, errUnknownStyle) {
-		t.Fatalf("got %v, want errUnknownStyle", err)
+	if _, err := styledMapBytes("classical", fakeVariant("<svg>redrawn</svg>"), "midnight"); !errors.Is(err, ErrUnknownStyle) {
+		t.Fatalf("got %v, want ErrUnknownStyle", err)
 	}
 }
 
 func TestUnknownStyleIsA404(t *testing.T) {
 	w := httptest.NewRecorder()
-	handleVariantMap(w, httptest.NewRequest("GET", "/variants/classical/map.svg?style=sepia", nil))
+	HandleVariantMap(w, httptest.NewRequest("GET", "/variants/classical/map.svg?style=sepia", nil))
 	if w.Code != 404 {
 		t.Fatalf("got %v, want 404", w.Code)
 	}
@@ -159,11 +159,11 @@ func TestVariantProvincesSaysWhatEachProvinceIs(t *testing.T) {
 	// The restyle tool works out which colour a godip map paints sea in by
 	// asking the adjudicator which provinces are sea and then looking at the
 	// art under each. This is that answer.
-	v, found := lookupVariant("classical")
+	v, found := Lookup("classical")
 	if !found {
 		t.Fatal("classical is not registered")
 	}
-	provinces, err := variantProvinces(v)
+	provinces, err := Provinces(v)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,11 +185,11 @@ func TestVariantProvincesSaysWhatEachProvinceIs(t *testing.T) {
 
 func TestProvincesJSONIsServed(t *testing.T) {
 	w := httptest.NewRecorder()
-	handleVariantMap(w, httptest.NewRequest("GET", "/variants/classical/provinces.json", nil))
+	HandleVariantMap(w, httptest.NewRequest("GET", "/variants/classical/provinces.json", nil))
 	if w.Code != 200 {
 		t.Fatalf("got %v, want 200", w.Code)
 	}
-	var out []provinceJSON
+	var out []ProvinceJSON
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}

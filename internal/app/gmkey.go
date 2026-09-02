@@ -41,6 +41,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"spring1901/spike/internal/httpx"
 	"strconv"
 	"strings"
 	"time"
@@ -119,31 +120,31 @@ func handleGMKey(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		g.mu.Lock()
 		defer g.mu.Unlock()
-		writeJSON(w, http.StatusOK, gmKeyJSON{PublicKey: g.flow.gmPublicKey})
+		httpx.WriteJSON(w, http.StatusOK, gmKeyJSON{PublicKey: g.flow.gmPublicKey})
 	case http.MethodPost:
 		var body gmKeyJSON
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+			httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 			return
 		}
 		raw, err := base64.RawURLEncoding.DecodeString(body.PublicKey)
 		if err != nil || len(raw) != ed25519.PublicKeySize {
-			writeErr(w, http.StatusBadRequest, "publicKey must be 32 base64url bytes")
+			httpx.WriteErr(w, http.StatusBadRequest, "publicKey must be 32 base64url bytes")
 			return
 		}
 		g.mu.Lock()
 		defer g.mu.Unlock()
 		f := g.flow
 		if f.gmPublicKey != "" && f.gmPublicKey != body.PublicKey {
-			writeErr(w, http.StatusConflict,
+			httpx.WriteErr(w, http.StatusConflict,
 				"this game already has a key — recover with its words, or hand the role over")
 			return
 		}
 		f.gmPublicKey = body.PublicKey
 		g.persist(id)
-		writeJSON(w, http.StatusOK, gmKeyJSON{PublicKey: f.gmPublicKey})
+		httpx.WriteJSON(w, http.StatusOK, gmKeyJSON{PublicKey: f.gmPublicKey})
 	default:
-		writeErr(w, http.StatusMethodNotAllowed, "GET or POST")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET or POST")
 	}
 }
 
@@ -160,15 +161,15 @@ func handleRecoverChallenge(g *game, id string, w http.ResponseWriter, r *http.R
 	hasKey := g.flow.gmPublicKey != ""
 	g.mu.Unlock()
 	if !hasKey {
-		writeErr(w, http.StatusNotFound, "this game has no recovery key")
+		httpx.WriteErr(w, http.StatusNotFound, "this game has no recovery key")
 		return
 	}
 	nonce, err := nonceFor(id, "recover")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "nonce: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "nonce: %v", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, struct {
+	httpx.WriteJSON(w, http.StatusOK, struct {
 		GameID  string `json:"gameId"`
 		Nonce   string `json:"nonce"`
 		Message string `json:"message"`
@@ -189,16 +190,16 @@ func handleRecoverClaim(g *game, id string, w http.ResponseWriter, r *http.Reque
 		Signature string `json:"signature"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 	if !checkNonce(id, "recover", body.Nonce) {
-		writeErr(w, http.StatusForbidden, "this challenge has expired — start again")
+		httpx.WriteErr(w, http.StatusForbidden, "this challenge has expired — start again")
 		return
 	}
 	signature, err := base64.RawURLEncoding.DecodeString(body.Signature)
 	if err != nil || len(signature) != ed25519.SignatureSize {
-		writeErr(w, http.StatusBadRequest, "signature must be 64 base64url bytes")
+		httpx.WriteErr(w, http.StatusBadRequest, "signature must be 64 base64url bytes")
 		return
 	}
 
@@ -208,20 +209,20 @@ func handleRecoverClaim(g *game, id string, w http.ResponseWriter, r *http.Reque
 
 	public, err := base64.RawURLEncoding.DecodeString(f.gmPublicKey)
 	if err != nil || len(public) != ed25519.PublicKeySize {
-		writeErr(w, http.StatusNotFound, "this game has no recovery key")
+		httpx.WriteErr(w, http.StatusNotFound, "this game has no recovery key")
 		return
 	}
 	if !ed25519.Verify(public, []byte(recoverMessage(id, body.Nonce)), signature) {
 		// Say nothing about which word is wrong. There is nothing useful to
 		// say: the words are checked in the browser before they get here, so
 		// this is either a typo that passed the checksum or the wrong game.
-		writeErr(w, http.StatusForbidden, "those words do not open this game")
+		httpx.WriteErr(w, http.StatusForbidden, "those words do not open this game")
 		return
 	}
 
 	token, err := newToken()
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
 		return
 	}
 	f.gmToken = token
@@ -232,7 +233,7 @@ func handleRecoverClaim(g *game, id string, w http.ResponseWriter, r *http.Reque
 	f.logEvent(id, "the game master role was recovered with its twelve words")
 	g.persist(id)
 
-	writeJSON(w, http.StatusOK, struct {
+	httpx.WriteJSON(w, http.StatusOK, struct {
 		GMURL string `json:"gmUrl"`
 	}{GMURL: gmURL(r, id, token)})
 }
@@ -246,6 +247,6 @@ func handleRecover(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		handleRecoverClaim(g, id, w, r)
 	default:
-		writeErr(w, http.StatusMethodNotAllowed, "GET or POST")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET or POST")
 	}
 }

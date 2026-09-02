@@ -1,5 +1,5 @@
 // Every map, served the same way compressed and not (ADR-036).
-package app
+package variant
 
 import (
 	"bytes"
@@ -38,25 +38,25 @@ func unpack(t *testing.T, res *http.Response) []byte {
 // pass: for every variant in every style, what a gzip client unpacks is byte
 // for byte what a client that offered nothing was sent.
 func TestEveryMapIsServedIdenticallyCompressed(t *testing.T) {
-	if err := loadStyles(); err != nil {
+	if err := LoadStyles(); err != nil {
 		t.Fatal(err)
 	}
-	if err := loadPlans(); err != nil {
+	if err := ReportPlans(); err != nil {
 		t.Fatal(err)
 	}
-	withGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
 
 	styles := []string{"original", "parchment", "flat", "midnight", "print"}
 	compressed := 0
-	for key := range generatedVariants {
+	for key := range Generated {
 		for _, style := range styles {
 			url := "/variants/" + key + "/map.svg?style=" + style
 
 			plainRec := httptest.NewRecorder()
-			httpx.Compress(http.HandlerFunc(handleVariantMap)).ServeHTTP(
+			httpx.Compress(http.HandlerFunc(HandleVariantMap)).ServeHTTP(
 				plainRec, httptest.NewRequest("GET", url, nil))
 			plain := plainRec.Result()
 			if plain.StatusCode != http.StatusOK {
@@ -70,7 +70,7 @@ func TestEveryMapIsServedIdenticallyCompressed(t *testing.T) {
 			r := httptest.NewRequest("GET", url, nil)
 			r.Header.Set("Accept-Encoding", "gzip")
 			packedRec := httptest.NewRecorder()
-			httpx.Compress(http.HandlerFunc(handleVariantMap)).ServeHTTP(packedRec, r)
+			httpx.Compress(http.HandlerFunc(HandleVariantMap)).ServeHTTP(packedRec, r)
 			packed := packedRec.Result()
 			if packed.Header.Get("Content-Encoding") != "gzip" {
 				t.Fatalf("%v in %v: a map was sent uncompressed", key, style)
@@ -84,8 +84,8 @@ func TestEveryMapIsServedIdenticallyCompressed(t *testing.T) {
 			compressed++
 		}
 	}
-	if compressed != len(generatedVariants)*len(styles) {
+	if compressed != len(Generated)*len(styles) {
 		t.Fatalf("checked %v map(s), expected %v",
-			compressed, len(generatedVariants)*len(styles))
+			compressed, len(Generated)*len(styles))
 	}
 }

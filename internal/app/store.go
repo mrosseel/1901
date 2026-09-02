@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"spring1901/spike/internal/variant"
 	"strings"
 	"time"
 
@@ -231,7 +232,7 @@ func loadHandoverSalt(handle *sql.DB) error {
 // a setting existed loads as the game it was: a classical game with no press
 // mode declared and Backstabbr's retreat clock.
 var gameColumns = []struct{ name, definition string }{
-	{"variant", `TEXT NOT NULL DEFAULT '` + defaultVariant + `'`},
+	{"variant", `TEXT NOT NULL DEFAULT '` + variant.DefaultKey + `'`},
 	{"retreat_build_percent", `INTEGER NOT NULL DEFAULT 50`},
 	{"grace_minutes", `INTEGER NOT NULL DEFAULT 0`},
 	{"first_turn_extra_minutes", `INTEGER NOT NULL DEFAULT 0`},
@@ -519,7 +520,7 @@ func (self *game) persistErr(id string) error {
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
 		f.settings.RetreatBuildPercent, f.settings.GraceMinutes,
 		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves,
-		variantHash(self.variantKey), f.settings.Name, f.gmEpoch, f.gmPublicKey,
+		variant.Hash(self.variantKey), f.settings.Name, f.gmEpoch, f.gmPublicKey,
 		f.settings.EndYear, resultKind, resultPowers, resultYear, resultPhase, f.sealed,
 		drawPowers, drawRequired, drawConfirmed, f.settings.Sandbox, f.sandboxToken,
 		f.settings.PressSilenceSeconds, f.settings.GMReadsPress, f.gmBoxPub, f.gmBoxSig)
@@ -641,7 +642,7 @@ func loadAll() error {
 			   COALESCE(sandbox, 0), COALESCE(sandbox_token, ''),
 			   COALESCE(press_silence_seconds, ?), COALESCE(gm_reads_press, 0),
 			   COALESCE(gm_box_pub, ''), COALESCE(gm_box_sig, '')
-        FROM game`, defaultVariant, defaultPressMode, defaultPressSilenceSeconds)
+        FROM game`, variant.DefaultKey, defaultPressMode, defaultPressSilenceSeconds)
 	if err != nil {
 		return err
 	}
@@ -681,7 +682,7 @@ func loadAll() error {
 			rows.Close()
 			return err
 		}
-		v, found := lookupVariant(key)
+		v, found := variant.Lookup(key)
 		if !found {
 			rows.Close()
 			return fmt.Errorf("game %v names unknown variant %q", id, key)
@@ -689,13 +690,13 @@ func loadAll() error {
 		// A game replays its whole order history against the variant's start
 		// position. If a generated descriptor changed underneath it, that
 		// replay lands on a board the players never saw.
-		if err := checkVariantHash(id, key, recordedHash); err != nil {
+		if err := variant.CheckHash(id, key, recordedHash); err != nil {
 			rows.Close()
 			return err
 		}
 		f.settings.Variant = key
 		f.settings = f.settings.normalised()
-		f.powers = sortedNations(v)
+		f.powers = variant.SortedNations(v)
 		if deadline.Valid {
 			at, err := time.Parse(time.RFC3339Nano, deadline.String)
 			if err == nil {

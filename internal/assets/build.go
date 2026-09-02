@@ -14,7 +14,8 @@ JavaScript a tab is running has changed — and stays put when only the server
 did. A server-only change leaves every open tab correct, and should not ask
 anybody to reload.
 */
-package app
+
+package assets
 
 import (
 	"crypto/sha256"
@@ -26,19 +27,19 @@ import (
 )
 
 var (
-	buildOnce  sync.Once
-	buildValue string
+	stampOnce  sync.Once
+	stampValue string
 )
 
-// buildStamp is read once. The shell cannot change under a running process:
+// BuildStamp is read once. The shell cannot change under a running process:
 // the frontend is inside the binary in a release build and a directory nobody
 // rebuilds mid-run in development.
-func buildStamp() string {
-	buildOnce.Do(func() { buildValue = readBuildStamp(spaFS()) })
-	return buildValue
+func BuildStamp() string {
+	stampOnce.Do(func() { stampValue = readStamp(SPA()) })
+	return stampValue
 }
 
-func readBuildStamp(fsys fs.FS) string {
+func readStamp(fsys fs.FS) string {
 	shell, err := fs.ReadFile(fsys, "index.html")
 	if err != nil {
 		// No shell to hash — a server run without a frontend build. The

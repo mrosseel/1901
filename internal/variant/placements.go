@@ -23,7 +23,7 @@
 // unverified variant does and what classical did before this table existed.
 // The fallback is per province, not per variant: a table missing one key
 // leaves that one province on its anchor and serves the rest.
-package app
+package variant
 
 // placementJSON is one province's marker, in map units — the SVG's own user
 // coordinates, which is the space the board draws in.
@@ -110,21 +110,17 @@ type overhangJSON struct {
 	Open float64 `json:"open"`
 }
 
-// placementTable is one variant's table: province abbreviation to marker.
-type placementTable map[string]placementJSON
+// PlacementTable is one variant's table: province abbreviation to marker.
+type PlacementTable map[string]placementJSON
 
 // placements holds every table found at startup, by variant key. It is
 // written once before any request is served and only read afterwards, so it
 // needs no lock.
-var placements = map[string]placementTable{}
+var placements = map[string]PlacementTable{}
 
-// placementFor returns the approved table for a variant, or nil when it has
+// PlacementFor returns the approved table for a variant, or nil when it has
 // none. Nil is meaningful and is serialised as JSON null: the board reads it
 // as "no table, use the map's anchors".
-func placementFor(key string) placementTable {
+func PlacementFor(key string) PlacementTable {
 	return placements[key]
-}
-
-func (self *game) placements() placementTable {
-	return placementFor(self.variantKey)
 }

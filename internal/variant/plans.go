@@ -16,7 +16,7 @@
 // that redraws a map therefore invalidates its plan loudly, and the map is
 // served in its own colours until the plan is rebuilt, rather than being
 // styled from measurements of a picture that no longer exists.
-package app
+package variant
 
 import (
 	"encoding/json"
@@ -225,17 +225,14 @@ cannot disagree about which map they describe.
 var plans = map[string]*stylePlan{}
 
 /*
-loadPlans makes sure the plans are in memory, and says what is there.
+ReportPlans makes sure the plans are in memory, and says what is there.
 
-A plan arrives with its variant now (generated.go), so this loads the
-variants and then counts. It stays a function of its own because a plan is
-optional — a variant with no plan is served in its own colours — and because
-the count is worth a line in the startup log.
+A plan arrives with its variant, so the variants must already be loaded when
+this runs. It stays a function of its own because a plan is optional — a
+variant with no plan is served in its own colours — and because the count is
+worth a line in the startup log.
 */
-func loadPlans() error {
-	if err := loadGeneratedVariants(); err != nil {
-		return err
-	}
+func ReportPlans() error {
 	styleable := 0
 	for _, plan := range plans {
 		if plan.styleable() {

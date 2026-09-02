@@ -1,4 +1,4 @@
-package app
+package variant
 
 import (
 	"encoding/json"
@@ -30,16 +30,16 @@ func TestPlacementsLoadAndPassThrough(t *testing.T) {
 		filepath.Join(dir, "demo7", "placements.json"), []byte(written), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	withGeneratedDir(t, dir)
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, dir)
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
 
-	table := placementFor("demo7")
+	table := PlacementFor("demo7")
 	if len(table) != 2 {
 		t.Fatalf("loaded %d provinces, wanted 2", len(table))
 	}
-	if placementFor("nosuch") != nil {
+	if PlacementFor("nosuch") != nil {
 		t.Error("a variant with no table must answer nil, which serialises as null")
 	}
 
@@ -60,7 +60,7 @@ func TestPlacementsLoadAndPassThrough(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var again placementTable
+	var again PlacementTable
 	if err := json.Unmarshal(b, &again); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestPlacementLabelsPassThrough(t *testing.T) {
 	            {"at": [100, 66], "size": 12, "width": 46, "height": 9, "text": "Aeolus"}]},
 	  "bud": {"unit": [812, 812], "dislodged": [850, 780]}
 	}`
-	var table placementTable
+	var table PlacementTable
 	if err := json.Unmarshal([]byte(written), &table); err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestPlacementLabelsPassThrough(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var again placementTable
+	var again PlacementTable
 	if err := json.Unmarshal(b, &again); err != nil {
 		t.Fatal(err)
 	}

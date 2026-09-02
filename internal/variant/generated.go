@@ -28,7 +28,7 @@
 // position, so a descriptor edited under a running game would replay onto a
 // different board. Rather than corrupt the game quietly, a changed descriptor
 // makes that game refuse to load and says so.
-package app
+package variant
 
 import (
 	"encoding/json"
@@ -43,13 +43,14 @@ import (
 
 	"github.com/zond/godip/variants/common"
 
+	"spring1901/spike/internal/assets"
 	"spring1901/spike/internal/svgsafe"
 	"spring1901/spike/variantjson"
 )
 
-// generatedVariant is one loaded descriptor with the art and identity that go
+// GeneratedVariant is one loaded descriptor with the art and identity that go
 // with it.
-type generatedVariant struct {
+type GeneratedVariant struct {
 	Key     string
 	Variant common.Variant
 	SVG     []byte
@@ -59,24 +60,24 @@ type generatedVariant struct {
 	Hash string
 }
 
-// generatedVariants holds everything loaded at startup, by key. Written once
+// Generated holds everything loaded at startup, by key. Written once
 // before any request is served and read-only afterwards, like placements.
-var generatedVariants = map[string]generatedVariant{}
+var Generated = map[string]GeneratedVariant{}
 
-// loadGeneratedVariants reads every subdirectory of the generated directory.
+// LoadGenerated reads every subdirectory of the generated directory.
 //
 // A missing directory is not an error: a checkout with no generated maps is a
 // working server. A malformed one IS an error worth failing on. Serving a
 // variant whose descriptor half-parsed would mean games played on a board
 // nobody described.
-func loadGeneratedVariants() error {
-	fsys := generatedFS()
+func LoadGenerated() error {
+	fsys := assets.GeneratedFS()
 	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
-		return fmt.Errorf("read %v: %w", generatedDir(), err)
+		return fmt.Errorf("read %v: %w", assets.GeneratedDir(), err)
 	}
 
 	// Descriptors first, art second. A variant may be drawn on another
@@ -89,7 +90,7 @@ func loadGeneratedVariants() error {
 			continue
 		}
 		key := entry.Name()
-		if variantKey(key) != key {
+		if Key(key) != key {
 			return fmt.Errorf(
 				"generated variant directory %q is not a URL-safe key", key)
 		}
@@ -119,7 +120,7 @@ func loadGeneratedVariants() error {
 		gen := one.gen
 		gen.SVG = drawn
 		gen.Variant.SVGMap = func() ([]byte, error) { return drawn, nil }
-		generatedVariants[one.key] = gen
+		Generated[one.key] = gen
 
 		where := ""
 		if owner != one.key {
@@ -130,7 +131,7 @@ func loadGeneratedVariants() error {
 	}
 
 	// The index every game load consults must now include these.
-	rebuildVariantIndex()
+	rebuildIndex()
 
 	sort.Strings(loaded)
 	if len(loaded) > 0 {
@@ -143,7 +144,7 @@ func loadGeneratedVariants() error {
 // because the art may belong to a variant that has not been read yet.
 type pendingVariant struct {
 	key string
-	gen generatedVariant
+	gen GeneratedVariant
 	// drawnOn is the key of the variant holding this one's art, or "" when
 	// this directory holds its own.
 	drawnOn string
@@ -180,7 +181,7 @@ func resolveArtKey(key string, drawnOn map[string]string) (string, error) {
 
 // loadGeneratedVariant reads one variant directory, except its art.
 func loadGeneratedVariant(fsys fs.FS, key string) (pendingVariant, error) {
-	descriptorPath := generatedPath(path.Join(key, "variant.json"))
+	descriptorPath := assets.GeneratedPath(path.Join(key, "variant.json"))
 	raw, err := fs.ReadFile(fsys, path.Join(key, "variant.json"))
 	if err != nil {
 		return pendingVariant{}, fmt.Errorf("read %v: %w", descriptorPath, err)
@@ -216,7 +217,7 @@ func loadGeneratedVariant(fsys fs.FS, key string) (pendingVariant, error) {
 	}
 	// The gallery and every game look a variant up by the key derived from its
 	// name, so the name has to produce this directory's key.
-	if variantKey(variant.Name) != key {
+	if Key(variant.Name) != key {
 		variant.Name = key
 	}
 
@@ -226,9 +227,9 @@ func loadGeneratedVariant(fsys fs.FS, key string) (pendingVariant, error) {
 
 	// Marker positions are optional, exactly as they are for a compiled
 	// variant: without a table the board falls back to the map's own anchors.
-	placementPath := generatedPath(path.Join(key, "placements.json"))
+	placementPath := assets.GeneratedPath(path.Join(key, "placements.json"))
 	if b, err := fs.ReadFile(fsys, path.Join(key, "placements.json")); err == nil {
-		var table placementTable
+		var table PlacementTable
 		if err := json.Unmarshal(b, &table); err != nil {
 			return pendingVariant{}, fmt.Errorf("parse %v: %w", placementPath, err)
 		}
@@ -253,7 +254,7 @@ func loadGeneratedVariant(fsys fs.FS, key string) (pendingVariant, error) {
 		Optional, like the placements: a map with no plan is served in its own
 		colours.
 	*/
-	planPath := generatedPath(path.Join(key, "styleplan.json"))
+	planPath := assets.GeneratedPath(path.Join(key, "styleplan.json"))
 	if b, err := fs.ReadFile(fsys, path.Join(key, "styleplan.json")); err == nil {
 		plan := &stylePlan{}
 		if err := json.Unmarshal(b, plan); err != nil {
@@ -274,7 +275,7 @@ func loadGeneratedVariant(fsys fs.FS, key string) (pendingVariant, error) {
 	return pendingVariant{
 		key:     key,
 		drawnOn: descriptor.Map,
-		gen: generatedVariant{
+		gen: GeneratedVariant{
 			Key:     key,
 			Variant: variant,
 			Hash:    variantjson.GameHash(descriptor),
@@ -288,7 +289,7 @@ func loadGeneratedVariant(fsys fs.FS, key string) (pendingVariant, error) {
 // drawn on the same art, and they must be served the same bytes rather than
 // two sanitiser runs that happen to agree.
 func loadVariantArt(fsys fs.FS, key string) ([]byte, error) {
-	svgPath := generatedPath(path.Join(key, "map.svg"))
+	svgPath := assets.GeneratedPath(path.Join(key, "map.svg"))
 	rawSVG, err := fs.ReadFile(fsys, path.Join(key, "map.svg"))
 	if err != nil {
 		return nil, fmt.Errorf("read %v: %w", svgPath, err)
@@ -314,32 +315,32 @@ func loadVariantArt(fsys fs.FS, key string) ([]byte, error) {
 // generatedVariantList returns the loaded variants in key order, for the
 // registry to append to the compiled ones.
 func generatedVariantList() []common.Variant {
-	keys := make([]string, 0, len(generatedVariants))
-	for key := range generatedVariants {
+	keys := make([]string, 0, len(Generated))
+	for key := range Generated {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 
 	out := make([]common.Variant, 0, len(keys))
 	for _, key := range keys {
-		out = append(out, generatedVariants[key].Variant)
+		out = append(out, Generated[key].Variant)
 	}
 	return out
 }
 
-// variantHash returns the descriptor hash for a loaded variant, or "" for a
+// Hash returns the descriptor hash for a loaded variant, or "" for a
 // key nothing loaded.
-func variantHash(key string) string {
-	return generatedVariants[key].Hash
+func Hash(key string) string {
+	return Generated[key].Hash
 }
 
-// checkVariantHash reports whether a game may still be loaded.
+// CheckHash reports whether a game may still be loaded.
 //
 // A game records the hash of the variant it started under. If the descriptor
 // on disk has changed since, replaying that game's orders would produce a
 // board the players never saw, so it refuses rather than corrupts.
-func checkVariantHash(gameID, key, recorded string) error {
-	current := variantHash(key)
+func CheckHash(gameID, key, recorded string) error {
+	current := Hash(key)
 	switch {
 	case current == "" && recorded == "":
 		return nil

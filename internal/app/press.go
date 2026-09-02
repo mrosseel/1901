@@ -37,6 +37,7 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"spring1901/spike/internal/httpx"
 	"strconv"
 	"strings"
 	"time"
@@ -458,7 +459,7 @@ func (t *pressThread) summary(actor pressActor) pressThreadJSON {
 // handlePress is GET: the rooms this actor may see, with no message bodies.
 func handlePress(g *game, id string, actor pressActor, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeErr(w, http.StatusMethodNotAllowed, "GET only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET only")
 		return
 	}
 	g.mu.Lock()
@@ -471,7 +472,7 @@ func handlePress(g *game, id string, actor pressActor, w http.ResponseWriter, r 
 		http.NotFound(w, r)
 		return
 	}
-	writeJSON(w, http.StatusOK, g.pressView(actor))
+	httpx.WriteJSON(w, http.StatusOK, g.pressView(actor))
 }
 
 type pressKeyJSON struct {
@@ -517,21 +518,21 @@ func handlePressKey(g *game, id string, actor pressActor, w http.ResponseWriter,
 	switch r.Method {
 	case http.MethodGet:
 		if actor.isGM {
-			writeJSON(w, http.StatusOK, pressKeyJSON{BoxPub: f.gmBoxPub, Sig: f.gmBoxSig})
+			httpx.WriteJSON(w, http.StatusOK, pressKeyJSON{BoxPub: f.gmBoxPub, Sig: f.gmBoxSig})
 			return
 		}
-		writeJSON(w, http.StatusOK, pressKeyJSON{
+		httpx.WriteJSON(w, http.StatusOK, pressKeyJSON{
 			BoxPub: f.seats[actor.power].boxPub,
 			Sig:    f.seats[actor.power].boxSig,
 		})
 	case http.MethodPost:
 		var body pressKeyJSON
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxPressBody)).Decode(&body); err != nil {
-			writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+			httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 			return
 		}
 		if !checkBoxPub(body.BoxPub) {
-			writeErr(w, http.StatusBadRequest, "boxPub must be 32 base64url bytes")
+			httpx.WriteErr(w, http.StatusBadRequest, "boxPub must be 32 base64url bytes")
 			return
 		}
 		if actor.isGM {
@@ -541,9 +542,9 @@ func handlePressKey(g *game, id string, actor pressActor, w http.ResponseWriter,
 			f.seats[actor.power].boxSig = body.Sig
 		}
 		g.persist(id)
-		writeJSON(w, http.StatusOK, body)
+		httpx.WriteJSON(w, http.StatusOK, body)
 	default:
-		writeErr(w, http.StatusMethodNotAllowed, "GET or POST")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET or POST")
 	}
 }
 
@@ -575,12 +576,12 @@ people, you keep talking.
 */
 func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	var body pressOpenRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxPressBody)).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 
@@ -598,11 +599,11 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 
 	members, err := f.parseMembers(body.Members)
 	if err != "" {
-		writeErr(w, http.StatusBadRequest, "%v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "%v", err)
 		return
 	}
 	if len(members) == 0 {
-		writeErr(w, http.StatusBadRequest, "a room needs at least one power in it")
+		httpx.WriteErr(w, http.StatusBadRequest, "a room needs at least one power in it")
 		return
 	}
 	// A power is always in its own rooms. Saying otherwise would be a room
@@ -615,17 +616,17 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 			}
 		}
 		if !found {
-			writeErr(w, http.StatusForbidden, "you are not in that room")
+			httpx.WriteErr(w, http.StatusForbidden, "you are not in that room")
 			return
 		}
 	}
 	if actor.isGM && len(members) == 0 {
-		writeErr(w, http.StatusBadRequest, "a room needs at least one power in it")
+		httpx.WriteErr(w, http.StatusBadRequest, "a room needs at least one power in it")
 		return
 	}
 
 	if ok, reason := g.pressWritable(actor, "", members); !ok {
-		writeErr(w, http.StatusConflict, "%v", reason)
+		httpx.WriteErr(w, http.StatusConflict, "%v", reason)
 		return
 	}
 
@@ -647,12 +648,12 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 			if !f.actorReads(actor, t) {
 				continue
 			}
-			writeJSON(w, http.StatusOK, t.summary(actor))
+			httpx.WriteJSON(w, http.StatusOK, t.summary(actor))
 			return
 		}
 	}
 	if len(f.press) >= maxPressThreads {
-		writeErr(w, http.StatusConflict, "this game has too many rooms open")
+		httpx.WriteErr(w, http.StatusConflict, "this game has too many rooms open")
 		return
 	}
 
@@ -666,7 +667,7 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 	}
 	if f.settings.GMReadsPress {
 		if f.gmBoxPub == "" {
-			writeErr(w, http.StatusConflict,
+			httpx.WriteErr(w, http.StatusConflict,
 				"the game master reads press in this game but has published no key")
 			return
 		}
@@ -677,20 +678,20 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 	}
 	for holder := range holders {
 		if body.Keys[holder] == "" {
-			writeErr(w, http.StatusBadRequest, "no room key wrapped for %v", holder)
+			httpx.WriteErr(w, http.StatusBadRequest, "no room key wrapped for %v", holder)
 			return
 		}
 	}
 	for holder := range body.Keys {
 		if !holders[holder] {
-			writeErr(w, http.StatusBadRequest, "%v is not in that room", holder)
+			httpx.WriteErr(w, http.StatusBadRequest, "%v is not in that room", holder)
 			return
 		}
 	}
 
 	threadID, err2 := newToken()
 	if err2 != nil {
-		writeErr(w, http.StatusInternalServerError, "random: %v", err2)
+		httpx.WriteErr(w, http.StatusInternalServerError, "random: %v", err2)
 		return
 	}
 	t := &pressThread{
@@ -719,11 +720,11 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 		// than logged and carried on with.
 		delete(f.pressByID, t.id)
 		f.press = f.press[:len(f.press)-1]
-		writeErr(w, http.StatusInternalServerError, "could not open the room: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "could not open the room: %v", err)
 		return
 	}
 	g.persist(id)
-	writeJSON(w, http.StatusOK, t.summary(actor))
+	httpx.WriteJSON(w, http.StatusOK, t.summary(actor))
 }
 
 // parseMembers turns names from a request into powers of this variant,
@@ -753,7 +754,7 @@ func (f *flow) parseMembers(names []string) ([]godip.Nation, string) {
 // handlePressThread is GET: one room's messages, optionally only what is new.
 func handlePressThread(g *game, id string, actor pressActor, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeErr(w, http.StatusMethodNotAllowed, "GET only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET only")
 		return
 	}
 	g.mu.Lock()
@@ -777,7 +778,7 @@ func handlePressThread(g *game, id string, actor pressActor, w http.ResponseWrit
 			row.Messages = append(row.Messages, m)
 		}
 	}
-	writeJSON(w, http.StatusOK, row)
+	httpx.WriteJSON(w, http.StatusOK, row)
 }
 
 // pressThreadFor finds a room this actor may read. The caller must hold the
@@ -830,25 +831,25 @@ tell. It may write into a room it opened itself, which is what a ruling is.
 */
 func handlePressSend(g *game, id string, actor pressActor, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	var body pressSendRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxPressBody)).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 	if body.Box == "" {
-		writeErr(w, http.StatusBadRequest, "box is required")
+		httpx.WriteErr(w, http.StatusBadRequest, "box is required")
 		return
 	}
 	at, err := time.Parse(time.RFC3339, body.At)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "at must be an RFC3339 time")
+		httpx.WriteErr(w, http.StatusBadRequest, "at must be an RFC3339 time")
 		return
 	}
 	if skew := time.Since(at); skew > pressClockSkew || skew < -pressClockSkew {
-		writeErr(w, http.StatusBadRequest, "at is too far from this server's clock")
+		httpx.WriteErr(w, http.StatusBadRequest, "at is too far from this server's clock")
 		return
 	}
 	/*
@@ -860,7 +861,7 @@ func handlePressSend(g *game, id string, actor pressActor, w http.ResponseWriter
 		nothing, and opens for nobody.
 	*/
 	if body.At != at.UTC().Format(time.RFC3339) {
-		writeErr(w, http.StatusBadRequest,
+		httpx.WriteErr(w, http.StatusBadRequest,
 			"at must be UTC with no fractional seconds, as 2026-09-02T10:00:00Z")
 		return
 	}
@@ -873,24 +874,24 @@ func handlePressSend(g *game, id string, actor pressActor, w http.ResponseWriter
 		return
 	}
 	if actor.isGM && t.openedBy != gmHolder {
-		writeErr(w, http.StatusForbidden,
+		httpx.WriteErr(w, http.StatusForbidden,
 			"the game master reads this room and does not speak in it")
 		return
 	}
 	if ok, reason := g.pressWritable(actor, t.openedBy, t.members); !ok {
-		writeErr(w, http.StatusConflict, "%v", reason)
+		httpx.WriteErr(w, http.StatusConflict, "%v", reason)
 		return
 	}
 	// Somebody else spoke between this sender reading the room and writing
 	// into it. Their envelope is sealed against the number they saw, so
 	// storing it under another would make it unreadable to everybody.
 	if body.Seq != len(t.messages)+1 {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"somebody else spoke first — read the room again and send it once more")
 		return
 	}
 	if body.PhaseIndex != g.flow.phaseIndex {
-		writeErr(w, http.StatusConflict, "the phase moved on while this was being written")
+		httpx.WriteErr(w, http.StatusConflict, "the phase moved on while this was being written")
 		return
 	}
 
@@ -913,7 +914,7 @@ func handlePressSend(g *game, id string, actor pressActor, w http.ResponseWriter
 		message silently overwrites.
 	*/
 	if err := persistPressMessage(id, t.id, m); err != nil {
-		writeErr(w, http.StatusInternalServerError, "the message was not stored: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "the message was not stored: %v", err)
 		return
 	}
 	t.messages = append(t.messages, m)
@@ -924,7 +925,7 @@ func handlePressSend(g *game, id string, actor pressActor, w http.ResponseWriter
 		conversations happen: not what was said, or by whom, but that somebody is
 		talking, and exactly when. The panel polls for its own messages instead.
 	*/
-	writeJSON(w, http.StatusOK, m)
+	httpx.WriteJSON(w, http.StatusOK, m)
 }
 
 type pressReadRequest struct {
@@ -935,12 +936,12 @@ type pressReadRequest struct {
 // handlePressRead moves this holder's read marker. It only ever goes forward.
 func handlePressRead(g *game, id string, actor pressActor, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	var body pressReadRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxPressBody)).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 	g.mu.Lock()
@@ -960,7 +961,7 @@ func handlePressRead(g *game, id string, actor pressActor, w http.ResponseWriter
 		t.read[actor.holder] = seq
 		persistPressRead(id, t.id, actor.holder, seq)
 	}
-	writeJSON(w, http.StatusOK, t.summary(actor))
+	httpx.WriteJSON(w, http.StatusOK, t.summary(actor))
 }
 
 // ---------------------------------------------------------------------------

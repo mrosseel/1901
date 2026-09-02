@@ -15,6 +15,9 @@ import (
 	"net"
 	"net/http"
 	"sort"
+	"spring1901/spike/internal/assets"
+	"spring1901/spike/internal/httpx"
+	"spring1901/spike/internal/variant"
 	"strings"
 	"time"
 	"unicode"
@@ -153,7 +156,7 @@ const defaultRetreatBuildPercent = 50
 // game that is strict because nobody said otherwise.
 func defaultSettings() settings {
 	return settings{
-		Variant:             defaultVariant,
+		Variant:             variant.DefaultKey,
 		RetreatBuildPercent: defaultRetreatBuildPercent,
 		PressMode:           defaultPressMode,
 		PressSilenceSeconds: defaultPressSilenceSeconds,
@@ -326,7 +329,7 @@ func newFlow(s settings, v common.Variant) (*flow, error) {
 		// (ADR-047). Sealing it would seal orders against their own author.
 		sealed:      !s.Sandbox,
 		createdAt:   time.Now().UTC(),
-		powers:      sortedNations(v),
+		powers:      variant.SortedNations(v),
 		seats:       map[godip.Nation]*seat{},
 		bySeatToken: map[string]godip.Nation{},
 		bySignPub:   map[string]godip.Nation{},
@@ -989,7 +992,7 @@ func (self settings) normalised() settings {
 		self.RetreatBuildPercent = 100
 	}
 	if self.Variant == "" {
-		self.Variant = defaultVariant
+		self.Variant = variant.DefaultKey
 	}
 	if self.PressMode == "" {
 		self.PressMode = defaultPressMode
@@ -1100,9 +1103,9 @@ func decodeCreateSettings(r *http.Request) (settings, error) {
 // ---------------------------------------------------------------- creation
 
 type createResponse struct {
-	GameID    string         `json:"gameId"`
-	InviteURL string         `json:"inviteUrl"`
-	Variant   variantRefJSON `json:"variant"`
+	GameID    string          `json:"gameId"`
+	InviteURL string          `json:"inviteUrl"`
+	Variant   variant.RefJSON `json:"variant"`
 	// SandboxURL is set only for a sandbox (ADR-047). There is no invite to
 	// share and no seat to claim, so this one link is the whole handover.
 	SandboxURL string `json:"sandboxUrl,omitempty"`
@@ -1114,32 +1117,32 @@ type createResponse struct {
 // the seat state of the GM's own power once the game has started.
 func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	s, err := decodeCreateSettings(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
-	v, found := lookupVariant(s.Variant)
+	v, found := variant.Lookup(s.Variant)
 	if !found {
-		writeErr(w, http.StatusBadRequest, "unknown variant %q", s.Variant)
+		httpx.WriteErr(w, http.StatusBadRequest, "unknown variant %q", s.Variant)
 		return
 	}
 	f, err := newFlow(s, v)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
 		return
 	}
 	g, id, err := games.create(s.Variant, v, f)
 	if err != nil {
 		if errors.Is(err, errGameLimit) {
-			writeErr(w, http.StatusServiceUnavailable,
+			httpx.WriteErr(w, http.StatusServiceUnavailable,
 				"the server holds its maximum of %v game(s) — raise MAX_GAMES to make room", games.limit)
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "create game: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "create game: %v", err)
 		return
 	}
 	g.mu.Lock()
@@ -1152,7 +1155,7 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		v.Name, s.DeadlineMinutes, s.GMPlays, s.RetreatBuildPercent, s.GraceMinutes,
 		s.FirstTurnExtraMinutes, s.PressMode, s.PressSilenceSeconds, s.GMReadsPress,
 		s.IllegalMoves)
-	if !supportedVariants[s.Variant] {
+	if !variant.Supported[s.Variant] {
 		f.logEvent(id, "%v is experimental — unit placement on the map is not verified", v.Name)
 	}
 	if s.Sandbox {
@@ -1163,7 +1166,7 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		f.logEvent(id, "sandbox opened — no seats, no deadline, one driver")
 		if err := g.enterPhase(id); err != nil {
 			g.mu.Unlock()
-			writeErr(w, http.StatusInternalServerError, "open sandbox: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "open sandbox: %v", err)
 			return
 		}
 	}
@@ -1189,7 +1192,7 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		out.InviteURL = ""
 		out.SandboxURL = sandboxURL(r, id, f.sandboxToken)
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // gameSummaryJSON is one row of the main-page list. It holds what the
@@ -1199,15 +1202,15 @@ type gameSummaryJSON struct {
 	GameID string `json:"gameId"`
 	// Name is what the table calls this game, empty when nobody named it.
 	// It belongs to the game, not to any seat, so it is as public as the id.
-	Name        string         `json:"name"`
-	Variant     variantRefJSON `json:"variant"`
-	Started     bool           `json:"started"`
-	Phase       phaseJSON      `json:"phase"`
-	JoinedCount int            `json:"joinedCount"`
-	TotalSeats  int            `json:"totalSeats"`
-	Turns       int            `json:"turns"`
-	DeadlineAt  interface{}    `json:"deadlineAt"`
-	CreatedAt   string         `json:"createdAt"`
+	Name        string          `json:"name"`
+	Variant     variant.RefJSON `json:"variant"`
+	Started     bool            `json:"started"`
+	Phase       phaseJSON       `json:"phase"`
+	JoinedCount int             `json:"joinedCount"`
+	TotalSeats  int             `json:"totalSeats"`
+	Turns       int             `json:"turns"`
+	DeadlineAt  interface{}     `json:"deadlineAt"`
+	CreatedAt   string          `json:"createdAt"`
 	// Sandbox marks a board with no players (ADR-047). The list shows it
 	// because the two read nothing alike: "0 of 7 joined" on a sandbox is
 	// not a table waiting to fill, it is a board that never had seats.
@@ -1259,7 +1262,7 @@ func handleListGames(w http.ResponseWriter, r *http.Request) {
 		g.mu.Unlock()
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
-	writeJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // -------------------------------------------------------------------- join
@@ -1274,7 +1277,7 @@ type joinResponse struct {
 
 func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	g.mu.Lock()
@@ -1302,7 +1305,7 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 	if body.SignPub != "" && !checkSignPub(body.SignPub) {
-		writeErr(w, http.StatusBadRequest, "signPub must be 32 base64url bytes")
+		httpx.WriteErr(w, http.StatusBadRequest, "signPub must be 32 base64url bytes")
 		return
 	}
 
@@ -1320,13 +1323,13 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 			// cookie that merely says which phone this is.
 			s := f.seats[power]
 			if s.signPub != "" {
-				writeJSON(w, http.StatusOK, joinResponse{
+				httpx.WriteJSON(w, http.StatusOK, joinResponse{
 					SeatURL: keyedSeatURL(r, id),
 					Keyed:   true,
 				})
 				return
 			}
-			writeJSON(w, http.StatusOK, joinResponse{SeatURL: seatURL(r, id, s.token)})
+			httpx.WriteJSON(w, http.StatusOK, joinResponse{SeatURL: seatURL(r, id, s.token)})
 			return
 		}
 	}
@@ -1339,13 +1342,13 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 		}
 	}
 	if len(free) == 0 {
-		writeErr(w, http.StatusConflict, "every power is taken — ask the GM for a seat")
+		httpx.WriteErr(w, http.StatusConflict, "every power is taken — ask the GM for a seat")
 		return
 	}
 
 	pick, err := rand.Int(rand.Reader, big.NewInt(int64(len(free))))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "random: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "random: %v", err)
 		return
 	}
 	power := free[pick.Int64()]
@@ -1353,7 +1356,7 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	if device == "" {
 		device, err = newToken()
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
 			return
 		}
 	}
@@ -1368,13 +1371,13 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 		f.bindSeatKey(s, body.SignPub)
 		session, err = f.openSession(power)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
 			return
 		}
 	} else {
 		seatToken, err := newToken()
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
 			return
 		}
 		s.token = seatToken
@@ -1393,10 +1396,10 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	})
 	if session != "" {
 		setSessionCookie(w, id, session)
-		writeJSON(w, http.StatusOK, joinResponse{SeatURL: keyedSeatURL(r, id), Keyed: true})
+		httpx.WriteJSON(w, http.StatusOK, joinResponse{SeatURL: keyedSeatURL(r, id), Keyed: true})
 		return
 	}
-	writeJSON(w, http.StatusOK, joinResponse{SeatURL: seatURL(r, id, s.token)})
+	httpx.WriteJSON(w, http.StatusOK, joinResponse{SeatURL: seatURL(r, id, s.token)})
 }
 
 // ---------------------------------------------------------------------- GM
@@ -1415,28 +1418,28 @@ type gmSeatJSON struct {
 }
 
 type gmStateJSON struct {
-	GameID          string              `json:"gameId"`
-	Settings        settings            `json:"settings"`
-	SettingsVersion int                 `json:"settingsVersion"`
-	Started         bool                `json:"started"`
-	Phase           phaseJSON           `json:"phase"`
-	Seats           []gmSeatJSON        `json:"seats"`
-	JoinedCount     int                 `json:"joinedCount"`
-	TotalSeats      int                 `json:"totalSeats"`
-	GMPower         *string             `json:"gmPower"`
-	InviteURL       string              `json:"inviteUrl"`
-	DeadlineAt      interface{}         `json:"deadlineAt"`
-	GraceUntil      interface{}         `json:"graceUntil"`
-	PhaseMinutes    int                 `json:"phaseMinutes"`
-	CanForce        bool                `json:"canForce"`
-	GMSeatURL       *string             `json:"gmSeatUrl"`
-	Events          []string            `json:"events"`
-	Variant         variantRefJSON      `json:"variant"`
-	ProvinceNames   map[string]string   `json:"provinceNames"`
-	Placements      placementTable      `json:"placements"`
-	Labels          *labelPlanJSON      `json:"labels,omitempty"`
-	Dislodged       map[string]unitJSON `json:"dislodged"`
-	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
+	GameID          string                 `json:"gameId"`
+	Settings        settings               `json:"settings"`
+	SettingsVersion int                    `json:"settingsVersion"`
+	Started         bool                   `json:"started"`
+	Phase           phaseJSON              `json:"phase"`
+	Seats           []gmSeatJSON           `json:"seats"`
+	JoinedCount     int                    `json:"joinedCount"`
+	TotalSeats      int                    `json:"totalSeats"`
+	GMPower         *string                `json:"gmPower"`
+	InviteURL       string                 `json:"inviteUrl"`
+	DeadlineAt      interface{}            `json:"deadlineAt"`
+	GraceUntil      interface{}            `json:"graceUntil"`
+	PhaseMinutes    int                    `json:"phaseMinutes"`
+	CanForce        bool                   `json:"canForce"`
+	GMSeatURL       *string                `json:"gmSeatUrl"`
+	Events          []string               `json:"events"`
+	Variant         variant.RefJSON        `json:"variant"`
+	ProvinceNames   map[string]string      `json:"provinceNames"`
+	Placements      variant.PlacementTable `json:"placements"`
+	Labels          *variant.LabelPlan     `json:"labels,omitempty"`
+	Dislodged       map[string]unitJSON    `json:"dislodged"`
+	PreviousPhase   *phaseReviewJSON       `json:"previousPhase"`
 	// Result is how the game ended, null while it runs (ADR-044).
 	Result       *gameResult   `json:"result"`
 	DrawProposal *drawProposal `json:"drawProposal,omitempty"`
@@ -1505,7 +1508,7 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		Sealed:         f.sealed,
 		RevealOpen:     f.revealOpen(),
 		AwaitingReveal: nations(f.awaitingReveal()),
-		Build:          buildStamp(),
+		Build:          assets.BuildStamp(),
 	}
 	for _, p := range f.powers {
 		s := f.seats[p]
@@ -1535,12 +1538,12 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 func handleGMState(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	writeJSON(w, http.StatusOK, g.gmState(id, r))
+	httpx.WriteJSON(w, http.StatusOK, g.gmState(id, r))
 }
 
 func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	g.mu.Lock()
@@ -1550,17 +1553,17 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	old := f.settings
 	neu, err := decodeSettings(r, old)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 	if f.started && neu.GMPlays != old.GMPlays {
-		writeErr(w, http.StatusConflict, "gmPlays cannot change after the game has started")
+		httpx.WriteErr(w, http.StatusConflict, "gmPlays cannot change after the game has started")
 		return
 	}
 	// The press mode is part of the rules the table agreed to play under
 	// (ADR-023), so it is fixed at start the way gmPlays is.
 	if f.started && neu.PressMode != old.PressMode {
-		writeErr(w, http.StatusConflict, "the press mode cannot change after the game has started")
+		httpx.WriteErr(w, http.StatusConflict, "the press mode cannot change after the game has started")
 		return
 	}
 	// Whether the game master reads press is fixed at start for a harder
@@ -1569,7 +1572,7 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	// promise a mailbox that no existing room has a key for, and turning it
 	// off would not take back the keys already sent.
 	if f.started && neu.GMReadsPress != old.GMReadsPress {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"whether the game master reads press cannot change after the game has started")
 		return
 	}
@@ -1577,12 +1580,12 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	// Without one there is nothing to wrap a room key for, and every room in
 	// the game would be refused for a setting nobody could still change.
 	if neu.GMReadsPress && !old.GMReadsPress && f.gmPublicKey == "" {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"make the game master key first — the mailbox is opened with it")
 		return
 	}
 	if neu.Variant != old.Variant {
-		writeErr(w, http.StatusConflict, "the variant is fixed when the game is created")
+		httpx.WriteErr(w, http.StatusConflict, "the variant is fixed when the game is created")
 		return
 	}
 	// The name is not a rule. It changes nothing about how the game is
@@ -1603,7 +1606,7 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 		if renamed {
 			g.persist(id)
 		}
-		writeJSON(w, http.StatusOK, g.gmState(id, r))
+		httpx.WriteJSON(w, http.StatusOK, g.gmState(id, r))
 		return
 	}
 	f.settings = neu
@@ -1623,12 +1626,12 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 		f.logEvent(id, "deadline reset to %v under the new clock", rfc3339(f.deadlineAt))
 	}
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.gmState(id, r))
+	httpx.WriteJSON(w, http.StatusOK, g.gmState(id, r))
 }
 
 func handleGMStart(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	g.mu.Lock()
@@ -1636,11 +1639,11 @@ func handleGMStart(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	f := g.flow
 
 	if f.started {
-		writeErr(w, http.StatusConflict, "the game has already started")
+		httpx.WriteErr(w, http.StatusConflict, "the game has already started")
 		return
 	}
 	if f.joinedCount() < f.joinerSeats() {
-		writeErr(w, http.StatusConflict, "only %v of %v seats are claimed",
+		httpx.WriteErr(w, http.StatusConflict, "only %v of %v seats are claimed",
 			f.joinedCount(), f.joinerSeats())
 		return
 	}
@@ -1648,7 +1651,7 @@ func handleGMStart(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	// game that starts without the key its mailbox is opened with is a game
 	// whose rooms are all refused for the rest of the evening.
 	if f.settings.GMReadsPress && f.gmPublicKey == "" {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"this game master reads press but has no key — make it before starting")
 		return
 	}
@@ -1656,14 +1659,14 @@ func handleGMStart(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if f.settings.GMPlays {
 		free := f.unassignedPowers()
 		if len(free) != 1 {
-			writeErr(w, http.StatusInternalServerError, "expected one leftover power, found %v", len(free))
+			httpx.WriteErr(w, http.StatusInternalServerError, "expected one leftover power, found %v", len(free))
 			return
 		}
 		// The leftover, never drawn from the pool (ADR-021).
 		power := free[0]
 		token, err := newToken()
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "tokens: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
 			return
 		}
 		s := f.seats[power]
@@ -1679,16 +1682,16 @@ func handleGMStart(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	f.logEvent(id, "game started, %v has %v minute(s) until %v",
 		g.state.Phase().Type(), f.phaseMinutes(g.state.Phase()), rfc3339(f.deadlineAt))
 	if err := g.enterPhase(id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
 		return
 	}
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.gmState(id, r))
+	httpx.WriteJSON(w, http.StatusOK, g.gmState(id, r))
 }
 
 func handleGMForce(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	g.mu.Lock()
@@ -1696,41 +1699,41 @@ func handleGMForce(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	f := g.flow
 
 	if !f.started {
-		writeErr(w, http.StatusConflict, "the game has not started")
+		httpx.WriteErr(w, http.StatusConflict, "the game has not started")
 		return
 	}
 	if f.over() {
-		writeErr(w, http.StatusConflict, "the game is over")
+		httpx.WriteErr(w, http.StatusConflict, "the game is over")
 		return
 	}
 	if !f.canForce() {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"force adjudication is locked until the deadline and grace period have passed")
 		return
 	}
 	if err := g.adjudicate(id, true); err != nil {
-		writeErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, g.gmState(id, r))
+	httpx.WriteJSON(w, http.StatusOK, g.gmState(id, r))
 }
 
 func handleGMExtend(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	body := struct {
 		Minutes int `json:"minutes"`
 	}{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 	if body.Minutes < 1 {
 		// A negative value would move the deadline into the past and open
 		// force adjudication early (SECURITY.md, open findings).
-		writeErr(w, http.StatusBadRequest, "minutes must be a positive number")
+		httpx.WriteErr(w, http.StatusBadRequest, "minutes must be a positive number")
 		return
 	}
 	g.mu.Lock()
@@ -1738,7 +1741,7 @@ func handleGMExtend(g *game, id string, w http.ResponseWriter, r *http.Request) 
 	f := g.flow
 
 	if f.over() {
-		writeErr(w, http.StatusConflict, "the game is over")
+		httpx.WriteErr(w, http.StatusConflict, "the game is over")
 		return
 	}
 	from := time.Now()
@@ -1749,29 +1752,29 @@ func handleGMExtend(g *game, id string, w http.ResponseWriter, r *http.Request) 
 	f.deadlineAt = &at
 	f.logEvent(id, "deadline extended by %v minutes to %v", body.Minutes, at.UTC().Format(time.RFC3339))
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.gmState(id, r))
+	httpx.WriteJSON(w, http.StatusOK, g.gmState(id, r))
 }
 
 // ------------------------------------------------------------------ public
 
 type publicStateJSON struct {
-	GameID          string              `json:"gameId"`
-	Phase           phaseJSON           `json:"phase"`
-	Started         bool                `json:"started"`
-	JoinedCount     int                 `json:"joinedCount"`
-	TotalSeats      int                 `json:"totalSeats"`
-	Locked          map[string]bool     `json:"locked"`
-	Settings        settings            `json:"settings"`
-	SettingsVersion int                 `json:"settingsVersion"`
-	DeadlineAt      interface{}         `json:"deadlineAt"`
-	GraceUntil      interface{}         `json:"graceUntil"`
-	PhaseMinutes    int                 `json:"phaseMinutes"`
-	Variant         variantRefJSON      `json:"variant"`
-	ProvinceNames   map[string]string   `json:"provinceNames"`
-	Placements      placementTable      `json:"placements"`
-	Labels          *labelPlanJSON      `json:"labels,omitempty"`
-	Dislodged       map[string]unitJSON `json:"dislodged"`
-	PreviousPhase   *phaseReviewJSON    `json:"previousPhase"`
+	GameID          string                 `json:"gameId"`
+	Phase           phaseJSON              `json:"phase"`
+	Started         bool                   `json:"started"`
+	JoinedCount     int                    `json:"joinedCount"`
+	TotalSeats      int                    `json:"totalSeats"`
+	Locked          map[string]bool        `json:"locked"`
+	Settings        settings               `json:"settings"`
+	SettingsVersion int                    `json:"settingsVersion"`
+	DeadlineAt      interface{}            `json:"deadlineAt"`
+	GraceUntil      interface{}            `json:"graceUntil"`
+	PhaseMinutes    int                    `json:"phaseMinutes"`
+	Variant         variant.RefJSON        `json:"variant"`
+	ProvinceNames   map[string]string      `json:"provinceNames"`
+	Placements      variant.PlacementTable `json:"placements"`
+	Labels          *variant.LabelPlan     `json:"labels,omitempty"`
+	Dislodged       map[string]unitJSON    `json:"dislodged"`
+	PreviousPhase   *phaseReviewJSON       `json:"previousPhase"`
 	// Result is how the game ended, null while it runs (ADR-044).
 	Result       *gameResult   `json:"result"`
 	DrawProposal *drawProposal `json:"drawProposal,omitempty"`
@@ -1790,9 +1793,9 @@ func handlePublic(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	f := g.flow
-	writeJSON(w, http.StatusOK, publicStateJSON{
+	httpx.WriteJSON(w, http.StatusOK, publicStateJSON{
 		GameID: id,
-		Build:  buildStamp(),
+		Build:  assets.BuildStamp(),
 		Phase: phaseJSON{
 			Season: string(g.state.Phase().Season()),
 			Year:   g.state.Phase().Year(),
@@ -1858,15 +1861,15 @@ type seatStateJSON struct {
 	// exists and, when the GM plays, excludes a seat that is not handed out.
 	// Both numbers are already public on /public, and neither says WHICH
 	// powers are taken — that stays unsaid (ADR-020, ADR-021).
-	JoinedCount      int               `json:"joinedCount"`
-	SeatsOnOffer     int               `json:"seatsOnOffer"`
-	PhaseResolutions map[string]string `json:"phaseResolutions"`
-	CanForce         bool              `json:"canForce"`
-	Variant          variantRefJSON    `json:"variant"`
-	ProvinceNames    map[string]string `json:"provinceNames"`
-	Placements       placementTable    `json:"placements"`
-	Labels           *labelPlanJSON    `json:"labels,omitempty"`
-	PreviousPhase    *phaseReviewJSON  `json:"previousPhase"`
+	JoinedCount      int                    `json:"joinedCount"`
+	SeatsOnOffer     int                    `json:"seatsOnOffer"`
+	PhaseResolutions map[string]string      `json:"phaseResolutions"`
+	CanForce         bool                   `json:"canForce"`
+	Variant          variant.RefJSON        `json:"variant"`
+	ProvinceNames    map[string]string      `json:"provinceNames"`
+	Placements       variant.PlacementTable `json:"placements"`
+	Labels           *variant.LabelPlan     `json:"labels,omitempty"`
+	PreviousPhase    *phaseReviewJSON       `json:"previousPhase"`
 	// Result is how the game ended, null while it runs (ADR-044).
 	Result *gameResult `json:"result"`
 	// A non-DIAS proposal is visible to every seat; excluded survivors answer
@@ -1988,7 +1991,7 @@ type seatHandler func(g *game, id string, power godip.Nation, w http.ResponseWri
 func handleSeatState(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+	httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
 }
 
 // ownsProvince reports whether the seat's power may order the given province.
@@ -2001,19 +2004,19 @@ func handleSeatOptions(g *game, id string, power godip.Nation, w http.ResponseWr
 	// There is no nation parameter on this endpoint by design. Rejecting
 	// it loudly keeps a stale client from believing it worked.
 	if r.URL.Query().Get("nation") != "" || r.URL.Query().Get("power") != "" {
-		writeErr(w, http.StatusForbidden, "a seat may only read its own power's options")
+		httpx.WriteErr(w, http.StatusForbidden, "a seat may only read its own power's options")
 		return
 	}
 	prov := godip.Province(r.URL.Query().Get("province"))
 	if prov == "" {
-		writeErr(w, http.StatusBadRequest, "province query parameter is required")
+		httpx.WriteErr(w, http.StatusBadRequest, "province query parameter is required")
 		return
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	if !g.ownsProvince(power, prov) {
-		writeErr(w, http.StatusForbidden, "%v is not yours to order", prov)
+		httpx.WriteErr(w, http.StatusForbidden, "%v is not yours to order", prov)
 		return
 	}
 	all := g.state.Phase().Options(g.state, power)
@@ -2021,21 +2024,21 @@ func handleSeatOptions(g *game, id string, power godip.Nation, w http.ResponseWr
 	if !found {
 		opts = godip.Options{}
 	}
-	writeJSON(w, http.StatusOK, opts)
+	httpx.WriteJSON(w, http.StatusOK, opts)
 }
 
 func handleSeatOrder(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	req := orderRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 	if req.Province == "" {
-		writeErr(w, http.StatusBadRequest, "province is required")
+		httpx.WriteErr(w, http.StatusBadRequest, "province is required")
 		return
 	}
 	prov := godip.Province(req.Province)
@@ -2044,36 +2047,36 @@ func handleSeatOrder(g *game, id string, power godip.Nation, w http.ResponseWrit
 	defer g.mu.Unlock()
 
 	if !g.flow.started {
-		writeErr(w, http.StatusConflict, "the game has not started")
+		httpx.WriteErr(w, http.StatusConflict, "the game has not started")
 		return
 	}
 	if g.flow.over() {
-		writeErr(w, http.StatusConflict, "the game is over")
+		httpx.WriteErr(w, http.StatusConflict, "the game is over")
 		return
 	}
 	if g.flow.sealed {
 		// A sealed game has no server-side draft to write to (ADR-004,
 		// ADR-011). The orders are on the phone until the reveal.
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"this game keeps its orders on the phone until every power has locked in")
 		return
 	}
 	if !g.ownsProvince(power, prov) {
-		writeErr(w, http.StatusForbidden, "%v is not yours to order", prov)
+		httpx.WriteErr(w, http.StatusForbidden, "%v is not yours to order", prov)
 		return
 	}
 	if len(req.Parts) == 0 {
 		g.clearOrder(prov)
 		g.persist(id)
-		writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+		httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
 		return
 	}
 	if err := g.setOrder(prov, req.Parts); err != nil {
-		writeErr(w, http.StatusBadRequest, "%v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "%v", err)
 		return
 	}
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+	httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
 }
 
 func handleSeatLock(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
@@ -2086,7 +2089,7 @@ func handleSeatUnlock(g *game, id string, power godip.Nation, w http.ResponseWri
 
 func (self *game) seatLock(id string, power godip.Nation, want bool, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	// In a sealed game the lock IS the commit (ADR-011), so the same two
@@ -2105,15 +2108,15 @@ func (self *game) seatLock(id string, power godip.Nation, want bool, w http.Resp
 	f := self.flow
 
 	if !f.started {
-		writeErr(w, http.StatusConflict, "the game has not started")
+		httpx.WriteErr(w, http.StatusConflict, "the game has not started")
 		return
 	}
 	if f.over() {
-		writeErr(w, http.StatusConflict, "the game is over")
+		httpx.WriteErr(w, http.StatusConflict, "the game is over")
 		return
 	}
 	if !want && f.seats[power].autoLocked {
-		writeErr(w, http.StatusConflict,
+		httpx.WriteErr(w, http.StatusConflict,
 			"%v has no order to give this phase, so this seat stays locked", power)
 		return
 	}
@@ -2127,13 +2130,13 @@ func (self *game) seatLock(id string, power godip.Nation, want bool, w http.Resp
 	// Every power locked: resolve at once (ADR-008).
 	if want && f.lockedCount() >= f.activeSeats() {
 		if err := self.adjudicate(id, false); err != nil {
-			writeErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "adjudicate: %v", err)
 			return
 		}
 	} else {
 		self.persist(id)
 	}
-	writeJSON(w, http.StatusOK, self.seatState(id, power, r))
+	httpx.WriteJSON(w, http.StatusOK, self.seatState(id, power, r))
 }
 
 // adjudicate resolves the phase and settles the one that follows it. With

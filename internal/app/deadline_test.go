@@ -1,6 +1,7 @@
 package app
 
 import (
+	"spring1901/spike/internal/variant"
 	"testing"
 	"time"
 
@@ -176,7 +177,7 @@ func TestSettingsDefaultsAndPressModes(t *testing.T) {
 	if got.PressMode != "ftf" {
 		t.Errorf("pressMode default: got %q, want ftf", got.PressMode)
 	}
-	if got.Variant != defaultVariant {
+	if got.Variant != variant.DefaultKey {
 		t.Errorf("variant default: got %q", got.Variant)
 	}
 	for _, mode := range []string{"ftf", "gunboat", "fullpress", "rulebook"} {

@@ -15,6 +15,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"spring1901/spike/internal/variant"
 	"testing"
 )
 
@@ -22,7 +23,7 @@ func TestMain(m *testing.M) {
 	if err := os.Setenv("GENERATED_VARIANTS", filepath.Join(repoRoot(), "variants", "generated")); err != nil {
 		log.Fatalf("naming the generated variants: %v", err)
 	}
-	if err := loadGeneratedVariants(); err != nil {
+	if err := variant.LoadGenerated(); err != nil {
 		log.Fatalf("load generated variants: %v", err)
 	}
 	os.Exit(m.Run())

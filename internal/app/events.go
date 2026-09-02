@@ -10,6 +10,7 @@ package app
 import (
 	"context"
 	"net/http"
+	"spring1901/spike/internal/httpx"
 	"sync"
 	"time"
 
@@ -135,12 +136,12 @@ func writeGameEvent(ctx context.Context, connection *websocket.Conn, event gameE
 // frames are coalesced invalidations.
 func serveEvents(g *game, audience eventAudience, power godip.Nation, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeErr(w, http.StatusMethodNotAllowed, "GET only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET only")
 		return
 	}
 	initial, events, revoked, unsubscribe, ok := g.events.subscribe(audience, power)
 	if !ok {
-		writeErr(w, http.StatusTooManyRequests, "too many live views for this game")
+		httpx.WriteErr(w, http.StatusTooManyRequests, "too many live views for this game")
 		return
 	}
 	defer unsubscribe()

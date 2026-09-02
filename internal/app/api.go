@@ -23,6 +23,8 @@ package app
 
 import (
 	"net/http"
+	"spring1901/spike/internal/assets"
+	"spring1901/spike/internal/httpx"
 	"strings"
 )
 
@@ -74,7 +76,7 @@ The stamp tracks the client build and not the server binary, which is the
 question actually being asked. A server-only change leaves every tab correct.
 */
 func handleBuild(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, struct {
+	httpx.WriteJSON(w, http.StatusOK, struct {
 		Build string `json:"build"`
-	}{Build: buildStamp()})
+	}{Build: assets.BuildStamp()})
 }

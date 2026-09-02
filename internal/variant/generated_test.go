@@ -1,4 +1,4 @@
-package app
+package variant
 
 // Loading a variant off disk, end to end, against a map dipmap actually
 // generated (testdata/generated/demo7).
@@ -15,32 +15,6 @@ import (
 
 	"github.com/zond/godip"
 )
-
-// withGeneratedDir points the loader at a directory and resets the registry
-// afterwards, so tests do not leak variants into each other.
-func withGeneratedDir(t *testing.T, dir string) {
-	t.Helper()
-	t.Setenv("GENERATED_VARIANTS", dir)
-
-	savedVariants := generatedVariants
-	savedPlacements := placements
-	// The style plans load from the same directory and were the one global
-	// this helper did not put back. A test that read testdata left demo7's
-	// version-2 plan in the map for every test after it, and which tests
-	// those were depended on the file names in this package.
-	savedPlans := plans
-	generatedVariants = map[string]generatedVariant{}
-	placements = map[string]placementTable{}
-	plans = map[string]*stylePlan{}
-
-	t.Cleanup(func() {
-		generatedVariants = savedVariants
-		placements = savedPlacements
-		plans = savedPlans
-		// The key index caches whatever was loaded, so it has to follow.
-		rebuildVariantIndex()
-	})
-}
 
 // copyVariant puts the sample variant in a writable directory so a test can
 // corrupt one file without touching the checkout.
@@ -91,12 +65,12 @@ func breakTheBoard(t *testing.T, path string) {
 }
 
 func TestLoadsAGeneratedVariant(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
 
-	gen, ok := generatedVariants["demo7"]
+	gen, ok := Generated["demo7"]
 	if !ok {
 		t.Fatal("demo7 was not loaded")
 	}
@@ -112,12 +86,12 @@ func TestLoadsAGeneratedVariant(t *testing.T) {
 }
 
 func TestAGeneratedVariantStartsAndAdjudicates(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
 
-	state, err := generatedVariants["demo7"].Variant.Start()
+	state, err := Generated["demo7"].Variant.Start()
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -127,11 +101,11 @@ func TestAGeneratedVariantStartsAndAdjudicates(t *testing.T) {
 }
 
 func TestGeneratedNationsStartEqual(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
-	variant := generatedVariants["demo7"].Variant
+	variant := Generated["demo7"].Variant
 	state, err := variant.Start()
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -151,19 +125,19 @@ func TestGeneratedNationsStartEqual(t *testing.T) {
 }
 
 func TestGeneratedVariantJoinsTheRegistry(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
 
 	found := false
-	for _, v := range allVariants() {
-		if variantKey(v.Name) == "demo7" {
+	for _, v := range All() {
+		if Key(v.Name) == "demo7" {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("a loaded generated variant must appear in allVariants()")
+		t.Error("a loaded generated variant must appear in All()")
 	}
 }
 
@@ -172,26 +146,26 @@ func TestGeneratedVariantJoinsTheRegistry(t *testing.T) {
 // registering them. The index then never contained them, so every saved game
 // on a generated map failed to load with "unknown variant".
 func TestLookupFindsAGeneratedVariant(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
 
-	v, found := lookupVariant("demo7")
+	v, found := Lookup("demo7")
 	if !found {
-		t.Fatal("lookupVariant must find a generated variant")
+		t.Fatal("Lookup must find a generated variant")
 	}
-	if variantKey(v.Name) != "demo7" {
-		t.Errorf("lookupVariant returned %q", v.Name)
+	if Key(v.Name) != "demo7" {
+		t.Errorf("Lookup returned %q", v.Name)
 	}
 }
 
 func TestGeneratedVariantBringsItsPlacements(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
-	if table := placementFor("demo7"); len(table) == 0 {
+	if table := PlacementFor("demo7"); len(table) == 0 {
 		t.Error("expected the variant's placement table to load with it")
 	}
 }
@@ -209,12 +183,12 @@ func TestArtIsSanitisedOnLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	withGeneratedDir(t, dir)
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, dir)
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
 
-	art, err := generatedVariants["demo7"].Variant.SVGMap()
+	art, err := Generated["demo7"].Variant.SVGMap()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,8 +204,8 @@ func TestRejectsArtWithoutBoardLayers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	withGeneratedDir(t, dir)
-	err := loadGeneratedVariants()
+	WithGeneratedDir(t, dir)
+	err := LoadGenerated()
 	if err == nil {
 		t.Fatal("art with no provinces layer must be refused")
 	}
@@ -262,8 +236,8 @@ func TestRejectsAnInvalidDescriptor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	withGeneratedDir(t, dir)
-	err = loadGeneratedVariants()
+	WithGeneratedDir(t, dir)
+	err = LoadGenerated()
 	if err == nil {
 		t.Fatal("an invalid descriptor must be refused, not served")
 	}
@@ -281,15 +255,15 @@ func TestRejectsDescriptorKeyThatDisagreesWithItsDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	withGeneratedDir(t, dir)
-	if err := loadGeneratedVariants(); err == nil {
+	WithGeneratedDir(t, dir)
+	if err := LoadGenerated(); err == nil {
 		t.Fatal("a descriptor whose key contradicts its directory must be refused")
 	}
 }
 
 func TestMissingDirectoryIsNotAnError(t *testing.T) {
-	withGeneratedDir(t, filepath.Join(t.TempDir(), "absent"))
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, filepath.Join(t.TempDir(), "absent"))
+	if err := LoadGenerated(); err != nil {
 		t.Errorf("a checkout with no generated maps is a working server: %v", err)
 	}
 }
@@ -298,19 +272,19 @@ func TestMissingDirectoryIsNotAnError(t *testing.T) {
 
 func TestHashChangesWhenTheDescriptorDoes(t *testing.T) {
 	dir := copyVariant(t, "demo7")
-	withGeneratedDir(t, dir)
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, dir)
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
-	before := generatedVariants["demo7"].Hash
+	before := Generated["demo7"].Hash
 
 	breakTheBoard(t, filepath.Join(dir, "demo7", "variant.json"))
 
-	generatedVariants = map[string]generatedVariant{}
-	if err := loadGeneratedVariants(); err != nil {
+	Generated = map[string]GeneratedVariant{}
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
-	if generatedVariants["demo7"].Hash == before {
+	if Generated["demo7"].Hash == before {
 		t.Error("changing the board must change its hash")
 	}
 }
@@ -319,11 +293,11 @@ func TestHashChangesWhenTheDescriptorDoes(t *testing.T) {
 // somebody corrected a description.
 func TestHashSurvivesCosmeticEdits(t *testing.T) {
 	dir := copyVariant(t, "demo7")
-	withGeneratedDir(t, dir)
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, dir)
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
-	before := generatedVariants["demo7"].Hash
+	before := Generated["demo7"].Hash
 
 	path := filepath.Join(dir, "demo7", "variant.json")
 	raw, err := os.ReadFile(path)
@@ -346,28 +320,28 @@ func TestHashSurvivesCosmeticEdits(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	generatedVariants = map[string]generatedVariant{}
-	if err := loadGeneratedVariants(); err != nil {
+	Generated = map[string]GeneratedVariant{}
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
-	if got := generatedVariants["demo7"].Hash; got != before {
+	if got := Generated["demo7"].Hash; got != before {
 		t.Errorf("a cosmetic edit changed the hash, so every game on this map "+
 			"would refuse to load\n  before %v\n  after  %v", before, got)
 	}
 }
 
 func TestGameRefusesToLoadOnAChangedDescriptor(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
-	current := variantHash("demo7")
+	current := Hash("demo7")
 
-	if err := checkVariantHash("g1", "demo7", current); err != nil {
+	if err := CheckHash("g1", "demo7", current); err != nil {
 		t.Errorf("a matching hash must load: %v", err)
 	}
 
-	err := checkVariantHash("g1", "demo7", strings.Repeat("a", 64))
+	err := CheckHash("g1", "demo7", strings.Repeat("a", 64))
 	if err == nil {
 		t.Fatal("a changed descriptor must stop the game loading")
 	}
@@ -381,24 +355,24 @@ func TestGameRefusesToLoadOnAChangedDescriptor(t *testing.T) {
 // A key nothing loaded has no hash, and a game recording none against it
 // predates the column and still loads.
 func TestAnAbsentVariantHasNoHash(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
-	if got := variantHash("nosuchvariant"); got != "" {
+	if got := Hash("nosuchvariant"); got != "" {
 		t.Errorf("a variant nothing loaded has no descriptor to hash, got %q", got)
 	}
-	if err := checkVariantHash("g1", "nosuchvariant", ""); err != nil {
+	if err := CheckHash("g1", "nosuchvariant", ""); err != nil {
 		t.Errorf("a game recording no hash must load: %v", err)
 	}
 }
 
 func TestGameOnAVanishedGeneratedVariantIsRefused(t *testing.T) {
-	withGeneratedDir(t, filepath.Join(t.TempDir(), "absent"))
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, filepath.Join(t.TempDir(), "absent"))
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
-	err := checkVariantHash("g1", "demo7", strings.Repeat("b", 64))
+	err := CheckHash("g1", "demo7", strings.Repeat("b", 64))
 	if err == nil {
 		t.Fatal("a game whose generated variant is gone must be refused")
 	}
@@ -408,63 +382,13 @@ func TestGameOnAVanishedGeneratedVariantIsRefused(t *testing.T) {
 }
 
 func TestPreExistingGamesWithoutAHashStillLoad(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, filepath.Join("testdata", "generated"))
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
 	// A row written before the column existed records "".
-	if err := checkVariantHash("old", "demo7", ""); err != nil {
+	if err := CheckHash("old", "demo7", ""); err != nil {
 		t.Errorf("a game from before the column existed must still load: %v", err)
-	}
-}
-
-// TestHashRoundTripsThroughTheDatabase is the check the whole hashing story
-// rests on: the hash written when a game is created must be the one read back
-// when the server restarts.
-func TestHashRoundTripsThroughTheDatabase(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatal(err)
-	}
-
-	handle, err := openDB(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("openDB: %v", err)
-	}
-	saved := db
-	db = handle
-	t.Cleanup(func() {
-		db = saved
-		handle.Close()
-	})
-
-	variant := generatedVariants["demo7"].Variant
-	g, err := newGame("demo7", variant)
-	if err != nil {
-		t.Fatalf("newGame: %v", err)
-	}
-	f, err := newFlow(settings{Variant: "demo7"}.normalised(), variant)
-	if err != nil {
-		t.Fatalf("newFlow: %v", err)
-	}
-	g.flow = f
-	if err := g.persistErr("game-1"); err != nil {
-		t.Fatalf("persistErr: %v", err)
-	}
-
-	var stored string
-	if err := db.QueryRow(
-		`SELECT variant_hash FROM game WHERE id = ?`, "game-1",
-	).Scan(&stored); err != nil {
-		t.Fatalf("reading the hash back: %v", err)
-	}
-
-	want := variantHash("demo7")
-	if stored != want {
-		t.Errorf("stored hash %q, expected %q", stored, want)
-	}
-	if stored == "" {
-		t.Error("a generated variant must record a hash")
 	}
 }
 
@@ -476,15 +400,15 @@ func TestEveryLoadedVariantPlays(t *testing.T) {
 	if dir == "" {
 		dir = filepath.Join("testdata", "generated")
 	}
-	withGeneratedDir(t, dir)
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, dir)
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
-	if len(generatedVariants) == 0 {
+	if len(Generated) == 0 {
 		t.Fatalf("no variants found in %v", dir)
 	}
 
-	for key, gen := range generatedVariants {
+	for key, gen := range Generated {
 		t.Run(key, func(t *testing.T) {
 			state, err := gen.Variant.Start()
 			if err != nil {
@@ -520,95 +444,22 @@ func TestEveryLoadedVariantPlays(t *testing.T) {
 	}
 }
 
-// TestSavedGameRefusesAChangedMap is the check the whole hashing story rests
-// on, taken through the real load path rather than the helper.
-//
-// A game replays its order history against the variant's starting position. If
-// the descriptor changed since the game began, that replay lands on a board the
-// players never saw, so loadAll must refuse rather than restore it.
-func TestSavedGameRefusesAChangedMap(t *testing.T) {
-	dir := copyVariant(t, "demo7")
-	withGeneratedDir(t, dir)
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatal(err)
-	}
-
-	handle, err := openDB(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("openDB: %v", err)
-	}
-	savedDB := db
-	savedGames := games.games
-	db = handle
-	games.games = map[string]*game{}
-	t.Cleanup(func() {
-		db = savedDB
-		games.games = savedGames
-		handle.Close()
-	})
-
-	variant := generatedVariants["demo7"].Variant
-	g, err := newGame("demo7", variant)
-	if err != nil {
-		t.Fatalf("newGame: %v", err)
-	}
-	f, err := newFlow(settings{Variant: "demo7"}.normalised(), variant)
-	if err != nil {
-		t.Fatalf("newFlow: %v", err)
-	}
-	g.flow = f
-	if err := g.persistErr("game-1"); err != nil {
-		t.Fatalf("persistErr: %v", err)
-	}
-
-	// The same descriptor still loads.
-	games.games = map[string]*game{}
-	if err := loadAll(); err != nil {
-		t.Fatalf("an unchanged descriptor must still load the game: %v", err)
-	}
-	if _, ok := games.games["game-1"]; !ok {
-		t.Fatal("the game did not come back")
-	}
-
-	// Now somebody moves a border under the running game.
-	breakTheBoard(t, filepath.Join(dir, "demo7", "variant.json"))
-
-	generatedVariants = map[string]generatedVariant{}
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatal(err)
-	}
-
-	games.games = map[string]*game{}
-	err = loadAll()
-	if err == nil {
-		t.Fatal("a changed descriptor must stop the saved game loading")
-	}
-	for _, want := range []string{"game-1", "demo7"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("the error should name %q, got: %v", want, err)
-		}
-	}
-	if len(games.games) != 0 {
-		t.Error("no game may be restored once the map has changed")
-	}
-}
-
 // ---- the variants the server actually ships -------------------------------
 //
 // Everything below runs against variants/generated, the directory a real
 // server reads, rather than the sample map the tests above use.
 
 func TestEveryShippedVariantResolves(t *testing.T) {
-	withGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
-	if len(generatedVariants) < 26 {
-		t.Errorf("only %d variants loaded from the checkout", len(generatedVariants))
+	if len(Generated) < 26 {
+		t.Errorf("only %d variants loaded from the checkout", len(Generated))
 	}
 
-	for key, gen := range generatedVariants {
-		found, ok := lookupVariant(key)
+	for key, gen := range Generated {
+		found, ok := Lookup(key)
 		if !ok {
 			t.Errorf("variant %q does not resolve", key)
 			continue
@@ -620,13 +471,13 @@ func TestEveryShippedVariantResolves(t *testing.T) {
 }
 
 func TestShippedVariantsStartAndPlay(t *testing.T) {
-	withGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
+	if err := LoadGenerated(); err != nil {
 		t.Fatal(err)
 	}
 	for _, key := range []string{"classical", "sailho", "1900", "pure", "chaos", "hundred"} {
 		t.Run(key, func(t *testing.T) {
-			v, ok := lookupVariant(key)
+			v, ok := Lookup(key)
 			if !ok {
 				t.Fatalf("%v is not in this build", key)
 			}
@@ -640,188 +491,6 @@ func TestShippedVariantsStartAndPlay(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-// TestASavedClassicalGameStillRoundTrips is the one that matters for existing
-// games. The hash column and the INSERT both changed underneath them.
-func TestASavedClassicalGameStillRoundTrips(t *testing.T) {
-	withGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatal(err)
-	}
-
-	handle, err := openDB(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("openDB: %v", err)
-	}
-	savedDB, savedGames := db, games.games
-	db = handle
-	games.games = map[string]*game{}
-	t.Cleanup(func() {
-		db = savedDB
-		games.games = savedGames
-		handle.Close()
-	})
-
-	v, ok := lookupVariant("classical")
-	if !ok {
-		t.Fatal("classical must resolve")
-	}
-	g, err := newGame("classical", v)
-	if err != nil {
-		t.Fatalf("newGame: %v", err)
-	}
-	// A setting that the broken INSERT used to discard.
-	s := settings{Variant: "classical", IllegalMoves: false}.normalised()
-	f, err := newFlow(s, v)
-	if err != nil {
-		t.Fatalf("newFlow: %v", err)
-	}
-	g.flow = f
-	if err := g.persistErr("classic-1"); err != nil {
-		t.Fatalf("persistErr: %v", err)
-	}
-
-	games.games = map[string]*game{}
-	if err := loadAll(); err != nil {
-		t.Fatalf("an existing classical game must still load: %v", err)
-	}
-	restored, ok := games.games["classic-1"]
-	if !ok {
-		t.Fatal("the classical game did not come back")
-	}
-	if restored.variantKey != "classical" {
-		t.Errorf("restored on variant %q", restored.variantKey)
-	}
-	if restored.flow.settings.IllegalMoves != false {
-		t.Error("illegal_moves did not survive the round trip; the INSERT is dropping it")
-	}
-
-	var hash string
-	if err := db.QueryRow(
-		`SELECT variant_hash FROM game WHERE id = ?`, "classic-1",
-	).Scan(&hash); err != nil {
-		t.Fatalf("reading variant_hash: %v", err)
-	}
-	if want := variantHash("classical"); hash != want {
-		t.Errorf("recorded hash %q, expected %q", hash, want)
-	}
-	if hash == "" {
-		t.Error("classical is a descriptor now, so a game on it records a hash")
-	}
-}
-
-// TestAGameFromBeforeTheColumnLoads is what happens to a live database when a
-// variant crosses from compiled to descriptor.
-//
-// A game started on the compiled classical recorded no hash, because a
-// compiled variant had none to record. Classical is a descriptor now and does
-// have one, so that game's blank hash no longer matches. It still loads: a
-// blank means "started before this variant had an identity", and the board it
-// replays onto is the same board, which variants_equivalence_test.go is the
-// proof of. A game started on the descriptor records the hash and is held to
-// it from then on.
-func TestAGameFromBeforeTheColumnLoads(t *testing.T) {
-	withGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatal(err)
-	}
-
-	handle, err := openDB(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("openDB: %v", err)
-	}
-	savedDB, savedGames := db, games.games
-	db = handle
-	games.games = map[string]*game{}
-	t.Cleanup(func() {
-		db = savedDB
-		games.games = savedGames
-		handle.Close()
-	})
-
-	v, _ := lookupVariant("classical")
-	g, err := newGame("classical", v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f, err := newFlow(settings{Variant: "classical"}.normalised(), v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	g.flow = f
-	if err := g.persistErr("old-1"); err != nil {
-		t.Fatal(err)
-	}
-	// Blank it, the way a row written before the column would read.
-	if _, err := db.Exec(`UPDATE game SET variant_hash = '' WHERE id = ?`, "old-1"); err != nil {
-		t.Fatal(err)
-	}
-
-	games.games = map[string]*game{}
-	if err := loadAll(); err != nil {
-		t.Fatalf("a game predating the column must still load: %v", err)
-	}
-	if _, ok := games.games["old-1"]; !ok {
-		t.Error("the old game did not come back")
-	}
-}
-
-// TestLoadStateRestoresAGameOnAGeneratedVariant guards the startup order.
-//
-// A saved game resolves its variant through the registry, so the generated
-// variants have to be loaded before the games are. They were not: loadAll ran
-// first, and every game played on a map from a directory failed to load with
-// "unknown variant". Nothing caught it, because the tests loaded the variants
-// themselves before anything else ran.
-func TestLoadStateRestoresAGameOnAGeneratedVariant(t *testing.T) {
-	withGeneratedDir(t, filepath.Join("testdata", "generated"))
-
-	handle, err := openDB(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("openDB: %v", err)
-	}
-	savedDB, savedGames := db, games.games
-	db = handle
-	games.games = map[string]*game{}
-	t.Cleanup(func() {
-		db = savedDB
-		games.games = savedGames
-		handle.Close()
-	})
-
-	// Save a game the way a running server would.
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatal(err)
-	}
-	v, ok := lookupVariant("demo7")
-	if !ok {
-		t.Fatal("demo7 must resolve")
-	}
-	g, err := newGame("demo7", v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f, err := newFlow(settings{Variant: "demo7"}.normalised(), v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	g.flow = f
-	if err := g.persistErr("gen-1"); err != nil {
-		t.Fatal(err)
-	}
-
-	// Now boot from cold, exactly as main does.
-	generatedVariants = map[string]generatedVariant{}
-	games.games = map[string]*game{}
-	rebuildVariantIndex()
-
-	if err := loadState(); err != nil {
-		t.Fatalf("cold start must restore a game on a generated variant: %v", err)
-	}
-	if _, ok := games.games["gen-1"]; !ok {
-		t.Error("the game did not come back after a cold start")
 	}
 }
 
@@ -880,16 +549,16 @@ func TestAVariantDrawnOnAnotherServesTheSameBytes(t *testing.T) {
 	plantVariant(t, root, "owner", "")
 	plantVariant(t, root, "borrower", "owner")
 
-	withGeneratedDir(t, root)
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, root)
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
 
-	owner, err := generatedVariants["owner"].Variant.SVGMap()
+	owner, err := Generated["owner"].Variant.SVGMap()
 	if err != nil {
 		t.Fatalf("owner art: %v", err)
 	}
-	borrower, err := generatedVariants["borrower"].Variant.SVGMap()
+	borrower, err := Generated["borrower"].Variant.SVGMap()
 	if err != nil {
 		t.Fatalf("borrower art: %v", err)
 	}
@@ -916,8 +585,8 @@ func TestAMapReferenceMayNotLeaveTheVariantsDirectory(t *testing.T) {
 			plantVariant(t, root, "owner", "")
 			plantVariant(t, root, "borrower", reference)
 
-			withGeneratedDir(t, root)
-			err := loadGeneratedVariants()
+			WithGeneratedDir(t, root)
+			err := LoadGenerated()
 			if err == nil {
 				t.Fatalf("map %q was accepted; it is not a variant key", reference)
 			}
@@ -932,8 +601,8 @@ func TestAMapReferenceToNothingIsRefused(t *testing.T) {
 	root := t.TempDir()
 	plantVariant(t, root, "borrower", "nosuchvariant")
 
-	withGeneratedDir(t, root)
-	err := loadGeneratedVariants()
+	WithGeneratedDir(t, root)
+	err := LoadGenerated()
 	if err == nil {
 		t.Fatal("a variant drawn on a key nothing loaded was accepted")
 	}
@@ -947,8 +616,8 @@ func TestACycleOfMapReferencesIsRefused(t *testing.T) {
 	plantVariant(t, root, "first", "second")
 	plantVariant(t, root, "second", "first")
 
-	withGeneratedDir(t, root)
-	err := loadGeneratedVariants()
+	WithGeneratedDir(t, root)
+	err := LoadGenerated()
 	if err == nil {
 		t.Fatal("two variants drawn on each other were accepted")
 	}
@@ -961,8 +630,8 @@ func TestAVariantMayNotBeDrawnOnItself(t *testing.T) {
 	root := t.TempDir()
 	plantVariant(t, root, "loner", "loner")
 
-	withGeneratedDir(t, root)
-	if err := loadGeneratedVariants(); err == nil {
+	WithGeneratedDir(t, root)
+	if err := LoadGenerated(); err == nil {
 		t.Fatal("a variant drawn on itself was accepted")
 	}
 }
@@ -997,16 +666,16 @@ func TestNoTwoCheckedInVariantsCarryTheSameArt(t *testing.T) {
 }
 
 func TestTheClassicalBoardIsDrawnOnce(t *testing.T) {
-	withGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatalf("loadGeneratedVariants: %v", err)
+	WithGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
+	if err := LoadGenerated(); err != nil {
+		t.Fatalf("LoadGenerated: %v", err)
 	}
-	classical, err := generatedVariants["classical"].Variant.SVGMap()
+	classical, err := Generated["classical"].Variant.SVGMap()
 	if err != nil {
 		t.Fatalf("classical art: %v", err)
 	}
 	for _, key := range []string{"chaos", "fleetrome", "francevsaustria", "italyvsgermany"} {
-		art, err := generatedVariants[key].Variant.SVGMap()
+		art, err := Generated[key].Variant.SVGMap()
 		if err != nil {
 			t.Fatalf("%v art: %v", key, err)
 		}

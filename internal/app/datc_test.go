@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"spring1901/spike/internal/variant"
 	"strings"
 	"testing"
 
@@ -60,11 +61,11 @@ func godipVersion() string {
 }
 
 func TestDATCOnTheLoadedClassicalBoard(t *testing.T) {
-	withGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
-	if err := loadGeneratedVariants(); err != nil {
+	variant.WithGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
+	if err := variant.LoadGenerated(); err != nil {
 		t.Fatalf("loading the variants: %v", err)
 	}
-	variant, found := lookupVariant("classical")
+	variant, found := variant.Lookup("classical")
 	if !found {
 		t.Fatal("classical must load from variants/generated")
 	}

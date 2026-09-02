@@ -10,7 +10,7 @@
 //
 // Only classical is supported (ADR-014). The rest are playable but their
 // map placement anchors are unverified, so they are marked experimental.
-package app
+package variant
 
 import (
 	"crypto/sha256"
@@ -27,21 +27,21 @@ import (
 	"github.com/zond/godip/variants/common"
 )
 
-// allVariants is every variant this server can play, all of them loaded from
+// All is every variant this server can play, all of them loaded from
 // disk at startup (generated.go).
-func allVariants() []common.Variant {
+func All() []common.Variant {
 	return generatedVariantList()
 }
 
-// defaultVariant is what a game gets when none is named.
-const defaultVariant = "classical"
+// DefaultKey is what a game gets when none is named.
+const DefaultKey = "classical"
 
-// supportedVariants are the ones whose board art is verified (ADR-014).
-var supportedVariants = map[string]bool{defaultVariant: true}
+// Supported are the ones whose board art is verified (ADR-014).
+var Supported = map[string]bool{DefaultKey: true}
 
-// variantKey turns a godip variant name into a URL-safe key:
+// Key turns a godip variant name into a URL-safe key:
 // "Ancient Mediterranean" becomes "ancientmediterranean".
-func variantKey(name string) string {
+func Key(name string) string {
 	key := strings.Builder{}
 	for _, r := range strings.ToLower(name) {
 		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
@@ -56,28 +56,28 @@ var (
 	byKey   map[string]common.Variant
 )
 
-// rebuildVariantIndex rebuilds the key index from scratch.
+// rebuildIndex rebuilds the key index from scratch.
 //
 // It has to be a rebuild rather than a one-time build: generated variants
 // arrive from disk after the process starts, and an index built before they
 // load would never contain them. A game saved on one would then fail to load
 // with "unknown variant".
-func rebuildVariantIndex() {
+func rebuildIndex() {
 	byKeyMu.Lock()
 	defer byKeyMu.Unlock()
 	index := map[string]common.Variant{}
-	for _, v := range allVariants() {
-		index[variantKey(v.Name)] = v
+	for _, v := range All() {
+		index[Key(v.Name)] = v
 	}
 	byKey = index
 }
 
-// lookupVariant resolves a key to its godip variant.
-func lookupVariant(key string) (common.Variant, bool) {
+// Lookup resolves a key to its godip variant.
+func Lookup(key string) (common.Variant, bool) {
 	byKeyMu.Lock()
 	if byKey == nil {
 		byKeyMu.Unlock()
-		rebuildVariantIndex()
+		rebuildIndex()
 		byKeyMu.Lock()
 	}
 	v, found := byKey[key]
@@ -102,7 +102,7 @@ type variantJSON struct {
 }
 
 var (
-	catalogue     []variantJSON
+	Catalogue     []variantJSON
 	catalogueOnce sync.Once
 )
 
@@ -111,7 +111,7 @@ var (
 // first request for the gallery, not on every server start.
 func variantCatalogue() []variantJSON {
 	catalogueOnce.Do(func() {
-		for _, v := range allVariants() {
+		for _, v := range All() {
 			// A variant without map art cannot be shown or played here.
 			if v.SVGMap == nil {
 				continue
@@ -123,7 +123,7 @@ func variantCatalogue() []variantJSON {
 			if err != nil {
 				continue
 			}
-			key := variantKey(v.Name)
+			key := Key(v.Name)
 			card := variantJSON{
 				Key:          key,
 				Name:         v.Name,
@@ -133,7 +133,7 @@ func variantCatalogue() []variantJSON {
 				Description:  v.Description,
 				Rules:        v.Rules,
 				CreatedBy:    v.CreatedBy,
-				Supported:    supportedVariants[key],
+				Supported:    Supported[key],
 				MapURL:       "/variants/" + key + "/map.svg",
 			}
 			for _, n := range v.Nations {
@@ -142,21 +142,21 @@ func variantCatalogue() []variantJSON {
 			if v.SoloSCCount != nil {
 				card.SoloSCCount = v.SoloSCCount(s)
 			}
-			catalogue = append(catalogue, card)
+			Catalogue = append(Catalogue, card)
 		}
-		sort.Slice(catalogue, func(i, j int) bool {
+		sort.Slice(Catalogue, func(i, j int) bool {
 			// Supported first, then alphabetical.
-			if catalogue[i].Supported != catalogue[j].Supported {
-				return catalogue[i].Supported
+			if Catalogue[i].Supported != Catalogue[j].Supported {
+				return Catalogue[i].Supported
 			}
-			return catalogue[i].Name < catalogue[j].Name
+			return Catalogue[i].Name < Catalogue[j].Name
 		})
 	})
-	return catalogue
+	return Catalogue
 }
 
-func handleVariants(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, variantCatalogue())
+func HandleVariants(w http.ResponseWriter, r *http.Request) {
+	httpx.WriteJSON(w, http.StatusOK, variantCatalogue())
 }
 
 // STYLED MAP SERVING (ADR-033, ADR-024, ADR-026)
@@ -169,7 +169,7 @@ func handleVariants(w http.ResponseWriter, r *http.Request) {
 // layer and the #province-centers anchors come through byte-identical, which
 // restyle_test.go checks.
 //
-// So a styled map is what is served by default, in defaultMapStyle: the same
+// So a styled map is what is served by default, in the default style: the same
 // map, drawn better. The original stays reachable at ?style=original, because
 // a faithful copy of the source art is worth being able to look at when a
 // conversion is in question.
@@ -181,17 +181,14 @@ func handleVariants(w http.ResponseWriter, r *http.Request) {
 // style's own tokens. Both are embedded in the binary; the composition is
 // string substitution and takes milliseconds. See restyle.go and ADR-026.
 
-// defaultMapStyle is the style a map is served in when nobody asks for one.
-const defaultMapStyle = "parchment"
-
-// errUnknownStyle is what a request for a style this variant has no art in
+// ErrUnknownStyle is what a request for a style this variant has no art in
 // answers with. It is a 404 rather than a fallback to the default, because a
 // silent fallback would let a typo in a saved preference look like a style.
-var errUnknownStyle = errors.New("unknown style")
+var ErrUnknownStyle = errors.New("unknown style")
 
-// handleStyles serves /styles: the named styles a map can be asked for.
-func handleStyles(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, styleCards())
+// HandleStyles serves /styles: the named styles a map can be asked for.
+func HandleStyles(w http.ResponseWriter, r *http.Request) {
+	httpx.WriteJSON(w, http.StatusOK, styleCards())
 }
 
 // styledArt is the composed styled maps, keyed by variant key and style name.
@@ -212,11 +209,11 @@ var stalePlans = struct {
 	by map[string]bool
 }{by: map[string]bool{}}
 
-// supplyCentreKeys names every province that is a supply centre, from the
+// SupplyCentreKeys names every province that is a supply centre, from the
 // variant's own graph, which is the only place that knows: a converted jDip
 // map carries no mark of one (ADR-032). A variant with no graph reports none,
 // so a map that would have been styled still is.
-func supplyCentreKeys(v common.Variant) []string {
+func SupplyCentreKeys(v common.Variant) []string {
 	if v.Graph == nil {
 		return nil
 	}
@@ -243,11 +240,11 @@ func supplyCentreKeys(v common.Variant) []string {
 func styledMapBytes(key string, v common.Variant, style string) ([]byte, error) {
 	plan, found := plans[key]
 	if !found || !plan.styleable() {
-		return nil, fmt.Errorf("%q: %w", style, errUnknownStyle)
+		return nil, fmt.Errorf("%q: %w", style, ErrUnknownStyle)
 	}
 	tokens, found := styles[style]
 	if !found {
-		return nil, fmt.Errorf("%q: %w", style, errUnknownStyle)
+		return nil, fmt.Errorf("%q: %w", style, ErrUnknownStyle)
 	}
 	cacheKey := key + "/" + style
 
@@ -272,10 +269,10 @@ func styledMapBytes(key string, v common.Variant, style string) ([]byte, error) 
 				key, plan.Map.SHA256[:12], sum[:12])
 		}
 		stalePlans.mu.Unlock()
-		return nil, fmt.Errorf("%q: %w", style, errUnknownStyle)
+		return nil, fmt.Errorf("%q: %w", style, ErrUnknownStyle)
 	}
 
-	composed, err := applyStyle(string(original), plan, tokens, supplyCentreKeys(v))
+	composed, err := applyStyle(string(original), plan, tokens, SupplyCentreKeys(v))
 	if err != nil {
 		return nil, fmt.Errorf("style %v for %v: %w", style, key, err)
 	}
@@ -297,7 +294,7 @@ func styledMapBytes(key string, v common.Variant, style string) ([]byte, error) 
 // variant's own file when there is no styled art at all.
 //
 // ?style=original always answers with the unrestyled file. A style nobody has
-// drawn this variant in answers errUnknownStyle, which both routes turn into
+// drawn this variant in answers ErrUnknownStyle, which both routes turn into
 // a 404. Both routes that serve map art go through here —
 // /variants/{key}/map.svg for the gallery and the tooling,
 // /game/{id}/map.svg for a board — so the two can never disagree about which
@@ -309,7 +306,7 @@ func variantMapBytes(key string, v common.Variant, r *http.Request) ([]byte, err
 
 // variantMapArt is variantMapBytes and the name the answer is cached under.
 //
-// The name is what serveMapArt keys the compressed copy by, so it has to say
+// The name is what ServeMapArt keys the compressed copy by, so it has to say
 // which art came back rather than which style was asked for: a request with no
 // style that falls back to the unrestyled file must not be cached as the
 // default style's.
@@ -323,9 +320,9 @@ func variantMapArt(key string, v common.Variant, r *http.Request) ([]byte, strin
 		return original()
 	}
 	if style == "" {
-		if b, err := styledMapBytes(key, v, defaultMapStyle); err == nil {
-			return b, key + "/" + defaultMapStyle, nil
-		} else if !errors.Is(err, errUnknownStyle) {
+		if b, err := styledMapBytes(key, v, DefaultStyle); err == nil {
+			return b, key + "/" + DefaultStyle, nil
+		} else if !errors.Is(err, ErrUnknownStyle) {
 			return nil, "", err
 		}
 		// A map with no plan, or one whose plan no longer matches the art, is
@@ -353,9 +350,9 @@ var compressedArt = struct {
 	by map[string][]byte
 }{by: map[string][]byte{}}
 
-// serveMapArt writes one variant's map art, compressed when the client offered
+// ServeMapArt writes one variant's map art, compressed when the client offered
 // gzip. Both routes that serve a board go through it.
-func serveMapArt(w http.ResponseWriter, r *http.Request, key string, v common.Variant) error {
+func ServeMapArt(w http.ResponseWriter, r *http.Request, key string, v common.Variant) error {
 	body, name, err := variantMapArt(key, v, r)
 	if err != nil {
 		return err
@@ -385,26 +382,26 @@ func serveMapArt(w http.ResponseWriter, r *http.Request, key string, v common.Va
 	return nil
 }
 
-// provinceJSON says what one province IS: the terrain a unit may stand on.
+// ProvinceJSON says what one province IS: the terrain a unit may stand on.
 //
 // It is published because the map tooling has to know, and the adjudicator is
 // the only thing that does. A godip map paints its terrain as bare fill
 // values with no class to read, so dipmap decides which colour is sea
 // by asking here which provinces are sea and then looking at what the map
 // paints under each one (ADR-024). Guessing from the tone would be a guess.
-type provinceJSON struct {
+type ProvinceJSON struct {
 	Key  string `json:"key"`
 	Type string `json:"type"`
 }
 
-// variantProvinces lists every province of a variant with its terrain.
-func variantProvinces(v common.Variant) ([]provinceJSON, error) {
+// Provinces lists every province of a variant with its terrain.
+func Provinces(v common.Variant) ([]ProvinceJSON, error) {
 	s, err := v.Start()
 	if err != nil {
 		return nil, err
 	}
 	graph := s.Graph()
-	out := []provinceJSON{}
+	out := []ProvinceJSON{}
 	for _, prov := range graph.Provinces() {
 		flags := graph.Flags(prov)
 		kind := "other"
@@ -417,18 +414,18 @@ func variantProvinces(v common.Variant) ([]provinceJSON, error) {
 		case flags[godip.Land]:
 			kind = "land"
 		}
-		out = append(out, provinceJSON{Key: string(prov), Type: kind})
+		out = append(out, ProvinceJSON{Key: string(prov), Type: kind})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out, nil
 }
 
-// handleVariantMap serves the three things a variant has that need no game:
+// HandleVariantMap serves the three things a variant has that need no game:
 // /variants/{key}/map.svg, /provinces.json and /placement.json.
 //
 // They describe a variant rather than a game, so they are reachable without
 // one. dipmap reads them when it audits a map somebody else drew (ADR-051).
-func handleVariantMap(w http.ResponseWriter, r *http.Request) {
+func HandleVariantMap(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/variants/")
 	key, sub, _ := strings.Cut(rest, "/")
 	switch sub {
@@ -437,7 +434,7 @@ func handleVariantMap(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	v, found := lookupVariant(key)
+	v, found := Lookup(key)
 	if !found || v.SVGMap == nil {
 		http.NotFound(w, r)
 		return
@@ -445,45 +442,48 @@ func handleVariantMap(w http.ResponseWriter, r *http.Request) {
 	if sub == "placement.json" {
 		// nil is meaningful and serialises as null: no approved table, so the
 		// editor starts from the map's own anchors.
-		writeJSON(w, http.StatusOK, placementFor(key))
+		httpx.WriteJSON(w, http.StatusOK, PlacementFor(key))
 		return
 	}
 	if sub == "provinces.json" {
-		provinces, err := variantProvinces(v)
+		provinces, err := Provinces(v)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "provinces: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "provinces: %v", err)
 			return
 		}
-		writeJSON(w, http.StatusOK, provinces)
+		httpx.WriteJSON(w, http.StatusOK, provinces)
 		return
 	}
-	err := serveMapArt(w, r, key, v)
-	if errors.Is(err, errUnknownStyle) {
+	err := ServeMapArt(w, r, key, v)
+	if errors.Is(err, ErrUnknownStyle) {
 		http.NotFound(w, r)
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "svg map: %v", err)
+		httpx.WriteErr(w, http.StatusInternalServerError, "svg map: %v", err)
 	}
 }
 
-// variantRefJSON identifies the variant a game is played on.
-type variantRefJSON struct {
+// RefJSON identifies the variant a game is played on.
+type RefJSON struct {
 	Key       string `json:"key"`
 	Name      string `json:"name"`
 	Supported bool   `json:"supported"`
 }
 
-func (self *game) variantRef() variantRefJSON {
-	return variantRefJSON{
-		Key:       self.variantKey,
-		Name:      self.variant.Name,
-		Supported: supportedVariants[self.variantKey],
+// Ref identifies the variant a game is played on. The game knows its key and
+// the name godip gave it; whether this server supports the variant is a fact
+// about the registry.
+func Ref(key, name string) RefJSON {
+	return RefJSON{
+		Key:       key,
+		Name:      name,
+		Supported: Supported[key],
 	}
 }
 
 /*
-provinceNames is the abbreviation-to-long-name table for this variant.
+ProvinceNames is the abbreviation-to-long-name table for this variant.
 
 The frontend labels the board from it. It is godip's own table, which for a
 generated variant is the one in variant.json — so a name corrected in dipmap
@@ -493,9 +493,9 @@ An overrides file used to be layered on top, written by a map editor that
 lived here. Both moved to dipmap on 2026-08-31, and the name now belongs to
 the descriptor (MAP_FORMAT.md).
 */
-func (self *game) provinceNames() map[string]string {
+func ProvinceNames(key string) map[string]string {
 	names := map[string]string{}
-	v, found := lookupVariant(self.variantKey)
+	v, found := Lookup(key)
 	if !found {
 		return names
 	}
@@ -505,8 +505,8 @@ func (self *game) provinceNames() map[string]string {
 	return names
 }
 
-// sortedNations returns the variant's powers in a stable order.
-func sortedNations(v common.Variant) []godip.Nation {
+// SortedNations returns the variant's powers in a stable order.
+func SortedNations(v common.Variant) []godip.Nation {
 	out := make([]godip.Nation, len(v.Nations))
 	copy(out, v.Nations)
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })

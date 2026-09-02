@@ -18,7 +18,7 @@
 // has a class of any kind — classical paints its landmass as one path with a
 // literal fill over a sea-coloured rect — so there the substitution is by
 // VALUE, on the palette the plan measured.
-package app
+package variant
 
 import (
 	"fmt"

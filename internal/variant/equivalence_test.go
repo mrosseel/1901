@@ -1,4 +1,4 @@
-package app
+package variant
 
 // Every variant this server plays used to be a Go package in godip. Each one
 // is now a descriptor on disk, and this file is the proof that the crossing
@@ -29,19 +29,19 @@ import (
 func compiledByKey() map[string]common.Variant {
 	out := map[string]common.Variant{}
 	for _, v := range variants.OrderedVariants {
-		out[variantKey(v.Name)] = v
+		out[Key(v.Name)] = v
 	}
 	return out
 }
 
 // loadedForEquivalence loads the checked-in descriptors, once per test.
-func loadedForEquivalence(t *testing.T) map[string]generatedVariant {
+func loadedForEquivalence(t *testing.T) map[string]GeneratedVariant {
 	t.Helper()
-	withGeneratedDir(t, repoPath(t, "variants/generated"))
-	if err := loadGeneratedVariants(); err != nil {
+	WithGeneratedDir(t, repoPath(t, "variants/generated"))
+	if err := LoadGenerated(); err != nil {
 		t.Fatalf("loading the descriptors: %v", err)
 	}
-	return generatedVariants
+	return Generated
 }
 
 // TestEveryGodipVariantHasADescriptor is the first half of dropping the

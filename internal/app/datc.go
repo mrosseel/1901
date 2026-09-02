@@ -30,6 +30,7 @@ package app
 import (
 	"embed"
 	"net/http"
+	"spring1901/spike/internal/httpx"
 )
 
 // datcReportPath is where the test writes and the build reads. One constant,
@@ -60,7 +61,7 @@ because the point of the number is that somebody else can quote it.
 func handleDATC(w http.ResponseWriter, r *http.Request) {
 	report := datcReportBytes()
 	if report == nil {
-		writeErr(w, http.StatusNotFound,
+		httpx.WriteErr(w, http.StatusNotFound,
 			"this build carries no DATC report: run go test ./... to write %v", datcReportPath)
 		return
 	}

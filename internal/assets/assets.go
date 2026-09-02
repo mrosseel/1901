@@ -1,5 +1,5 @@
 /*
-Where the server reads its own files (ADR-051).
+Package assets is where the server reads its own files (ADR-051).
 
 Two directories are not code and are not the database:
 
@@ -22,7 +22,7 @@ The environment variables win in both builds. That is what lets a test point at
 a temporary directory, and what lets a packaged install be handed its own
 files.
 */
-package app
+package assets
 
 import (
 	"io/fs"
@@ -44,25 +44,25 @@ func spaDirPath() string {
 	return filepath.Join("web", "dist")
 }
 
-// generatedDir is where the generated variants live. The environment variable
+// GeneratedDir is where the generated variants live. The environment variable
 // exists so a test can point at a temporary directory.
-func generatedDir() string {
+func GeneratedDir() string {
 	if p := os.Getenv("GENERATED_VARIANTS"); p != "" {
 		return p
 	}
 	return filepath.Join("variants", "generated")
 }
 
-// generatedPath names a file for an error message. The reader has a path
+// GeneratedPath names a file for an error message. The reader has a path
 // relative to the root of one filesystem; a person wants the path they would
 // type, and it is the same layout in the binary as on the disk.
-func generatedPath(rel string) string {
-	return path.Join(generatedDir(), rel)
+func GeneratedPath(rel string) string {
+	return path.Join(GeneratedDir(), rel)
 }
 
-// spaFS is the built frontend: the directory an operator named, else the copy
+// SPA is the built frontend: the directory an operator named, else the copy
 // this build carries, else the working directory.
-func spaFS() fs.FS {
+func SPA() fs.FS {
 	if fsys, set := envDirFS("SPADIR"); set {
 		return fsys
 	}
@@ -72,26 +72,36 @@ func spaFS() fs.FS {
 	return os.DirFS(spaDirPath())
 }
 
-// generatedFS is the variant directory, chosen the same way.
-func generatedFS() fs.FS {
+// GeneratedFS is the variant directory, chosen the same way.
+func GeneratedFS() fs.FS {
 	if fsys, set := envDirFS("GENERATED_VARIANTS"); set {
 		return fsys
 	}
 	if fsys, ok := variants.Generated(); ok {
 		return fsys
 	}
-	return os.DirFS(generatedDir())
+	return os.DirFS(GeneratedDir())
 }
 
-// spaSource is what the start-up line says the app is being served from.
-func spaSource() string {
+// SPASource is what the start-up line says the app is being served from.
+func SPASource() string {
 	if p := os.Getenv("SPADIR"); p != "" {
-		return absPath(p)
+		return AbsPath(p)
 	}
 	if _, ok := web.Dist(); ok {
 		return "the binary"
 	}
-	return absPath(spaDirPath())
+	return AbsPath(spaDirPath())
+}
+
+// AbsPath resolves a path against the working directory, leaving it as
+// given when that fails. What a start-up line prints has to be a path the
+// operator can act on.
+func AbsPath(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
 }
 
 // envDirFS returns the directory named by the variable, and false when the
@@ -105,8 +115,8 @@ func envDirFS(name string) (fs.FS, bool) {
 	return os.DirFS(p), true
 }
 
-// isFileIn reports whether name is a regular file in fsys.
-func isFileIn(fsys fs.FS, name string) bool {
+// IsFileIn reports whether name is a regular file in fsys.
+func IsFileIn(fsys fs.FS, name string) bool {
 	info, err := fs.Stat(fsys, name)
 	return err == nil && info.Mode().IsRegular()
 }

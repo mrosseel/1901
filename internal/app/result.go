@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"spring1901/spike/internal/httpx"
 	"strings"
 
 	"github.com/zond/godip"
@@ -192,12 +193,12 @@ the explicit consent of every surviving power it excludes (ADR-052).
 */
 func handleGMDraw(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	body := drawRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 
@@ -206,15 +207,15 @@ func handleGMDraw(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	f := g.flow
 
 	if !f.started {
-		writeErr(w, http.StatusConflict, "the game has not started")
+		httpx.WriteErr(w, http.StatusConflict, "the game has not started")
 		return
 	}
 	if f.over() {
-		writeErr(w, http.StatusConflict, "the game is already over")
+		httpx.WriteErr(w, http.StatusConflict, "the game is already over")
 		return
 	}
 	if len(body.Powers) == 0 {
-		writeErr(w, http.StatusBadRequest, "name the powers in the draw")
+		httpx.WriteErr(w, http.StatusBadRequest, "name the powers in the draw")
 		return
 	}
 
@@ -224,15 +225,15 @@ func handleGMDraw(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	for _, name := range body.Powers {
 		p := godip.Nation(name)
 		if _, found := f.seats[p]; !found {
-			writeErr(w, http.StatusBadRequest, "%v is not a power in this game", name)
+			httpx.WriteErr(w, http.StatusBadRequest, "%v is not a power in this game", name)
 			return
 		}
 		if seen[p] {
-			writeErr(w, http.StatusBadRequest, "%v is named twice", name)
+			httpx.WriteErr(w, http.StatusBadRequest, "%v is named twice", name)
 			return
 		}
 		if counts[name] == 0 {
-			writeErr(w, http.StatusBadRequest, "%v holds no supply centre", name)
+			httpx.WriteErr(w, http.StatusBadRequest, "%v holds no supply centre", name)
 			return
 		}
 		seen[p] = true
@@ -258,38 +259,38 @@ func handleGMDraw(g *game, id string, w http.ResponseWriter, r *http.Request) {
 			strings.Join(names, ", "), strings.Join(required, ", "))
 	}
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.gmState(id, r))
+	httpx.WriteJSON(w, http.StatusOK, g.gmState(id, r))
 }
 
 // handleGMDrawWithdraw cancels an unresolved proposal. It cannot undo a draw.
 func handleGMDrawWithdraw(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.flow.drawProposal == nil {
-		writeErr(w, http.StatusConflict, "there is no draw proposal to withdraw")
+		httpx.WriteErr(w, http.StatusConflict, "there is no draw proposal to withdraw")
 		return
 	}
 	g.flow.logEvent(id, "GM withdrew the draw proposal")
 	g.flow.drawProposal = nil
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.gmState(id, r))
+	httpx.WriteJSON(w, http.StatusOK, g.gmState(id, r))
 }
 
 // handleSeatDrawResponse accepts or rejects exclusion from a proposed draw.
 func handleSeatDrawResponse(g *game, id string, power godip.Nation, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
 	body := struct {
 		Accept bool `json:"accept"`
 	}{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad body: %v", err)
+		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
 		return
 	}
 	g.mu.Lock()
@@ -297,7 +298,7 @@ func handleSeatDrawResponse(g *game, id string, power godip.Nation, w http.Respo
 	f := g.flow
 	proposal := f.drawProposal
 	if proposal == nil || f.over() {
-		writeErr(w, http.StatusConflict, "there is no draw proposal to answer")
+		httpx.WriteErr(w, http.StatusConflict, "there is no draw proposal to answer")
 		return
 	}
 	name := string(power)
@@ -309,19 +310,19 @@ func handleSeatDrawResponse(g *game, id string, power godip.Nation, w http.Respo
 		}
 	}
 	if !required {
-		writeErr(w, http.StatusForbidden, "%v is included in this draw and has no exclusion to confirm", power)
+		httpx.WriteErr(w, http.StatusForbidden, "%v is included in this draw and has no exclusion to confirm", power)
 		return
 	}
 	if !body.Accept {
 		f.logEvent(id, "%v rejected the draw proposal", power)
 		f.drawProposal = nil
 		g.persist(id)
-		writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+		httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
 		return
 	}
 	for _, confirmed := range proposal.Confirmed {
 		if confirmed == name {
-			writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+			httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
 			return
 		}
 	}
@@ -336,5 +337,5 @@ func handleSeatDrawResponse(g *game, id string, power godip.Nation, w http.Respo
 		g.endGame(id, resultDraw, powers, g.state.Phase().Year())
 	}
 	g.persist(id)
-	writeJSON(w, http.StatusOK, g.seatState(id, power, r))
+	httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
 }
