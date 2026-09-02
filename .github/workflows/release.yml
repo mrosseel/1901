@@ -90,8 +90,8 @@ jobs:
           if [ "$GOOS" = windows ]; then name=1901.exe; fi
           mkdir -p out
           go build -tags standalone -trimpath \
-            -ldflags "-s -w -X main.version=${VERSION}" \
-            -o "out/${name}" .
+            -ldflags "-s -w -X spring1901/spike/internal/server.version=${VERSION}" \
+            -o "out/${name}" ./cmd/1901
 
       - name: Package
         env:

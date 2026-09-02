@@ -20,9 +20,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"spring1901/spike/internal/variant"
 	"strings"
 	"testing"
+
+	"spring1901/spike/internal/variant"
 
 	"github.com/zond/godip"
 	"github.com/zond/godip/datc"

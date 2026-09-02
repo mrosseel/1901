@@ -45,7 +45,7 @@ import (
 
 	"spring1901/spike/internal/assets"
 	"spring1901/spike/internal/svgsafe"
-	"spring1901/spike/variantjson"
+	"spring1901/spike/internal/variantjson"
 )
 
 // GeneratedVariant is one loaded descriptor with the art and identity that go

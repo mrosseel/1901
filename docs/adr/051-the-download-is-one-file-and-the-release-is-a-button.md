@@ -53,7 +53,7 @@ built once and passed to the seven builds as an artifact, so npm runs once and
 the seven binaries carry byte-identical assets. The workflow creates the tag
 itself; there is no separate tagging step to forget.
 
-`-trimpath` and `-ldflags "-s -w -X main.version=..."` on every build. The
+`-trimpath` and `-ldflags "-s -w -X .../internal/server.version=..."` on every build. The
 version is in the start-up log, so a bug report from a table can name the build
 it came from.
 

@@ -30,7 +30,7 @@ import (
 
 	"spring1901/spike/internal/svgprune"
 	"spring1901/spike/internal/svground"
-	"spring1901/spike/variantjson"
+	"spring1901/spike/internal/variantjson"
 )
 
 // profileByVariant says which compiled rule set each godip variant plays by.
