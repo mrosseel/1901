@@ -920,6 +920,34 @@ describe("an adjustment phase", () => {
     seat.board.destroy();
   });
 
+  /*
+  The outline is measured in screen pixels, and it has to stay that way.
+
+  It was a fraction of the map's width to begin with, and that is wrong twice
+  over: this layer is built in renderAll() and a zoom only calls
+  renderOverlays(), so the line kept its size in map units while the map grew
+  under it. A border a hair wide at fit-all became a band at four times in,
+  and the seam between two provinces of one power, which carries the line from
+  both sides, became a coloured river through the middle of that power.
+
+  Two things keep the fix working, and both are asserted here. The width is
+  its own attribute rather than part of the style, because the style is
+  written once and the width is re-measured on every zoom. And it is the
+  pixel figure, not a share of the 1524 units this map is wide.
+  */
+  it("measures the ownership outline in screen pixels, outside the style", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(ADJUSTMENT_STATE, emptyPlan("Austria", "adjustment"));
+
+    const tint = document.querySelector<SVGElement>('#owned-lands [data-province="rom"]')!;
+    expect(tint.getAttribute("style")).not.toContain("stroke-width");
+    const edge = Number(tint.getAttribute("stroke-width"));
+    // 1.4 screen pixels. A share of the map's width would be 1524/500 here.
+    expect(edge).toBeCloseTo(1.4, 6);
+    seat.board.destroy();
+  });
+
   it("reads the build count from the options filter", () => {
     expect(planFor("adjustment", "Austria", { rom: BUILD_TREE }).duty).toEqual({
       type: "Build",

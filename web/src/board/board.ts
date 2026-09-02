@@ -835,12 +835,14 @@ export function mount(
     return units;
   }
 
-  // Both map overlays follow the zoom, so they are redrawn together.
+  // Everything whose size is in screen pixels rather than map units, redrawn
+  // together because the zoom is what changes all of them at once.
   function renderOverlays(): void {
     if (!svgRoot) return;
     renderOrders();
     renderUnits();
     renderBriefLabels();
+    resizeOwnedEdges();
   }
 
   // --- Province labels ----------------------------------------------------
@@ -1114,12 +1116,36 @@ export function mount(
   which is the same colour at the one opacity where every one of the seven is
   itself. The wash is then the fast read and the outline is the certain one.
 
-  The width is a fraction of the map rather than a count of units, for the
-  reason markerRadius() gives: classical is 1524 units wide and sailho is 7300,
-  so a fixed number of units is a bold line on one and invisible on the other.
-  It does not follow the zoom, because this layer is not redrawn on a zoom.
+  The width is in SCREEN pixels, like every other line the board draws over
+  the art. A width in map units was the first attempt and it was wrong twice
+  over, because this layer is built in renderAll() and the zoom only calls
+  renderOverlays(): the line kept its size in map units while the map grew
+  under it, so a border a hair wide at fit-all became a band at four times in,
+  and the seam between two provinces of one power, which carries this line
+  from both sides, became a coloured river through the middle of that power.
+
+  So the layer is built where it was and its edges are re-measured with the
+  overlays. Re-measuring is setting one attribute per shape, which is what
+  makes it cheap enough to do on a zoom; rebuilding would mean cloning every
+  owned province's outline again.
   */
-  const OWNED_EDGE_FRACTION = 1 / 500;
+  const OWNED_EDGE_PIXELS = 1.4;
+
+  /* A floor in map units, for the moment before the first view exists and for
+     a map so small that a pixel is worth less than half a unit. */
+  function ownedEdge(): number {
+    return Math.max(0.5, OWNED_EDGE_PIXELS * unitsPerPixel());
+  }
+
+  /* The edges alone, at the size the current zoom asks for. */
+  function resizeOwnedEdges(): void {
+    const layer = svgRoot?.querySelector("#" + OWNED_LAND_LAYER);
+    if (!layer) return;
+    const edge = String(ownedEdge());
+    Array.prototype.forEach.call(layer.children, (shape: Element) => {
+      shape.setAttribute("stroke-width", edge);
+    });
+  }
 
   function renderSupplyOwnership(): void {
     if (!svgRoot) return;
@@ -1136,7 +1162,6 @@ export function mount(
     if (layer.nextSibling !== hits) svgRoot.insertBefore(layer, hits);
     layer.replaceChildren();
 
-    const edge = Math.max(1, baseBox.w * OWNED_EDGE_FRACTION);
     const owned = state?.supplyCenters || {};
     Object.keys(owned).forEach((province) => {
       const paint = powerColor(owned[province]);
@@ -1148,14 +1173,19 @@ export function mount(
         tint.setAttribute("fill", paint);
         /* The map's shapes carry their own inline style, and a style beats an
            attribute. So the paint is stated both ways: the attribute for a
-           board that reads the DOM, the style for the browser that draws it. */
+           board that reads the DOM, the style for the browser that draws it.
+
+           The width is NOT in the style, deliberately. It is the one part of
+           this that changes on a zoom, and an attribute the style does not
+           mention is an attribute resizeOwnedEdges() can set on its own. */
         tint.setAttribute(
           "style",
           "fill:" + paint +
             ";fill-opacity:" + OWNED_TINT_OPACITY +
             ";stroke:" + paint +
-            ";stroke-opacity:1;stroke-width:" + edge,
+            ";stroke-opacity:1",
         );
+        tint.setAttribute("stroke-width", String(ownedEdge()));
         layer!.appendChild(tint);
       });
     });
