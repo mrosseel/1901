@@ -1,4 +1,4 @@
-package app
+package datc
 
 // The DATC corpus, adjudicated on the board this server loads from disk.
 //
@@ -83,8 +83,8 @@ func TestDATCOnTheLoadedClassicalBoard(t *testing.T) {
 			report.add(runDATCFile(t, variant, filepath.Join(corpus, file)))
 		})
 	}
-	if err := report.write(datcReportPath); err != nil {
-		t.Fatalf("writing %v: %v", datcReportPath, err)
+	if err := report.write(ReportPath); err != nil {
+		t.Fatalf("writing %v: %v", ReportPath, err)
 	}
 }
 

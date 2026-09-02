@@ -68,7 +68,7 @@ jobs:
       # The same corpus, adjudicated on the classical board this server loads
       # from variants/generated. godip's run proves the adjudicator; this one
       # proves the descriptor the adjudicator is handed.
-      - run: go test -run TestDATCOnTheLoadedClassicalBoard -v ./internal/app 2>&1 | tee -a datc-results.txt
+      - run: go test -run TestDATCOnTheLoadedClassicalBoard -v ./internal/datc 2>&1 | tee -a datc-results.txt
       - uses: actions/upload-artifact@v4
         with:
           name: datc-results

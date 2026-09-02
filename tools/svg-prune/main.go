@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"spring1901/spike/svgprune"
+	"spring1901/spike/internal/svgprune"
 )
 
 func main() {

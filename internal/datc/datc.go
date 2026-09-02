@@ -25,7 +25,7 @@ datcreport/report.json and the binary embeds it. A build made from a tree
 where the test has never run serves "not run in this build" rather than a
 number, because the honest answer to "what did you score" is never a guess.
 */
-package app
+package datc
 
 import (
 	"embed"
@@ -33,19 +33,19 @@ import (
 	"spring1901/spike/internal/httpx"
 )
 
-// datcReportPath is where the test writes and the build reads. One constant,
+// ReportPath is where the test writes and the build reads. One constant,
 // so the two halves cannot drift apart.
-const datcReportPath = "datcreport/report.json"
+const ReportPath = "datcreport/report.json"
 
 // The report, as it was when this binary was built. The directory is embedded
 // rather than the file, so a tree whose test has not run still compiles.
 //
 //go:embed all:datcreport
-var datcReportFS embed.FS
+var reportFS embed.FS
 
-// datcReportBytes is the published report, and nil when this build has none.
-func datcReportBytes() []byte {
-	out, err := datcReportFS.ReadFile(datcReportPath)
+// ReportBytes is the published report, and nil when this build has none.
+func ReportBytes() []byte {
+	out, err := reportFS.ReadFile(ReportPath)
 	if err != nil {
 		return nil
 	}
@@ -53,16 +53,16 @@ func datcReportBytes() []byte {
 }
 
 /*
-handleDATC serves /datc.json.
+Handle serves /datc.json.
 
 It is published data (ADR-050): a bare, citable address that keeps working,
 because the point of the number is that somebody else can quote it.
 */
-func handleDATC(w http.ResponseWriter, r *http.Request) {
-	report := datcReportBytes()
+func Handle(w http.ResponseWriter, r *http.Request) {
+	report := ReportBytes()
 	if report == nil {
 		httpx.WriteErr(w, http.StatusNotFound,
-			"this build carries no DATC report: run go test ./... to write %v", datcReportPath)
+			"this build carries no DATC report: run go test ./... to write %v", ReportPath)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

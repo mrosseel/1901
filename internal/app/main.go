@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"sort"
 	"spring1901/spike/internal/assets"
+	"spring1901/spike/internal/datc"
 	"spring1901/spike/internal/httpx"
 	"spring1901/spike/internal/variant"
 	"strconv"
@@ -705,7 +706,7 @@ func Main() {
 	mux.HandleFunc(apiPrefix+"/", srv.serveAPI)
 	// What this build scored against DATC (ADR-045). The JSON is published
 	// data and the page is one more route of the same shell.
-	mux.HandleFunc("/datc.json", handleDATC)
+	mux.HandleFunc("/datc.json", datc.Handle)
 	mux.HandleFunc("/datc", srv.serveSPA)
 	mux.HandleFunc("/variants", variant.HandleVariants)
 	mux.HandleFunc("/styles", variant.HandleStyles)

@@ -19,7 +19,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"spring1901/spike/svground"
+	"spring1901/spike/internal/svground"
 )
 
 func main() {

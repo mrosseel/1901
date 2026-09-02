@@ -28,8 +28,8 @@ import (
 	"github.com/zond/godip/variants"
 	"github.com/zond/godip/variants/common"
 
-	"spring1901/spike/svgprune"
-	"spring1901/spike/svground"
+	"spring1901/spike/internal/svgprune"
+	"spring1901/spike/internal/svground"
 	"spring1901/spike/variantjson"
 )
 

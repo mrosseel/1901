@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"spring1901/spike/internal/datc"
 	"strings"
 	"testing"
 )
@@ -141,9 +142,9 @@ no file, and the page says so rather than guessing — but this repository ships
 one, and a regression that turned it red would be caught here.
 */
 func TestTheDATCReportIsPublished(t *testing.T) {
-	raw := datcReportBytes()
+	raw := datc.ReportBytes()
 	if raw == nil {
-		t.Fatalf("this build carries no %v — run go test ./...", datcReportPath)
+		t.Fatalf("this build carries no %v — run go test ./...", datc.ReportPath)
 	}
 	report := struct {
 		Engine string `json:"engine"`
@@ -187,7 +188,7 @@ func TestTheDATCReportIsPublished(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	handleDATC(rec, httptest.NewRequest(http.MethodGet, "/datc.json", nil))
+	datc.Handle(rec, httptest.NewRequest(http.MethodGet, "/datc.json", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("/datc.json answered %v", rec.Code)
 	}
