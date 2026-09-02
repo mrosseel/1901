@@ -28,13 +28,14 @@ import type {
 import { settingsLines, useGameEvents, usePoll, useRefreshAt, useTicker } from "../hooks";
 import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
-import { Clock } from "../components/Clock";
+import { SeatBar } from "../components/SeatBar";
+import { PressPanel } from "../components/PressPanel";
+import { pressSecret, seatSigner } from "../press";
 import { useMapStyle } from "../components/StylePicker";
 import { MapToolbar } from "../components/MapToolbar";
 import { OrderNotationToggle } from "../components/OrderNotationToggle";
 import { abbreviateOrders, unitsOf } from "../notation";
 import { illegalAllowed, illegalDraftNote } from "../illegal";
-import { PhaseName } from "../components/PhaseName";
 import { SupportedMark } from "../components/SupportedMark";
 import { styledMapUrl } from "../style";
 import { ReviewOverlay, ReviewPeekBar } from "../components/ReviewOverlay";
@@ -73,6 +74,17 @@ The server hands this page its own power's orders and nothing else, and refuses
 any request about another power. The page holds the same line one step earlier:
 a tap on someone else's unit is answered with a sentence, not a 403.
 */
+/*
+Every power of this variant, in a stable order.
+
+The seat state names them all in `locked`, because the panel already has to
+say how many powers are in and how many are still out. That is the same list
+the press composer offers, so nothing new is fetched to draw it.
+*/
+function powersOf(state: SeatState | null | undefined): string[] {
+  return Object.keys(state?.locked || {}).sort();
+}
+
 export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: string }) {
   const client = useMemo(() => new SeatClient(gameId, seatToken), [gameId, seatToken]);
   /*
@@ -98,6 +110,16 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   );
   const [plan, setPlan] = useState<PhasePlan>(emptyPlan(""));
   const [reviewing, setReviewing] = useState(false);
+  /* Whether the panel below the divider is showing messages instead of
+     orders, and the badge count while it is (the seat state's own count is
+     one poll behind a message read inside the panel). */
+  const [pressOpen, setPressOpen] = useState(false);
+  const [pressUnread, setPressUnread] = useState<number | null>(null);
+  /* This device's press key and signature, derived once (ADR-054). Both are
+     cheap and neither depends on any state, so they are made here rather than
+     inside a panel that is mounted and unmounted by a tap. */
+  const pressBox = useMemo(() => pressSecret(gameId), [gameId]);
+  const pressSign = useMemo(() => seatSigner(gameId), [gameId]);
   /* The review with the sheet put away, so the map behind it can be read and
      panned. It is still the review: the board takes no orders and the panel
      stays inert. */
@@ -660,9 +682,47 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
      locking in this phase half-read is the thing that must not happen. */
   const mapFrozen = reading && !peeking;
 
+  /*
+  Press owns the panel or the orders do, never both (ADR-053). The map and the
+  divider are untouched by the switch, so the board a message is about is
+  still on the screen, at whatever size this player dragged it to.
+  */
+  const pressEnabled = Boolean(state?.pressEnabled);
+  const showingPress = pressOpen && pressEnabled;
+  const unread = pressUnread ?? state?.pressUnread ?? 0;
+
   return (
     <>
     <StaleBuild beat={state ?? null} />
+    <div className="seat-shell">
+    {power ? (
+      <SeatBar
+        power={power}
+        phase={state?.phase}
+        started={started}
+        ordersIn={orderRows.length}
+        ordersExpected={expectedOrders}
+        locked={Boolean(state?.youLocked)}
+        deadlineAt={state?.deadlineAt}
+        unread={unread}
+        pressEnabled={pressEnabled}
+        pressShowing={showingPress}
+        onPress={() => {
+          setPressOpen(!showingPress);
+          if (!showingPress) setPressUnread(null);
+        }}
+        menu={
+          <SeatMenu
+            gameId={gameId}
+            power={power}
+            turns={state?.turns}
+            createdAt={state?.createdAt}
+            isGameMaster={state?.youAreGm}
+            seat={client}
+          />
+        }
+      />
+    ) : null}
     <SplitLayout className="seat-layout" frozen={reading}>
       <main className="map-pane" inert={mapFrozen || undefined}>
         <Board
@@ -698,6 +758,19 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
       </main>
 
       <aside className="side" inert={reading || undefined}>
+        {showingPress && power ? (
+          <PressPanel
+            gameId={gameId}
+            you={power}
+            api={client}
+            secret={pressBox}
+            sign={pressSign}
+            phaseIndex={state?.phaseIndex ?? 0}
+            powers={powersOf(state)}
+            onUnread={setPressUnread}
+          />
+        ) : (
+        <>
         {connectionLost ? (
           <div className="banner">
             <div>
@@ -712,39 +785,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         ) : null}
         {!started ? <SeatWaiting state={state} beat={beat} connected={live} /> : (
           <header className="seat-head">
-            {/* The phase is what the whole table is playing. It is read across a
-                room, so it is the largest thing on the page. */}
-            <p className="phase-now">
-              <PhaseName phase={state?.phase} />
-            </p>
-            {/* The power, and the seat's own menu behind it (ADR-041). The icon
-                is the way to hand this seat to another phone, which is what a
-                dead battery or a player going home needs. */}
-            {/* The power names itself, on its own colour, and the menu is
-                behind it (ADR-041) — which is how a dead battery or a player
-                going home hands the seat on. */}
-            <h1 className="seat-you">
-              <span className="seat-you-word">You are</span>
-              {power ? (
-                <SeatMenu
-                  gameId={gameId}
-                  power={power}
-                  turns={state?.turns}
-                  createdAt={state?.createdAt}
-                  isGameMaster={state?.youAreGm}
-                  seat={client}
-                />
-              ) : (
-                <span className="muted">…</span>
-              )}
-            </h1>
+            {/* The phase, the power, the order count and the deadline are in
+                the bar above the map now (SeatBar): they are read in glances
+                between conversations, and hunting for them below a map that
+                is fighting for every pixel was the thing to fix. What is left
+                here is what a player reads once and then acts on. */}
             <p className="muted">
               {state?.variant ? state.variant.name : ""}{" "}
               {state?.variant ? <SupportedMark supported={state.variant.supported} /> : null}
             </p>
-            {/* The deadline is the one thing on this page that must never be
-                hunted for, so it gets its own line and its own size. */}
-            <Clock deadlineAt={state?.deadlineAt} />
             {review && !reviewing ? (
               <span className="head-links">
                 <button type="button" className="link" onClick={() => setReviewing(true)}>
@@ -1027,8 +1076,11 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           <Standings state={state} you={power} powers={Object.keys(state?.locked || {})} />
         ) : null}
 
+        </>
+        )}
       </aside>
     </SplitLayout>
+    </div>
 
     {refereeing && guide ? (
       <ModalLayer onClose={() => setRefereeing(false)}>

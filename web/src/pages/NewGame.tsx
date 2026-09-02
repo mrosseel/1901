@@ -41,13 +41,34 @@ is a scroll away — and a game master taking the default map should not have to
 scroll past every other map to reach the button. The picked map is named on the
 line above the button, so the choice is read back where it is acted on.
 */
+type PressMode = "ftf" | "gunboat" | "rulebook" | "fullpress";
+
+/*
+What each negotiation rule means, in the words of the thing that happens.
+
+The first two are about the room and the app carries nothing. The last two are
+the app carrying messages, and the difference between them is the one WDC 3b
+draws: negotiation is forbidden during the retreats and the adjustments.
+*/
+const PRESS_HELP: Record<PressMode, string> = {
+  ftf: "Negotiation happens in person. This app carries no messages.",
+  gunboat: "No negotiation at all, and the seats stay anonymous.",
+  rulebook:
+    "Messages during movement phases only, and none during retreats and builds. " +
+    "This is how a tournament board plays.",
+  fullpress: "Messages in every phase. Best for a table that is not in one room.",
+};
+
 export function NewGame({ sandbox }: { sandbox?: boolean }) {
   const [name, setName] = useState("");
   const [deadlineMinutes, setDeadlineMinutes] = useState(15);
   const [retreatBuildPercent, setRetreatBuildPercent] = useState(50);
   const [graceMinutes, setGraceMinutes] = useState(0);
   const [firstTurnExtraMinutes, setFirstTurnExtraMinutes] = useState(0);
-  const [pressMode, setPressMode] = useState<"ftf" | "gunboat">("ftf");
+  const [pressMode, setPressMode] = useState<PressMode>("ftf");
+  /* WDC 4b2's writing minute: the last minute of a phase is for writing
+     orders, in silence, and 4d puts a sanction behind it. */
+  const [pressSilenceSeconds, setPressSilenceSeconds] = useState(60);
   const [gmPlays, setGmPlays] = useState(true);
   /* On by default: the paper game takes any order you can spell, and taking
      that away is the change, not leaving it (ADR-029, illegal.ts). */
@@ -104,6 +125,7 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
         graceMinutes: Math.max(0, Math.floor(graceMinutes) || 0),
         firstTurnExtraMinutes: Math.max(0, Math.floor(firstTurnExtraMinutes) || 0),
         pressMode: pressMode,
+        pressSilenceSeconds: Math.max(0, Math.floor(pressSilenceSeconds) || 0),
         gmPlays: gmPlays,
         illegalMoves: illegalMoves,
         endYear: endYearEnabled ? Math.max(0, Math.floor(Number(endYear)) || 0) : 0,
@@ -194,16 +216,53 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
             )}
 
             {sandbox ? null : (
+            <>
             <label className="field">
               <span>Negotiation rule</span>
               <select value={pressMode} onChange={(event) =>
-                setPressMode(event.target.value as "ftf" | "gunboat")}
+                setPressMode(event.target.value as PressMode)}
               >
                 <option value="ftf">Face-to-face negotiations</option>
-                <option value="gunboat">Gunboat — no negotiation</option>
+                <option value="gunboat">Gunboat, no negotiation</option>
+                <option value="rulebook">In-app messages, movement phases only</option>
+                <option value="fullpress">In-app messages, every phase</option>
               </select>
-              <small>Negotiation happens in person; this app has no online press.</small>
+              <small>{PRESS_HELP[pressMode]}</small>
             </label>
+
+            {/*
+            The two settings that only mean something once the app carries
+            messages. They are hidden otherwise rather than disabled: a game
+            master choosing between two ways of talking at a table does not
+            need to read past a writing-time field.
+            */}
+            {pressMode === "rulebook" || pressMode === "fullpress" ? (
+              <>
+                <label className="field">
+                  <span>Writing time (seconds)</span>
+                  <input type="number" min={0} max={600} inputMode="numeric"
+                    value={pressSilenceSeconds}
+                    onChange={(event) => setPressSilenceSeconds(Number(event.target.value))} />
+                  <small>
+                    Messages close this long before the deadline, so the last
+                    of the phase is for writing orders. Zero keeps them open to
+                    the end.
+                  </small>
+                </label>
+                {/* Not offered here. The mailbox is opened with the game
+                    master key, and that is made on the referee screen after
+                    the game exists (ADR-048, ADR-054), so the switch lives
+                    beside the key rather than in front of it. */}
+                {gmPlays ? null : (
+                  <p className="note">
+                    A game master who does not play can be given every message to
+                    read. Make the game master key on the next screen, then turn
+                    it on there, before anybody joins.
+                  </p>
+                )}
+              </>
+            ) : null}
+            </>
             )}
 
             <EndYearField

@@ -14,6 +14,9 @@ import {
   type Settings,
 } from "../api";
 import { GmKeyCard } from "../components/GmKeyCard";
+import { PressPanel } from "../components/PressPanel";
+import { readStoredKey } from "../gmkey";
+import { GM_HOLDER, gmPressSecret, gmSigner } from "../press";
 import { LinkShare } from "../components/LinkShare";
 import { writeRecentGame } from "../recent";
 import { setPowerPalette, setProvinceNames } from "../board/provinces";
@@ -528,6 +531,32 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       or recovery, and it is already in this browser's history and address bar.
       The words survive both, and any device can type them.
       */}
+      {/*
+      The referee's mailbox (ADR-054), and only in a game whose game master
+      does not play and was declared to read press.
+
+      It is folded away and it says why on the outside. ADR-013 makes the game
+      master view safe on a shared screen, and the board still is; this one
+      screen is not, so it takes a deliberate tap to open and warns before it
+      does.
+      */}
+      {game.pressReads ? (
+        <details className="card">
+          <summary>Messages between the powers</summary>
+          <p className="note">
+            Everything the powers have written to each other. Do not open this on
+            a screen the table can see. You read every room and speak only in the
+            ones you open yourself.
+          </p>
+          <GmMailbox
+            gameId={gameId}
+            client={client}
+            phaseIndex={game.phaseIndex ?? 0}
+            powers={game.seats.map((seat) => seat.power)}
+          />
+        </details>
+      ) : null}
+
       <details className="card">
         <summary>Back up the game master key</summary>
         <p className="note">
@@ -569,6 +598,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       <SettingsCard
         settings={game.settings}
         started={game.started}
+        hasKey={Boolean(game.hasGmKey)}
         onSave={(patch) => act("The rules were changed.", () => client.settings(patch))}
       />
 
@@ -709,10 +739,14 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
 function SettingsCard({
   settings,
   started,
+  hasKey,
   onSave,
 }: {
   settings: Settings;
   started: boolean;
+  /* Whether this game has a game master key (ADR-048). The mailbox is opened
+     with it, so the setting that fills the mailbox needs one first. */
+  hasKey: boolean;
   onSave: (patch: Partial<Settings> & { deadlineMinutes: number }) => void;
 }) {
   const [minutes, setMinutes] = useState(settings.deadlineMinutes);
@@ -720,6 +754,8 @@ function SettingsCard({
   const [grace, setGrace] = useState(settings.graceMinutes ?? 0);
   const [firstExtra, setFirstExtra] = useState(settings.firstTurnExtraMinutes ?? 0);
   const [pressMode, setPressMode] = useState(settings.pressMode ?? "ftf");
+  const [silence, setSilence] = useState(settings.pressSilenceSeconds ?? 60);
+  const [gmReads, setGmReads] = useState(Boolean(settings.gmReadsPress));
   const [plays, setPlays] = useState(settings.gmPlays);
   const allowIllegal = illegalAllowed(settings);
   const [illegal, setIllegal] = useState(allowIllegal);
@@ -734,6 +770,8 @@ function SettingsCard({
   useEffect(() => setGrace(settings.graceMinutes ?? 0), [settings.graceMinutes]);
   useEffect(() => setFirstExtra(settings.firstTurnExtraMinutes ?? 0), [settings.firstTurnExtraMinutes]);
   useEffect(() => setPressMode(settings.pressMode ?? "ftf"), [settings.pressMode]);
+  useEffect(() => setSilence(settings.pressSilenceSeconds ?? 60), [settings.pressSilenceSeconds]);
+  useEffect(() => setGmReads(Boolean(settings.gmReadsPress)), [settings.gmReadsPress]);
   useEffect(() => setPlays(settings.gmPlays), [settings.gmPlays]);
   useEffect(() => setIllegal(allowIllegal), [allowIllegal]);
   useEffect(() => {
@@ -757,6 +795,8 @@ function SettingsCard({
     grace !== (settings.graceMinutes ?? 0) ||
     firstExtra !== (settings.firstTurnExtraMinutes ?? 0) ||
     pressMode !== (settings.pressMode ?? "ftf") ||
+    silence !== (settings.pressSilenceSeconds ?? 60) ||
+    gmReads !== Boolean(settings.gmReadsPress) ||
     plays !== settings.gmPlays ||
     (endYearEnabled ? Number(endYear) || 0 : 0) !== savedEndYear ||
     illegal !== allowIllegal;
@@ -808,13 +848,53 @@ function SettingsCard({
         <select value={pressMode} disabled={started} onChange={(event) =>
           setPressMode(event.target.value as NonNullable<Settings["pressMode"]>)}>
           <option value="ftf">Face-to-face negotiations</option>
-          <option value="gunboat">Gunboat — no negotiation</option>
-          {pressMode !== "ftf" && pressMode !== "gunboat" ? (
-            <option value={pressMode}>Legacy negotiation rule</option>
-          ) : null}
+          <option value="gunboat">Gunboat, no negotiation</option>
+          <option value="rulebook">In-app messages, movement phases only</option>
+          <option value="fullpress">In-app messages, every phase</option>
         </select>
-        <small>{started ? "Fixed once the game has started." : "Negotiation happens in person; this app has no online press."}</small>
+        <small>
+          {started
+            ? "Fixed once the game has started."
+            : pressMode === "rulebook"
+              ? "Messages during movement phases only, and none during retreats and builds."
+              : pressMode === "fullpress"
+                ? "Messages in every phase. Best for a table that is not in one room."
+                : "Negotiation happens in person. This app carries no messages."}
+        </small>
       </label>
+      {/* The two settings that only mean something once the app carries
+          messages (ADR-054, ADR-055). */}
+      {pressMode === "rulebook" || pressMode === "fullpress" ? (
+        <>
+          <label className="field">
+            <span>Writing time (seconds)</span>
+            <input type="number" min={0} max={600} inputMode="numeric" value={silence}
+              onChange={(event) => setSilence(Number(event.target.value))} />
+            <small>
+              Messages close this long before the deadline, so the last of the
+              phase is for writing orders.
+            </small>
+          </label>
+          <label className="field check">
+            <input
+              type="checkbox"
+              checked={!plays && gmReads}
+              disabled={started || plays || !hasKey}
+              onChange={(event) => setGmReads(event.target.checked)}
+            />
+            <span>The game master reads every message</span>
+            <small>
+              {started
+                ? "Fixed once the game has started: the room keys already sent name who can read them."
+                : plays
+                  ? "Only a game master who does not play may be offered this."
+                  : !hasKey
+                    ? "Make the game master key first — the mailbox is opened with it."
+                    : "The referee is in every conversation, and the join page says so."}
+            </small>
+          </label>
+        </>
+      ) : null}
       <EndYearField
         enabled={endYearEnabled}
         year={endYear}
@@ -853,6 +933,7 @@ function SettingsCard({
                   graceMinutes: Math.max(0, Math.floor(grace) || 0),
                   firstTurnExtraMinutes: Math.max(0, Math.floor(firstExtra) || 0),
                   illegalMoves: illegal,
+                  pressSilenceSeconds: Math.max(0, Math.floor(silence) || 0),
                   endYear: endYearEnabled ? Math.max(0, Math.floor(Number(endYear)) || 0) : 0,
                 }
               : {
@@ -861,6 +942,8 @@ function SettingsCard({
                   graceMinutes: Math.max(0, Math.floor(grace) || 0),
                   firstTurnExtraMinutes: Math.max(0, Math.floor(firstExtra) || 0),
                   pressMode: pressMode,
+                  pressSilenceSeconds: Math.max(0, Math.floor(silence) || 0),
+                  gmReadsPress: !plays && gmReads,
                   gmPlays: plays,
                   illegalMoves: illegal,
                   endYear: endYearEnabled ? Math.max(0, Math.floor(Number(endYear)) || 0) : 0,
@@ -872,6 +955,51 @@ function SettingsCard({
       </button>
       <p className="note">Every player sees a "the rules changed" banner.</p>
     </section>
+  );
+}
+
+/*
+The referee's mailbox, which is the press panel with the game master's keys.
+
+The box key and the signature both come from the key of ADR-048, so the twelve
+words recover the mailbox with the game, and a ruling is checked against the
+same public half that proves who the game master is. A game master whose
+browser has lost the key sees nothing it can open, and the words are the way
+back.
+*/
+function GmMailbox({
+  gameId,
+  client,
+  phaseIndex,
+  powers,
+}: {
+  gameId: string;
+  client: GmClient;
+  phaseIndex: number;
+  powers: string[];
+}) {
+  const entropy = useMemo(() => readStoredKey(gameId), [gameId]);
+  const secret = useMemo(() => gmPressSecret(gameId, entropy), [gameId, entropy]);
+  const sign = useMemo(() => gmSigner(entropy), [entropy]);
+  if (!entropy) {
+    return (
+      <p className="notice">
+        This browser does not hold the game master key, so it cannot open any of
+        these rooms. Recover it with the twelve words.
+      </p>
+    );
+  }
+  return (
+    <PressPanel
+      gameId={gameId}
+      you={GM_HOLDER}
+      api={client}
+      secret={secret}
+      sign={sign}
+      phaseIndex={phaseIndex}
+      powers={powers}
+      readOnly
+    />
   );
 }
 

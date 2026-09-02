@@ -1,11 +1,12 @@
 /*
 The one place this app does cryptography.
 
-Three things use it: the game master's key and its twelve words (ADR-048), the
+Four things use it: the game master's key and its twelve words (ADR-048), the
 seat key that replaces the token in the address (ADR-049), and the key that
-seals a phase's orders (ADR-004). The first two make random bytes, derive a
-named key from them, and sign a sentence the server made up; the third derives
-a key and encrypts with it. Nothing here holds state and nothing here talks to
+seals a phase's orders (ADR-004), and the press key that wraps a room key for
+another seat (ADR-054). The first three make random bytes and derive a named
+key from them; two of those sign a sentence the server made up and one
+encrypts. The fourth agrees on a key with somebody else's public half. Nothing here holds state and nothing here talks to
 the server.
 
 Ed25519 is not in every browser's WebCrypto, and crypto.subtle is unavailable
@@ -15,6 +16,7 @@ app may depend on crypto.subtle. crypto.getRandomValues carries no such rule
 and is the one platform call these files make.
 */
 
+import { x25519 } from "@noble/curves/ed25519.js";
 import { etc, getPublicKey, sign } from "@noble/ed25519";
 import { hkdf } from "@noble/hashes/hkdf";
 import { sha256 } from "@noble/hashes/sha256";
@@ -79,4 +81,39 @@ export function publicKeyOf(signingKey: Uint8Array): string {
 
 export function signMessage(signingKey: Uint8Array, message: string): string {
   return toBase64Url(sign(new TextEncoder().encode(message), signingKey));
+}
+
+/*
+The seat's press key (ADR-054).
+
+X25519 rather than Ed25519, because this key has to agree on a shared secret
+with another seat and a signing key cannot. It is derived under its own name,
+so the same 32 seed bytes give a signing key, an order key and this one, and
+none of the three can stand in for another.
+
+A seat holding a token has no seed. It makes 32 random bytes once and keeps
+them beside its drafts, which is what sealed.ts already does for the order key,
+and it fails the same way: a dead phone loses what it could read.
+*/
+export function deriveBoxKey(secret: Uint8Array, name: string): Uint8Array {
+  return hkdf(sha256, secret, name, "x25519 secret", 32);
+}
+
+export function boxPublicKeyOf(secret: Uint8Array): string {
+  return toBase64Url(x25519.getPublicKey(secret));
+}
+
+/*
+The key that wraps a room key for one holder.
+
+Both ends compute the same bytes from opposite halves, so the sender needs no
+reply and the reader needs nothing but its own secret. The shared point goes
+through HKDF with both public keys in the info, sorted, so the two sides agree
+and the result belongs to that pair and no other.
+*/
+export function wrapKeyFor(ourSecret: Uint8Array, theirPublic: string): Uint8Array {
+  const shared = x25519.getSharedSecret(ourSecret, fromBase64Url(theirPublic));
+  const ours = toBase64Url(x25519.getPublicKey(ourSecret));
+  const pair = [ours, theirPublic].sort().join("|");
+  return hkdf(sha256, shared, "1901 press wrap v1", pair, 32);
 }

@@ -7,6 +7,7 @@ Nothing here holds a token in module state — the route object does.
 */
 
 import type { BoardState, LabelPlan, OptionTree, Placement, Unit } from "./board/types";
+import type { PressMessage, PressState, PressThread } from "./press";
 import { readSeatSeed, seatPublicKey, signAsSeat } from "./seatkey";
 import { readVariants, type Variant } from "./variants";
 
@@ -42,6 +43,19 @@ export interface Settings {
   screens say it. Absent means the server's default, ftf.
   */
   pressMode?: "ftf" | "gunboat" | "fullpress" | "rulebook";
+  /*
+  The writing time at the end of a phase, when press closes (ADR-055). WDC
+  4b2 gives a board one minute to write its orders in silence, and 4d makes
+  the silence a rule with a sanction behind it. Zero means the app never
+  closes press early.
+  */
+  pressSilenceSeconds?: number;
+  /*
+  Whether the game master is a member of every room (ADR-054). Offered only
+  when gmPlays is off: the reason orders are sealed at all is that the
+  person running the server is usually at the board.
+  */
+  gmReadsPress?: boolean;
   /*
   The year the game stops after, zero or absent meaning it plays on until a
   solo or a draw (ADR-044). A tournament round with a hard stop sets it.
@@ -245,6 +259,16 @@ export interface GmState extends VariantAware, SealedPhase {
    * predates keys, which is the same thing as not having one.
    */
   hasGmKey?: boolean;
+  /*
+  Press, and only for a game master who does not play (ADR-054). Off, these
+  are false and zero, which is the whole truth this view is allowed: who is
+  talking to whom is the game.
+  */
+  pressEnabled?: boolean;
+  pressReads?: boolean;
+  pressUnread?: number;
+  /** Which phase this is, so a ruling is sealed against the right one. */
+  phaseIndex?: number;
 	drawProposal?: DrawProposal | null;
 }
 
@@ -315,6 +339,18 @@ export interface SeatState extends BoardState, VariantAware, SealedPhase {
    */
   refereeUrl?: string;
 	drawProposal?: DrawProposal | null;
+  /*
+  Press, in the smallest form the top bar needs (ADR-053). The unread count
+  rides on the state this page already polls, so the bar costs no request of
+  its own. No message body ever comes this way.
+  */
+  pressEnabled?: boolean;
+  pressUnread?: number;
+  /** Whether a message may be sent right now, and why not when it may not. */
+  pressOpen?: boolean;
+  pressReason?: string;
+  /** When the writing time starts, so the panel can count down to it. */
+  pressSilenceAt?: string | null;
 }
 
 /*
@@ -654,6 +690,36 @@ export async function openSeatSession(gameId: string): Promise<string> {
 
 // --- GM -------------------------------------------------------------------
 
+/*
+The six press calls, as the panel needs them (ADR-053).
+
+A seat and the game master reach press through different credentials and the
+same routes, so the panel takes this rather than a client. The alternative was
+a second copy of the panel for the referee's mailbox, which would have drifted.
+*/
+export interface PressApi {
+  press(): Promise<PressState>;
+  pressKey(boxPub: string, sig: string): Promise<{ boxPub: string }>;
+  pressOpen(
+    members: string[],
+    keys: Record<string, string>,
+    fresh?: boolean,
+  ): Promise<PressThread>;
+  pressThread(thread: string, since?: number): Promise<PressThread>;
+  pressSend(message: PressSend): Promise<PressMessage>;
+  pressRead(thread: string, seq: number): Promise<PressThread>;
+}
+
+/** One message on the wire: the box, and where its sender sealed it. */
+export interface PressSend {
+  thread: string;
+  seq: number;
+  phaseIndex: number;
+  at: string;
+  box: string;
+  sig: string;
+}
+
 export class GmClient {
   private base: string;
 
@@ -669,6 +735,45 @@ export class GmClient {
 
   state(): Promise<GmState> {
     return getJSON<GmState>(this.base + "state");
+  }
+
+  // --- press (ADR-054) ----------------------------------------------------
+  //
+  // These answer only in a game whose game master does not play and was
+  // declared to read press. In every other game they are 404.
+
+  press(): Promise<PressState> {
+    return getJSON<PressState>(this.base + "press");
+  }
+
+  pressKey(boxPub: string, sig: string): Promise<{ boxPub: string }> {
+    return postJSON<{ boxPub: string }>(this.base + "press/key", { boxPub: boxPub, sig: sig });
+  }
+
+  pressOpen(
+    members: string[],
+    keys: Record<string, string>,
+    fresh = false,
+  ): Promise<PressThread> {
+    return postJSON<PressThread>(this.base + "press/open", {
+      members: members,
+      keys: keys,
+      fresh: fresh,
+    });
+  }
+
+  pressThread(thread: string, since = 0): Promise<PressThread> {
+    return getJSON<PressThread>(
+      this.base + "press/thread?thread=" + encodeURIComponent(thread) + "&since=" + since,
+    );
+  }
+
+  pressSend(message: PressSend): Promise<PressMessage> {
+    return postJSON<PressMessage>(this.base + "press/send", message);
+  }
+
+  pressRead(thread: string, seq: number): Promise<PressThread> {
+    return postJSON<PressThread>(this.base + "press/read", { thread: thread, seq: seq });
   }
 
   /** A partial patch is allowed; gmPlays is refused once the game started. */
@@ -845,6 +950,59 @@ export class SeatClient {
   */
   reveal(key: string): Promise<SeatState> {
     return this.withSession(() => postJSON<SeatState>(this.base + "reveal", { key: key }));
+  }
+
+  // --- press (ADR-053) ----------------------------------------------------
+  //
+  // Every one of these 404s in a game that carries no messages, and the power
+  // is taken from the credential rather than from any body sent here.
+
+  press(): Promise<PressState> {
+    return this.withSession(() => getJSON<PressState>(this.base + "press"));
+  }
+
+  /** Publish this seat's public press key, and its signature over it. */
+  pressKey(boxPub: string, sig: string): Promise<{ boxPub: string }> {
+    return this.withSession(() =>
+      postJSON<{ boxPub: string }>(this.base + "press/key", { boxPub: boxPub, sig: sig }),
+    );
+  }
+
+  /*
+  Open a room, or get back the one that already holds these members. `fresh`
+  asks for a new one anyway, which is what a device does when it cannot open
+  the room a handover left behind (ADR-053).
+  */
+  pressOpen(
+    members: string[],
+    keys: Record<string, string>,
+    fresh = false,
+  ): Promise<PressThread> {
+    return this.withSession(() =>
+      postJSON<PressThread>(this.base + "press/open", {
+        members: members,
+        keys: keys,
+        fresh: fresh,
+      }),
+    );
+  }
+
+  pressThread(thread: string, since = 0): Promise<PressThread> {
+    return this.withSession(() =>
+      getJSON<PressThread>(
+        this.base + "press/thread?thread=" + encodeURIComponent(thread) + "&since=" + since,
+      ),
+    );
+  }
+
+  pressSend(message: PressSend): Promise<PressMessage> {
+    return this.withSession(() => postJSON<PressMessage>(this.base + "press/send", message));
+  }
+
+  pressRead(thread: string, seq: number): Promise<PressThread> {
+    return this.withSession(() =>
+      postJSON<PressThread>(this.base + "press/read", { thread: thread, seq: seq }),
+    );
   }
 
   /** The link that hands this power to another phone (ADR-041). */

@@ -108,6 +108,20 @@ type settings struct {
 	// written down, and seat anonymity (ADR-020) is load-bearing there rather
 	// than incidental.
 	PressMode string `json:"pressMode"`
+
+	// PressSilenceSeconds is the writing time at the end of a phase, when
+	// press closes (ADR-055). WDC 4b2 gives a board one minute to write its
+	// orders in silence and 4d makes the silence a rule with a sanction
+	// behind it, so this is a rule the app keeps rather than announces.
+	// Zero means the app never closes press before the deadline.
+	PressSilenceSeconds int `json:"pressSilenceSeconds"`
+
+	// GMReadsPress makes the game master a member of every room (ADR-054).
+	// It is offered only when GMPlays is off, and normalised() holds it
+	// there: the reason orders are sealed at all is that the person running
+	// the server is usually at the board. A referee who does not play is a
+	// different person, and the join page says which one this game has.
+	GMReadsPress bool `json:"gmReadsPress"`
 }
 
 // The press modes a game may declare (ADR-023).
@@ -142,6 +156,7 @@ func defaultSettings() settings {
 		Variant:             defaultVariant,
 		RetreatBuildPercent: defaultRetreatBuildPercent,
 		PressMode:           defaultPressMode,
+		PressSilenceSeconds: defaultPressSilenceSeconds,
 		IllegalMoves:        true,
 	}
 }
@@ -157,9 +172,18 @@ type seat struct {
 	// signPub is the public half of the key the joining phone made
 	// (ADR-049), base64url. The server can open nothing with it.
 	signPub string
-	device  string // device secret, empty until claimed
-	isGM    bool
-	locked  bool
+	// boxPub is the public half of this seat's press key (ADR-054),
+	// base64url X25519. Empty until the seat first opens the press panel,
+	// because a seat claimed before press existed never made one, and a
+	// seat holding a token has no seed to derive one from.
+	boxPub string
+	// boxSig is this seat's own signature over its box key, so a reader can
+	// check that the key the server handed out is the key the seat
+	// published. Empty on a seat that holds a token and has no signing key.
+	boxSig string
+	device string // device secret, empty until claimed
+	isGM   bool
+	locked bool
 
 	// epoch is the handover counter (ADR-041). Every link ever minted for
 	// this seat is signed for one epoch, so taking the seat and raising it
@@ -201,6 +225,13 @@ type flow struct {
 	// cannot be recovered by its words, which is every game made before
 	// this existed and every one whose game master declined.
 	gmPublicKey string
+	// gmBoxPub is the public half of the game master's press key (ADR-054),
+	// derived from the same secret the twelve words recover. Empty unless
+	// this game has a game master who reads press.
+	gmBoxPub string
+	// gmBoxSig is the game master's own signature over it, checked against
+	// gmPublicKey (ADR-048) the way a seat's is checked against its own.
+	gmBoxSig    string
 	inviteToken string
 	// gmDevice is the referee cookie secret: the browser that created the
 	// game holds it, and it is what /game/{id}/referee/ answers to. It
@@ -251,6 +282,12 @@ type flow struct {
 	phaseIndex int
 	createdAt  time.Time
 
+	// press are the rooms of this game in the order they were opened, and
+	// the index by id (ADR-053). The server holds ciphertext and a member
+	// list; it holds no key to any of it.
+	press     []*pressThread
+	pressByID map[string]*pressThread
+
 	events []string
 	// persistedEvents is how many events are already in the database.
 	persistedEvents int
@@ -295,6 +332,7 @@ func newFlow(s settings, v common.Variant) (*flow, error) {
 		bySignPub:   map[string]godip.Nation{},
 		byDevice:    map[string]godip.Nation{},
 		sessions:    map[string]godip.Nation{},
+		pressByID:   map[string]*pressThread{},
 	}
 	for _, power := range f.powers {
 		f.seats[power] = &seat{power: power}
@@ -851,6 +889,8 @@ type settingsPatch struct {
 	FirstTurnExtraMinutes *int    `json:"firstTurnExtraMinutes"`
 	EndYear               *int    `json:"endYear"`
 	PressMode             *string `json:"pressMode"`
+	PressSilenceSeconds   *int    `json:"pressSilenceSeconds"`
+	GMReadsPress          *bool   `json:"gmReadsPress"`
 	IllegalMoves          *bool   `json:"illegalMoves"`
 	// Sandbox may be set when the game is made and never after (ADR-047),
 	// so apply() below leaves it alone and only decodeCreateSettings reads
@@ -886,6 +926,12 @@ func (self settingsPatch) apply(base settings) settings {
 	}
 	if self.PressMode != nil {
 		base.PressMode = *self.PressMode
+	}
+	if self.PressSilenceSeconds != nil {
+		base.PressSilenceSeconds = *self.PressSilenceSeconds
+	}
+	if self.GMReadsPress != nil {
+		base.GMReadsPress = *self.GMReadsPress
 	}
 	if self.IllegalMoves != nil {
 		base.IllegalMoves = *self.IllegalMoves
@@ -947,6 +993,17 @@ func (self settings) normalised() settings {
 	}
 	if self.PressMode == "" {
 		self.PressMode = defaultPressMode
+	}
+	if self.PressSilenceSeconds < 0 {
+		self.PressSilenceSeconds = 0
+	}
+	if self.PressSilenceSeconds > maxPressSilenceSeconds {
+		self.PressSilenceSeconds = maxPressSilenceSeconds
+	}
+	// The pairing of ADR-054, held here rather than at the form, so a row
+	// loaded from the database says the same thing the form would have.
+	if self.GMPlays {
+		self.GMReadsPress = false
 	}
 	// A sandbox has nobody to keep waiting and nobody to hand a seat to
 	// (ADR-047), so the three settings that only mean something to a table
@@ -1026,6 +1083,15 @@ func decodeCreateSettings(r *http.Request) (settings, error) {
 			neu.PressMode)
 	}
 	neu.Sandbox = env.sandboxAsked()
+	/*
+		The referee's mailbox is opened with the game master's key (ADR-048,
+		ADR-054), and that key is made after the game exists, on the referee
+		screen. So a game cannot be created with the setting already on: there is
+		nothing yet for a room key to be wrapped for, and the setting is fixed
+		from the start (handleGMSettings), which would leave every room in the
+		game refused with no way back.
+	*/
+	neu.GMReadsPress = false
 	// normalised has already run inside merge, and the flag arrives after
 	// it, so the settings a sandbox holds at nothing are cleared here.
 	return neu.normalised(), nil
@@ -1082,9 +1148,10 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 	f.logEvent(id, "game created on %v, deadlineMinutes=%v gmPlays=%v "+
 		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v pressMode=%v "+
-		"illegalMoves=%v",
+		"pressSilenceSeconds=%v gmReadsPress=%v illegalMoves=%v",
 		v.Name, s.DeadlineMinutes, s.GMPlays, s.RetreatBuildPercent, s.GraceMinutes,
-		s.FirstTurnExtraMinutes, s.PressMode, s.IllegalMoves)
+		s.FirstTurnExtraMinutes, s.PressMode, s.PressSilenceSeconds, s.GMReadsPress,
+		s.IllegalMoves)
 	if !supportedVariants[s.Variant] {
 		f.logEvent(id, "%v is experimental — unit placement on the map is not verified", v.Name)
 	}
@@ -1385,6 +1452,16 @@ type gmStateJSON struct {
 	// key: the page needs to know which card to draw, not what the server
 	// holds.
 	HasGMKey bool `json:"hasGmKey"`
+	// Press, and only for a game master who does not play (ADR-054). Off,
+	// these are false and zero, which is the whole truth this view is
+	// allowed: who is talking to whom is the game.
+	PressEnabled bool `json:"pressEnabled"`
+	PressReads   bool `json:"pressReads"`
+	PressUnread  int  `json:"pressUnread"`
+	// Which phase this is, counting resolved phases from zero. A message is
+	// sealed against the phase it was written in (ADR-053), and the mailbox
+	// has no other way to know which that is.
+	PhaseIndex int `json:"phaseIndex"`
 	// Which client build this server is serving (ADR-050). A page that sees
 	// it change is running JavaScript the server has moved on from.
 	Build string `json:"build"`
@@ -1420,6 +1497,9 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 		PreviousPhase:  self.previousPhase,
 		Now:            serverNow(),
 		HasGMKey:       f.gmPublicKey != "",
+		PressEnabled:   f.pressEnabled(),
+		PressReads:     f.settings.GMReadsPress,
+		PhaseIndex:     f.phaseIndex,
 		Result:         f.result,
 		DrawProposal:   f.drawProposal,
 		Sealed:         f.sealed,
@@ -1437,6 +1517,9 @@ func (self *game) gmState(id string, r *http.Request) gmStateJSON {
 			Centres:  self.centreCounts()[string(p)],
 			Revealed: s.revealed,
 		})
+	}
+	if f.settings.GMReadsPress {
+		out.PressUnread = f.pressUnread(gmActor())
 	}
 	if f.gmPower != "" {
 		power := string(f.gmPower)
@@ -1480,6 +1563,24 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusConflict, "the press mode cannot change after the game has started")
 		return
 	}
+	// Whether the game master reads press is fixed at start for a harder
+	// reason than agreement (ADR-054): every room key already handed out was
+	// wrapped for the holders this setting names. Turning it on later would
+	// promise a mailbox that no existing room has a key for, and turning it
+	// off would not take back the keys already sent.
+	if f.started && neu.GMReadsPress != old.GMReadsPress {
+		writeErr(w, http.StatusConflict,
+			"whether the game master reads press cannot change after the game has started")
+		return
+	}
+	// The mailbox is opened with the game master's own key (ADR-048, ADR-054).
+	// Without one there is nothing to wrap a room key for, and every room in
+	// the game would be refused for a setting nobody could still change.
+	if neu.GMReadsPress && !old.GMReadsPress && f.gmPublicKey == "" {
+		writeErr(w, http.StatusConflict,
+			"make the game master key first — the mailbox is opened with it")
+		return
+	}
 	if neu.Variant != old.Variant {
 		writeErr(w, http.StatusConflict, "the variant is fixed when the game is created")
 		return
@@ -1509,10 +1610,10 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	f.settingsVersion++
 	f.logEvent(id, "settings changed to deadlineMinutes=%v gmPlays=%v "+
 		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v endYear=%v "+
-		"pressMode=%v illegalMoves=%v (version %v)",
+		"pressMode=%v pressSilenceSeconds=%v gmReadsPress=%v illegalMoves=%v (version %v)",
 		neu.DeadlineMinutes, neu.GMPlays, neu.RetreatBuildPercent, neu.GraceMinutes,
-		neu.FirstTurnExtraMinutes, neu.EndYear, neu.PressMode, neu.IllegalMoves,
-		f.settingsVersion)
+		neu.FirstTurnExtraMinutes, neu.EndYear, neu.PressMode, neu.PressSilenceSeconds,
+		neu.GMReadsPress, neu.IllegalMoves, f.settingsVersion)
 	// A change to the clock takes effect on the phase now running, so the
 	// table sees the rule it was just told about rather than the next one.
 	if f.started && !f.over() && (neu.DeadlineMinutes != old.DeadlineMinutes ||
@@ -1541,6 +1642,14 @@ func handleGMStart(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	if f.joinedCount() < f.joinerSeats() {
 		writeErr(w, http.StatusConflict, "only %v of %v seats are claimed",
 			f.joinedCount(), f.joinerSeats())
+		return
+	}
+	// The setting cannot change after this moment (handleGMSettings), so a
+	// game that starts without the key its mailbox is opened with is a game
+	// whose rooms are all refused for the rest of the evening.
+	if f.settings.GMReadsPress && f.gmPublicKey == "" {
+		writeErr(w, http.StatusConflict,
+			"this game master reads press but has no key — make it before starting")
 		return
 	}
 
@@ -1775,6 +1884,15 @@ type seatStateJSON struct {
 	YouRevealed    bool     `json:"youRevealed"`
 	AwaitingReveal []string `json:"awaitingReveal"`
 	Now            string   `json:"now"`
+	// Press, in the smallest form that keeps the bar honest (ADR-053). The
+	// unread count and whether a message may be sent right now ride on the
+	// state the seat already polls, so the bar costs no request of its own.
+	// Message bodies come from the press routes and never from here.
+	PressEnabled   bool        `json:"pressEnabled"`
+	PressUnread    int         `json:"pressUnread"`
+	PressOpen      bool        `json:"pressOpen"`
+	PressReason    string      `json:"pressReason,omitempty"`
+	PressSilenceAt interface{} `json:"pressSilenceAt"`
 	// RefereeURL is set only for the GM's own seat: the seat that holds
 	// the GM rights may link back to the GM view. It is how the GM
 	// switches between the board and the controls.
@@ -1816,6 +1934,11 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 		referee = gmURL(r, id, f.gmToken)
 	}
 
+	pressOpen, pressReason := false, ""
+	if f.pressEnabled() {
+		pressOpen, pressReason = self.pressWritableNow(seatActor(power))
+	}
+
 	return seatStateJSON{
 		stateJSON:        base,
 		You:              youJSON{Power: string(power)},
@@ -1851,6 +1974,11 @@ func (self *game) seatState(id string, power godip.Nation, r *http.Request) seat
 		AwaitingReveal:   nations(f.awaitingReveal()),
 		Now:              serverNow(),
 		RefereeURL:       referee,
+		PressEnabled:     f.pressEnabled(),
+		PressUnread:      f.pressUnread(seatActor(power)),
+		PressOpen:        pressOpen,
+		PressReason:      pressReason,
+		PressSilenceAt:   rfc3339(f.pressSilenceAt()),
 	}
 }
 
@@ -2131,6 +2259,16 @@ var gmRoutes = map[string]gameHandler{
 	"extend":        handleGMExtend,
 	"events":        handleGMEvents,
 	"map.svg":       handleMap,
+
+	// The referee's mailbox (ADR-054). These answer only in a game whose
+	// game master does not play and was declared to read press; in every
+	// other game they are 404, like a route that does not exist.
+	"press":        gmPress(handlePress),
+	"press/key":    gmPress(handlePressKey),
+	"press/open":   gmPress(handlePressOpen),
+	"press/thread": gmPress(handlePressThread),
+	"press/send":   gmPress(handlePressSend),
+	"press/read":   gmPress(handlePressRead),
 }
 
 var seatRoutes = map[string]seatHandler{
@@ -2153,6 +2291,16 @@ var seatRoutes = map[string]seatHandler{
 	// session that predates the rename can still be open.
 	"finalize":   handleSeatLock,
 	"unfinalize": handleSeatUnlock,
+
+	// Press (ADR-053). Every one of these 404s in a game that carries no
+	// messages, and every one takes the power from the credential rather
+	// than from a body.
+	"press":        seatPress(handlePress),
+	"press/key":    seatPress(handlePressKey),
+	"press/open":   seatPress(handlePressOpen),
+	"press/thread": seatPress(handlePressThread),
+	"press/send":   seatPress(handlePressSend),
+	"press/read":   seatPress(handlePressRead),
 }
 
 /*

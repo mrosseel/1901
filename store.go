@@ -123,6 +123,50 @@ CREATE TABLE IF NOT EXISTS event (
 
 CREATE INDEX IF NOT EXISTS event_by_game ON event(game_id, id);
 
+-- Press (ADR-053). One row per room, one wrapped room key per holder, one
+-- row per message. The server stores ciphertext, a member list and a time;
+-- it holds no key to any of it, which is the point (ADR-054).
+CREATE TABLE IF NOT EXISTS press_thread (
+    game_id   TEXT NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+    thread_id TEXT NOT NULL,
+    -- A power's name, or '*gm' for the game master.
+    opened_by TEXT NOT NULL,
+    -- The powers in the room, sorted and comma-joined. Two rooms with the
+    -- same members are the same room, and this is the comparison.
+    members   TEXT NOT NULL,
+    opened_at TEXT NOT NULL,
+    PRIMARY KEY (game_id, thread_id)
+);
+
+CREATE TABLE IF NOT EXISTS press_key (
+    game_id   TEXT NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+    thread_id TEXT NOT NULL,
+    -- The holder: a power's name, or '*gm'.
+    power     TEXT NOT NULL,
+    wrapped   TEXT NOT NULL,
+    PRIMARY KEY (game_id, thread_id, power)
+);
+
+CREATE TABLE IF NOT EXISTS press_message (
+    game_id     TEXT    NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+    thread_id   TEXT    NOT NULL,
+    seq         INTEGER NOT NULL,
+    sender      TEXT    NOT NULL,
+    phase_index INTEGER NOT NULL,
+    box         TEXT    NOT NULL,
+    sig         TEXT    NOT NULL,
+    at          TEXT    NOT NULL,
+    PRIMARY KEY (game_id, thread_id, seq)
+);
+
+CREATE TABLE IF NOT EXISTS press_read (
+    game_id   TEXT    NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+    thread_id TEXT    NOT NULL,
+    power     TEXT    NOT NULL,
+    last_seq  INTEGER NOT NULL,
+    PRIMARY KEY (game_id, thread_id, power)
+);
+
 -- Secrets that belong to the server rather than to a game. One row today:
 -- the salt every handover link is signed with (ADR-041). It lives here so a
 -- QR code on a table outlives the process that printed it.
@@ -228,6 +272,13 @@ var gameColumns = []struct{ name, definition string }{
 	// existed was played by people, which is what a sandbox is not.
 	{"sandbox", `INTEGER NOT NULL DEFAULT 0`},
 	{"sandbox_token", `TEXT NOT NULL DEFAULT ''`},
+	// The press rules (ADR-053, ADR-055) and the referee's key (ADR-054). A
+	// game written before press existed carries no messages whatever these
+	// say, because its press mode is ftf or gunboat.
+	{"press_silence_seconds", `INTEGER NOT NULL DEFAULT 60`},
+	{"gm_reads_press", `INTEGER NOT NULL DEFAULT 0`},
+	{"gm_box_pub", `TEXT NOT NULL DEFAULT ''`},
+	{"gm_box_sig", `TEXT NOT NULL DEFAULT ''`},
 }
 
 // orderColumns are the columns a game_order row has grown, in the same shape
@@ -255,6 +306,10 @@ var seatColumns = []struct{ name, definition string }{
 	// what a seat that has not locked in looks like.
 	{"sealed_orders", `TEXT NOT NULL DEFAULT ''`},
 	{"revealed", `INTEGER NOT NULL DEFAULT 0`},
+	// The public half of this seat's press key (ADR-054). Empty on every
+	// seat that has never opened the press panel.
+	{"box_pub", `TEXT NOT NULL DEFAULT ''`},
+	{"box_sig", `TEXT NOT NULL DEFAULT ''`},
 }
 
 // renamedColumns are columns that changed name. The rename must run before
@@ -409,8 +464,9 @@ func (self *game) persistErr(id string) error {
                           variant_hash, name, gm_epoch, gm_public_key,
                           end_year, result_kind, result_powers, result_year, result_phase,
                           sealed, draw_powers, draw_required, draw_confirmed,
-                          sandbox, sandbox_token)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          sandbox, sandbox_token,
+                          press_silence_seconds, gm_reads_press, gm_box_pub, gm_box_sig)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             -- The role can be handed on (ADR-041), which rotates the token, so
             -- unlike the invite it is not write-once.
@@ -451,7 +507,13 @@ func (self *game) persistErr(id string) error {
             -- Fixed when the game is made, like sealed above and for the
             -- same reason: a table cannot become a sandbox under its players.
             sandbox                  = excluded.sandbox,
-            sandbox_token            = excluded.sandbox_token`,
+            sandbox_token            = excluded.sandbox_token,
+            press_silence_seconds    = excluded.press_silence_seconds,
+            -- Fixed at start, like gmPlays and the press mode: every room
+            -- key already handed out was wrapped for the holders this names.
+            gm_reads_press           = excluded.gm_reads_press,
+            gm_box_pub               = excluded.gm_box_pub,
+            gm_box_sig               = excluded.gm_box_sig`,
 		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
@@ -459,7 +521,8 @@ func (self *game) persistErr(id string) error {
 		f.settings.FirstTurnExtraMinutes, f.settings.PressMode, f.settings.IllegalMoves,
 		variantHash(self.variantKey), f.settings.Name, f.gmEpoch, f.gmPublicKey,
 		f.settings.EndYear, resultKind, resultPowers, resultYear, resultPhase, f.sealed,
-		drawPowers, drawRequired, drawConfirmed, f.settings.Sandbox, f.sandboxToken)
+		drawPowers, drawRequired, drawConfirmed, f.settings.Sandbox, f.sandboxToken,
+		f.settings.PressSilenceSeconds, f.settings.GMReadsPress, f.gmBoxPub, f.gmBoxSig)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}
@@ -468,8 +531,8 @@ func (self *game) persistErr(id string) error {
 		s := f.seats[p]
 		_, err = tx.Exec(`
             INSERT INTO seat (game_id, power, seat_token, device, is_gm, locked, epoch,
-                              sign_pub, sealed_orders, revealed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              sign_pub, sealed_orders, revealed, box_pub, box_sig)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(game_id, power) DO UPDATE SET
                 seat_token = excluded.seat_token,
                 device     = excluded.device,
@@ -478,9 +541,11 @@ func (self *game) persistErr(id string) error {
                 epoch      = excluded.epoch,
                 sign_pub   = excluded.sign_pub,
                 sealed_orders = excluded.sealed_orders,
-                revealed    = excluded.revealed`,
+                revealed    = excluded.revealed,
+                box_pub     = excluded.box_pub,
+                box_sig     = excluded.box_sig`,
 			id, string(p), s.token, s.device, s.isGM, s.locked, s.epoch, s.signPub,
-			s.sealed, s.revealed)
+			s.sealed, s.revealed, s.boxPub, s.boxSig)
 		if err != nil {
 			return fmt.Errorf("seat %v: %v", p, err)
 		}
@@ -573,8 +638,10 @@ func loadAll() error {
                COALESCE(result_phase, 0), COALESCE(sealed, 0),
 			   COALESCE(draw_powers, ''), COALESCE(draw_required, ''),
 			   COALESCE(draw_confirmed, ''),
-			   COALESCE(sandbox, 0), COALESCE(sandbox_token, '')
-        FROM game`, defaultVariant, defaultPressMode)
+			   COALESCE(sandbox, 0), COALESCE(sandbox_token, ''),
+			   COALESCE(press_silence_seconds, ?), COALESCE(gm_reads_press, 0),
+			   COALESCE(gm_box_pub, ''), COALESCE(gm_box_sig, '')
+        FROM game`, defaultVariant, defaultPressMode, defaultPressSilenceSeconds)
 	if err != nil {
 		return err
 	}
@@ -592,6 +659,7 @@ func loadAll() error {
 			bySignPub:   map[string]godip.Nation{},
 			byDevice:    map[string]godip.Nation{},
 			sessions:    map[string]godip.Nation{},
+			pressByID:   map[string]*pressThread{},
 		}
 		var id, gmPower, createdAt, key, recordedHash string
 		var deadline sql.NullString
@@ -607,7 +675,9 @@ func loadAll() error {
 			&f.settings.Name, &f.gmEpoch, &f.gmPublicKey,
 			&f.settings.EndYear, &resultKind, &resultPowers, &resultYear,
 			&resultPhase, &f.sealed, &drawPowers, &drawRequired, &drawConfirmed,
-			&f.settings.Sandbox, &f.sandboxToken); err != nil {
+			&f.settings.Sandbox, &f.sandboxToken,
+			&f.settings.PressSilenceSeconds, &f.settings.GMReadsPress,
+			&f.gmBoxPub, &f.gmBoxSig); err != nil {
 			rows.Close()
 			return err
 		}
@@ -670,6 +740,9 @@ func loadAll() error {
 	}
 
 	for _, entry := range loaded {
+		if err := loadPress(entry.id, entry.f); err != nil {
+			return fmt.Errorf("game %v press: %v", entry.id, err)
+		}
 		g, err := restore(entry.id, entry.key, entry.variant, entry.f)
 		if err != nil {
 			return fmt.Errorf("game %v: %v", entry.id, err)
@@ -700,16 +773,17 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 	rows, err := db.Query(
 		`SELECT power, seat_token, device, is_gm, locked, epoch,
                 COALESCE(sign_pub, ''), COALESCE(sealed_orders, ''),
-                COALESCE(revealed, 0) FROM seat WHERE game_id = ?`, id)
+                COALESCE(revealed, 0), COALESCE(box_pub, ''), COALESCE(box_sig, '')
+         FROM seat WHERE game_id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
-		var power, token, device, signPub, sealed string
+		var power, token, device, signPub, sealed, boxPub, boxSig string
 		var isGM, locked, revealed bool
 		var epoch int
 		if err := rows.Scan(&power, &token, &device, &isGM, &locked, &epoch, &signPub,
-			&sealed, &revealed); err != nil {
+			&sealed, &revealed, &boxPub, &boxSig); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -724,6 +798,7 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 		// keys, which is the property, and they send them again when the
 		// window is open.
 		s.sealed, s.revealed = sealed, revealed
+		s.boxPub, s.boxSig = boxPub, boxSig
 		if token != "" {
 			f.bySeatToken[token] = s.power
 		}

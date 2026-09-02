@@ -92,6 +92,43 @@ the deadline has passed. No player presses anything: the phone sends it by
 itself (ADR-009). Any device holding the seat seed can make the key again,
 which is how a dead phone's orders are recovered. Backstage term.
 
+### Press
+
+**Press**:
+Negotiation the app carries, in a game whose press mode is `fullpress` or
+`rulebook` (ADR-023, ADR-053). The word the community already uses, and the
+word the setting uses. Game-facing UI says "messages" instead, because a
+first-time player has never met the term.
+_Avoid_: chat, DM, mail
+
+**Room**:
+One press conversation, and its member list, fixed when it opens. Every
+message in it goes to every member, including every reply. It is a corridor
+at a table and not a CC, so there is no BCC and no reply-to-one. Two rooms
+with the same members are the same room. Backstage term; the UI names a room
+by the powers in it and never calls it anything.
+_Avoid_: thread (outside the code, where `pressThread` is the type), channel,
+conversation list
+
+**Notes**:
+A Room with one member: a power's private notepad, encrypted to that seat.
+Not negotiation, so the rules that close press leave it open. The one press
+word the UI says out loud: "Notes to myself".
+_Avoid_: draft, scratchpad
+
+**Room key**:
+The 32 bytes one Room is encrypted under, made by whoever opens it and wrapped
+once per member under a key the two devices agree on (ADR-054). It never
+reaches the server. Backstage term.
+_Avoid_: thread key, shared secret
+
+**Writing time**:
+The silence at the end of a phase, when press closes and the orders are
+written (ADR-055). WDC 4b2 gives a board one minute of it and 4d puts a
+sanction behind the silence, so the app closes press rather than asking. The
+words the screen uses.
+_Avoid_: press deadline, quiet period, blackout
+
 ### Views
 
 **Spectator view**:

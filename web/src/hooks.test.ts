@@ -39,14 +39,41 @@ describe("the rules, in words", () => {
     ]);
   });
 
-  /* The press mode is a rule the table declared and the app never enforces,
-     so its line says what the people do (ADR-023). */
+  /* A mode the app carries nothing in says what the people do; a mode it
+     carries messages in says what the app does (ADR-023, ADR-053). */
   it("says how the table negotiates", () => {
     const press = (mode: string) =>
       settingsLines({ deadlineMinutes: 0, gmPlays: false, pressMode: mode })[3];
     expect(press("gunboat")).toBe("Gunboat: no negotiation at all.");
-    expect(press("rulebook")).toBe("Negotiate in movement phases only.");
-    expect(press("fullpress")).toBe("Full press: negotiate however the table agrees.");
+    expect(press("rulebook")).toBe("Messages in the app, in movement phases only.");
+    expect(press("fullpress")).toBe("Messages in the app, in every phase.");
+  });
+
+  /* Two rules a player must be told before joining a game that carries
+     messages: when the app stops taking them (WDC 4b2), and whether the
+     referee is in every conversation (ADR-054). */
+  it("says when messages close and who else is reading them", () => {
+    const lines = settingsLines({
+      deadlineMinutes: 15,
+      gmPlays: false,
+      pressMode: "fullpress",
+      pressSilenceSeconds: 60,
+      gmReadsPress: true,
+    });
+    expect(lines).toContain("Messages close 60 seconds before the deadline, for writing orders.");
+    expect(lines).toContain("The game master reads every message.");
+  });
+
+  it("says neither in a game that carries no messages", () => {
+    const lines = settingsLines({
+      deadlineMinutes: 15,
+      gmPlays: false,
+      pressMode: "ftf",
+      pressSilenceSeconds: 60,
+      gmReadsPress: true,
+    });
+    expect(lines.join(" ")).not.toContain("Messages close");
+    expect(lines.join(" ")).not.toContain("reads every message");
   });
 
   it("says nothing about a mode this build does not know", () => {

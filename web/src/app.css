@@ -599,10 +599,297 @@ the list still reads as one family of outcomes.
 
 /* --- the seat page ------------------------------------------------------- */
 
+/* The bar, then the map and the panel under it. The shell owns the height so
+   the split below it can keep measuring its own box (SplitLayout). */
+.seat-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+}
+
 .seat-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--split-grip) 340px;
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
+}
+
+/* --- the seat bar --------------------------------------------------------
+   Four facts and two controls, in the order a player asks for them. It never
+   wraps: everything in it is sized so a 320px phone still fits one line. */
+.seat-top {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  height: 44px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  padding-top: env(safe-area-inset-top);
+  box-sizing: content-box;
+}
+
+.seat-top > * {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* The power is the bar's own colour block, and the seat menu is behind it
+   (ADR-041): the one place on this screen that hands the seat on. */
+.seat-top-power {
+  padding: 0 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  flex: 0 0 auto;
+}
+
+.seat-top-power .power-chip,
+.seat-top-power .power-chip.small {
+  background: transparent !important;
+  color: inherit !important;
+  padding: 0;
+  font-size: 15px;
+}
+
+.seat-top-phase {
+  padding: 0 10px;
+  font-weight: 700;
+  font-size: 14px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+}
+
+.seat-top-orders {
+  padding: 0 10px;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.seat-top-orders .seat-top-of { color: var(--muted); }
+/* Short of what the phase asked for. The warn tone, not the bad one: an
+   incomplete set of orders is a normal state for most of a phase. */
+.seat-top-orders.short strong { color: var(--warn); }
+.seat-top-orders.complete strong { color: var(--text); }
+.seat-top-orders.locked .seat-top-ready { color: var(--good); font-weight: 700; }
+
+.seat-top-clock {
+  padding: 0 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 15px;
+  flex: 0 0 auto;
+}
+
+.seat-top-clock.low { color: var(--warn); }
+.seat-top-clock.urgent, .seat-top-clock.over { color: var(--bad); }
+
+/* The envelope. A 44px target, because it is tapped mid-sentence. */
+.seat-top-press {
+  position: relative;
+  width: 44px;
+  border: none;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.seat-top-press.showing { background: var(--text); color: var(--bg); }
+
+.seat-top-badge {
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--bad);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* --- press ---------------------------------------------------------------
+   The panel below the divider, when the envelope is the thing showing. */
+.press {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+}
+
+.press-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.press-head h2 { margin: 0; font-size: 17px; display: flex; gap: 4px; flex-wrap: wrap; }
+
+.press-new, .press-open {
+  border: 1px solid var(--line);
+  background: var(--text);
+  color: var(--bg);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.press-open { width: 100%; margin-top: 10px; }
+.press-open:disabled, .press-compose button:disabled { opacity: 0.45; cursor: default; }
+
+.press-list { list-style: none; margin: 0; padding: 0; }
+
+.press-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 4px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.press-row-who { display: flex; gap: 4px; flex-wrap: wrap; flex: 1 1 auto; }
+.press-row-when { color: var(--muted); font-size: 12px; }
+
+.press-row-unread {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--bad);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.press-row.notes { color: var(--muted); }
+
+/* Why the box is not there. It replaces the box rather than sitting beside
+   it, so there is nothing to type into and a sentence saying why. */
+.press-shut {
+  margin: 0;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.press-silence, .press-gm-note, .press-empty { margin: 0; font-size: 13px; }
+
+.press-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.press-pick-one {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  padding: 4px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.press-pick-one.on { border-color: var(--accent); }
+.press-pick-one:disabled { opacity: 0.4; cursor: default; }
+
+.press-room { flex: 1 1 auto; }
+
+.press-log {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+/* Where a phase ended, drawn across the conversation. A promise made before
+   the orders resolved and one made after are different promises. */
+.press-phase-rule {
+  margin: 8px 0 4px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+  line-height: 0.1em;
+}
+
+.press-phase-rule:empty { border-top: none; }
+
+.press-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.press-line-who { flex: 0 0 auto; font-weight: 600; font-size: 12px; }
+.press-line-text { flex: 1 1 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.press-line-at { color: var(--muted); font-size: 11px; }
+.press-line.mine .press-line-text { color: var(--muted); }
+
+/* Neither is hidden. A message nobody can prove came from that power reads
+   differently from one whose signature does not check, and a reader has to
+   see both. */
+.press-line-unsigned {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.press-line-forged {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--bad);
+  border: 1px solid var(--bad);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.press-compose { display: flex; gap: 8px; align-items: flex-end; }
+
+.press-compose textarea {
+  flex: 1 1 auto;
+  resize: none;
+  font: inherit;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 44px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.press-compose button {
+  border: 1px solid var(--line);
+  background: var(--text);
+  color: var(--bg);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
 }
 
 /* --- the movable border -------------------------------------------------
@@ -995,10 +1282,12 @@ only closes a view, without reading either one.
 @media (max-width: 780px), (max-height: 500px) {
   :root { --split-grip: 22px; }
 
+  .seat-shell { height: 100dvh; }
+
   .seat-layout {
     grid-template-columns: 100%;
     grid-template-rows: 58vh var(--split-grip) minmax(0, 1fr);
-    height: 100dvh;
+    height: 100%;
   }
 
   .map-pane { padding: 0; }
@@ -1068,6 +1357,11 @@ only closes a view, without reading either one.
 /* Landscape on a phone: vertical space is the scarce one. */
 @media (max-height: 500px) {
   .seat-layout { grid-template-rows: 75vh var(--split-grip) minmax(0, 1fr); }
+  /* Landscape on a phone: every pixel of height is fought over, so the bar
+     gives eight of them back. */
+  .seat-top { height: 36px; }
+  .seat-top-phase, .seat-top-orders { font-size: 13px; }
+  .seat-top-press { width: 40px; }
   .side { padding: 8px 12px calc(112px + env(safe-area-inset-bottom)); gap: 10px; }
   .builder { padding: 6px 12px calc(6px + env(safe-area-inset-bottom)); }
   .builder .crumbs { margin: 0 0 6px; }

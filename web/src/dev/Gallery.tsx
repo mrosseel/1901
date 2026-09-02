@@ -34,6 +34,17 @@ import { SandboxPage } from "../pages/SandboxPage";
 import { SeatPage } from "../pages/SeatPage";
 import { WatchPage } from "../pages/WatchPage";
 import { ModalLayer } from "../components/ModalLayer";
+import { PressPanel } from "../components/PressPanel";
+import { SeatClient } from "../api";
+import {
+  newRoomKey,
+  pressPublicKey,
+  pressSecret,
+  sealMessage,
+  seatSigner,
+  wrapRoomKey,
+  type PressState,
+} from "../press";
 import { RefereeGuide } from "../components/RefereeGuide";
 import { refereeGuide } from "../referee";
 import { dismiss, reviewKey } from "../review";
@@ -216,6 +227,28 @@ export function buildCatalogue(): Entry[] {
         + "locking in. It is invisible without a seat key, so this screen plants one.",
       scenario: { variantKey: VARIANT, seat: fx.seat("seat-movement") },
       render: () => <KeepSeatDemo />,
+    },
+    {
+      route: "seat",
+      screen: "seat",
+      state: "press-list",
+      title: "Messages",
+      note: "The envelope in the bar opens this in place of the orders (ADR-053). A room "
+        + "is named by the powers in it, never by a subject line, and the notepad at the "
+        + "bottom is a room with one member.",
+      scenario: pressScene(),
+      render: () => <PressDemo />,
+    },
+    {
+      route: "seat",
+      screen: "seat",
+      state: "press-room",
+      title: "One conversation",
+      note: "France, Italy and Austria in the same room: everybody sees every reply, which "
+        + "is what happens when three players step into a corridor. Every line here was "
+        + "decrypted in this browser (ADR-054).",
+      scenario: pressScene(),
+      render: () => <PressDemo room />,
     },
     seatEntry(
       "sealed-locked",
@@ -462,6 +495,142 @@ export function buildCatalogue(): Entry[] {
   );
 
   return list;
+}
+
+/*
+Press, with rooms this browser can really open.
+
+The panel decrypts everything it shows, so a fixture full of JSON strings
+would draw nothing but "this device cannot read this". Instead the rooms are
+built here: a seat key is planted, the room key is wrapped for the key derived
+from it, and the lines are boxed under it exactly as a phone would box them.
+What the screen shows is the result of the same code a player runs.
+*/
+const PRESS_GAME = "gallery-press";
+const PRESS_ROOM = "room-fra-ita-aut";
+const PRESS_NOTES = "room-notes";
+
+function pressScene(): Scenario {
+  return { variantKey: VARIANT, seat: fx.seat("seat-movement"), press: pressFixture() };
+}
+
+function pressFixture(): PressState {
+  const secret = pressSecret(PRESS_GAME);
+  const mine = pressPublicKey(secret);
+  const roomKey = newRoomKey();
+  const notesKey = newRoomKey();
+  const members = ["Austria", "France", "Italy"];
+  const said: Array<[string, string]> = [
+    ["Italy", "Piedmont is yours if Trieste is mine in the autumn."],
+    ["Austria", "Trieste is not on the table. Ask Turkey."],
+    ["France", "Then we are talking about Munich instead."],
+  ];
+  const when = (minutesAgo: number) =>
+    new Date(Date.now() - minutesAgo * 60_000).toISOString().replace(/\.\d+Z$/, "Z");
+  return {
+    enabled: true,
+    open: true,
+    notesOpen: true,
+    silenceAt: new Date(Date.now() + 4 * 60_000).toISOString(),
+    mode: "fullpress",
+    you: "France",
+    gmReads: false,
+    keys: { France: mine, Italy: mine, Austria: mine, Germany: mine },
+    keySigs: {},
+    signKeys: {},
+    eliminated: [],
+    unread: 2,
+    threads: [
+      {
+        id: PRESS_ROOM,
+        members: members,
+        openedBy: "France",
+        openedAt: when(20),
+        wrapped: wrapRoomKey(PRESS_GAME, members, secret, mine, roomKey),
+        notes: false,
+        unread: 2,
+        lastSeq: said.length,
+        lastAt: when(4),
+        messages: said.map(([sender, text], index) => {
+          const at = {
+            threadId: PRESS_ROOM,
+            seq: index + 1,
+            sender: sender,
+            phaseIndex: index === 0 ? 0 : 1,
+            at: when(10 - index * 3),
+          };
+          return {
+            seq: at.seq,
+            sender: at.sender,
+            phaseIndex: at.phaseIndex,
+            box: sealMessage(PRESS_GAME, at, roomKey, text),
+            sig: "",
+            at: at.at,
+          };
+        }),
+      },
+      {
+        id: PRESS_NOTES,
+        members: ["France"],
+        openedBy: "France",
+        openedAt: when(30),
+        wrapped: wrapRoomKey(PRESS_GAME, ["France"], secret, mine, notesKey),
+        notes: true,
+        unread: 0,
+        lastSeq: 1,
+        lastAt: when(25),
+        messages: [
+          {
+            seq: 1,
+            sender: "France",
+            phaseIndex: 0,
+            box: sealMessage(
+              PRESS_GAME,
+              {
+                threadId: PRESS_NOTES,
+                seq: 1,
+                sender: "France",
+                phaseIndex: 0,
+                at: when(25),
+              },
+              notesKey,
+              "Italy wants Piedmont. Do not give it before Munich is settled.",
+            ),
+            sig: "",
+            at: when(25),
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function PressDemo({ room }: { room?: boolean }) {
+  /* Planted before the panel mounts, for the reason KeepSeatDemo plants one:
+     the panel derives its press key once, at mount. */
+  useState(() => {
+    writeSeatSeed(PRESS_GAME, makeSeatSeed());
+    return true;
+  });
+  const seat = useMemo(() => new SeatClient(PRESS_GAME, "me"), []);
+  const secret = useMemo(() => pressSecret(PRESS_GAME), []);
+  const sign = useMemo(() => seatSigner(PRESS_GAME), []);
+  return (
+    <main className="page">
+      <aside className="side">
+        <PressPanel
+          gameId={PRESS_GAME}
+          you="France"
+          api={seat}
+          secret={secret}
+          sign={sign}
+          phaseIndex={1}
+          powers={["Austria", "England", "France", "Germany", "Italy", "Russia", "Turkey"]}
+          initialThread={room ? PRESS_ROOM : undefined}
+        />
+      </aside>
+    </main>
+  );
 }
 
 /*

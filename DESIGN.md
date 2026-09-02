@@ -3,7 +3,7 @@
 **Status:** M1 flow live (React SPA + Go, in-memory). The M0 one-screen spike
 was removed at r13; the sandbox of ADR-047 is a different thing and is live.
 **Owner:** Mike (Ghent, BE)
-**Document revision:** r54 — 2026-09-01
+**Document revision:** r56 — 2026-09-02
 **Audience:** an agent or developer picking this up cold.
 
 ---
@@ -65,9 +65,11 @@ playing GM is stripping GM powers instead).
   (Long-term direction changed in r6 — see ADR-018: a hosted multi-game
   service with logins is a post-v1 target. Still out of v1.)
 - Press/messaging. People are sitting at a table talking to each other.
-  (Narrowed r16 by ADR-023: a pressMode game setting exists; the
-  "fullpress" mode, which implies in-app messaging, is a post-v1 /
-  hosted-mode feature.)
+  (Narrowed r16 by ADR-023: a pressMode game setting exists. Narrowed again
+  at r56: the app now carries messages in the `fullpress` and `rulebook`
+  modes, off by default, end-to-end encrypted, and gated by the WDC rules —
+  ADR-053, ADR-054, ADR-055. `ftf` is still the default and still carries
+  nothing.)
 - AI players.
 - Tournament scoring, ratings, brackets.
 - Mobile app stores. It's a PWA.
@@ -272,6 +274,9 @@ the code still resolves.
 | [ADR-049 — A seat is a key the device holds, not a token in the address](docs/adr/049-a-seat-is-a-key-the-device-holds-not-a-token-in-the-address.md) | accepted |
 | [ADR-050 — The app's transport and the published data are two surfaces](docs/adr/050-two-http-surfaces.md) | accepted |
 | [ADR-051 — Map authoring moves to dipmap; 1901 plays maps](docs/adr/051-map-authoring-moves-to-dipmap-1901-plays-maps.md) | accepted |
+| [ADR-053 — Press is a room, not a message](docs/adr/053-press-is-a-room-not-a-message.md) | accepted |
+| [ADR-054 — The server cannot read press, and a referee who does not play may](docs/adr/054-the-server-cannot-read-press.md) | accepted |
+| [ADR-055 — Press follows the tournament clock](docs/adr/055-press-follows-the-tournament-clock.md) | accepted |
 
 ## 4. Open questions
 
@@ -535,3 +540,4 @@ decision now lives in that decision, under its own Revisions heading.
 | r52 | 2026-08-31 | Commit-reveal, which is M3 and the project's one novel claim. The drafts left the server: a phone keeps them in storage, draws them itself, and sends a digest when the player locks in; the orders go up only once every seat has locked in, and the phone sends them unasked. So a game master reading their own SQLite file mid-phase finds seven hashes. A sealed game is decided at creation and a game made before this keeps its server-side drafts, on ADR-049's rule about tokens and keys. The two hashers are pinned against each other in Go and TypeScript, and a third implementation played a phase end to end over HTTP. |
 | r53 | 2026-08-31 | The commitment is a sealed envelope and not a digest, on the owner's question. A digest kept the orders off the server and lost them: a phone that locked in and then went flat held the only copy, so its power was an NMR. The lock now sends the orders encrypted, the reveal sends the 32-byte key, and a second device holding the seat seed derives the same key and can release a dead phone's orders. XChaCha20-Poly1305 on both sides, with the game, the phase and the power as associated data. Dropping the commitment altogether was refused: the reveals are not simultaneous, so the last seat to reveal would choose knowing everybody else's orders. |
 | r54 | 2026-09-01 | The sandbox (ADR-047): a board with no players, driven from one link. It is a flag on an ordinary game and not a second object, so the variants, the map, the adjudication, the review and the public per-phase addresses are the ones a played game has; what comes off is the seat layer. Its seats stay as unclaimed rows, which is what keeps every count and the persistence untouched, and its scope rejects a table exactly as the seat scope rejects a sandbox. A phase no power can order is walked past, ADR-034's rule read off the position rather than off the seats. Not built: editing the position, which is the part that needs a checkpoint because an edit cannot be replayed. One bug fell out of it — an illegal-order mark survived the adjudication that spent it, and only the sandbox's own state answer ever drew one. |
+| r56 | 2026-09-02 | Full press (ADR-053, ADR-054, ADR-055). A message is a **room**: the member list is fixed when it opens and every reply goes to everybody in it, which is what a corridor conversation is and what a CC is not. The rulebook allows groups of any size, so multi-power press needed no excuse; the shape did. The server holds ciphertext, a member list and a time and no key to any of it — the same reason the orders are sealed, since the server is the game master's laptop and the game master usually plays. The WDC 2019 house rules are enforced rather than printed: no press in retreat and build phases under `rulebook` (3b), none for an eliminated power (3c), and none in the writing time before the deadline (4b2, 4d), which is a new setting defaulting to WDC's minute. A power's own notepad is a room with one member and is exempt from all three, because writing your plan down is what that minute is for. One setting lets a game master who does **not** play be wrapped into every room, declared on the join page and fixed at start; a game master who plays can never have it. The seat screen gains a top bar — power, phase, orders in, deadline, unread — so the four things read in glances are not below a map that is fighting for pixels. |

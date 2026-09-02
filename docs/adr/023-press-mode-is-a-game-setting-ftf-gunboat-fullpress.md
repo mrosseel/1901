@@ -12,10 +12,9 @@ page as part of the rules (ADR-022):
   no messages. Identity is social.
 - **gunboat**: no negotiation. App-identical to ftf today, but declared —
   and seat anonymity (ADR-020) is load-bearing rather than incidental.
-- **fullpress**: in-app messaging between powers. Post-v1 (hosted-mode
-  territory, ADR-018); selectable in the UI only when implemented — until
-  then visible but disabled with a "later" note, so the model is
-  established in data now.
+- **fullpress**: in-app messaging between powers. Built at r56; see ADR-053
+  for what a message is, ADR-054 for what the server may read, and ADR-055
+  for the clock it follows.
 - **rulebook** (added r18): press during movement phases, none during
   retreat and build. This is webDiplomacy's fourth mode, and it says this is
   how face-to-face Diplomacy is played. Backstabbr defaults to the same
@@ -31,9 +30,10 @@ event-logged, persisted in `game.press_mode` and returned in the GM, seat and
 public views. No behaviour is attached to it, and the app carries no messages
 in any mode.
 
-The creation and referee forms expose `ftf`, `gunboat`, and `rulebook`.
-`fullpress` remains accepted for stored compatibility but is not offered until
-in-app messaging exists; marketing and join copy must not imply otherwise.
+**Implementation (r56).** The mode now decides. `fullpress` and `rulebook`
+make the app carry messages; `ftf` and `gunboat` make every press route a 404,
+which is the same answer an address that does not exist gives. All four are
+offered in the creation and referee forms. The mode stays fixed at start.
 ## Revisions
 
 Decisions this record changed, and alternatives it refused. Anything that was
@@ -42,3 +42,5 @@ only progress, a correction to the document, or a bug is gone.
 - **r18, 2026-08-28** — ADR-023 gains the rulebook press mode and is implemented as data.
 - **r55, 2026-09-01** — The forms expose only modes the present app can
   honestly support. Full press remains data, not a product claim.
+- **r56, 2026-09-02** — Full press and rulebook are built, so all four modes
+  are offered. ADR-053, ADR-054 and ADR-055 carry the design.

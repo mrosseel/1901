@@ -31,6 +31,7 @@ import type {
   WatchState,
 } from "../api";
 import type { DatcReport } from "../pages/DatcPage";
+import type { PressState, PressThread } from "../press";
 import type { OptionTree } from "../board/types";
 import { gameIdOf } from "./fixtures";
 
@@ -51,11 +52,19 @@ export interface Scenario {
   games?: GameSummary[];
   /** The published DATC report (ADR-045). Only the adjudication page needs it. */
   datc?: DatcReport;
+  /*
+  The rooms a seat can see (ADR-053), with the bodies already boxed under a
+  room key the screen can open. Nothing is decrypted here: the gallery renders
+  the very component production renders, so the fixture has to be real
+  ciphertext or the screen would be a drawing of one.
+  */
+  press?: PressState;
 }
 
 /* The app's own transport is versioned and prefixed (ADR-050); the published
    reads are not, which is the whole point of the split. */
 const SEAT = /^\/api\/v1\/game\/[^/]+\/seat\/[^/]+\/(state|options|order|lock|unlock|reveal)$/;
+const PRESS = /^\/api\/v1\/game\/[^/]+\/seat\/[^/]+\/press(?:\/(key|open|thread|send|read))?$/;
 const GM = /^\/api\/v1\/game\/[^/]+\/gm\/[^/]+\/(state|settings|start|adjudicate|extend|draw)$/;
 const SANDBOX = /^\/api\/v1\/game\/[^/]+\/sandbox\/[^/]+\/(state|options|order|adjudicate)$/;
 const WATCH = /^\/game\/[^/]+\/watch(?:\/(\d+))?$/;
@@ -138,6 +147,24 @@ function answer(scene: Scenario, url: URL, method: string): Response | null {
     }
     // A write is answered with the state as captured: nothing is simulated.
     return json(scene.seat);
+  }
+
+  /*
+  Press. The list and one room are answered from the fixture; a write comes
+  back as the state it was, like every other write here. Publishing a key is
+  answered with what was sent, because the screen only checks that the server
+  now holds what this device published.
+  */
+  const press = PRESS.exec(path);
+  if (press) {
+    if (!scene.press) return missing("press on this screen");
+    if (press[1] === "thread") {
+      const wanted = url.searchParams.get("thread") || "";
+      const room = scene.press.threads.find((thread: PressThread) => thread.id === wanted);
+      return room ? json(room) : missing("that room");
+    }
+    if (press[1] === "key") return json({ boxPub: "" });
+    return json(scene.press);
   }
 
   const gm = GM.exec(path);

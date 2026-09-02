@@ -194,16 +194,24 @@ export function useTicker(enabled = true): void {
 export { countdown } from "./clock";
 
 /*
-How each press mode reads to a player (ADR-023). The app carries no messages in
-any of them, so every line says what the people at the table do, never what
-the screen offers.
+How each press mode reads to a player (ADR-023, ADR-053).
+
+The first two say what the people at the table do, because the app carries
+nothing in them. The last two say what the app itself does, because a player
+joining a game that carries messages needs to know which phases they may write
+in before anybody has written one.
 */
 const PRESS_LINES: Record<string, string> = {
   ftf: "Negotiate out loud, at the table.",
   gunboat: "Gunboat: no negotiation at all.",
-  rulebook: "Negotiate in movement phases only.",
-  fullpress: "Full press: negotiate however the table agrees.",
+  rulebook: "Messages in the app, in movement phases only.",
+  fullpress: "Messages in the app, in every phase.",
 };
+
+/** Whether this mode makes the app carry messages at all (ADR-023). */
+function carriesPress(mode: string | undefined): boolean {
+  return mode === "fullpress" || mode === "rulebook";
+}
 
 /** The rules, one plain sentence each. */
 export function settingsLines(
@@ -213,6 +221,8 @@ export function settingsLines(
         gmPlays: boolean;
         illegalMoves?: boolean;
         pressMode?: string;
+        pressSilenceSeconds?: number;
+        gmReadsPress?: boolean;
         endYear?: number;
         retreatBuildPercent?: number;
         graceMinutes?: number;
@@ -246,6 +256,19 @@ export function settingsLines(
     // A mode the server does not know is a mode this build cannot describe,
     // so it says nothing rather than guessing (filtered below).
     PRESS_LINES[rules.pressMode || "ftf"] || "",
+    /*
+    The two things a player must be told before joining a game that carries
+    messages: when the app stops taking them, and whether the referee is in
+    every conversation (ADR-054, ADR-055). Both are silent in a game with no
+    messages in it, where neither means anything.
+    */
+    carriesPress(rules.pressMode) && (rules.pressSilenceSeconds ?? 0) > 0
+      ? "Messages close " + (rules.pressSilenceSeconds ?? 0) +
+        " seconds before the deadline, for writing orders."
+      : "",
+    carriesPress(rules.pressMode) && rules.gmReadsPress
+      ? "The game master reads every message."
+      : "",
     /* Only a game that has one gets a line. No end year is the ordinary case
        and it is what a game plays under until somebody wins (ADR-044). */
     rules.endYear && rules.endYear > 0
