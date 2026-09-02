@@ -137,6 +137,17 @@ of these fills may go back to a flat wash for that reason.
   pointer-events: none;
 }
 
+/* The lines inside a piece. The weight is set as an attribute, so it follows
+   the zoom the way the piece's own outline does; everything else is here. */
+#unit-overlay .unit-detail {
+  fill: none;
+  stroke: #14161a;
+  stroke-opacity: 0.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 #unit-overlay .unit-label {
   font-family: system-ui, sans-serif;
   font-weight: bold;

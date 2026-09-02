@@ -35,7 +35,9 @@ import {
   DEFAULT_MARKER_STYLE,
   isMarkerStyle,
   markerBody,
+  markerDetail,
   markerMark,
+  markerStroke,
   type MarkerStyle,
 } from "./markers";
 import { mapCode } from "../notation";
@@ -1256,6 +1258,16 @@ export function mount(
   }
 
   /*
+  The lines inside the piece: a cannon's bands, a ship's wale, an aspis's boss.
+  They go over the body and under the mark, and they carry nothing. A build
+  preview leaves them off, because a build is drawn as an outline of the piece
+  that is not there yet and detail inside an outline reads as a piece that is.
+  */
+  function unitDetail(point: Point, r: number, isFleet: boolean): SVGElement | null {
+    return markerDetail(markerStyle, point, r, isFleet);
+  }
+
+  /*
   A dislodged unit shares its province with the unit that threw it out, so it
   is drawn up and to the right of the anchor. Without the offset the two
   markers would sit on top of each other and the board would lie.
@@ -1299,9 +1311,13 @@ export function mount(
       const ordered = Boolean(orders[province]) && !dislodged[province];
       shape.setAttribute("fill", powerColor(unit.nation));
       shape.setAttribute("stroke", ordered ? "#ffffff" : "#14161a");
-      shape.setAttribute("stroke-width", String(Math.max(1, rp * (ordered ? 0.28 : 0.16))));
+      // The weight is the style's, not the board's: a sixth of a radius makes a
+      // circle a token and makes a cannon a blob (markers.ts).
+      shape.setAttribute("stroke-width", String(markerStroke(markerStyle, rp, ordered)));
       shape.setAttribute("class", ordered ? "unit ordered" : "unit");
       layer.appendChild(shape);
+      const detail = unitDetail(point, rp, isFleet);
+      if (detail) layer.appendChild(detail);
       const mark = unitLetter(point, rp, isFleet);
       if (mark) layer.appendChild(mark);
     });
@@ -1329,9 +1345,11 @@ export function mount(
       const shape = unitShape(point, rp * 0.82, isFleet);
       shape.setAttribute("fill", powerColor(unit.nation));
       shape.setAttribute("stroke", "#14161a");
-      shape.setAttribute("stroke-width", String(Math.max(1, rp * 0.14)));
+      shape.setAttribute("stroke-width", String(markerStroke(markerStyle, rp * 0.88, false)));
       shape.setAttribute("class", "unit dislodged");
       layer.appendChild(shape);
+      const detail = unitDetail(point, rp * 0.82, isFleet);
+      if (detail) layer.appendChild(detail);
       const mark = unitLetter(point, rp * 0.82, isFleet);
       if (mark) layer.appendChild(mark);
     });

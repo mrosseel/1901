@@ -190,6 +190,52 @@ const ANCHOR =
   "L -0.44 0.14 Q -0.40 0.46 0 0.50 Q 0.40 0.46 0.44 0.14 Z";
 
 /*
+The lines drawn INSIDE a piece, over the fill and under nothing.
+
+They are a third layer and not part of the body for one reason: a body is
+stroked at a sixth of its radius, and at that weight a barrel band is a blot
+and a wheel's spokes are a blob. A detail is stroked at a sixteenth, filled
+with nothing, and closes up gracefully rather than wrongly as the board is
+zoomed out. It is what makes a cannon a gun rather than a shape of a gun, and
+none of it carries meaning: a piece with its details stripped still says
+everything about the unit that the piece said before.
+*/
+const CANNON_DETAIL =
+  // Two bands across the barrel, square to its own axis.
+  "M -0.20 -0.21 L -0.02 0.19 M 0.17 -0.39 L 0.36 0.01 " +
+  // The wheel's spokes.
+  "M -0.06 0.18 L 0.38 0.62 M 0.38 0.18 L -0.06 0.62";
+
+const SHIP_DETAIL =
+  // The wale, the line of planking along the hull.
+  "M -0.86 0.50 L 0.86 0.50 " +
+  // A pennant at the masthead. It costs three points and it is the thing
+  // that makes the shape read as a ship at sea rather than a paper boat.
+  "M 0.07 -0.92 L 0.44 -0.82 L 0.07 -0.72";
+
+const SHIELD_DETAIL =
+  // The rim, following the shield a tenth of a radius inside its edge.
+  "M -0.67 -0.58 Q -0.67 -0.82 -0.42 -0.82 H 0.42 Q 0.67 -0.82 0.67 -0.58 " +
+  "V 0.13 Q 0.67 0.52 0.35 0.70 L 0 0.85 L -0.35 0.70 Q -0.67 0.52 -0.67 0.13 Z";
+
+const PHALANX_DETAIL =
+  // The rim of the aspis, and the boss at its middle. Both are what a Greek
+  // shield actually looks like from in front, and both are circles, which is
+  // the one thing that survives being drawn small.
+  "M 0.10 -0.46 C 0.35 -0.46 0.56 -0.25 0.56 0 C 0.56 0.25 0.35 0.46 0.10 0.46 " +
+  "C -0.15 0.46 -0.36 0.25 -0.36 0 C -0.36 -0.25 -0.15 -0.46 0.10 -0.46 Z " +
+  "M 0.10 -0.17 C 0.19 -0.17 0.27 -0.09 0.27 0 C 0.27 0.09 0.19 0.17 0.10 0.17 " +
+  "C 0.01 0.17 -0.07 0.09 -0.07 0 C -0.07 -0.09 0.01 -0.17 0.10 -0.17 Z";
+
+const TRIREME_DETAIL =
+  // The wale along the hull.
+  "M -0.40 0.16 L 0.46 0.16 " +
+  // The eye at the bow. A trireme carried one painted there, and at this size
+  // it closes to a dot, which is what it should do.
+  "M -0.21 0.02 C -0.21 0.07 -0.25 0.11 -0.30 0.11 C -0.35 0.11 -0.39 0.07 -0.39 0.02 " +
+  "C -0.39 -0.03 -0.35 -0.07 -0.30 -0.07 C -0.25 -0.07 -0.21 -0.03 -0.21 0.02 Z";
+
+/*
 One drawing, moved to a province and sized to its marker.
 
 Two decimals is what the map art is stored at (ADR-037), and a path written to
@@ -291,4 +337,67 @@ export function markerMark(
   label.setAttribute("class", "unit-label");
   label.textContent = isFleet ? "F" : "A";
   return label;
+}
+
+/** How heavy a detail line is, against the sixth of a radius a body is drawn at. */
+export const DETAIL_STROKE = 0.075;
+
+/*
+The lines inside one piece, or null for a style that has none.
+
+The strategic circle and triangle have none on purpose. They are the style a
+player reads rather than looks at, and a barrel band on a circle would be
+decoration with nothing behind it.
+*/
+export function markerDetail(
+  style: MarkerStyle,
+  at: Point,
+  r: number,
+  isFleet: boolean,
+): SVGElement | null {
+  const drawing =
+    style === "pretty"
+      ? isFleet
+        ? SHIP_DETAIL
+        : CANNON_DETAIL
+      : style === "ancient"
+        ? isFleet
+          ? TRIREME_DETAIL
+          : PHALANX_DETAIL
+        : style === "heraldic"
+          ? SHIELD_DETAIL
+          : null;
+  if (!drawing) return null;
+  const node = placed(drawing, at, r);
+  node.setAttribute("class", "unit-detail");
+  node.setAttribute("stroke-width", trim(r * DETAIL_STROKE));
+  return node;
+}
+
+/*
+How heavily one style's piece is outlined, as a share of its radius.
+
+A circle can take a sixth of its radius in outline and still be a circle: the
+weight is what makes it a token rather than a dot, and there is nothing inside
+it to lose. A cannon cannot. Its barrel is a third of a radius across, so a
+sixth on each side closes it, and at the twelve pixels a marker gets at fit-all
+zoom the whole gun goes to a black blob.
+
+So the weight belongs to the style rather than to the board. The busier the
+drawing, the lighter the line round it, and every piece stays a piece at the
+size it is actually read at.
+*/
+const STROKE_OF_RADIUS: Record<MarkerStyle, number> = {
+  strategic: 0.16,
+  heraldic: 0.13,
+  pretty: 0.1,
+  ancient: 0.1,
+};
+
+/** The ring on an ordered unit, against the outline of a quiet one. */
+const ORDERED_STROKE_FACTOR = 1.75;
+
+export function markerStroke(style: MarkerStyle, r: number, ordered: boolean): number {
+  const share = STROKE_OF_RADIUS[style] || STROKE_OF_RADIUS.strategic;
+  return Math.max(1, r * share * (ordered ? ORDERED_STROKE_FACTOR : 1));
 }

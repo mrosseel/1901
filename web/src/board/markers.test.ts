@@ -4,7 +4,9 @@ import {
   MARKER_STYLES,
   isMarkerStyle,
   markerBody,
+  markerDetail,
   markerMark,
+  markerStroke,
   type MarkerStyle,
 } from "./markers";
 
@@ -87,6 +89,42 @@ describe("the marker styles", () => {
       expect(markerMark(style, AT, R, false)).toBeNull();
       expect(markerMark(style, AT, R, true)).toBeNull();
     }
+  });
+
+  /*
+  The detail lines are decoration and nothing else. Every style that has them
+  says which kind of unit it is without them, so a board that dropped them
+  would lose looks and no meaning.
+  */
+  it.each(KINDS)("keeps %s readable without its detail (fleet: %s)", (style, isFleet) => {
+    const detail = markerDetail(style, AT, R, isFleet);
+    if (style === "strategic") {
+      expect(detail).toBeNull();
+      return;
+    }
+    expect(detail).not.toBeNull();
+    // Inside the same circle as the piece it decorates.
+    expect(extent(detail!).dx).toBeLessThanOrEqual(R + 0.01);
+    expect(extent(detail!).dy).toBeLessThanOrEqual(R + 0.01);
+    expect(detail!.getAttribute("d")).not.toMatch(/[Aa]/);
+  });
+
+  /*
+  A sixth of a radius makes a circle a token and makes a cannon a blob: the
+  barrel is a third of a radius across, so that weight closes it from both
+  sides. The busier drawings are outlined lighter for that reason.
+  */
+  it("outlines a busy piece more lightly than a plain one", () => {
+    const plain = markerStroke("strategic", R, false);
+    for (const style of ["pretty", "ancient"] as MarkerStyle[]) {
+      expect(markerStroke(style, R, false)).toBeLessThan(plain);
+    }
+    // An ordered unit is ringed heavier than a quiet one, in every style.
+    for (const style of STYLES) {
+      expect(markerStroke(style, R, true)).toBeGreaterThan(markerStroke(style, R, false));
+    }
+    // A marker shrunk to a floor still gets a line somebody can see.
+    expect(markerStroke("pretty", 1, false)).toBeGreaterThanOrEqual(1);
   });
 
   /* Nothing here is anybody else's art. The drawings were written from a
