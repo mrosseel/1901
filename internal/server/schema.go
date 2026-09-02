@@ -143,6 +143,19 @@ CREATE TABLE IF NOT EXISTS press_read (
     PRIMARY KEY (game_id, thread_id, power)
 );
 
+-- The signed steps from a seat's old signing key to its new one (ADR-056).
+-- One row per handover that carried the outgoing player's link. The signature
+-- is made by the key being replaced, so this server can store these and
+-- cannot invent one.
+CREATE TABLE IF NOT EXISTS seat_key_chain (
+    game_id  TEXT NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+    power    TEXT NOT NULL,
+    from_pub TEXT NOT NULL,
+    to_pub   TEXT NOT NULL,
+    sig      TEXT NOT NULL,
+    PRIMARY KEY (game_id, power, to_pub)
+);
+
 -- Secrets that belong to the server rather than to a game. One row today:
 -- the salt every handover link is signed with (ADR-041). It lives here so a
 -- QR code on a table outlives the process that printed it.

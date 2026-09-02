@@ -155,6 +155,8 @@ export interface PressState {
   keySigs: Record<string, string>;
   /** The seats' signing keys, for checking who really said a line. */
   signKeys: Record<string, string>;
+  /** The signed steps from an old seat key to a new one (ADR-056). */
+  signChains?: KeyChain[];
   eliminated: string[];
   threads: PressThread[];
   unread: number;
@@ -402,7 +404,7 @@ export function openRoomKey(
   you: string,
   thread: PressThread,
   ourSecret: Uint8Array,
-  signKeys: Record<string, string>,
+  trusted: Record<string, string[]>,
 ): RoomRead {
   const wraps = thread.wraps;
   if (!thread.openerBoxPub || !wraps) {
@@ -410,13 +412,16 @@ export function openRoomKey(
   }
   const room = roomBinding(thread);
   const body = manifestBody(gameId, room, wraps);
-  const signPub = signKeys[thread.openedBy];
+  /* Every key the opener may be believed under, which is the pinned one and
+     the ones it replaced. A room opened before a handover was signed by a key
+     that is now old, and it stays readable to the members it was opened for. */
+  const keys = trusted[thread.openedBy] || [];
   let unverified = false;
-  if (signPub) {
+  if (keys.length) {
     if (!thread.sig) {
       return { key: null, reason: "This room carries no signature from " + thread.openedBy + "." };
     }
-    if (!verifySignature(thread.sig, body, signPub)) {
+    if (!keys.some((signPub) => verifySignature(thread.sig || "", body, signPub))) {
       return {
         key: null,
         reason: "This room was not opened by " + thread.openedBy + ". Nothing here can be trusted.",
@@ -555,10 +560,14 @@ export function verifyPress(
   gameId: string,
   threadId: string,
   message: PressMessage,
-  senderSignPub: string | undefined,
+  senderKeys: string[] | undefined,
 ): PressProof {
-  if (!message.sig) return "unsigned";
-  if (!senderSignPub) return "bad";
+  const keys = senderKeys || [];
+  // A sender that has a signing key and sent no signature is not a token
+  // seat. It is a message somebody took the signature off, which is the third
+  // state and not the middle one.
+  if (!message.sig) return keys.length ? "bad" : "unsigned";
+  if (!keys.length) return "bad";
   const place: PressPlace = {
     threadId: threadId,
     seq: message.seq,
@@ -566,9 +575,10 @@ export function verifyPress(
     phaseIndex: message.phaseIndex,
     at: message.at,
   };
-  return verifySignature(message.sig, signedBody(gameId, place, message.box), senderSignPub)
-    ? "ok"
-    : "bad";
+  const body = signedBody(gameId, place, message.box);
+  // Old messages verify against the key that wrote them, so a handover does
+  // not turn everything a seat said before it into a forgery.
+  return keys.some((signPub) => verifySignature(message.sig, body, signPub)) ? "ok" : "bad";
 }
 
 /*
@@ -579,18 +589,34 @@ A holder with no published key cannot be wrapped for, and the caller is told
 which, because "France has not opened the app yet" is a thing a player can act
 on and a silent missing key is not.
 */
+export interface WrapTable {
+  keys: Record<string, string>;
+  keySigs: Record<string, string>;
+  /** The one key each holder is believed under. Never a pending one. */
+  signKeys: Record<string, string>;
+  /** Holders whose key changed and which the table has not confirmed. */
+  pending?: string[];
+}
+
 export function wrapsFor(
   gameId: string,
   room: RoomBinding,
   ourSecret: Uint8Array,
   roomKey: Uint8Array,
   holders: string[],
-  state: Pick<PressState, "keys" | "keySigs" | "signKeys">,
+  state: WrapTable,
 ): { wraps: Record<string, string>; missing: string[]; unverified: string[] } {
   const wraps: Record<string, string> = {};
   const missing: string[] = [];
   const unverified: string[] = [];
   for (const holder of holders) {
+    // A holder whose key changed under a pin is not somebody to wrap a room
+    // key for. Either that seat was handed on and the table can say so, or
+    // this server invented the key.
+    if ((state.pending || []).includes(holder)) {
+      unverified.push(holder);
+      continue;
+    }
     const publicKey = state.keys[holder];
     if (!publicKey) {
       missing.push(holder);
@@ -630,7 +656,7 @@ export function makeRoom(
   ourSecret: Uint8Array,
   members: string[],
   holders: string[],
-  state: Pick<PressState, "keys" | "keySigs" | "signKeys">,
+  state: WrapTable,
   sign: (body: string) => string,
 ): NewRoom {
   const room: RoomBinding = {
@@ -681,56 +707,218 @@ function storage(given?: Store): Store | null {
   }
 }
 
-export function readPins(gameId: string, given?: Store): Record<string, string> {
+/*
+One holder's signing keys, as this device believes them.
+
+  current    what everything is checked against and wrapped for.
+  pending    a key the server is now offering instead, which nothing is
+             checked against until the table says it is a handover.
+  history    the keys this one replaced, kept so that messages and rooms from
+             before a handover still verify.
+*/
+export interface Pin {
+  current: string;
+  pending?: string;
+  history: string[];
+}
+
+export type Pins = Record<string, Pin>;
+
+export function readPins(gameId: string, given?: Store): Pins {
   const store = storage(given);
   if (!store) return {};
+  let held: Record<string, unknown> = {};
   try {
-    return JSON.parse(store.getItem(PIN_PREFIX + gameId) || "{}");
+    held = JSON.parse(store.getItem(PIN_PREFIX + gameId) || "{}");
   } catch {
     // Nothing pinned, or something that is not a pin table.
     return {};
   }
+  const out: Pins = {};
+  for (const holder of Object.keys(held)) {
+    const value = held[holder];
+    // A pin written before this version is one string, which is the current
+    // key and nothing else.
+    if (typeof value === "string") {
+      out[holder] = { current: value, history: [] };
+    } else if (value && typeof (value as Pin).current === "string") {
+      const pin = value as Pin;
+      out[holder] = {
+        current: pin.current,
+        pending: pin.pending,
+        history: Array.isArray(pin.history) ? pin.history : [],
+      };
+    }
+  }
+  return out;
+}
+
+function writePins(gameId: string, pins: Pins, given?: Store): void {
+  try {
+    storage(given)?.setItem(PIN_PREFIX + gameId, JSON.stringify(pins));
+  } catch {
+    // Without storage there is nothing to compare against next time.
+  }
 }
 
 /*
-Pin what has not been seen before, and report what stopped matching.
+What the outgoing player signs when a seat is handed on (ADR-056).
 
-Two different jobs, and only one of them refuses anything:
+The link the outgoing player shows carries their seat seed, so the device
+taking the seat can sign this with the key it is about to replace. That is the
+one thing a server cannot forge, and it is what lets a pin move on its own.
+*/
+export function chainBody(gameId: string, holder: string, from: string, to: string): string {
+  return "1901 handover v1|" + [gameId, holder, from, to].join("|");
+}
 
-  a key that CHANGED     is reported and then pinned at its new value. A
-                         handover changes a seat's key for real (ADR-049), so
-                         a pin that refused the new one would end that seat's
-                         press for the rest of the game. The warning is the
-                         defence, and the table is the one that knows which
-                         kind of change this was.
-  a key that VANISHED    is reported and keeps its pin, which is then what
-                         everything is checked against. Otherwise the cheapest
-                         attack on the whole scheme would be to omit a signing
-                         key: with nothing to check against, verifyBoxKey lets
-                         any box key through, and a device that had already
-                         seen the real one would never notice.
+/** One signed step from a seat's old signing key to its new one. */
+export interface KeyChain {
+  holder: string;
+  from: string;
+  to: string;
+  sig: string;
+}
+
+export function verifyChain(gameId: string, link: KeyChain): boolean {
+  if (!link.from || !link.to || !link.sig || link.from === link.to) return false;
+  return verifySignature(link.sig, chainBody(gameId, link.holder, link.from, link.to), link.from);
+}
+
+/*
+Whether a signed path runs from the key this device pinned to the one the
+server is now offering, and which keys it went through.
+
+A seat can be handed on twice while a phone is asleep, so the walk follows as
+many links as there are, and every one of them is signed by the key it
+replaces. Null means no such path, which is a key the table has to confirm.
+*/
+function chainTo(gameId: string, holder: string, from: string, to: string, links: KeyChain[]): string[] | null {
+  const walked: string[] = [];
+  let at = from;
+  // One step per link at most, so a cycle cannot make this run for ever.
+  for (let step = 0; step <= links.length; step++) {
+    if (at === to) return walked;
+    const next = links.find(
+      (link) => link.holder === holder && link.from === at && verifyChain(gameId, link),
+    );
+    if (!next) return null;
+    walked.push(at);
+    at = next.to;
+  }
+  return null;
+}
+
+/*
+Pin what has not been seen before, and hold everything else shut.
+
+Three things can happen to a key this device has already pinned, and only one
+of them moves the pin on its own:
+
+  a SIGNED handover     the outgoing device signed the step from the old key
+                        to the new one, so the pin advances and the old key
+                        goes to the history, where old messages still verify
+                        against it.
+  a key that CHANGED    with no signed step behind it is a key the table has
+                        to confirm. It is held as pending: nothing is checked
+                        against it and no room is wrapped for it, because a
+                        game master who re-dealt a seat and a server inventing
+                        a key look exactly the same from here.
+  a key that VANISHED   keeps its pin, which is then what everything is
+                        checked against. Otherwise the cheapest attack on the
+                        whole scheme would be to omit a signing key: with
+                        nothing to check against, verifyBoxKey lets any box
+                        key through, and a device that had already seen the
+                        real one would never notice.
 */
 export function pinSignKeys(
   gameId: string,
   signKeys: Record<string, string>,
+  chains: KeyChain[] = [],
   given?: Store,
-): { pinned: Record<string, string>; changed: string[] } {
+): { pinned: Pins; changed: string[]; pending: string[] } {
   const pinned = readPins(gameId, given);
   const changed: string[] = [];
+  const pending: string[] = [];
   for (const holder of Object.keys(pinned)) {
-    if (signKeys[holder] === undefined || signKeys[holder] !== pinned[holder]) {
-      changed.push(holder);
+    const served = signKeys[holder];
+    const pin = pinned[holder];
+    if (served === pin.current) {
+      delete pin.pending;
+      continue;
     }
+    changed.push(holder);
+    if (served === undefined) {
+      // A key taken away is not a new key, so there is nothing to accept.
+      delete pin.pending;
+      continue;
+    }
+    const walked = chainTo(gameId, holder, pin.current, served, chains);
+    if (walked) {
+      for (const old of walked) {
+        if (!pin.history.includes(old)) pin.history.push(old);
+      }
+      pin.current = served;
+      delete pin.pending;
+      continue;
+    }
+    pin.pending = served;
+    pending.push(holder);
   }
   for (const holder of Object.keys(signKeys)) {
-    pinned[holder] = signKeys[holder];
+    if (!pinned[holder]) pinned[holder] = { current: signKeys[holder], history: [] };
   }
-  try {
-    storage(given)?.setItem(PIN_PREFIX + gameId, JSON.stringify(pinned));
-  } catch {
-    // Without storage there is nothing to compare against next time.
+  writePins(gameId, pinned, given);
+  return { pinned: pinned, changed: changed.sort(), pending: pending.sort() };
+}
+
+/*
+The table has looked at each other and agreed that a seat really was handed
+on. This is the only thing that moves a pin without a signature.
+*/
+export function acceptPin(gameId: string, holder: string, given?: Store): Pins {
+  const pinned = readPins(gameId, given);
+  const pin = pinned[holder];
+  if (pin && pin.pending) {
+    if (!pin.history.includes(pin.current)) pin.history.push(pin.current);
+    pin.current = pin.pending;
+    delete pin.pending;
+    writePins(gameId, pinned, given);
   }
-  return { pinned: pinned, changed: changed.sort() };
+  return pinned;
+}
+
+/*
+What the pins and the server's answer together say about each holder.
+
+`current` is the one key a room may be wrapped for. `trusted` is every key a
+signature may be checked against, which is that key and the ones it replaced,
+because a room opened before a handover was signed by a key that is now old. A
+pending key is in neither.
+*/
+export interface Verifiers {
+  current: Record<string, string>;
+  trusted: Record<string, string[]>;
+  pending: string[];
+}
+
+export function verifiers(pins: Pins, served: Record<string, string>): Verifiers {
+  const current: Record<string, string> = {};
+  const trusted: Record<string, string[]> = {};
+  const pending: string[] = [];
+  for (const holder of Object.keys(served)) {
+    // First contact: nothing has been pinned, so the server's answer is all
+    // there is. ADR-054 says what that is worth.
+    current[holder] = served[holder];
+    trusted[holder] = [served[holder]];
+  }
+  for (const holder of Object.keys(pins)) {
+    const pin = pins[holder];
+    current[holder] = pin.current;
+    trusted[holder] = [pin.current, ...pin.history];
+    if (pin.pending) pending.push(holder);
+  }
+  return { current: current, trusted: trusted, pending: pending.sort() };
 }
 
 /** The holders a room between these members needs keys for. */

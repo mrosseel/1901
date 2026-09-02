@@ -178,6 +178,11 @@ type flow struct {
 	// list; it holds no key to any of it.
 	press     []*pressThread
 	pressByID map[string]*pressThread
+	// keyChains are the signed steps from a seat's old signing key to its new
+	// one, one per handover that carried the outgoing player's link
+	// (ADR-056). They let a reader's pin follow a real handover without
+	// asking, and they cannot be made up by this server.
+	keyChains []keyChain
 
 	events []string
 	// persistedEvents is how many events are already in the database.

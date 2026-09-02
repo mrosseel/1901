@@ -83,6 +83,34 @@ func persistPressRead(id, threadID, holder string, seq int) {
 	}
 }
 
+func persistKeyChain(id string, link keyChain) {
+	if db == nil {
+		return
+	}
+	if _, err := db.Exec(`
+        INSERT OR REPLACE INTO seat_key_chain (game_id, power, from_pub, to_pub, sig)
+        VALUES (?, ?, ?, ?, ?)`, id, link.Holder, link.From, link.To, link.Sig); err != nil {
+		log.Printf("game %v: PERSIST FAILED (key chain): %v", id, err)
+	}
+}
+
+func loadKeyChains(id string, f *flow) error {
+	rows, err := db.Query(
+		`SELECT power, from_pub, to_pub, sig FROM seat_key_chain WHERE game_id = ?`, id)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var link keyChain
+		if err := rows.Scan(&link.Holder, &link.From, &link.To, &link.Sig); err != nil {
+			return err
+		}
+		f.keyChains = append(f.keyChains, link)
+	}
+	return rows.Err()
+}
+
 // loadPress reads one game's rooms back. The caller holds no lock: this runs
 // while the game is being built and before anybody can reach it.
 func loadPress(id string, f *flow) error {
@@ -121,6 +149,9 @@ func loadPress(id string, f *flow) error {
 		f.pressByID[t.id] = t
 	}
 	if err := rows.Err(); err != nil {
+		return err
+	}
+	if err := loadKeyChains(id, f); err != nil {
 		return err
 	}
 	if err := loadPressKeys(id, f); err != nil {

@@ -3,9 +3,11 @@ import {
   replacementSeatSeed,
   seatPublicKey,
   seedInAddress,
+  signAsSeat,
   writeSeatSeed,
 } from "../seatkey";
 import { inheritSealedOrderKey } from "../sealed";
+import { chainBody } from "../press";
 import { TopBar } from "../components/TopBar";
 
 import { claimGmHandover, claimHandover } from "../api";
@@ -67,13 +69,24 @@ export function HandoverPage({
         // phase's envelope key; reusing it here would leave the former holder
         // able to sign back in after the handover.
         const seatSeed = replacementSeatSeed(formerSeed);
-        const seat = await claimHandover(
-          gameId,
-          power,
-          epoch,
-          signature,
-          seatPublicKey(seatSeed),
-        );
+        /*
+        The step from the old seat key to the new one, signed with the old one
+        (ADR-056).
+
+        Every device that had pinned the old key can follow this without
+        asking anybody, which is what tells a real handover apart from a
+        server inventing a key. A link the game master minted carries no
+        former seed, so there is nothing to sign with and the table has to
+        confirm the change out loud instead.
+        */
+        const newPub = seatPublicKey(seatSeed);
+        const chainSig = formerSeed
+          ? signAsSeat(
+              formerSeed,
+              chainBody(gameId, power, seatPublicKey(formerSeed), newPub),
+            )
+          : "";
+        const seat = await claimHandover(gameId, power, epoch, signature, newPub, chainSig);
         if (seat.keyed) {
           writeSeatSeed(gameId, seatSeed);
           if (formerSeed && typeof seat.phaseIndex === "number") {

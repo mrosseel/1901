@@ -2,6 +2,8 @@ package server
 
 import (
 	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -245,5 +247,73 @@ func TestGMRoleHandoverRotatesTheTokenAndTheRefereeDoor(t *testing.T) {
 		ed25519.Sign(oldRecoveryKey, []byte(message)))
 	if oldClaim.Code != http.StatusForbidden {
 		t.Errorf("former recovery key after re-enrolment: got %v, want 403", oldClaim.Code)
+	}
+}
+
+/*
+A handover the outgoing player ran leaves a signed step behind (ADR-056).
+
+The device taking the seat signs the step from the old key to its own with the
+old key, which it holds only because the outgoing player showed it their link.
+So every device that had pinned the old key can follow the change without
+anybody being asked, and a server cannot make one up.
+*/
+func TestAHandoverLeavesASignedStepFromTheOldKey(t *testing.T) {
+	id := makeGame(t)
+	g, _ := games.lookup(id)
+	power := g.flow.powers[0]
+	s := g.flow.seats[power]
+
+	oldPub, oldKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newPub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	from := base64.RawURLEncoding.EncodeToString(oldPub)
+	to := base64.RawURLEncoding.EncodeToString(newPub)
+	g.flow.bindSeatKey(s, from)
+
+	claim := func(sig string) *httptest.ResponseRecorder {
+		t.Helper()
+		epoch := g.flow.seats[power].epoch
+		link := handoverSig(id, power, epoch)
+		body, err := json.Marshal(map[string]string{"signPub": to, "keyChainSig": sig})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := httptest.NewRecorder()
+		handleHandoverClaim(g, id, []string{string(power), strconv.Itoa(epoch), link}, rec,
+			httptest.NewRequest(http.MethodPost, claimPath(id, string(power), epoch, link),
+				strings.NewReader(string(body))))
+		return rec
+	}
+
+	// A step signed by something other than the key being replaced is not a
+	// step. It is dropped rather than stored, because it proves nothing.
+	body := "1901 handover v1|" + strings.Join([]string{id, string(power), from, to}, "|")
+	if rec := claim(base64.RawURLEncoding.EncodeToString(
+		ed25519.Sign(oldKey, []byte("1901 handover v1|something else")))); rec.Code != http.StatusOK {
+		t.Fatalf("claim with a bad step: %v %v", rec.Code, rec.Body.String())
+	}
+	if len(g.flow.keyChains) != 0 {
+		t.Fatalf("a step that does not check was stored: %+v", g.flow.keyChains)
+	}
+
+	// The seat is back where it started for the second claim, which is the
+	// one that carries a real step.
+	g.flow.bindSeatKey(g.flow.seats[power], from)
+	if rec := claim(base64.RawURLEncoding.EncodeToString(
+		ed25519.Sign(oldKey, []byte(body)))); rec.Code != http.StatusOK {
+		t.Fatalf("claim with a real step: %v %v", rec.Code, rec.Body.String())
+	}
+	if len(g.flow.keyChains) != 1 {
+		t.Fatalf("the signed step was not kept: %+v", g.flow.keyChains)
+	}
+	kept := g.flow.keyChains[0]
+	if kept.Holder != string(power) || kept.From != from || kept.To != to {
+		t.Errorf("the step reads %+v", kept)
 	}
 }

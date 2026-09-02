@@ -52,6 +52,37 @@ const defaultPressSilenceSeconds = 60
 // maxPressSilenceSeconds keeps a typo from closing press for a whole phase.
 const maxPressSilenceSeconds = 3600
 
+/*
+keyChain is one signed step from a seat's old signing key to its new one.
+
+The device taking a seat signs it with the key it is replacing, which it holds
+only because the outgoing player showed it their own link (ADR-049). That is
+the one thing this server cannot make up, so a reader whose pin matches `From`
+may follow the step without asking the table.
+*/
+type keyChain struct {
+	Holder string `json:"holder"`
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Sig    string `json:"sig"`
+}
+
+// checkKeyChain says whether a step really was signed by the key it replaces.
+// A step that does not check is dropped rather than stored: it would tell a
+// reader nothing, and every reader checks it again anyway.
+func checkKeyChain(id string, link keyChain) bool {
+	from, err := base64.RawURLEncoding.DecodeString(link.From)
+	if err != nil || len(from) != ed25519.PublicKeySize {
+		return false
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(link.Sig)
+	if err != nil || len(sig) != ed25519.SignatureSize {
+		return false
+	}
+	body := "1901 handover v1|" + strings.Join([]string{id, link.Holder, link.From, link.To}, "|")
+	return ed25519.Verify(ed25519.PublicKey(from), []byte(body), sig)
+}
+
 // pressMessage is one boxed, signed message. Nothing here is readable by this
 // process: Box is the ciphertext and Sig is the sender's Ed25519 signature
 // over it, checked on the reading device and never here.

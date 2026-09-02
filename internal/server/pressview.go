@@ -61,7 +61,11 @@ type pressStateJSON struct {
 	// that a line really came from the power it names. A public key is not
 	// a secret, and the server checking signatures instead would be the
 	// server deciding who said what.
-	SignKeys   map[string]string `json:"signKeys"`
+	SignKeys map[string]string `json:"signKeys"`
+	// SignChains are the signed steps from an old seat key to a new one
+	// (ADR-056), so a device that pinned the old one can follow a real
+	// handover without asking the table to confirm it.
+	SignChains []keyChain        `json:"signChains"`
 	Eliminated []string          `json:"eliminated"`
 	Threads    []pressThreadJSON `json:"threads"`
 	Unread     int               `json:"unread"`
@@ -80,6 +84,7 @@ func (self *game) pressView(actor pressActor) pressStateJSON {
 		Keys:       map[string]string{},
 		KeySigs:    map[string]string{},
 		SignKeys:   map[string]string{},
+		SignChains: append([]keyChain{}, f.keyChains...),
 		Eliminated: []string{},
 		Threads:    []pressThreadJSON{},
 		SilenceAt:  rfc3339(f.pressSilenceAt()),

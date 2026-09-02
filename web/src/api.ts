@@ -1081,6 +1081,7 @@ export function claimHandover(
   epoch: string,
   signature: string,
   signPub: string,
+  keyChainSig: string,
 ): Promise<SeatClaim> {
   return postJSON<SeatClaim>(
     api(
@@ -1093,7 +1094,7 @@ export function claimHandover(
         "/" +
         encodeURIComponent(signature),
     ),
-    { signPub: signPub },
+    { signPub: signPub, keyChainSig: keyChainSig },
   );
 }
 

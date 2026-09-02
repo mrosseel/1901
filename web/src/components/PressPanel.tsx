@@ -5,6 +5,7 @@ import { clockFace, msLeft } from "../clock";
 import { usePoll, useTicker } from "../hooks";
 import {
   GM_HOLDER,
+  acceptPin,
   findRoom,
   holdersFor,
   keyBody,
@@ -15,12 +16,14 @@ import {
   pressPublicKey,
   readPins,
   roomTitle,
+  verifiers,
   sealMessage,
   signedBody,
   verifyPress,
   type PressPlace,
   type PressState,
   type PressThread,
+  type Pins,
   type ReadMessage,
 } from "../press";
 import { PowerChip } from "./PowerChip";
@@ -80,10 +83,14 @@ export function PressPanel({
   const [picked, setPicked] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [changedKeys, setChangedKeys] = useState<string[]>([]);
+  /* Holders whose key changed with nothing signed behind it. Nothing is
+     checked against one and no room is wrapped for one until the table says
+     the seat really was handed on. */
+  const [pendingKeys, setPendingKeys] = useState<string[]>([]);
   /* Every signing key this device has ever seen for this game. A key the
      server stops sending is still checked against its pin, so taking one away
      cannot turn verification off. */
-  const [pins, setPins] = useState<Record<string, string>>(() => readPins(gameId));
+  const [pins, setPins] = useState<Pins>(() => readPins(gameId));
   const published = useRef(false);
 
   /* Read by every fetch and a dependency of none: a callback that re-made the
@@ -115,9 +122,10 @@ export function PressPanel({
     server handing out a key it invented, and only the room knows which. One
     that has vanished from the answer is neither, and it keeps its pin.
     */
-    const seen = pinSignKeys(gameId, next.signKeys);
-    setPins(seen.pinned);
+    const seen = pinSignKeys(gameId, next.signKeys, next.signChains || []);
+    setPins({ ...seen.pinned });
     setChangedKeys(seen.changed);
+    setPendingKeys(seen.pending);
   }, [api, gameId, secret, sign, you]);
 
   useEffect(() => {
@@ -132,6 +140,15 @@ export function PressPanel({
   if (error && !state) return <p className="notice press-empty">{error}</p>;
   if (!state) return <p className="muted press-empty">Loading messages…</p>;
 
+  /* One answer to "which key is this holder believed under", for wrapping,
+     for reading a room's manifest, and for checking who said a line. */
+  const believed = verifiers(pins, state.signKeys);
+
+  const accept = (holder: string) => {
+    setPins({ ...acceptPin(gameId, holder) });
+    setPendingKeys(pendingKeys.filter((name) => name !== holder));
+  };
+
   const thread = state.threads.find((row) => row.id === openThread);
   if (thread) {
     return (
@@ -144,7 +161,7 @@ export function PressPanel({
         secret={secret}
         sign={sign}
         phaseIndex={phaseIndex}
-        signKeys={{ ...pins, ...state.signKeys }}
+        signKeys={believed.trusted}
         readOnly={Boolean(readOnly) && thread.openedBy !== you}
         onBack={() => setOpenThread(null)}
         onChanged={reload}
@@ -172,7 +189,7 @@ export function PressPanel({
       const existing = findRoom(state.threads, members, you === GM_HOLDER);
       const readable =
         existing &&
-        openRoomKey(gameId, you, existing, secret, { ...pins, ...state.signKeys }).key !== null;
+        openRoomKey(gameId, you, existing, secret, believed.trusted).key !== null;
       if (existing && readable) {
         setComposing(false);
         setPicked([]);
@@ -188,7 +205,8 @@ export function PressPanel({
       const made = makeRoom(gameId, you, secret, members, holders, {
         keys: state.keys,
         keySigs: state.keySigs,
-        signKeys: { ...pins, ...state.signKeys },
+        signKeys: believed.current,
+        pending: believed.pending,
       }, sign);
       if (made.unverified.length) {
         /* A key that does not check is not a slow player; it is a room
@@ -300,11 +318,26 @@ export function PressPanel({
       ) : null}
       {/* Not hidden and not fatal. A handover changes a seat's key, and so
           does a server that is lying about one; only the table knows which. */}
-      {changedKeys.length ? (
+      {/* A key that changed with a signed handover behind it moved the pin on
+          its own, and this is the rest: a key nothing signed for. Nothing is
+          written to that seat until somebody at the table says what happened. */}
+      {pendingKeys.map((holder) => (
+        <p className="notice" key={holder}>
+          The key for {holder} changed and nothing signed for the change. If
+          the game master re-dealt that seat, say so out loud first. Until
+          somebody confirms it, this device writes nothing to {holder}.{" "}
+          <button type="button" className="link" onClick={() => accept(holder)}>
+            The table confirms {holder} was handed on
+          </button>
+        </p>
+      ))}
+      {changedKeys.filter((holder) => !pendingKeys.includes(holder)).length ? (
         <p className="notice">
-          The key for {changedKeys.join(" and ")} changed since this device last
-          looked. That is what a handover does. If nobody at the table handed a
-          seat on, stop writing and say so out loud.
+          The key for{" "}
+          {changedKeys.filter((holder) => !pendingKeys.includes(holder)).join(" and ")}{" "}
+          changed since this device last looked. That is what a handover does.
+          If nobody at the table handed a seat on, stop writing and say so out
+          loud.
         </p>
       ) : null}
       {error ? <p className="notice">{error}</p> : null}
@@ -383,8 +416,9 @@ function PressRoom({
   secret: Uint8Array;
   sign: (body: string) => string;
   phaseIndex: number;
-  /** The senders' signing keys, this answer's merged over what is pinned. */
-  signKeys: Record<string, string>;
+  /** Every key a sender may be believed under: the pinned one, then the ones
+      it replaced, so a handover does not turn old lines into forgeries. */
+  signKeys: Record<string, string[]>;
   readOnly: boolean;
   onBack: () => void;
   onChanged: () => void;

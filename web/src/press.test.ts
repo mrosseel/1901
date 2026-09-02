@@ -5,6 +5,8 @@ import {
   findRoom,
   holdersFor,
   keyBody,
+  acceptPin,
+  chainBody,
   makeRoom,
   newRoomKey,
   newThreadId,
@@ -12,17 +14,21 @@ import {
   pinSignKeys,
   openMessage,
   pressPublicKey,
+  readPins,
   roomTitle,
   sameRoom,
   sealMessage,
   signedBody,
   unwrapRoomKey,
+  verifiers,
   verifyBoxKey,
+  verifyChain,
   verifyPress,
   wrapRoomKey,
   wrapsFor,
   type PressMessage,
   type PressPlace,
+  type KeyChain,
   type PressState,
   type PressThread,
   type RoomBinding,
@@ -69,6 +75,14 @@ function tableFor(names: string[]): Pick<PressState, "keys" | "keySigs" | "signK
     signKeys[name] = publicKeyOf(signSeedFor(name));
   }
   return { keys: keys, keySigs: keySigs, signKeys: signKeys };
+}
+
+/* The keys a reader believes each holder under, in the shape everything that
+   checks a signature takes. */
+function trustedFrom(signKeys: Record<string, string>): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const holder of Object.keys(signKeys)) out[holder] = [signKeys[holder]];
+  return out;
 }
 
 function signerFor(name: string): (body: string) => string {
@@ -221,7 +235,7 @@ describe("a signed room manifest", () => {
         member,
         threadOf(made),
         secretFor(member),
-        table.signKeys,
+        trustedFrom(table.signKeys),
       );
       expect(read.reason).toBeUndefined();
       expect(Array.from(read.key || [])).toEqual(Array.from(made.roomKey));
@@ -238,7 +252,7 @@ describe("a signed room manifest", () => {
       "Austria",
       threadOf(fabricated),
       secretFor("Austria"),
-      table.signKeys,
+      trustedFrom(table.signKeys),
     );
     expect(read.key).toBeNull();
     expect(read.reason).toContain("France");
@@ -251,7 +265,7 @@ describe("a signed room manifest", () => {
       "Austria",
       threadOf(made, { sig: signerFor("Austria")("anything") }),
       secretFor("Austria"),
-      table.signKeys,
+      trustedFrom(table.signKeys),
     );
     expect(read.key).toBeNull();
   });
@@ -273,7 +287,7 @@ describe("a signed room manifest", () => {
         "Austria",
         threadOf(made, change),
         secretFor("Austria"),
-        table.signKeys,
+        trustedFrom(table.signKeys),
       );
       expect(read.key, JSON.stringify(change)).toBeNull();
     }
@@ -290,7 +304,7 @@ describe("a signed room manifest", () => {
       "Austria",
       threadOf(second, { wraps: { ...second.wraps, Austria: first.wraps.Austria } }),
       secretFor("Austria"),
-      table.signKeys,
+      trustedFrom(table.signKeys),
     );
     expect(read.key).toBeNull();
   });
@@ -309,7 +323,9 @@ describe("a signed room manifest", () => {
   it("refuses a room opened before manifests existed", () => {
     const made = opened();
     const old = threadOf(made, { openerBoxPub: undefined, wraps: undefined });
-    expect(openRoomKey(GAME, "Austria", old, secretFor("Austria"), table.signKeys).key).toBeNull();
+    expect(
+      openRoomKey(GAME, "Austria", old, secretFor("Austria"), trustedFrom(table.signKeys)).key,
+    ).toBeNull();
   });
 });
 
@@ -368,13 +384,15 @@ describe("a signature says which member of the room spoke", () => {
     };
     const signPub = publicKeyOf(signing);
 
-    expect(verifyPress(GAME, "t1", message, signPub)).toBe("ok");
+    expect(verifyPress(GAME, "t1", message, [signPub])).toBe("ok");
     // Another seat's key, the wrong room, and every field the body covers.
-    expect(verifyPress(GAME, "t1", message, publicKeyOf(randomBytes(32)))).toBe("bad");
-    expect(verifyPress(GAME, "t2", message, signPub)).toBe("bad");
-    expect(verifyPress(GAME, "t1", { ...message, box: "other" }, signPub)).toBe("bad");
-    expect(verifyPress(GAME, "t1", { ...message, phaseIndex: 1 }, signPub)).toBe("bad");
-    expect(verifyPress(GAME, "t1", { ...message, at: "2026-09-02T11:00:00Z" }, signPub)).toBe("bad");
+    expect(verifyPress(GAME, "t1", message, [publicKeyOf(randomBytes(32))])).toBe("bad");
+    expect(verifyPress(GAME, "t2", message, [signPub])).toBe("bad");
+    expect(verifyPress(GAME, "t1", { ...message, box: "other" }, [signPub])).toBe("bad");
+    expect(verifyPress(GAME, "t1", { ...message, phaseIndex: 1 }, [signPub])).toBe("bad");
+    expect(
+      verifyPress(GAME, "t1", { ...message, at: "2026-09-02T11:00:00Z" }, [signPub]),
+    ).toBe("bad");
   });
 
   /* A seat holding a token has no key to sign with, so its messages are
@@ -443,11 +461,14 @@ describe("rooms are named by their members", () => {
 });
 
 /*
-A signing key this device has seen cannot be taken away.
+A signing key this device has seen cannot be taken away, and cannot be
+replaced by the server repeating a new one (SR-2).
 
 Omitting a key was the cheapest attack on the whole scheme: with nothing to
 check against, verifyBoxKey lets any box key through, so a server could drop a
 power's signing key and then hand out its own press key for that power.
+Replacing one was almost as cheap, because the pin used to move to whatever
+the server said next.
 */
 describe("the signing keys this device has seen", () => {
   const store = () => {
@@ -462,30 +483,173 @@ describe("the signing keys this device has seen", () => {
 
   it("pins what it sees the first time and says nothing about it", () => {
     const kept = store();
-    const first = pinSignKeys(GAME, { France: "a", Italy: "b" }, kept);
+    const first = pinSignKeys(GAME, { France: "a", Italy: "b" }, [], kept);
     expect(first.changed).toEqual([]);
-    expect(first.pinned).toEqual({ France: "a", Italy: "b" });
+    expect(first.pending).toEqual([]);
+    expect(first.pinned.France).toEqual({ current: "a", history: [] });
   });
 
-  it("names a key that changed", () => {
+  it("holds a changed key pending over every poll that repeats it", () => {
     const kept = store();
-    pinSignKeys(GAME, { France: "a", Italy: "b" }, kept);
-    expect(pinSignKeys(GAME, { France: "a", Italy: "other" }, kept).changed).toEqual(["Italy"]);
+    pinSignKeys(GAME, { France: "a", Italy: "b" }, [], kept);
+    for (let poll = 0; poll < 3; poll++) {
+      const seen = pinSignKeys(GAME, { France: "a", Italy: "other" }, [], kept);
+      expect(seen.pending).toEqual(["Italy"]);
+      expect(seen.pinned.Italy.current).toBe("b");
+      expect(seen.pinned.Italy.pending).toBe("other");
+    }
+  });
+
+  it("wraps nothing for a holder whose key is pending", () => {
+    const believed = verifiers(
+      { Italy: { current: "b", pending: "other", history: [] } },
+      { Italy: "other" },
+    );
+    expect(believed.pending).toEqual(["Italy"]);
+    const out = wrapsFor(GAME, binding(), secretFor("France"), newRoomKey(), ["Italy"], {
+      keys: { Italy: publicOf(secretFor("Italy")) },
+      keySigs: {},
+      signKeys: believed.current,
+      pending: believed.pending,
+    });
+    expect(out.unverified).toEqual(["Italy"]);
+    expect(out.wraps).toEqual({});
+  });
+
+  it("checks nothing under a pending key", () => {
+    const believed = verifiers(
+      { Italy: { current: "b", pending: "other", history: ["older"] } },
+      { Italy: "other" },
+    );
+    expect(believed.current.Italy).toBe("b");
+    expect(believed.trusted.Italy).toEqual(["b", "older"]);
+  });
+
+  /* The outgoing device signs the step from its own key to the next one, so
+     every device that pinned the old key can follow a real handover without
+     anybody being asked. */
+  it("follows a signed handover on its own", () => {
+    const kept = store();
+    const old = randomBytes(32);
+    const next = randomBytes(32);
+    const from = publicKeyOf(old);
+    const to = publicKeyOf(next);
+    pinSignKeys(GAME, { Italy: from }, [], kept);
+
+    const link: KeyChain = {
+      holder: "Italy",
+      from: from,
+      to: to,
+      sig: signMessage(old, chainBody(GAME, "Italy", from, to)),
+    };
+    expect(verifyChain(GAME, link)).toBe(true);
+    const seen = pinSignKeys(GAME, { Italy: to }, [link], kept);
+    expect(seen.pending).toEqual([]);
+    expect(seen.pinned.Italy.current).toBe(to);
+    // The old key stays, so what Italy said before the handover still checks.
+    expect(seen.pinned.Italy.history).toEqual([from]);
+  });
+
+  it("refuses a step nothing signed, and one signed by the wrong key", () => {
+    const old = randomBytes(32);
+    const to = publicKeyOf(randomBytes(32));
+    const from = publicKeyOf(old);
+    expect(verifyChain(GAME, { holder: "Italy", from: from, to: to, sig: "" })).toBe(false);
+    expect(
+      verifyChain(GAME, {
+        holder: "Italy",
+        from: from,
+        to: to,
+        sig: signMessage(randomBytes(32), chainBody(GAME, "Italy", from, to)),
+      }),
+    ).toBe(false);
+    // The right key over the wrong sentence is no better.
+    expect(
+      verifyChain(GAME, {
+        holder: "Italy",
+        from: from,
+        to: to,
+        sig: signMessage(old, chainBody(GAME, "France", from, to)),
+      }),
+    ).toBe(false);
+  });
+
+  it("advances the pin once when the table confirms a handover", () => {
+    const kept = store();
+    pinSignKeys(GAME, { Italy: "b" }, [], kept);
+    pinSignKeys(GAME, { Italy: "other" }, [], kept);
+    const pinned = acceptPin(GAME, "Italy", kept);
+    expect(pinned.Italy.current).toBe("other");
+    expect(pinned.Italy.pending).toBeUndefined();
+    expect(pinned.Italy.history).toEqual(["b"]);
+    // And it stays there on the next poll, rather than being reported again.
+    expect(pinSignKeys(GAME, { Italy: "other" }, [], kept).pending).toEqual([]);
   });
 
   it("names a key that vanished, and keeps the pin", () => {
     const kept = store();
-    pinSignKeys(GAME, { France: "a", Italy: "b" }, kept);
-    const gone = pinSignKeys(GAME, { France: "a" }, kept);
+    pinSignKeys(GAME, { France: "a", Italy: "b" }, [], kept);
+    const gone = pinSignKeys(GAME, { France: "a" }, [], kept);
     expect(gone.changed).toEqual(["Italy"]);
-    expect(gone.pinned.Italy).toBe("b");
+    expect(gone.pending).toEqual([]);
+    expect(gone.pinned.Italy.current).toBe("b");
     // And the pin is what a later wrap is checked against, so the key the
     // server is now offering for Italy cannot pass unverified.
+    const believed = verifiers(gone.pinned, { France: "a" });
     const out = wrapsFor(GAME, binding(), secretFor("France"), newRoomKey(), ["Italy"], {
       keys: { Italy: publicOf(secretFor("the server")) },
       keySigs: {},
-      signKeys: gone.pinned,
+      signKeys: believed.current,
+      pending: believed.pending,
     });
     expect(out.unverified).toEqual(["Italy"]);
+  });
+
+  it("reads a pin written before this version", () => {
+    const kept = store();
+    kept.setItem("1901.press.pin." + GAME, JSON.stringify({ Italy: "b" }));
+    expect(readPins(GAME, kept).Italy).toEqual({ current: "b", history: [] });
+  });
+});
+
+/*
+A missing signature from a seat that has one is somebody taking it off, not a
+seat that cannot sign (SR-2).
+*/
+describe("what a missing signature means", () => {
+  const bare: PressMessage = {
+    seq: 1,
+    sender: "France",
+    phaseIndex: 0,
+    box: "b",
+    sig: "",
+    at: "",
+  };
+
+  it("is bad from a holder that has a signing key", () => {
+    expect(verifyPress(GAME, "t1", bare, [publicKeyOf(randomBytes(32))])).toBe("bad");
+  });
+
+  it("is unsigned from a holder that has none", () => {
+    expect(verifyPress(GAME, "t1", bare, [])).toBe("unsigned");
+    expect(verifyPress(GAME, "t1", bare, undefined)).toBe("unsigned");
+  });
+
+  /* A handover replaces the key. What the seat said before it was signed by
+     the key it replaced, and that is what the history is for. */
+  it("checks an old message against the key that wrote it", () => {
+    const old = randomBytes(32);
+    const at = place({ seq: 4 });
+    const message: PressMessage = {
+      seq: 4,
+      sender: "France",
+      phaseIndex: 0,
+      box: "the-box",
+      sig: signMessage(old, signedBody(GAME, at, "the-box")),
+      at: at.at,
+    };
+    const now = publicKeyOf(randomBytes(32));
+    expect(verifyPress(GAME, "t1", message, [now])).toBe("bad");
+    expect(verifyPress(GAME, "t1", message, [now, publicKeyOf(old)])).toBe("ok");
   });
 });

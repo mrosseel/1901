@@ -184,8 +184,15 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 
 	// The phone taking the seat sends the public half of the key it just
 	// made (ADR-049). Absent, the seat is taken the old way, with a token.
+	//
+	// KeyChainSig is the step from the seat's old key to this one, signed
+	// with the old key (ADR-056). It is there only when the outgoing player
+	// showed their own link, because only that link carries the former seed.
+	// A reader that pinned the old key follows the step and moves its pin;
+	// without one the new key waits for the table to confirm the handover.
 	var body struct {
-		SignPub string `json:"signPub"`
+		SignPub     string `json:"signPub"`
+		KeyChainSig string `json:"keyChainSig"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 	if body.SignPub != "" && !checkSignPub(body.SignPub) {
@@ -234,7 +241,21 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 	// power to somebody else, and the person giving it away must not keep
 	// anything that opens the seat.
 	if body.SignPub != "" {
+		// Kept before bindSeatKey replaces it: the step is from the key the
+		// seat is leaving behind.
+		link := keyChain{
+			Holder: string(power),
+			From:   s.signPub,
+			To:     body.SignPub,
+			Sig:    body.KeyChainSig,
+		}
 		f.bindSeatKey(s, body.SignPub)
+		// A step that does not check is dropped rather than stored. It would
+		// tell a reader nothing, and every reader checks it again anyway.
+		if link.From != "" && link.Sig != "" && checkKeyChain(id, link) {
+			f.keyChains = append(f.keyChains, link)
+			persistKeyChain(id, link)
+		}
 		session, err := f.openSession(power)
 		if err != nil {
 			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
