@@ -83,8 +83,9 @@ func (self *game) persistErr(id string) error {
                           end_year, result_kind, result_powers, result_year, result_phase,
                           sealed, draw_powers, draw_required, draw_confirmed,
                           sandbox, sandbox_token,
-                          press_silence_seconds, gm_reads_press, gm_box_pub, gm_box_sig)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          press_silence_seconds, gm_reads_press, gm_box_pub, gm_box_sig,
+                          marker_style)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             -- The role can be handed on (ADR-041), which rotates the token, so
             -- unlike the invite it is not write-once.
@@ -131,7 +132,8 @@ func (self *game) persistErr(id string) error {
             -- key already handed out was wrapped for the holders this names.
             gm_reads_press           = excluded.gm_reads_press,
             gm_box_pub               = excluded.gm_box_pub,
-            gm_box_sig               = excluded.gm_box_sig`,
+            gm_box_sig               = excluded.gm_box_sig,
+            marker_style             = excluded.marker_style`,
 		id, f.gmToken, f.inviteToken, f.gmDevice, f.settings.DeadlineMinutes, f.settings.GMPlays,
 		f.settingsVersion, f.started, deadline, string(f.gmPower),
 		f.phaseIndex, f.createdAt.UTC().Format(time.RFC3339Nano), self.variantKey,
@@ -140,7 +142,8 @@ func (self *game) persistErr(id string) error {
 		variant.Hash(self.variantKey), f.settings.Name, f.gmEpoch, f.gmPublicKey,
 		f.settings.EndYear, resultKind, resultPowers, resultYear, resultPhase, f.sealed,
 		drawPowers, drawRequired, drawConfirmed, f.settings.Sandbox, f.sandboxToken,
-		f.settings.PressSilenceSeconds, f.settings.GMReadsPress, f.gmBoxPub, f.gmBoxSig)
+		f.settings.PressSilenceSeconds, f.settings.GMReadsPress, f.gmBoxPub, f.gmBoxSig,
+		f.settings.MarkerStyle)
 	if err != nil {
 		return fmt.Errorf("game row: %v", err)
 	}

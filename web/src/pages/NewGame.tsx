@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DEFAULT_MARKER_STYLE, MARKER_STYLES } from "../board/markers";
 import { TopBar } from "../components/TopBar";
 import { createGame, fetchVariants, refereePath } from "../api";
 import { VariantGallery } from "../components/VariantGallery";
@@ -70,6 +71,7 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
   const [graceMinutes, setGraceMinutes] = useState(0);
   const [firstTurnExtraMinutes, setFirstTurnExtraMinutes] = useState(0);
   const [pressMode, setPressMode] = useState<PressMode>("ftf");
+  const [markerStyle, setMarkerStyle] = useState<string>(DEFAULT_MARKER_STYLE);
   /* WDC 4b2's writing minute: the last minute of a phase is for writing
      orders, in silence, and 4d puts a sanction behind it. */
   const [pressSilenceSeconds, setPressSilenceSeconds] = useState(60);
@@ -120,6 +122,7 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
         deadlineMinutes: 0,
         gmPlays: false,
         illegalMoves: illegalMoves,
+        markerStyle: markerStyle,
         endYear: endYearEnabled ? Math.max(0, Math.floor(Number(endYear)) || 0) : 0,
         variant: chosen,
       } : {
@@ -132,6 +135,7 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
         pressSilenceSeconds: Math.max(0, Math.floor(pressSilenceSeconds) || 0),
         gmPlays: gmPlays,
         illegalMoves: illegalMoves,
+        markerStyle: markerStyle,
         endYear: endYearEnabled ? Math.max(0, Math.floor(Number(endYear)) || 0) : 0,
         variant: chosen,
       });
@@ -218,6 +222,27 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
               </label>
             </details>
             )}
+
+            {/*
+            What the table opens on. Not a rule: every device may say
+            otherwise on its own screen and nobody else sees it (prefs.ts).
+            It is here anyway because the first thing a room sees when the
+            projector goes up should be the pieces the game master meant,
+            and a variant is often the reason — an ancient board wants
+            triremes.
+            */}
+            <label className="field">
+              <span>Pieces</span>
+              <select value={markerStyle} onChange={(event) => setMarkerStyle(event.target.value)}>
+                {MARKER_STYLES.map((one) => (
+                  <option key={one.name} value={one.name}>{one.title}</option>
+                ))}
+              </select>
+              <small>
+                {MARKER_STYLES.find((one) => one.name === markerStyle)?.description}
+                {" Anyone may change it on their own screen."}
+              </small>
+            </label>
 
             {sandbox ? null : (
             <>

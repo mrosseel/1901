@@ -8,6 +8,7 @@ that cannot be read is simply the default.
 */
 
 import { useState } from "react";
+import { DEFAULT_MARKER_STYLE, isMarkerStyle } from "./board/markers";
 
 export const HIDE_ORDERS_KEY = "1901.hideOrders";
 
@@ -63,6 +64,64 @@ export function readBriefLabels(): boolean {
 
 export function writeBriefLabels(on: boolean): void {
   write(BRIEF_LABELS_KEY, on);
+}
+
+export const MARKER_STYLE_KEY = "1901.markerStyle";
+
+/*
+The pieces the map draws.
+
+This one has two sources and the device wins. The game master picks what the
+table opens on, which is the setting that arrives with the state, and it is
+worth picking: a referee running an ancient variant on a projector wants
+triremes up when the room walks in, not lettered triangles. But the marker is
+still only a picture of a unit, so a player who cannot read a trireme on a
+phone in a dim corner may say so, on their phone, and nobody else is affected.
+
+So an empty preference is a real answer here and not a missing one: it means
+"whatever the table is set to". Saving the default as a preference would be a
+different answer, and a device that had done it would stop following the game
+master for good, so writeMarkerStyle keeps them apart by storing every name it
+is given and clearing on the empty one.
+*/
+export function readMarkerStyle(): string {
+  try {
+    const saved = window.localStorage.getItem(MARKER_STYLE_KEY) || "";
+    return isMarkerStyle(saved) ? saved : "";
+  } catch {
+    return "";
+  }
+}
+
+export function writeMarkerStyle(name: string): void {
+  try {
+    if (isMarkerStyle(name)) window.localStorage.setItem(MARKER_STYLE_KEY, name);
+    else window.localStorage.removeItem(MARKER_STYLE_KEY);
+  } catch {
+    // The pieces still change for this page; the choice is just not kept.
+  }
+}
+
+export function useMarkerStyle(): [string, (name: string) => void] {
+  const [name, setName] = useState<string>(readMarkerStyle);
+  return [
+    name,
+    (next: string) => {
+      writeMarkerStyle(next);
+      setName(next);
+    },
+  ];
+}
+
+/*
+What the board actually draws: this device's answer if it gave one, then the
+table's, then the default. A style either side names that this build does not
+know is skipped rather than drawn as nothing.
+*/
+export function resolveMarkerStyle(device: string, table: string | undefined): string {
+  if (isMarkerStyle(device)) return device;
+  if (table && isMarkerStyle(table)) return table;
+  return DEFAULT_MARKER_STYLE;
 }
 
 function read(key: string): boolean {

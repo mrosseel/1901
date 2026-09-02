@@ -19,7 +19,7 @@ import type { BoardApi, BoardHandle, BoardState, OptionTree, ReviewDraw, Unit } 
 import { abbreviateOrders, unitsOf } from "../notation";
 import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
-import { useBriefLabels, useBriefMoves, useHideOrders } from "../prefs";
+import { useBriefLabels, useBriefMoves, useHideOrders, useMarkerStyle, resolveMarkerStyle } from "../prefs";
 import { orderText, reviewPlan } from "../review";
 import { styledMapUrl } from "../style";
 
@@ -64,6 +64,11 @@ export function SandboxPage({
   const [style, setStyle] = useMapStyle();
   const [hideOrders, setHideOrders] = useHideOrders();
   const [briefLabels, setBriefLabels] = useBriefLabels();
+  const [markerStyle, setMarkerStyle] = useMarkerStyle();
+  /* The game master says what the table opens on; this device may say
+     otherwise, and then it wins (prefs.ts). */
+  const tableMarkerStyle = state?.settings?.markerStyle;
+  const drawnMarkers = resolveMarkerStyle(markerStyle, tableMarkerStyle);
   const [briefMoves, setBriefMoves] = useBriefMoves();
   const [illegalDrafts, setIllegalDrafts] = useState<string[]>([]);
   const handle = useRef<BoardHandle | null>(null);
@@ -293,6 +298,7 @@ export function SandboxPage({
               review={reviewDraw}
               hideOrders={hideOrders}
               briefLabels={briefLabels}
+              markerStyle={drawnMarkers}
               canOrder={canOrder}
               refusal={refusal}
               onState={() => undefined}
@@ -317,6 +323,9 @@ export function SandboxPage({
               onHideOrders={setHideOrders}
               briefLabels={briefLabels}
               onBriefLabels={setBriefLabels}
+              markerStyle={markerStyle}
+              onMarkerStyle={setMarkerStyle}
+              tableMarkerStyle={tableMarkerStyle}
             />
           ) : null}
         </main>

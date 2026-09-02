@@ -31,6 +31,13 @@ import {
   type Ink,
 } from "./outcome";
 import { fitEnds, fitHead, orderRadius, orderStroke, type Head } from "./scale";
+import {
+  DEFAULT_MARKER_STYLE,
+  isMarkerStyle,
+  markerBody,
+  markerMark,
+  type MarkerStyle,
+} from "./markers";
 import { mapCode } from "../notation";
 import { illegalAllowed } from "../illegal";
 import type {
@@ -152,6 +159,7 @@ export function mount(
   let hideOrders = false;
   /* This device's other switch: province codes on the map instead of names. */
   let briefLabels = false;
+  let markerStyle: MarkerStyle = DEFAULT_MARKER_STYLE;
   /*
   Provinces whose drafted order this page KNOWS is not legal: the target was
   not in the tree the server offered, and it was sent anyway (ADR-029).
@@ -201,8 +209,67 @@ export function mount(
 
     baseBox = baseBoxOf(svgRoot, baseBox);
     view = null;
+    addHatches();
 
     host.replaceChildren(svgRoot);
+  }
+
+  /*
+  The reachability highlights are stripes, not a wash.
+
+  A flat green over the map's own ground was the weakest mark on the board, and
+  the ownership wash under it (renderSupplyOwnership) only made that worse:
+  two translucent fills over each other read as one muddy third colour, and the
+  answer to "can I go here" stopped being obvious at the moment it mattered.
+
+  A stripe fixes both at once. It is a texture rather than a tint, so nothing
+  else on the map competes with it, and the gaps between the stripes are gaps:
+  the power's colour comes through them at full strength instead of being
+  blended away. A province that is both reachable and somebody's centre now
+  says both things in two channels rather than one mixed colour.
+
+  The tile is a fraction of the map for the reason markerRadius() gives, and it
+  is set in map units, so the stripes widen as the board is zoomed in. That is
+  wanted: the stripes are as fine as the map is, at whatever scale it is read.
+  */
+  const HATCH_TILE_FRACTION = 1 / 90;
+
+  const HATCHES: Array<[string, string, number]> = [
+    // Green: somewhere this unit can move to.
+    ["hatch-legal", "rgb(110,254,168)", 0.62],
+    // Amber: a unit stands here, so a tap asks attack or support instead.
+    ["hatch-occupied", "rgb(255,186,92)", 0.72],
+  ];
+
+  function addHatches(): void {
+    if (!svgRoot) return;
+    const defs = document.createElementNS(SVG_NS, "defs");
+    defs.id = "board-hatches";
+    const tile = Math.max(4, baseBox.w * HATCH_TILE_FRACTION);
+    for (const [id, ink, opacity] of HATCHES) {
+      const pattern = document.createElementNS(SVG_NS, "pattern");
+      pattern.id = id;
+      pattern.setAttribute("patternUnits", "userSpaceOnUse");
+      pattern.setAttribute("width", String(tile));
+      pattern.setAttribute("height", String(tile));
+      pattern.setAttribute("patternTransform", "rotate(45)");
+      /* A faint wash under the stripes. Alone it is what the highlight used to
+         be; under them it stops a province reading as half-marked. */
+      const ground = document.createElementNS(SVG_NS, "rect");
+      ground.setAttribute("width", String(tile));
+      ground.setAttribute("height", String(tile));
+      ground.setAttribute("fill", ink);
+      ground.setAttribute("fill-opacity", "0.16");
+      pattern.appendChild(ground);
+      const bar = document.createElementNS(SVG_NS, "rect");
+      bar.setAttribute("width", String(tile * 0.44));
+      bar.setAttribute("height", String(tile));
+      bar.setAttribute("fill", ink);
+      bar.setAttribute("fill-opacity", String(opacity));
+      pattern.appendChild(bar);
+      defs.appendChild(pattern);
+    }
+    svgRoot.insertBefore(defs, svgRoot.firstChild);
   }
 
   /*
@@ -381,9 +448,11 @@ export function mount(
   should. The floor stays absolute: it exists to keep a marker tappable at
   full zoom, which is a fact about fingers, not about maps.
 
-  tools/placement/geometry.ts computes this same number to decide where a
-  marker will fit. The two must not drift apart, or the placement table is
-  measured for a marker the board does not draw.
+  dipmap's placement search computes this same number to decide where a marker
+  will fit (ADR-051). The two must not drift apart, or the placement table is
+  measured for a marker the board does not draw. Which shape fills the radius
+  is a device preference and does not enter into it: every style in markers.ts
+  draws inside the same circle, so the table is measured once for all of them.
   */
   const MARKER_PIXELS = 12;
   const MARKER_MIN_UNITS = 8;
@@ -897,7 +966,7 @@ export function mount(
   and the halo width all arrive resolved, because the styling pass that
   rewrites a names layer has nothing to work on when there is no layer.
   */
-  const OWNED_CENTRE_LAYER = "owned-centres";
+  const OWNED_LAND_LAYER = "owned-lands";
   const DATA_CENTRE_LAYER = "data-centres";
   const DATA_LABEL_LAYER = "data-labels";
 
@@ -954,7 +1023,6 @@ export function mount(
   a name is never read through a marker, and a glyph never through a name.
   */
   const DRAWN_LAYERS = [
-    OWNED_CENTRE_LAYER,
     DATA_CENTRE_LAYER,
     DATA_LABEL_LAYER,
     BRIEF_LAYER,
@@ -1017,34 +1085,86 @@ export function mount(
 
   /*
   Supply-centre ownership is board state, not map decoration. Map files draw
-  the neutral SC glyph, but that cannot say who took it in the last Fall. A
-  small power-coloured face therefore rides over every owned centre on every
-  map, whether its neutral ring came from the SVG or from placement records.
-  Units remain above it, so ownership and occupation stay separate facts.
+  the neutral SC glyph, but that cannot say who took it in the last Fall.
+
+  It is the whole province that is coloured, not the glyph. What a player is
+  reading for is "if I take this, whose count goes down", and that question is
+  asked about a territory. A coloured dot on the glyph answered it in a mark
+  the size of the glyph, which is the size of nothing on this board, and it
+  had to be hunted for on exactly the maps with the most centres on them.
+
+  The tint is a copy of the province's own hit shape, laid over the art and
+  under the hit layer. Under, because the reachability highlights paint the
+  hit layer: green over a red tint then blends to say both things at once,
+  which is the honest picture when a province is both. It is also the faintest
+  fill on the board by some way. Ownership is the standing background fact and
+  every highlight above it is a live one.
   */
+  const OWNED_TINT_OPACITY = 0.22;
+
+  /*
+  The wash alone cannot carry every power.
+
+  It is one alpha over a warm ground, and the seven colours are not equally
+  strong against it: Austria's red and Turkey's gold read at a glance, France's
+  blue turns grey, and Russia's near-white barely moves the parchment at all.
+  So the province is also outlined in the power's own colour at full strength,
+  which is the same colour at the one opacity where every one of the seven is
+  itself. The wash is then the fast read and the outline is the certain one.
+
+  The width is a fraction of the map rather than a count of units, for the
+  reason markerRadius() gives: classical is 1524 units wide and sailho is 7300,
+  so a fixed number of units is a bold line on one and invisible on the other.
+  It does not follow the zoom, because this layer is not redrawn on a zoom.
+  */
+  const OWNED_EDGE_FRACTION = 1 / 500;
+
   function renderSupplyOwnership(): void {
     if (!svgRoot) return;
-    const layer = drawnLayer(OWNED_CENTRE_LAYER);
+    const hits = svgRoot.querySelector("#provinces");
+    if (!hits) return;
+    let layer = svgRoot.querySelector<SVGGElement>("#" + OWNED_LAND_LAYER);
+    if (!layer) {
+      layer = document.createElementNS(SVG_NS, "g");
+      layer.id = OWNED_LAND_LAYER;
+      layer.setAttribute("pointer-events", "none");
+    }
+    // Always re-seated: the map's own layers are moved about as styles and
+    // labels change, and this one has to stay directly under the hit shapes.
+    if (layer.nextSibling !== hits) svgRoot.insertBefore(layer, hits);
+    layer.replaceChildren();
+
+    const edge = Math.max(1, baseBox.w * OWNED_EDGE_FRACTION);
     const owned = state?.supplyCenters || {};
     Object.keys(owned).forEach((province) => {
-      const spot = placementOf(province);
-      const recorded = spot?.centre;
-      const point = Array.isArray(recorded)
-        ? { x: recorded[0], y: recorded[1] }
-        : centerOf(province);
-      if (!point) return;
-      const ringRadius = spot?.centreRadius || markerRadius() * 0.42;
-      const face = document.createElementNS(SVG_NS, "circle");
-      face.setAttribute("class", "owned-centre");
-      face.setAttribute("data-province", province);
-      face.setAttribute("cx", String(point.x));
-      face.setAttribute("cy", String(point.y));
-      face.setAttribute("r", String(Math.max(2, ringRadius * 0.62)));
-      face.setAttribute("fill", powerColor(owned[province]));
-      face.setAttribute("stroke", "#14161a");
-      face.setAttribute("stroke-width", String(Math.max(0.75, ringRadius * 0.12)));
-      layer.appendChild(face);
+      const paint = powerColor(owned[province]);
+      provinceShapes(province).forEach((shape) => {
+        const tint = shape.cloneNode(true) as SVGElement;
+        stripIds(tint);
+        tint.setAttribute("class", "owned-land");
+        tint.setAttribute("data-province", province);
+        tint.setAttribute("fill", paint);
+        /* The map's shapes carry their own inline style, and a style beats an
+           attribute. So the paint is stated both ways: the attribute for a
+           board that reads the DOM, the style for the browser that draws it. */
+        tint.setAttribute(
+          "style",
+          "fill:" + paint +
+            ";fill-opacity:" + OWNED_TINT_OPACITY +
+            ";stroke:" + paint +
+            ";stroke-opacity:1;stroke-width:" + edge,
+        );
+        layer!.appendChild(tint);
+      });
     });
+  }
+
+  /* A clone of a hit shape keeps its id, and two elements with one id would
+     make every lookup by province ambiguous — including the one that finds
+     the hit shapes to clone. */
+  function stripIds(node: Element): void {
+    node.removeAttribute("id");
+    Array.prototype.forEach.call(node.children, stripIds);
   }
 
   /*
@@ -1124,35 +1244,15 @@ export function mount(
     return view.w / rect.width;
   }
 
-  // A unit marker: a circle for an army, a triangle for a fleet.
+  // A unit marker, in whichever style this device reads the board in.
   function unitShape(point: Point, r: number, isFleet: boolean): SVGElement {
-    if (!isFleet) {
-      const circle = document.createElementNS(SVG_NS, "circle");
-      circle.setAttribute("cx", String(point.x));
-      circle.setAttribute("cy", String(point.y));
-      circle.setAttribute("r", String(r));
-      return circle;
-    }
-    const polygon = document.createElementNS(SVG_NS, "polygon");
-    polygon.setAttribute(
-      "points",
-      [
-        point.x + "," + (point.y - r * 1.1),
-        point.x + r + "," + (point.y + r * 0.75),
-        point.x - r + "," + (point.y + r * 0.75),
-      ].join(" "),
-    );
-    return polygon;
+    return markerBody(markerStyle, point, r, isFleet);
   }
 
-  function unitLetter(point: Point, r: number, isFleet: boolean): SVGElement {
-    const label = document.createElementNS(SVG_NS, "text");
-    label.setAttribute("x", String(point.x));
-    label.setAttribute("y", String(point.y + (isFleet ? r * 0.2 : 0)));
-    label.setAttribute("font-size", String(r * 1.1));
-    label.setAttribute("class", "unit-label");
-    label.textContent = isFleet ? "F" : "A";
-    return label;
+  // What is drawn dark over the piece to say which kind it is. A style whose
+  // piece already says so has none, so the caller has to take null.
+  function unitLetter(point: Point, r: number, isFleet: boolean): SVGElement | null {
+    return markerMark(markerStyle, point, r, isFleet);
   }
 
   /*
@@ -1202,7 +1302,8 @@ export function mount(
       shape.setAttribute("stroke-width", String(Math.max(1, rp * (ordered ? 0.28 : 0.16))));
       shape.setAttribute("class", ordered ? "unit ordered" : "unit");
       layer.appendChild(shape);
-      layer.appendChild(unitLetter(point, rp, isFleet));
+      const mark = unitLetter(point, rp, isFleet);
+      if (mark) layer.appendChild(mark);
     });
 
     // The dislodged markers go on top, each with a red ring, so a province
@@ -1231,7 +1332,8 @@ export function mount(
       shape.setAttribute("stroke-width", String(Math.max(1, rp * 0.14)));
       shape.setAttribute("class", "unit dislodged");
       layer.appendChild(shape);
-      layer.appendChild(unitLetter(point, rp * 0.82, isFleet));
+      const mark = unitLetter(point, rp * 0.82, isFleet);
+      if (mark) layer.appendChild(mark);
     });
   }
 
@@ -2699,6 +2801,18 @@ export function mount(
         renderDataNames();
         renderBriefLabels();
         orderDrawnLayers();
+      }
+    },
+    /* The pieces are redrawn, and so are the orders: a build is previewed as
+       the outline of the piece that will stand there, so it changes shape with
+       everything else. */
+    setMarkerStyle(name: string) {
+      const next = isMarkerStyle(name) ? name : DEFAULT_MARKER_STYLE;
+      if (markerStyle === next) return;
+      markerStyle = next;
+      if (svgRoot) {
+        renderUnits();
+        renderOrders();
       }
     },
     escape: escape,

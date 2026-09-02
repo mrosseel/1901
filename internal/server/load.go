@@ -60,7 +60,8 @@ func loadAll() error {
 			   COALESCE(draw_confirmed, ''),
 			   COALESCE(sandbox, 0), COALESCE(sandbox_token, ''),
 			   COALESCE(press_silence_seconds, ?), COALESCE(gm_reads_press, 0),
-			   COALESCE(gm_box_pub, ''), COALESCE(gm_box_sig, '')
+			   COALESCE(gm_box_pub, ''), COALESCE(gm_box_sig, ''),
+			   COALESCE(marker_style, '')
         FROM game`, variant.DefaultKey, defaultPressMode, defaultPressSilenceSeconds)
 	if err != nil {
 		return err
@@ -98,7 +99,7 @@ func loadAll() error {
 			&resultPhase, &f.sealed, &drawPowers, &drawRequired, &drawConfirmed,
 			&f.settings.Sandbox, &f.sandboxToken,
 			&f.settings.PressSilenceSeconds, &f.settings.GMReadsPress,
-			&f.gmBoxPub, &f.gmBoxSig); err != nil {
+			&f.gmBoxPub, &f.gmBoxSig, &f.settings.MarkerStyle); err != nil {
 			rows.Close()
 			return err
 		}

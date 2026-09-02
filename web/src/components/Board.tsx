@@ -23,6 +23,7 @@ export function Board({
   review,
   hideOrders,
   briefLabels,
+  markerStyle,
   canOrder,
   refusal,
   onState,
@@ -40,6 +41,8 @@ export function Board({
   hideOrders?: boolean;
   /** This device's other switch: province codes on the map, or full names. */
   briefLabels?: boolean;
+  /** And the pieces it draws units in. Unknown names fall back (markers.ts). */
+  markerStyle?: string;
   canOrder?: (province: string, unit: Unit | undefined) => boolean;
   refusal?: (province: string, unit: Unit | undefined) => string;
   onState: (state: BoardState) => void;
@@ -84,6 +87,7 @@ export function Board({
     review,
     hideOrders,
     briefLabels,
+    markerStyle,
   });
   live.current = {
     canOrder,
@@ -97,6 +101,7 @@ export function Board({
     review,
     hideOrders,
     briefLabels,
+    markerStyle,
   };
 
   useEffect(() => {
@@ -122,6 +127,7 @@ export function Board({
     board.showReview(live.current.review || null);
     board.setHideOrders(Boolean(live.current.hideOrders));
     board.setBriefLabels(Boolean(live.current.briefLabels));
+    if (live.current.markerStyle) board.setMarkerStyle(live.current.markerStyle);
     board.ready.catch((err: unknown) => {
       live.current.onStatus(err instanceof Error ? err.message : String(err), true);
     });
@@ -176,6 +182,10 @@ export function Board({
   useEffect(() => {
     handle.current?.setBriefLabels(Boolean(briefLabels));
   }, [briefLabels, state]);
+
+  useEffect(() => {
+    if (markerStyle) handle.current?.setMarkerStyle(markerStyle);
+  }, [markerStyle]);
 
   return (
     <>

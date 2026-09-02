@@ -225,10 +225,11 @@ func handleGMSettings(g *game, id string, w http.ResponseWriter, r *http.Request
 	f.settingsVersion++
 	f.logEvent(id, "settings changed to deadlineMinutes=%v gmPlays=%v "+
 		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v endYear=%v "+
-		"pressMode=%v pressSilenceSeconds=%v gmReadsPress=%v illegalMoves=%v (version %v)",
+		"pressMode=%v pressSilenceSeconds=%v gmReadsPress=%v illegalMoves=%v "+
+			"markerStyle=%v (version %v)",
 		neu.DeadlineMinutes, neu.GMPlays, neu.RetreatBuildPercent, neu.GraceMinutes,
 		neu.FirstTurnExtraMinutes, neu.EndYear, neu.PressMode, neu.PressSilenceSeconds,
-		neu.GMReadsPress, neu.IllegalMoves, f.settingsVersion)
+		neu.GMReadsPress, neu.IllegalMoves, neu.MarkerStyle, f.settingsVersion)
 	// A change to the clock takes effect on the phase now running, so the
 	// table sees the rule it was just told about rather than the next one.
 	if f.started && !f.over() && (neu.DeadlineMinutes != old.DeadlineMinutes ||

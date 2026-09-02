@@ -891,9 +891,32 @@ describe("an adjustment phase", () => {
     await seat.board.ready;
     seat.board.update(ADJUSTMENT_STATE, emptyPlan("Austria", "adjustment"));
 
-    const owned = document.querySelector<SVGCircleElement>('#owned-centres [data-province="rom"]');
+    const owned = document.querySelector<SVGElement>('#owned-lands [data-province="rom"]');
     expect(owned?.getAttribute("fill")).toBe(powerColor("Austria"));
     expect(document.querySelector('#unit-overlay [data-province="rom"]')).toBeNull();
+    seat.board.destroy();
+  });
+
+  /* The tint is the whole province, not a dot on its glyph: the question it
+     answers is "whose count goes down if I take this", which is asked about a
+     territory. It goes under the hit shapes so a reachability highlight paints
+     over it rather than replacing it. */
+  it("tints the whole province and leaves the highlights on top", async () => {
+    const seat = setup("Austria", {});
+    await seat.board.ready;
+    seat.board.update(ADJUSTMENT_STATE, emptyPlan("Austria", "adjustment"));
+
+    const layer = document.querySelector("#owned-lands")!;
+    const tint = layer.querySelector<SVGElement>('[data-province="rom"]')!;
+    // A copy of the province's own hit shape, so it covers the same ground.
+    expect(tint.tagName).toBe(document.querySelector("#provinces #rom")!.tagName);
+    expect(tint.getAttribute("id")).toBeNull();
+    expect(tint.getAttribute("style")).toContain("fill-opacity:0.22");
+    /* The wash alone cannot carry a pale power against a warm ground, so the
+       province is outlined in the same colour at full strength. */
+    expect(tint.getAttribute("style")).toContain("stroke:" + powerColor("Austria"));
+    expect(tint.getAttribute("style")).toContain("stroke-opacity:1");
+    expect(layer.nextElementSibling?.id).toBe("provinces");
     seat.board.destroy();
   });
 

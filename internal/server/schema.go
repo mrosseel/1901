@@ -230,6 +230,11 @@ var gameColumns = []struct{ name, definition string }{
 	{"gm_reads_press", `INTEGER NOT NULL DEFAULT 0`},
 	{"gm_box_pub", `TEXT NOT NULL DEFAULT ''`},
 	{"gm_box_sig", `TEXT NOT NULL DEFAULT ''`},
+	// The shape the table opens on. Empty on every game written before
+	// marker styles existed, and normalised() reads an empty one as the
+	// default, which is the circle and triangle those games were played
+	// with.
+	{"marker_style", `TEXT NOT NULL DEFAULT ''`},
 }
 
 // orderColumns are the columns a game_order row has grown, in the same shape

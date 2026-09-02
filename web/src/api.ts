@@ -44,6 +44,13 @@ export interface Settings {
   */
   pressMode?: "ftf" | "gunboat" | "fullpress" | "rulebook";
   /*
+  The shape the table opens its pieces on (markers.ts). It is the one
+  setting here no device has to obey: a device that has chosen a style of
+  its own keeps it, and this is what a device that has not chosen sees.
+  Absent means the server's default, strategic.
+  */
+  markerStyle?: string;
+  /*
   The writing time at the end of a phase, when press closes (ADR-055). WDC
   4b2 gives a board one minute to write its orders in silence, and 4d makes
   the silence a rule with a sanction behind it. Zero means the app never

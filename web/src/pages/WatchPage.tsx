@@ -19,7 +19,7 @@ import { SplitLayout } from "../components/SplitLayout";
 import { useMapStyle } from "../components/StylePicker";
 import { MapToolbar } from "../components/MapToolbar";
 import { OrderNotationToggle } from "../components/OrderNotationToggle";
-import { useBriefLabels, useBriefMoves } from "../prefs";
+import { useBriefLabels, useBriefMoves, useMarkerStyle, resolveMarkerStyle } from "../prefs";
 import { PhaseName } from "../components/PhaseName";
 import { SupportedMark } from "../components/SupportedMark";
 import { emptyPlan, phaseKind } from "../board/phases";
@@ -65,6 +65,11 @@ export function WatchPage({
   const [refereeing, setRefereeing] = useState(false);
   const [style, setStyle] = useMapStyle();
   const [briefLabels, setBriefLabels] = useBriefLabels();
+  const [markerStyle, setMarkerStyle] = useMarkerStyle();
+  /* The game master says what the table opens on; this device may say
+     otherwise, and then it wins (prefs.ts). */
+  const tableMarkerStyle = summary?.settings?.markerStyle;
+  const drawnMarkers = resolveMarkerStyle(markerStyle, tableMarkerStyle);
   const [briefMoves, setBriefMoves] = useBriefMoves();
   const asked = useRef<number | null>(null);
 
@@ -281,6 +286,7 @@ export function WatchPage({
             plan={emptyPlan("")}
             review={draw}
             briefLabels={briefLabels}
+            markerStyle={drawnMarkers}
             onState={() => undefined}
             onStatus={() => undefined}
             onSelect={() => undefined}
@@ -301,6 +307,9 @@ export function WatchPage({
             onStyle={setStyle}
             briefLabels={briefLabels}
             onBriefLabels={setBriefLabels}
+            markerStyle={markerStyle}
+            onMarkerStyle={setMarkerStyle}
+            tableMarkerStyle={tableMarkerStyle}
           />
         ) : null}
       </main>

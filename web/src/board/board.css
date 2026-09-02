@@ -43,22 +43,40 @@
   fill: rgba(110, 168, 254, 0.22) !important;
 }
 
-/* Green: somewhere this unit can move to. */
+/*
+Every fill below paints OVER the ownership wash, which the board lays under
+this layer in #owned-lands: a province somebody owns keeps their colour at
+0.22, and its outline at full strength, whatever else is happening to it.
+
+That is why the two reachability fills are stripes. A second wash on top of
+the first came out as one muddy third colour that answered neither question,
+and the map's own art was already showing through both. Stripes leave gaps,
+and the power's colour comes through the gaps at full strength, so a province
+that is both reachable and somebody's centre says both in two channels. None
+of these fills may go back to a flat wash for that reason.
+*/
+
+/* Green: somewhere this unit can move to. It is striped rather than washed,
+   because a wash over the ownership colour came out as a third colour that
+   meant neither thing. The patterns are built in board.ts, sized to the map. */
 .board svg #provinces > .legal {
-  fill: rgba(110, 254, 168, 0.30) !important;
+  fill: url(#hatch-legal) !important;
 }
 
+/* Under the finger, the stripes close up into the solid colour. One province
+   at a time is being pointed at, and that one does not need to show anything
+   through itself. */
 .board svg #provinces > .legal:hover {
-  fill: rgba(110, 254, 168, 0.50) !important;
+  fill: rgba(110, 254, 168, 0.62) !important;
 }
 
 /* Amber: a unit stands here, so a tap asks attack or support instead. */
 .board svg #provinces > .legal.occupied {
-  fill: rgba(255, 186, 92, 0.38) !important;
+  fill: url(#hatch-occupied) !important;
 }
 
 .board svg #provinces > .legal.occupied:hover {
-  fill: rgba(255, 186, 92, 0.58) !important;
+  fill: rgba(255, 186, 92, 0.70) !important;
 }
 
 /* The unit being supported pulses: tap it again to back its hold. */
@@ -113,6 +131,12 @@
   pointer-events: none;
 }
 
+#unit-overlay .unit-mark {
+  fill: #14161a;
+  stroke: none;
+  pointer-events: none;
+}
+
 #unit-overlay .unit-label {
   font-family: system-ui, sans-serif;
   font-weight: bold;
@@ -157,7 +181,6 @@ search measured and neither this file nor the board may choose another. The
 halo is the same rim the codes above get: paint-order puts the stroke down
 first and the fill over it.
 */
-#owned-centres,
 #data-centres,
 #data-labels {
   pointer-events: none;

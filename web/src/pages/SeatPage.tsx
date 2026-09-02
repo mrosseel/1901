@@ -44,7 +44,7 @@ import { GameOver } from "../components/GameOver";
 import { KeepYourSeat } from "../components/KeepYourSeat";
 import { RefereeGuide } from "../components/RefereeGuide";
 import { SeatWaiting } from "../components/SeatWaiting";
-import { useBriefLabels, useBriefMoves, useHideOrders } from "../prefs";
+import { useBriefLabels, useBriefMoves, useHideOrders, useMarkerStyle, resolveMarkerStyle } from "../prefs";
 import {
   discardInheritedEnvelopeKey,
   forgetOldDrafts,
@@ -132,6 +132,11 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   const [style, setStyle] = useMapStyle();
   const [hideOrders, setHideOrders] = useHideOrders();
   const [briefLabels, setBriefLabels] = useBriefLabels();
+  const [markerStyle, setMarkerStyle] = useMarkerStyle();
+  /* The game master says what the table opens on; this device may say
+     otherwise, and then it wins (prefs.ts). */
+  const tableMarkerStyle = state?.settings?.markerStyle;
+  const drawnMarkers = resolveMarkerStyle(markerStyle, tableMarkerStyle);
   const [briefMoves, setBriefMoves] = useBriefMoves();
   /*
   The drafts this device knows the rules refuse (ADR-029). It comes from the
@@ -745,6 +750,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           review={reviewDraw}
           hideOrders={hideOrders}
           briefLabels={briefLabels}
+          markerStyle={drawnMarkers}
           canOrder={canOrder}
           refusal={refusal}
           onState={onBoardState}
@@ -767,6 +773,9 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           onHideOrders={setHideOrders}
           briefLabels={briefLabels}
           onBriefLabels={setBriefLabels}
+          markerStyle={markerStyle}
+          onMarkerStyle={setMarkerStyle}
+          tableMarkerStyle={tableMarkerStyle}
         />
       </main>
 

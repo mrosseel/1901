@@ -65,10 +65,10 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 	f.logEvent(id, "game created on %v, deadlineMinutes=%v gmPlays=%v "+
 		"retreatBuildPercent=%v graceMinutes=%v firstTurnExtraMinutes=%v pressMode=%v "+
-		"pressSilenceSeconds=%v gmReadsPress=%v illegalMoves=%v",
+		"pressSilenceSeconds=%v gmReadsPress=%v illegalMoves=%v markerStyle=%v",
 		v.Name, s.DeadlineMinutes, s.GMPlays, s.RetreatBuildPercent, s.GraceMinutes,
 		s.FirstTurnExtraMinutes, s.PressMode, s.PressSilenceSeconds, s.GMReadsPress,
-		s.IllegalMoves)
+		s.IllegalMoves, s.MarkerStyle)
 	if !variant.Supported[s.Variant] {
 		f.logEvent(id, "%v is experimental — unit placement on the map is not verified", v.Name)
 	}

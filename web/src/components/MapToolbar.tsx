@@ -1,4 +1,5 @@
 import { StylePicker } from "./StylePicker";
+import { MARKER_STYLES } from "../board/markers";
 
 /*
 The switches that change the map, over the map.
@@ -26,6 +27,9 @@ export function MapToolbar({
   onHideOrders,
   briefLabels,
   onBriefLabels,
+  markerStyle,
+  onMarkerStyle,
+  tableMarkerStyle,
 }: {
   style: string;
   onStyle: (style: string) => void;
@@ -35,7 +39,13 @@ export function MapToolbar({
   onHideOrders?: (hidden: boolean) => void;
   briefLabels: boolean;
   onBriefLabels: (brief: boolean) => void;
+  /** This device's own choice, or "" for whatever the table is set to. */
+  markerStyle: string;
+  onMarkerStyle: (name: string) => void;
+  /** What the game master set the game to open on, when there is a game. */
+  tableMarkerStyle?: string;
 }) {
+  const table = MARKER_STYLES.find((one) => one.name === tableMarkerStyle);
   return (
     <div className="map-toolbar" role="group" aria-label="Map controls">
       {onHideOrders ? (
@@ -65,6 +75,28 @@ export function MapToolbar({
         </span>
         <span className="map-tool-word">{briefLabels ? "Codes" : "Names"}</span>
       </button>
+
+      <label className="style-picker">
+        <span className="style-picker-label">Pieces</span>
+        <select
+          value={markerStyle}
+          title={
+            MARKER_STYLES.find((one) => one.name === markerStyle)?.description ||
+            "The pieces this device draws units as"
+          }
+          onChange={(event) => onMarkerStyle(event.target.value)}
+        >
+          {/* The way back to the game master's choice, and the only way: a
+              device that has picked a style keeps it until it says otherwise,
+              and there is otherwise nothing for it to pick to stop. */}
+          {table ? <option value="">Table's choice ({table.title})</option> : null}
+          {MARKER_STYLES.map((one) => (
+            <option key={one.name} value={one.name} title={one.description}>
+              {one.title}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <StylePicker value={style} onChange={onStyle} label="Style" />
     </div>

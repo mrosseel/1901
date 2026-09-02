@@ -265,6 +265,9 @@ export interface BoardHandle {
   setHideOrders(on: boolean): void;
   /** Draws province codes on the map instead of the variant's full names. */
   setBriefLabels(on: boolean): void;
+  /** Draws the pieces in one of the styles markers.ts knows. An unknown name
+      falls back to the default rather than leaving the board blank. */
+  setMarkerStyle(name: string): void;
   /** Backs out one step: the chip, then a half-built support, then the order. */
   escape(): void;
   /** Drops the order for a province. */

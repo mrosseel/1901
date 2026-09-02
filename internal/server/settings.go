@@ -82,6 +82,16 @@ type settings struct {
 	// Zero means the app never closes press before the deadline.
 	PressSilenceSeconds int `json:"pressSilenceSeconds"`
 
+	// MarkerStyle is the shape the pieces are drawn in: strategic, pretty,
+	// heraldic or ancient. It is the only setting here that no device has
+	// to obey. The map style has always been the looking person's alone
+	// (ADR-033), and the markers are the same kind of thing, but a game
+	// master setting up an ancient variant on a projector wants the table
+	// to open on triremes rather than on lettered triangles. So this is
+	// what the table opens on, and a device that has said otherwise keeps
+	// what it said.
+	MarkerStyle string `json:"markerStyle"`
+
 	// GMReadsPress makes the game master a member of every room (ADR-054).
 	// It is offered only when GMPlays is off, and normalised() holds it
 	// there: the reason orders are sealed at all is that the person running
@@ -108,6 +118,18 @@ var pressModes = map[string]bool{
 
 const defaultPressMode = "ftf"
 
+// The marker styles a game may open on. They are the names in
+// web/src/board/markers.ts, and the two lists have to agree: a style the
+// board does not know draws no pieces at all.
+var markerStyles = map[string]bool{
+	"strategic": true,
+	"pretty":    true,
+	"heraldic":  true,
+	"ancient":   true,
+}
+
+const defaultMarkerStyle = "strategic"
+
 // defaultRetreatBuildPercent is Backstabbr's: half the movement clock.
 const defaultRetreatBuildPercent = 50
 
@@ -124,6 +146,7 @@ func defaultSettings() settings {
 		PressMode:           defaultPressMode,
 		PressSilenceSeconds: defaultPressSilenceSeconds,
 		IllegalMoves:        true,
+		MarkerStyle:         defaultMarkerStyle,
 	}
 }
 
@@ -143,6 +166,7 @@ type settingsPatch struct {
 	FirstTurnExtraMinutes *int    `json:"firstTurnExtraMinutes"`
 	EndYear               *int    `json:"endYear"`
 	PressMode             *string `json:"pressMode"`
+	MarkerStyle           *string `json:"markerStyle"`
 	PressSilenceSeconds   *int    `json:"pressSilenceSeconds"`
 	GMReadsPress          *bool   `json:"gmReadsPress"`
 	IllegalMoves          *bool   `json:"illegalMoves"`
@@ -180,6 +204,9 @@ func (self settingsPatch) apply(base settings) settings {
 	}
 	if self.PressMode != nil {
 		base.PressMode = *self.PressMode
+	}
+	if self.MarkerStyle != nil {
+		base.MarkerStyle = *self.MarkerStyle
 	}
 	if self.PressSilenceSeconds != nil {
 		base.PressSilenceSeconds = *self.PressSilenceSeconds
@@ -247,6 +274,13 @@ func (self settings) normalised() settings {
 	}
 	if self.PressMode == "" {
 		self.PressMode = defaultPressMode
+	}
+	// A style nobody named, and a style this build does not draw, are the
+	// same thing to a board: it would have nothing to draw the pieces
+	// with. Both become the default here rather than at the form, so a row
+	// loaded from a database written by a later build still plays.
+	if !markerStyles[self.MarkerStyle] {
+		self.MarkerStyle = defaultMarkerStyle
 	}
 	if self.PressSilenceSeconds < 0 {
 		self.PressSilenceSeconds = 0
