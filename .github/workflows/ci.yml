@@ -35,13 +35,22 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx vitest run
-      # A release compiles this dist into the binary (ADR-051). Nothing else
-      # builds with the tag, so without this a broken embed would first show
-      # up in a release, which is the worst place to find it.
+      # A release compiles this dist into the binary (ADR-051), and nothing
+      # else builds with the tag, so a broken embed would otherwise first show
+      # up in a release. That is the worst place to find one, and it did
+      # happen: the placements directory left with the authoring tools and
+      # took the release build with it.
+      #
+      # The build runs, the binary is thrown away. Proving the tagged build
+      # still links is worth a minute; keeping a 40 MB artifact from every
+      # push is not, and making a release is a button somebody presses.
+      #
+      # It sits in this job rather than beside the other Go steps because the
+      # embed needs the web/dist that `npm run build` above has just made.
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-      - run: go build -tags standalone .
+      - run: go build -tags standalone -o /dev/null .
         working-directory: ${{ github.workspace }}
 
   datc:
