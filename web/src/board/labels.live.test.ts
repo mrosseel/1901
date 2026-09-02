@@ -2,7 +2,7 @@
 /*
 The live fixture, mounted exactly as the exporter wrote it.
 
-labels.test.ts runs against testdata/frozen/demo7-drawn, which is art that
+labels.test.ts runs against internal/variant/testdata/frozen/demo7-drawn, which is art that
 draws its own names, centres and anchors. It has to cut those three layers out
 with a helper before the board will draw anything, because at the time it was
 written the exporter had not stopped drawing them. That fixture is frozen and
@@ -22,9 +22,9 @@ import { mount } from "./board";
 import { emptyPlan } from "./phases";
 import { resetProvinceNames, setProvinceNames } from "./provinces";
 import type { BoardApi, BoardState, LabelPlan, Placement } from "./types";
-import ART from "../../../testdata/generated/demo7/map.svg?raw";
-import placementsFile from "../../../testdata/generated/demo7/placements.json?raw";
-import descriptorFile from "../../../testdata/generated/demo7/variant.json?raw";
+import ART from "../../../internal/variant/testdata/generated/demo7/map.svg?raw";
+import placementsFile from "../../../internal/variant/testdata/generated/demo7/placements.json?raw";
+import descriptorFile from "../../../internal/variant/testdata/generated/demo7/variant.json?raw";
 
 if (!(globalThis as { CSS?: unknown }).CSS) {
   (globalThis as { CSS?: unknown }).CSS = {
