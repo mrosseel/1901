@@ -20,8 +20,8 @@
 // Two things separate a file on disk from a package in the binary, and both
 // are handled here rather than assumed away.
 //
-// The art is sanitised (svgsafe.go). Compiled art passed through code review;
-// this did not, and SVG executes.
+// The art is sanitised (the svgsafe package). Compiled art passed through
+// code review; this did not, and SVG executes.
 //
 // The descriptor is hashed, and the hash is recorded on every game that uses
 // it. A game replays its whole order history against the variant's starting

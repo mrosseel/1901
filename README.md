@@ -41,7 +41,7 @@ The key comes from your seat, so it can be made again. If your phone dies
 after you lock in, open your seat link on another one and your orders still
 count.
 
-The design notes live in [DESIGN.md](DESIGN.md) and [docs/adr/](docs/adr/),
+The design notes live in [docs/DESIGN.md](docs/DESIGN.md) and [docs/adr/](docs/adr/),
 which record every decision this project has made and why.
 
 ## Running it
@@ -106,7 +106,7 @@ with no toolchain and no internet (ADR-051):
 
 ```
 cd web && npm run build && cd ..
-CGO_ENABLED=0 go build -tags standalone -o 1901 .
+CGO_ENABLED=0 go build -tags standalone -o 1901 ./cmd/1901
 ```
 
 Without the tag the server reads `web/dist` and `variants/generated` from the
@@ -117,13 +117,41 @@ The published binaries come from the Release workflow: Actions, Release, Run
 workflow, type the version. It builds seven platforms from one runner and
 publishes them with their checksums.
 
+## Where things are
+
+```
+cmd/1901/           the entry point, one line
+internal/
+  server/           games, seats, the clock, the endpoints, the database
+  variant/          the variants, their art, the styles and the restyle
+  assets/           the two directories that are neither code nor database
+  datc/             the published compliance score
+  httpx/            compression and the JSON writers
+  svgsafe/          sanitising map art
+  svgprune/         helpers for the tools in tools/
+  svground/
+  variantjson/      the descriptor format
+mapstyles/          the named styles, as data
+variants/generated/ the variants this server ships
+web/                the frontend
+tools/              the command-line tools
+docs/               DESIGN, CONTEXT, the contracts, and every ADR
+nix/                the package definition
+```
+
+`mapstyles`, `variants` and `web` each carry a Go file that does nothing but
+embed what sits beside it. The data stays at the top because other programs
+read it there: dipmap reads the styles, the tools read the variants, and vite
+writes `web/dist`. A release compiles all three into the binary; a
+development build reads them from the working directory.
+
 ## Developing
 
 Run the Go server and the vite dev server side by side:
 
 ```
-go run .                                  # API on :8190
-cd web && npm run dev                     # UI on :5173, proxied to :8190
+go run ./cmd/1901      # API on :8190
+cd web && npm run dev  # UI on :5173, proxied to :8190
 ```
 
 The frontend hot-reloads. `npm run dev` also enables the design gallery at
@@ -154,9 +182,9 @@ cd web && npx vitest run
 ```
 
 CI runs both suites plus govulncheck and godip's DATC corpus on every push.
-The DATC run writes `datcreport/report.json`, which the binary embeds and
-serves at `/datc`. Do not edit that file: the number is generated, and a typed
-claim about correctness goes stale the first time godip moves.
+The DATC run writes `internal/datc/datcreport/report.json`, which the binary
+embeds and serves at `/datc`. Do not edit that file: the number is generated,
+and a typed claim about correctness goes stale the first time godip moves.
 
 ## Legal
 

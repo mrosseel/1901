@@ -26,7 +26,7 @@
 // with a flag rather than two functions that might drift apart.
 //
 // The history is not stored in a table of its own. Every snapshot is built by
-// the same replay machinery that rebuilds a game after a restart (store.go):
+// the same replay machinery that rebuilds a game after a restart (load.go):
 // the phases are replayed from their order rows, and each one records what it
 // saw on the way past. A historical URL is therefore stable forever and
 // survives a SIGKILL, because it is derived from the same rows the board is.

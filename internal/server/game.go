@@ -3,7 +3,7 @@
 //
 // Everything here is one game's own state. Who is allowed to touch it is a
 // question for the flow (flow.go); how it survives a restart is a question
-// for the store (store.go).
+// for the store (save.go, load.go).
 
 package server
 

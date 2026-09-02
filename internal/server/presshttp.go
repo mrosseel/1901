@@ -271,7 +271,7 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 	f.pressByID[t.id] = t
 	/*
 		Nothing is logged. The event log is read back whole by the game master
-		view (flow.go), which is a view a playing game master holds, so a line
+		view (gm.go), which is a view a playing game master holds, so a line
 		naming a room's members would hand that player the one fact press exists
 		to keep: who is talking to whom. ADR-007 audits the game master's powers,
 		and opening a room is not one of them.
