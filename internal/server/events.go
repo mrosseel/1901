@@ -12,8 +12,10 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -115,14 +117,77 @@ func (self *liveSocketCount) give(audience eventAudience, source string) {
 	self.bySource[source]--
 }
 
+/*
+trustedProxies is the set of addresses whose X-Forwarded-For is believed, read
+once at startup from TRUSTED_PROXY. Empty means nobody's is.
+
+At a table every phone reaches this process directly and its own address is
+the truth. Behind a reverse proxy every connection arrives from the proxy, so
+the per-source share would put the whole internet on one address. Only the
+proxy may say who it is fronting: a header from anyone else is a way to dodge
+the share by making up addresses, so it is ignored unless the connection
+itself comes from a listed proxy.
+*/
+var trustedProxies []*net.IPNet
+
 // eventSource is the address a public connection is counted against. The port
-// changes with every connection, so only the host is kept.
+// changes with every connection, so only the host is kept. When the connection
+// comes from a trusted proxy, the address is the last one that proxy appended
+// to X-Forwarded-For, which is the client it accepted the connection from.
 func eventSource(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
 	}
-	return host
+	if !fromTrustedProxy(host) {
+		return host
+	}
+	hops := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	client := strings.TrimSpace(hops[len(hops)-1])
+	if client == "" {
+		return host
+	}
+	return client
+}
+
+func fromTrustedProxy(host string) bool {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	for _, network := range trustedProxies {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// parseTrustedProxies reads a comma-separated list of addresses or CIDR
+// ranges. A bare address becomes a range of one.
+func parseTrustedProxies(list string) ([]*net.IPNet, error) {
+	var out []*net.IPNet
+	for _, item := range strings.Split(list, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if !strings.Contains(item, "/") {
+			if ip := net.ParseIP(item); ip != nil {
+				bits := 32
+				if ip.To4() == nil {
+					bits = 128
+				}
+				item = fmt.Sprintf("%s/%d", ip, bits)
+			}
+		}
+		_, network, err := net.ParseCIDR(item)
+		if err != nil {
+			return nil, fmt.Errorf("%q is not an address or a CIDR range", item)
+		}
+		out = append(out, network)
+	}
+	return out, nil
 }
 
 type eventSubscriber struct {

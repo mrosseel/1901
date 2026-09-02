@@ -78,6 +78,7 @@ scan the invite QR from the phones. Useful environment variables:
 | `DB` | `1901.db` | SQLite file; delete it for a clean slate |
 | `BASE_URL` | derived from the request | Pin the origin used in invite links (set this behind a proxy) |
 | `MAX_GAMES` | `100` | Cap on live games |
+| `TRUSTED_PROXY` | unset | Proxy addresses or CIDR ranges whose `X-Forwarded-For` names the client, for the per-address live-view limit |
 
 A link to `localhost` cannot open on a phone. When `BASE_URL` is unset and the
 GM reaches the server on localhost, the server puts its own LAN address in the

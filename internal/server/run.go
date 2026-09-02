@@ -64,6 +64,20 @@ func pinBaseURL() {
 	baseURLFixed = base
 }
 
+// pinTrustedProxies reads TRUSTED_PROXY once. See trustedProxies for why a
+// header is believed from these addresses and no others.
+func pinTrustedProxies() {
+	list := os.Getenv("TRUSTED_PROXY")
+	if list == "" {
+		return
+	}
+	networks, err := parseTrustedProxies(list)
+	if err != nil {
+		log.Fatalf("TRUSTED_PROXY: %v", err)
+	}
+	trustedProxies = networks
+}
+
 // loadState reads everything the server needs before it serves a request.
 //
 // The order is load-bearing, which is why this is a function rather than a run
@@ -98,6 +112,7 @@ func loadState() error {
 
 func Main() {
 	pinBaseURL()
+	pinTrustedProxies()
 	pinLANHost()
 	games.limit = gameLimit()
 	handle, err := openDB(dbPath())

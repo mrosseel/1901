@@ -267,3 +267,42 @@ func TestWebSocketCarriesInitialAndChangedVersions(t *testing.T) {
 		t.Fatalf("changed event is %#v", event)
 	}
 }
+
+/*
+Who a public connection is counted as, with and without a proxy in front.
+
+The header is believed only from a listed proxy. From anyone else it is a way
+to dodge the per-address share by making addresses up, so it is ignored.
+*/
+func TestForwardedAddressIsBelievedOnlyFromATrustedProxy(t *testing.T) {
+	old := trustedProxies
+	defer func() { trustedProxies = old }()
+	networks, err := parseTrustedProxies("10.0.0.1, 192.168.0.0/16")
+	if err != nil {
+		t.Fatal(err)
+	}
+	trustedProxies = networks
+
+	cases := []struct {
+		remote, forwarded, want string
+	}{
+		{"10.0.0.1:4000", "203.0.113.7", "203.0.113.7"},
+		{"192.168.4.9:4000", "198.51.100.2, 203.0.113.7", "203.0.113.7"},
+		{"10.0.0.1:4000", "", "10.0.0.1"},
+		{"10.0.0.2:4000", "203.0.113.7", "10.0.0.2"},
+		{"[::1]:4000", "203.0.113.7", "::1"},
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.RemoteAddr = c.remote
+		if c.forwarded != "" {
+			r.Header.Set("X-Forwarded-For", c.forwarded)
+		}
+		if got := eventSource(r); got != c.want {
+			t.Errorf("from %v with %q: counted as %v, want %v", c.remote, c.forwarded, got, c.want)
+		}
+	}
+	if _, err := parseTrustedProxies("not-an-address"); err == nil {
+		t.Error("a name that is not an address was accepted")
+	}
+}
