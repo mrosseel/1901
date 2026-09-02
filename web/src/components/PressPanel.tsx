@@ -440,9 +440,6 @@ function PressRoom({
   const onChangedRef = useRef(onChanged);
   onChangedRef.current = onChanged;
 
-  /* The member list decides the room key, and it arrives as a fresh array on
-     every poll. Keyed on its contents, so an answer that says the same thing
-     does not re-derive the key and re-run everything that depends on it. */
   /* The room's whole description decides the key, and it arrives as fresh
      objects on every poll. Keyed on what those objects say, so an answer that
      repeats itself does not re-check a signature and re-run everything that
