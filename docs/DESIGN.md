@@ -277,6 +277,8 @@ the code still resolves.
 | [ADR-053 — Press is a room, not a message](docs/adr/053-press-is-a-room-not-a-message.md) | accepted |
 | [ADR-054 — The server cannot read press, and a referee who does not play may](docs/adr/054-the-server-cannot-read-press.md) | accepted |
 | [ADR-055 — Press follows the tournament clock](docs/adr/055-press-follows-the-tournament-clock.md) | accepted |
+| [ADR-056 — A room is signed by whoever opened it](docs/adr/056-a-room-is-signed-by-whoever-opened-it.md) | accepted |
+| [ADR-057 — A length is a message too](docs/adr/057-a-length-is-a-message-too.md) | accepted |
 
 ## 4. Open questions
 

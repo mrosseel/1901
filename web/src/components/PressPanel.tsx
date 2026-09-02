@@ -378,8 +378,8 @@ export function PressPanel({
 
       {rooms.length === 0 ? (
         <p className="muted press-empty">
-          Nothing yet. Everything written here is readable only by the powers in
-          the conversation.
+          Nothing yet. Only the powers in a conversation can read what is
+          written in it. The server still knows who talks to whom, and when.
         </p>
       ) : null}
     </section>

@@ -56,9 +56,11 @@ a server free to change either could rearrange a conversation without touching a
 word of it. Then the whole thing is signed, because inside a room of three the
 room key alone does not say which of the three wrote a line.
 
-A wrap is bound too, with `<gameId>|<members>`, so one lifted out of a stored
-database cannot be replayed into another game or into a room with a different
-membership.
+A wrap is bound too, and to the whole room rather than to its membership alone.
+ADR-056 replaced the first version of that binding after a review found that
+the reader took the opener's public key out of the wrap it was opening, which
+let a server hand out a room whose key it had chosen. Read ADR-056 for what a
+wrap and a room manifest carry now.
 
 ## What this does not protect against, said first
 
@@ -80,17 +82,29 @@ key. Two things narrow that and neither closes it:
   against. Otherwise the cheapest attack on the whole scheme would be to omit
   a signing key: with nothing to check against there is nothing to fail, and a
   device that had already seen the real one would never notice.
-- **A pin does not refuse a change, only report one.** Where the server has a
-  key, that key is what a message is checked against, and the pin moves to it.
-  A handover changes a seat's key for real, so a pin that refused the new one
-  would end that seat's press for the rest of the game. The warning is the
-  defence and the table is what decides: only the room knows whether somebody
-  handed a seat on.
+- **A pin refuses a change until the change is accounted for.** This is the
+  one bullet ADR-056 overturned. A pin used to move to whatever key came next,
+  so a server that kept sending an invented key was believed from the second
+  poll onward. Now the old key stays authoritative, and the new one waits for
+  a signed handover step or for somebody at the table to confirm it.
 
 What is left: a server that lies about both halves from the first request a
 device ever makes is not detected. There is no out-of-band channel to check a
 key against, and inventing one — a fingerprint read out at the table — is a
 real answer that this decision does not take.
+
+**Content is encrypted; metadata is not.** The server permanently holds who is
+in every room, who opened it, when, the sender and time and order of every
+message, which bucket its length fell in (ADR-057), and how far each holder has
+read. That is the social graph and the cadence of a game of Diplomacy, and both
+are worth something at a table. "The server cannot read press" is a statement
+about message bodies and about nothing else. Nothing in this app may imply
+otherwise, and the join page and the panel say so in their own words.
+
+**There is no forward secrecy.** A room key lives as long as the room. Somebody
+who later gets a seat's seed and a copy of the database reads that seat's whole
+press history. Orders differ: an envelope is cleared when its phase resolves,
+and the orders become public anyway.
 
 **So press is weaker than orders, and this is the sentence that says so.** An
 order's key never leaves the device at all (ADR-004), so a sealed order is
@@ -175,3 +189,8 @@ no key.
 - **r56, 2026-09-02** — ADR-054 accepted and built. The key-distribution limit
   above was written after a review pointed out that the first draft claimed
   more than the code does.
+- **r57, 2026-09-02** — a security review found the wrap binding above was not
+  enough, and that pins moving on their own undid what pinning was for. Both
+  are replaced by ADR-056. The metadata and forward-secrecy paragraphs were
+  added in the same pass; nothing about them changed in the code, only what
+  this file admits to.

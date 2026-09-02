@@ -856,9 +856,11 @@ function SettingsCard({
           {started
             ? "Fixed once the game has started."
             : pressMode === "rulebook"
-              ? "Messages during movement phases only, and none during retreats and builds."
+              ? "Messages during movement phases only, and none during retreats and builds. " +
+                "Only the powers in a conversation can read it; the server still knows who talks to whom."
               : pressMode === "fullpress"
-                ? "Messages in every phase. Best for a table that is not in one room."
+                ? "Messages in every phase. Best for a table that is not in one room. " +
+                  "Only the powers in a conversation can read it; the server still knows who talks to whom."
                 : "Negotiation happens in person. This app carries no messages."}
         </small>
       </label>

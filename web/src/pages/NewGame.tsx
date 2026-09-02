@@ -55,8 +55,12 @@ const PRESS_HELP: Record<PressMode, string> = {
   gunboat: "No negotiation at all, and the seats stay anonymous.",
   rulebook:
     "Messages during movement phases only, and none during retreats and builds. " +
-    "This is how a tournament board plays.",
-  fullpress: "Messages in every phase. Best for a table that is not in one room.",
+    "This is how a tournament board plays. Only the powers in a conversation " +
+    "can read it; the server still knows who talks to whom, and when.",
+  fullpress:
+    "Messages in every phase. Best for a table that is not in one room. Only " +
+    "the powers in a conversation can read it; the server still knows who " +
+    "talks to whom, and when.",
 };
 
 export function NewGame({ sandbox }: { sandbox?: boolean }) {
