@@ -113,6 +113,10 @@ func export(v common.Variant, key, out, placementDir, planDir string) error {
 	if err != nil {
 		return err
 	}
+	dir := filepath.Join(out, key)
+	if err := keepCorrectedNames(&descriptor, dir); err != nil {
+		return err
+	}
 	if err := variantjson.Validate(descriptor); err != nil {
 		return err
 	}
@@ -120,7 +124,6 @@ func export(v common.Variant, key, out, placementDir, planDir string) error {
 		log.Printf("%v: %v", key, warning)
 	}
 
-	dir := filepath.Join(out, key)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -168,6 +171,50 @@ func export(v common.Variant, key, out, placementDir, planDir string) error {
 		err = nil
 	}
 	return err
+}
+
+// keepCorrectedNames carries a long name the descriptor already states into a
+// re-export, where godip states none.
+//
+// Four variants leave a province's long name empty in the table godip
+// compiles, although the graph builder writes the name in a comment above the
+// province and the art draws it. 1800: Empires And Coalitions leaves all 96
+// empty. A descriptor written straight out of the table labels the board with
+// nothing, so the name was recovered and written into the descriptor by hand.
+//
+// godip wins wherever it states a name. This only fills a hole, and it fills
+// it from the file this run is about to overwrite, so a correction survives a
+// re-export instead of being silently undone by it.
+func keepCorrectedNames(d *variantjson.Descriptor, dir string) error {
+	body, err := os.ReadFile(filepath.Join(dir, "variant.json"))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var held variantjson.Descriptor
+	if err := json.Unmarshal(body, &held); err != nil {
+		return fmt.Errorf("reading the descriptor already at %v: %w", dir, err)
+	}
+	names := map[string]string{}
+	for _, row := range held.Provinces {
+		if key, ok := row[0].(string); ok {
+			if long, ok := row[1].(string); ok && long != "" {
+				names[key] = long
+			}
+		}
+	}
+	for i, row := range d.Provinces {
+		key, ok := row[0].(string)
+		if !ok {
+			continue
+		}
+		if long, ok := row[1].(string); ok && long == "" && names[key] != "" {
+			d.Provinces[i][1] = names[key]
+		}
+	}
+	return nil
 }
 
 // describe reads everything a descriptor needs out of a compiled variant.

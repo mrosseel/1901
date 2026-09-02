@@ -120,13 +120,25 @@ func compareIdentity(t *testing.T, compiled, loaded common.Variant) {
 	// godip's long-name tables sometimes name a province the graph does not
 	// have; the descriptor carries a name for each province it declares, so
 	// the comparison is over the graph.
+	//
+	// A name godip leaves empty is the one difference allowed. Four variants
+	// compile no name for a province their graph builder names in a comment
+	// and their art draws, and 1800: Empires And Coalitions compiles none for
+	// any of its 96. A descriptor that repeated the hole would label the board
+	// with nothing, so the name was recovered and written in by hand, and
+	// variant-export carries it across a re-export. Filling a hole is the
+	// correction; changing a name godip states is still a fault.
 	for _, province := range compiled.Graph().Provinces() {
 		if province != province.Super() {
 			continue
 		}
-		if compiled.ProvinceLongNames[province] != loaded.ProvinceLongNames[province] {
-			t.Errorf("%v is %q in godip and %q loaded", province,
-				compiled.ProvinceLongNames[province], loaded.ProvinceLongNames[province])
+		want := compiled.ProvinceLongNames[province]
+		got := loaded.ProvinceLongNames[province]
+		if want == "" && got != "" {
+			continue
+		}
+		if want != got {
+			t.Errorf("%v is %q in godip and %q loaded", province, want, got)
 		}
 	}
 }
