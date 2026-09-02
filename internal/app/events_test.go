@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"spring1901/spike/internal/httpx"
 	"strings"
 	"testing"
 	"time"
@@ -122,7 +123,7 @@ func TestWebSocketCarriesInitialAndChangedVersions(t *testing.T) {
 		games.mu.Unlock()
 	}()
 	app := &server{}
-	server := httptest.NewServer(compress(limitBody(http.HandlerFunc(app.serveAPI))))
+	server := httptest.NewServer(httpx.Compress(limitBody(http.HandlerFunc(app.serveAPI))))
 	defer server.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

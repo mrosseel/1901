@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"spring1901/spike/internal/httpx"
 	"strconv"
 	"strings"
 	"sync"
@@ -765,7 +766,7 @@ func Main() {
 	// most, so these bounds are generous.
 	httpSrv := &http.Server{
 		Addr:              addr,
-		Handler:           compress(limitBody(mux)),
+		Handler:           httpx.Compress(limitBody(mux)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

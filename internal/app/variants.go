@@ -19,6 +19,7 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"spring1901/spike/internal/httpx"
 	"strings"
 	"sync"
 
@@ -361,7 +362,7 @@ func serveMapArt(w http.ResponseWriter, r *http.Request, key string, v common.Va
 	}
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Vary", "Accept-Encoding")
-	if !acceptsGzip(r) || len(body) < minCompressBytes {
+	if !httpx.AcceptsGzip(r) || len(body) < httpx.MinCompressBytes {
 		w.Write(body)
 		return nil
 	}
@@ -370,7 +371,7 @@ func serveMapArt(w http.ResponseWriter, r *http.Request, key string, v common.Va
 	packed, hit := compressedArt.by[name]
 	compressedArt.mu.RUnlock()
 	if !hit {
-		packed = gzipBytes(body)
+		packed = httpx.GzipBytes(body)
 		compressedArt.mu.Lock()
 		if first, raced := compressedArt.by[name]; raced {
 			packed = first

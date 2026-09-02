@@ -1,4 +1,4 @@
-package app
+package svgsafe
 
 // The sanitiser is the boundary between art that arrived through code review
 // and art that arrived as a file. Each test here is a way SVG executes.
@@ -12,9 +12,9 @@ import (
 
 func sanitize(t *testing.T, raw string) string {
 	t.Helper()
-	result, err := sanitizeSVG([]byte(raw))
+	result, err := Sanitize([]byte(raw))
 	if err != nil {
-		t.Fatalf("sanitizeSVG: %v", err)
+		t.Fatalf("Sanitize: %v", err)
 	}
 	return string(result.Clean)
 }
@@ -166,15 +166,15 @@ func TestKeepsTheShapesABoardNeeds(t *testing.T) {
 			t.Errorf("sanitising removed %q, which the board needs:\n%s", want, clean)
 		}
 	}
-	if err := requireBoardLayers([]byte(clean)); err != nil {
+	if err := RequireBoardLayers([]byte(clean)); err != nil {
 		t.Errorf("board layers missing after sanitising: %v", err)
 	}
 }
 
 func TestReportsWhatItRemoved(t *testing.T) {
-	result, err := sanitizeSVG([]byte(`<svg><script>x</script><g id="provinces"><rect onclick="y" x="0"/></g></svg>`))
+	result, err := Sanitize([]byte(`<svg><script>x</script><g id="provinces"><rect onclick="y" x="0"/></g></svg>`))
 	if err != nil {
-		t.Fatalf("sanitizeSVG: %v", err)
+		t.Fatalf("Sanitize: %v", err)
 	}
 	if !result.Dropped() {
 		t.Fatal("expected the pass to report removals")
@@ -220,17 +220,17 @@ func TestStripsARemoteFont(t *testing.T) {
 }
 
 func TestRequireBoardLayersRejectsArtWithout(t *testing.T) {
-	if err := requireBoardLayers([]byte(`<svg><g id="something"/></svg>`)); err == nil {
+	if err := RequireBoardLayers([]byte(`<svg><g id="something"/></svg>`)); err == nil {
 		t.Error("art with no provinces layer must be rejected")
 	}
-	if err := requireBoardLayers([]byte(`<svg><g id="provinces"/></svg>`)); err != nil {
+	if err := RequireBoardLayers([]byte(`<svg><g id="provinces"/></svg>`)); err != nil {
 		t.Errorf("art with a provinces layer must be accepted: %v", err)
 	}
 	// Anchors are a fallback, not a requirement: Pure's map has none.
-	if !missingCenterAnchors([]byte(`<svg><g id="provinces"/></svg>`)) {
+	if !MissingCenterAnchors([]byte(`<svg><g id="provinces"/></svg>`)) {
 		t.Error("missing anchors must be reported")
 	}
-	if missingCenterAnchors([]byte(`<svg><g id="province-centers"/></svg>`)) {
+	if MissingCenterAnchors([]byte(`<svg><g id="province-centers"/></svg>`)) {
 		t.Error("present anchors must not be reported missing")
 	}
 }

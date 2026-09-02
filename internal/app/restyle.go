@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 
+	"spring1901/spike/internal/svgsafe"
 	"spring1901/spike/svgprune"
 )
 
@@ -943,7 +944,7 @@ func drawSupplyCentreRings(svg string, centres []string) (string, int) {
 			continue
 		}
 		rings.WriteString("\n\t\t" + `<circle class="` + supplyCentreRingClass +
-			`" id="sc-` + escapeAttr(province) + `" cx="` + at[0] + `" cy="` + at[1] +
+			`" id="sc-` + svgsafe.EscapeAttr(province) + `" cx="` + at[0] + `" cy="` + at[1] +
 			`" r="` + supplyCentreLength(supplyCentreRadiusFraction, width) + `"/>`)
 		drawn++
 	}

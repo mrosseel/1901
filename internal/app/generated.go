@@ -43,6 +43,7 @@ import (
 
 	"github.com/zond/godip/variants/common"
 
+	"spring1901/spike/internal/svgsafe"
 	"spring1901/spike/variantjson"
 )
 
@@ -292,7 +293,7 @@ func loadVariantArt(fsys fs.FS, key string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read %v: %w", svgPath, err)
 	}
-	sanitized, err := sanitizeSVG(rawSVG)
+	sanitized, err := svgsafe.Sanitize(rawSVG)
 	if err != nil {
 		return nil, fmt.Errorf("%v: %w", svgPath, err)
 	}
@@ -300,10 +301,10 @@ func loadVariantArt(fsys fs.FS, key string) ([]byte, error) {
 		log.Printf("generated variant %v: removed unsafe svg %v",
 			key, sanitized.Summary())
 	}
-	if err := requireBoardLayers(sanitized.Clean); err != nil {
+	if err := svgsafe.RequireBoardLayers(sanitized.Clean); err != nil {
 		return nil, fmt.Errorf("%v: %w", svgPath, err)
 	}
-	if missingCenterAnchors(sanitized.Clean) {
+	if svgsafe.MissingCenterAnchors(sanitized.Clean) {
 		log.Printf("generated variant %v: art has no province-centers layer, so "+
 			"markers fall back to the placement table alone", key)
 	}

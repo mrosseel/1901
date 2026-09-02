@@ -1,4 +1,4 @@
-// Sanitising map art before it is served.
+// Package svgsafe sanitises map art before it is served.
 //
 // A variant's board is SVG, and SVG is a scripting host: a `<script>` element,
 // an `onload=` attribute, or an `xlink:href` to a remote document all execute
@@ -10,7 +10,7 @@
 // name is dropped, so a construct nobody thought of is dropped too. The cost
 // is that art using an element we forgot loses it, which is a visible bug
 // rather than a silent hole.
-package app
+package svgsafe
 
 import (
 	"bytes"
@@ -97,9 +97,9 @@ var safeSVGAttributes = map[string]bool{
 	"image-rendering": true, "vector-effect": true, "overflow": true,
 }
 
-// svgSanitizeResult reports what a pass removed, so an operator can see that
+// Result reports what a pass removed, so an operator can see that
 // their art lost something rather than wondering why it renders oddly.
-type svgSanitizeResult struct {
+type Result struct {
 	Clean            []byte
 	DroppedElements  []string
 	DroppedAttrs     []string
@@ -107,10 +107,10 @@ type svgSanitizeResult struct {
 	droppedAttrsSeen map[string]bool
 }
 
-// sanitizeSVG rewrites map art keeping only allowlisted elements and
+// Sanitize rewrites map art keeping only allowlisted elements and
 // attributes. It returns an error only when the input is not parseable XML.
-func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
-	result := &svgSanitizeResult{
+func Sanitize(raw []byte) (*Result, error) {
+	result := &Result{
 		droppedElemSeen:  map[string]bool{},
 		droppedAttrsSeen: map[string]bool{},
 	}
@@ -162,7 +162,7 @@ func sanitizeSVG(raw []byte) (*svgSanitizeResult, error) {
 					continue
 				}
 				out.WriteString(" " + attrName(attr) + `="` +
-					escapeAttr(attr.Value) + `"`)
+					EscapeAttr(attr.Value) + `"`)
 			}
 			out.WriteString(">")
 
@@ -216,7 +216,7 @@ func escapeText(text string) string {
 	return replacer.Replace(text)
 }
 
-// escapeAttr escapes an attribute value: escapeText plus the quote that would
+// EscapeAttr escapes an attribute value: escapeText plus the quote that would
 // close the value early.
 //
 // It is spelled out rather than taken from fmt's %q, which writes a Go string
@@ -225,7 +225,7 @@ func escapeText(text string) string {
 // leaves `&` and `<` alone and spells `"` as \", so a value carrying either
 // makes the document unparseable. Whitespace and non-ASCII pass through: the
 // document is UTF-8, and an accented id has to keep matching its url(#id).
-func escapeAttr(value string) string {
+func EscapeAttr(value string) string {
 	replacer := strings.NewReplacer(
 		"&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
 	return replacer.Replace(value)
@@ -346,14 +346,14 @@ func svgAttrAllowed(element string, attr xml.Attr) bool {
 	return safeCSS(attr.Value)
 }
 
-func (self *svgSanitizeResult) noteElement(name string) {
+func (self *Result) noteElement(name string) {
 	if !self.droppedElemSeen[name] {
 		self.droppedElemSeen[name] = true
 		self.DroppedElements = append(self.DroppedElements, name)
 	}
 }
 
-func (self *svgSanitizeResult) noteAttr(name string) {
+func (self *Result) noteAttr(name string) {
 	if !self.droppedAttrsSeen[name] {
 		self.droppedAttrsSeen[name] = true
 		self.DroppedAttrs = append(self.DroppedAttrs, name)
@@ -361,12 +361,12 @@ func (self *svgSanitizeResult) noteAttr(name string) {
 }
 
 // Dropped reports whether the pass removed anything.
-func (self *svgSanitizeResult) Dropped() bool {
+func (self *Result) Dropped() bool {
 	return len(self.DroppedElements) > 0 || len(self.DroppedAttrs) > 0
 }
 
 // Summary describes what was removed, for a log line.
-func (self *svgSanitizeResult) Summary() string {
+func (self *Result) Summary() string {
 	parts := []string{}
 	if len(self.DroppedElements) > 0 {
 		parts = append(parts, "elements "+strings.Join(self.DroppedElements, ", "))
@@ -377,20 +377,20 @@ func (self *svgSanitizeResult) Summary() string {
 	return strings.Join(parts, "; ")
 }
 
-// requireBoardLayers checks the layer board.ts throws without. Art with no
+// RequireBoardLayers checks the layer board.ts throws without. Art with no
 // `#provinces` is not a board: nothing on it can be clicked or coloured.
-func requireBoardLayers(svg []byte) error {
+func RequireBoardLayers(svg []byte) error {
 	if !bytes.Contains(svg, []byte(`id="provinces"`)) {
 		return fmt.Errorf("map art has no provinces layer")
 	}
 	return nil
 }
 
-// missingCenterAnchors reports art with no `#province-centers` layer.
+// MissingCenterAnchors reports art with no `#province-centers` layer.
 //
 // It is not fatal. The layer is where the board reads a marker position when
 // the variant has no approved placement table, and godip's Pure map ships
 // without one, so refusing it would drop a playable variant over a fallback.
-func missingCenterAnchors(svg []byte) bool {
+func MissingCenterAnchors(svg []byte) bool {
 	return !bytes.Contains(svg, []byte(`id="province-centers"`))
 }

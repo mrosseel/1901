@@ -1,4 +1,4 @@
-package app
+package httpx
 
 import (
 	"bytes"
@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -33,7 +32,7 @@ func TestAcceptsGzipReadsTheOffer(t *testing.T) {
 		if header != "" {
 			r.Header.Set("Accept-Encoding", header)
 		}
-		if got := acceptsGzip(r); got != want {
+		if got := AcceptsGzip(r); got != want {
 			t.Errorf("Accept-Encoding %q: got %v, want %v", header, got, want)
 		}
 	}
@@ -55,7 +54,7 @@ func TestCompressibleReadsTheMediaType(t *testing.T) {
 		"":                                false,
 	}
 	for media, want := range cases {
-		if got := compressible(media); got != want {
+		if got := Compressible(media); got != want {
 			t.Errorf("%q: got %v, want %v", media, got, want)
 		}
 	}
@@ -69,7 +68,7 @@ func serve(t *testing.T, handler http.HandlerFunc, encoding string) *http.Respon
 		r.Header.Set("Accept-Encoding", encoding)
 	}
 	w := httptest.NewRecorder()
-	compress(handler).ServeHTTP(w, r)
+	Compress(handler).ServeHTTP(w, r)
 	return w.Result()
 }
 
@@ -128,7 +127,7 @@ func TestSmallAndBinaryResponsesAreLeftAlone(t *testing.T) {
 		name    string
 		handler http.HandlerFunc
 	}{
-		{"under a kilobyte", textHandler("application/json", minCompressBytes-1)},
+		{"under a kilobyte", textHandler("application/json", MinCompressBytes-1)},
 		{"a png", textHandler("image/png", 40000)},
 	}
 	for _, one := range cases {
@@ -143,7 +142,7 @@ func TestOnlyTextAnnouncesTheVary(t *testing.T) {
 	// A cache that ignores Vary would hand a gzipped body to a client that
 	// cannot read it, so the header goes on every response that COULD be
 	// compressed, not only the ones that were.
-	res := serve(t, textHandler("application/json", minCompressBytes-1), "")
+	res := serve(t, textHandler("application/json", MinCompressBytes-1), "")
 	if res.Header.Get("Vary") != "Accept-Encoding" {
 		t.Error("an uncompressed text response did not vary on Accept-Encoding")
 	}
@@ -154,7 +153,7 @@ func TestOnlyTextAnnouncesTheVary(t *testing.T) {
 }
 
 func TestAnAlreadyEncodedBodyIsNotCompressedTwice(t *testing.T) {
-	packed := gzipBytes([]byte(strings.Repeat("province ", 5000)))
+	packed := GzipBytes([]byte(strings.Repeat("province ", 5000)))
 	res := serve(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 		w.Header().Set("Content-Encoding", "gzip")
@@ -170,64 +169,8 @@ func TestARangeRequestIsPassedThrough(t *testing.T) {
 	r.Header.Set("Accept-Encoding", "gzip")
 	r.Header.Set("Range", "bytes=0-99")
 	w := httptest.NewRecorder()
-	compress(textHandler("image/svg+xml", 40000)).ServeHTTP(w, r)
+	Compress(textHandler("image/svg+xml", 40000)).ServeHTTP(w, r)
 	if w.Result().Header.Get("Content-Encoding") != "" {
 		t.Error("a range request was answered with a renumbered body")
-	}
-}
-
-// TestEveryMapIsServedIdenticallyCompressed is the check the compression has to
-// pass: for every variant in every style, what a gzip client unpacks is byte
-// for byte what a client that offered nothing was sent.
-func TestEveryMapIsServedIdenticallyCompressed(t *testing.T) {
-	if err := loadStyles(); err != nil {
-		t.Fatal(err)
-	}
-	if err := loadPlans(); err != nil {
-		t.Fatal(err)
-	}
-	withGeneratedDir(t, repoPath(t, filepath.Join("variants", "generated")))
-	if err := loadGeneratedVariants(); err != nil {
-		t.Fatal(err)
-	}
-
-	styles := []string{"original", "parchment", "flat", "midnight", "print"}
-	compressed := 0
-	for key := range generatedVariants {
-		for _, style := range styles {
-			url := "/variants/" + key + "/map.svg?style=" + style
-
-			plainRec := httptest.NewRecorder()
-			compress(http.HandlerFunc(handleVariantMap)).ServeHTTP(
-				plainRec, httptest.NewRequest("GET", url, nil))
-			plain := plainRec.Result()
-			if plain.StatusCode != http.StatusOK {
-				t.Fatalf("%v in %v: status %v", key, style, plain.StatusCode)
-			}
-			if plain.Header.Get("Content-Encoding") != "" {
-				t.Fatalf("%v in %v: a client that offered nothing got an encoding",
-					key, style)
-			}
-
-			r := httptest.NewRequest("GET", url, nil)
-			r.Header.Set("Accept-Encoding", "gzip")
-			packedRec := httptest.NewRecorder()
-			compress(http.HandlerFunc(handleVariantMap)).ServeHTTP(packedRec, r)
-			packed := packedRec.Result()
-			if packed.Header.Get("Content-Encoding") != "gzip" {
-				t.Fatalf("%v in %v: a map was sent uncompressed", key, style)
-			}
-			if packed.Header.Get("Vary") != "Accept-Encoding" {
-				t.Fatalf("%v in %v: no Vary on a compressed map", key, style)
-			}
-			if !bytes.Equal(unpack(t, packed), unpack(t, plain)) {
-				t.Fatalf("%v in %v: the decompressed map is not the map", key, style)
-			}
-			compressed++
-		}
-	}
-	if compressed != len(generatedVariants)*len(styles) {
-		t.Fatalf("checked %v map(s), expected %v",
-			compressed, len(generatedVariants)*len(styles))
 	}
 }

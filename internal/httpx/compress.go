@@ -1,4 +1,4 @@
-// Serving compressed responses.
+// Package httpx serves compressed responses.
 //
 // The maps are the whole reason this file exists. Classical's parchment SVG is
 // 1.8 MB of text and gzips to under a megabyte; all 26 boards together are 25 MB
@@ -14,7 +14,7 @@
 // Every compressible response carries `Vary: Accept-Encoding`, whether or not it
 // was compressed. A cache that stores one response and hands it to the next
 // client would otherwise serve gzip to a client that cannot read it.
-package app
+package httpx
 
 import (
 	"bytes"
@@ -25,11 +25,11 @@ import (
 	"sync"
 )
 
-// minCompressBytes is the body size below which a response is sent as it is.
+// MinCompressBytes is the body size below which a response is sent as it is.
 // A gzip stream costs about twenty bytes of header and trailer before it has
 // compressed anything, and under a kilobyte the saving is not worth the CPU at
 // either end.
-const minCompressBytes = 1024
+const MinCompressBytes = 1024
 
 // gzipWriters pools the compressors. A gzip.Writer holds a 32 KB window and
 // its hash tables, which is a lot to allocate per request.
@@ -43,8 +43,8 @@ var gzipWriters = sync.Pool{
 	},
 }
 
-// gzipBytes compresses a whole body at once, for callers that cache the result.
-func gzipBytes(body []byte) []byte {
+// GzipBytes compresses a whole body at once, for callers that cache the result.
+func GzipBytes(body []byte) []byte {
 	out := &bytes.Buffer{}
 	w := gzipWriters.Get().(*gzip.Writer)
 	w.Reset(out)
@@ -54,12 +54,12 @@ func gzipBytes(body []byte) []byte {
 	return out.Bytes()
 }
 
-// acceptsGzip reports whether the client offered gzip.
+// AcceptsGzip reports whether the client offered gzip.
 //
 // A bare `gzip` in the list is an offer. `gzip;q=0` is the opposite: it is how
 // a client says it will not take gzip even though the encoding exists, and it
 // is the one thing that has to be read out of the parameters.
-func acceptsGzip(r *http.Request) bool {
+func AcceptsGzip(r *http.Request) bool {
 	for _, part := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
 		name, params, _ := strings.Cut(strings.TrimSpace(part), ";")
 		if !strings.EqualFold(strings.TrimSpace(name), "gzip") {
@@ -89,8 +89,8 @@ var compressibleTypes = map[string]bool{
 	"image/svg+xml":          true,
 }
 
-// compressible reads a Content-Type header and says whether its body is text.
-func compressible(contentType string) bool {
+// Compressible reads a Content-Type header and says whether its body is text.
+func Compressible(contentType string) bool {
 	media, _, _ := strings.Cut(contentType, ";")
 	media = strings.ToLower(strings.TrimSpace(media))
 	if media == "" {
@@ -135,7 +135,7 @@ func (self *compressWriter) Write(body []byte) (int, error) {
 		return self.ResponseWriter.Write(body)
 	}
 	self.held = append(self.held, body...)
-	if len(self.held) >= minCompressBytes {
+	if len(self.held) >= MinCompressBytes {
 		self.decide()
 	}
 	return len(body), nil
@@ -164,7 +164,7 @@ func (self *compressWriter) decide() {
 	if contentType == "" && len(self.held) > 0 {
 		contentType = http.DetectContentType(self.held)
 	}
-	text := compressible(contentType)
+	text := Compressible(contentType)
 	if text && header.Get("Content-Encoding") == "" {
 		// Announced whether or not this particular response was compressed:
 		// the next one on the same URL may be, for a client that asks.
@@ -172,7 +172,7 @@ func (self *compressWriter) decide() {
 			header.Set("Vary", "Accept-Encoding")
 		}
 	}
-	if self.mayGzip && text && len(self.held) >= minCompressBytes &&
+	if self.mayGzip && text && len(self.held) >= MinCompressBytes &&
 		self.status == http.StatusOK && header.Get("Content-Encoding") == "" {
 		header.Set("Content-Type", contentType)
 		header.Set("Content-Encoding", "gzip")
@@ -194,7 +194,7 @@ func (self *compressWriter) decide() {
 	self.held = nil
 }
 
-// close finishes the response. A body that never reached minCompressBytes is
+// close finishes the response. A body that never reached MinCompressBytes is
 // released here, uncompressed.
 func (self *compressWriter) close() {
 	if !self.decided {
@@ -207,13 +207,13 @@ func (self *compressWriter) close() {
 	}
 }
 
-// compress wraps a handler so its text responses are gzipped for clients that
+// Compress wraps a handler so its text responses are gzipped for clients that
 // asked for it.
 //
 // A range request is passed through untouched. The range names bytes of the
 // representation the client already has a length for, and compressing the
 // answer would renumber them.
-func compress(next http.Handler) http.Handler {
+func Compress(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// An upgraded connection is no longer an HTTP response body. Passing the
 		// original writer through also preserves the hijacking interfaces the
@@ -225,7 +225,7 @@ func compress(next http.Handler) http.Handler {
 		writer := &compressWriter{
 			ResponseWriter: w,
 			status:         http.StatusOK,
-			mayGzip:        acceptsGzip(r),
+			mayGzip:        AcceptsGzip(r),
 		}
 		defer writer.close()
 		next.ServeHTTP(writer, r)
