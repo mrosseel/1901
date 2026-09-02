@@ -11,6 +11,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"os"
+
+	// sql.Open below names this driver by string, so nothing else in the
+	// package refers to it. Without the import the binary builds and then
+	// fails to start with "unknown driver".
+	_ "modernc.org/sqlite"
 )
 
 // defaultDBPath is a file made in the working directory, and it stays that
