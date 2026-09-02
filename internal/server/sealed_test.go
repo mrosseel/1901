@@ -2,6 +2,8 @@
 package server
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -598,4 +600,83 @@ func TestAGameFromBeforeThisKeepsItsServerSideDrafts(t *testing.T) {
 	if g.flow.revealOpen() {
 		t.Error("an unsealed game opened a reveal window")
 	}
+}
+
+/*
+The record a resolved phase leaves behind (ADR-058).
+
+The orders are public once the phase resolves. What this adds is the envelope
+they came out of and the seat's signature over it, so a table arguing
+afterwards about what somebody committed has something to check rather than
+this server's word for it.
+*/
+func TestAResolvedPhaseKeepsTheSignedEnvelope(t *testing.T) {
+	g := sealedGame(t)
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.flow.seats["Austria"].signPub = base64.RawURLEncoding.EncodeToString(public)
+
+	orders := draft([]string{"bud", "Move", "ser"})
+	envelope, err := sealOrders("game", 0, "Austria", seatKey("Austria"), orders)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig := base64.RawURLEncoding.EncodeToString(
+		ed25519.Sign(private, []byte(commitBody("game", 0, "Austria", envelope))))
+	body := fmt.Sprintf(`{"sealed":%q,"sig":%q}`, envelope, sig)
+	rec := httptest.NewRecorder()
+	g.seatLock("game", "Austria", true, rec,
+		httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("locking: %v %v", rec.Code, rec.Body.String())
+	}
+
+	// Nothing is kept until the phase is over: a commitment that can still be
+	// withdrawn is not a record of anything.
+	if len(g.flow.commitments) != 0 {
+		t.Fatalf("a commitment was recorded before the reveal: %+v", g.flow.commitments)
+	}
+	for _, power := range g.flow.powers {
+		if power != "Austria" {
+			g.flow.seats[power].autoLocked = true
+		}
+	}
+	if rec := revealAs(g, "game", "Austria", nil); rec.Code != http.StatusOK {
+		t.Fatalf("revealing: %v %v", rec.Code, rec.Body.String())
+	}
+
+	kept := g.flow.commitments[0]["Austria"]
+	if kept.Envelope != envelope || kept.Sig != sig {
+		t.Fatalf("the record reads %+v", kept)
+	}
+	// And the signature really covers the envelope that was revealed, which
+	// is the whole of what the record is for.
+	if !ed25519.Verify(public, []byte(commitBody("game", 0, "Austria", kept.Envelope)),
+		mustDecode(t, kept.Sig)) {
+		t.Error("the kept signature does not cover the kept envelope")
+	}
+	// The phase's review carries it, so the record is on the page rather than
+	// only in memory.
+	if g.previousPhase == nil || g.previousPhase.Commitments["Austria"].Envelope != envelope {
+		t.Errorf("the review carries %+v", g.previousPhase)
+	}
+	// Withdrawing a lock takes the signature with it, so nothing can reveal
+	// against a commitment the seat abandoned.
+	g.flow.seats["Austria"].sealed = "x"
+	g.flow.seats["Austria"].sealedSig = "y"
+	g.flow.clearCommits()
+	if g.flow.seats["Austria"].sealedSig != "" {
+		t.Error("a new phase kept the last one's signature")
+	}
+}
+
+func mustDecode(t *testing.T, encoded string) []byte {
+	t.Helper()
+	raw, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
 }

@@ -143,6 +143,18 @@ CREATE TABLE IF NOT EXISTS press_read (
     PRIMARY KEY (game_id, thread_id, power)
 );
 
+-- What each seat locked in, kept after the phase resolved (ADR-058). The
+-- orders are public by then; this is the envelope they came out of and the
+-- seat's signature over it, so a dispute afterwards has something to check.
+CREATE TABLE IF NOT EXISTS phase_commitment (
+    game_id     TEXT    NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+    phase_index INTEGER NOT NULL,
+    power       TEXT    NOT NULL,
+    envelope    TEXT    NOT NULL,
+    sig         TEXT    NOT NULL,
+    PRIMARY KEY (game_id, phase_index, power)
+);
+
 -- The signed steps from a seat's old signing key to its new one (ADR-056).
 -- One row per handover that carried the outgoing player's link. The signature
 -- is made by the key being replaced, so this server can store these and
@@ -245,6 +257,9 @@ var seatColumns = []struct{ name, definition string }{
 	// what a seat that has not locked in looks like.
 	{"sealed_orders", `TEXT NOT NULL DEFAULT ''`},
 	{"revealed", `INTEGER NOT NULL DEFAULT 0`},
+	// The seat's signature over the envelope it locked in (ADR-058). Empty on
+	// every seat of a game from before commitments were signed.
+	{"sealed_sig", `TEXT NOT NULL DEFAULT ''`},
 	// The public half of this seat's press key (ADR-054). Empty on every
 	// seat that has never opened the press panel.
 	{"box_pub", `TEXT NOT NULL DEFAULT ''`},

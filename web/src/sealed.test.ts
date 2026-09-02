@@ -4,6 +4,7 @@ import { deriveOrderKey, fromBase64Url, toBase64Url } from "./keys";
 import { ORDER_PLAINTEXT } from "./pad";
 import {
   canonicalOrders,
+  commitBody,
   discardInheritedEnvelopeKey,
   draftOrders,
   inheritSealedOrderKey,
@@ -174,5 +175,26 @@ describe("the key for a phase", () => {
       orders: {},
     });
     window.localStorage.removeItem("1901.draft.handed-over.6");
+  });
+});
+
+/*
+The record a resolved phase leaves behind (ADR-058).
+
+The orders become public when the phase resolves, and so does the envelope they
+came out of. A signature over it is what lets the table check afterwards that
+the orders on the page came from what this seat committed.
+*/
+describe("the signature over an envelope", () => {
+  it("names the game, the phase, the power and the envelope", () => {
+    expect(commitBody("g1", 3, "Austria", "env")).toBe("1901 sealed v1|g1|3|Austria|env");
+  });
+
+  it("cannot be moved anywhere the envelope cannot", () => {
+    const one = commitBody("g1", 0, "Austria", "env");
+    expect(commitBody("g2", 0, "Austria", "env")).not.toBe(one);
+    expect(commitBody("g1", 1, "Austria", "env")).not.toBe(one);
+    expect(commitBody("g1", 0, "France", "env")).not.toBe(one);
+    expect(commitBody("g1", 0, "Austria", "other")).not.toBe(one);
   });
 });

@@ -771,6 +771,7 @@ func TestPressSurvivesARestart(t *testing.T) {
 		byDevice:    map[string]godip.Nation{},
 		sessions:    map[string]godip.Nation{},
 		pressByID:   map[string]*pressThread{},
+		commitments: map[int]map[string]commitment{},
 	}
 	if err := loadPress("press-restart", back); err != nil {
 		t.Fatalf("loadPress: %v", err)

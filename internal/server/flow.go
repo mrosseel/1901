@@ -86,6 +86,10 @@ type seat struct {
 	// only thing the server holds about a power's orders until the reveal,
 	// and it holds no key to it.
 	sealed string
+	// sealedSig is this seat's signature over that envelope (ADR-058). It is
+	// what makes the record a phase leaves behind checkable by anybody, and
+	// it is empty on a seat holding a token, which has nothing to sign with.
+	sealedSig string
 	// revealed says this seat has sent the key to its envelope and the
 	// orders are on the board. Only a sealed game uses it.
 	revealed bool
@@ -178,6 +182,10 @@ type flow struct {
 	// list; it holds no key to any of it.
 	press     []*pressThread
 	pressByID map[string]*pressThread
+	// commitments is what each seat locked in, by phase, kept after that
+	// phase resolved (ADR-058). The orders are public by then; this is the
+	// envelope they came out of and the signature over it.
+	commitments map[int]map[string]commitment
 	// keyChains are the signed steps from a seat's old signing key to its new
 	// one, one per handover that carried the outgoing player's link
 	// (ADR-056). They let a reader's pin follow a real handover without
@@ -229,6 +237,7 @@ func newFlow(s settings, v common.Variant) (*flow, error) {
 		byDevice:    map[string]godip.Nation{},
 		sessions:    map[string]godip.Nation{},
 		pressByID:   map[string]*pressThread{},
+		commitments: map[int]map[string]commitment{},
 	}
 	for _, power := range f.powers {
 		f.seats[power] = &seat{power: power}

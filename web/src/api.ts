@@ -936,9 +936,12 @@ export class SeatClient {
   which is what makes the lock a commitment (ADR-011): one act, one word in
   front of the player, an envelope behind it.
   */
-  lock(on: boolean, sealed?: string): Promise<SeatState> {
+  lock(on: boolean, sealed?: string, sig?: string): Promise<SeatState> {
     return this.withSession(() =>
-      postJSON<SeatState>(this.base + (on ? "lock" : "unlock"), on ? { sealed: sealed } : {}),
+      postJSON<SeatState>(
+        this.base + (on ? "lock" : "unlock"),
+        on ? { sealed: sealed, sig: sig } : {},
+      ),
     );
   }
 

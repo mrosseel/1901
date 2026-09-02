@@ -279,6 +279,7 @@ the code still resolves.
 | [ADR-055 — Press follows the tournament clock](docs/adr/055-press-follows-the-tournament-clock.md) | accepted |
 | [ADR-056 — A room is signed by whoever opened it](docs/adr/056-a-room-is-signed-by-whoever-opened-it.md) | accepted |
 | [ADR-057 — A length is a message too](docs/adr/057-a-length-is-a-message-too.md) | accepted |
+| [ADR-058 — A resolved phase keeps the envelope it came from](docs/adr/058-a-resolved-phase-keeps-the-envelope-it-came-from.md) | accepted |
 
 ## 4. Open questions
 

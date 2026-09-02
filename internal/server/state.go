@@ -106,6 +106,15 @@ type phaseReviewJSON struct {
 	// godip can say: an engine failure names the rule that beat the order,
 	// and this one says the order was never in the fight.
 	Illegal []string `json:"illegal"`
+	/*
+		What each seat locked in, by power (ADR-058).
+
+		The envelope and the signature over it, kept after the phase resolved.
+		The orders above are already public, so this adds no secret; what it
+		adds is that anybody can check them. Empty for an unsealed game and for
+		a seat that revealed nothing.
+	*/
+	Commitments map[string]commitment `json:"commitments,omitempty"`
 }
 
 // illegalResolution is the resolution an illegal order is given. It is not a
@@ -115,7 +124,7 @@ const illegalResolution = "IllegalOrder"
 // beginReview records the phase and its applied orders. It must run after
 // any NMR drops and before state.Next(), because the order text is read
 // off the board as it stands during the phase.
-func (self *game) beginReview(nmr []string) *phaseReviewJSON {
+func (self *game) beginReview(phaseIndex int, nmr []string) *phaseReviewJSON {
 	review := &phaseReviewJSON{
 		Phase: phaseJSON{
 			Season: string(self.state.Phase().Season()),
@@ -137,6 +146,15 @@ func (self *game) beginReview(nmr []string) *phaseReviewJSON {
 	}
 	if nmr != nil {
 		review.NMR = nmr
+	}
+	// The record the phase leaves behind (ADR-058). It is read from the same
+	// place on a live adjudication and on a replay, so a restarted game shows
+	// the same page.
+	if made := self.flow.commitments[phaseIndex]; len(made) > 0 {
+		review.Commitments = map[string]commitment{}
+		for power, one := range made {
+			review.Commitments[power] = one
+		}
 	}
 	return review
 }

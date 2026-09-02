@@ -149,8 +149,8 @@ func (self *game) persistErr(id string) error {
 		s := f.seats[p]
 		_, err = tx.Exec(`
             INSERT INTO seat (game_id, power, seat_token, device, is_gm, locked, epoch,
-                              sign_pub, sealed_orders, revealed, box_pub, box_sig)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              sign_pub, sealed_orders, sealed_sig, revealed, box_pub, box_sig)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(game_id, power) DO UPDATE SET
                 seat_token = excluded.seat_token,
                 device     = excluded.device,
@@ -159,11 +159,12 @@ func (self *game) persistErr(id string) error {
                 epoch      = excluded.epoch,
                 sign_pub   = excluded.sign_pub,
                 sealed_orders = excluded.sealed_orders,
+                sealed_sig = excluded.sealed_sig,
                 revealed    = excluded.revealed,
                 box_pub     = excluded.box_pub,
                 box_sig     = excluded.box_sig`,
 			id, string(p), s.token, s.device, s.isGM, s.locked, s.epoch, s.signPub,
-			s.sealed, s.revealed, s.boxPub, s.boxSig)
+			s.sealed, s.sealedSig, s.revealed, s.boxPub, s.boxSig)
 		if err != nil {
 			return fmt.Errorf("seat %v: %v", p, err)
 		}

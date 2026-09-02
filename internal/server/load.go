@@ -80,6 +80,7 @@ func loadAll() error {
 			byDevice:    map[string]godip.Nation{},
 			sessions:    map[string]godip.Nation{},
 			pressByID:   map[string]*pressThread{},
+			commitments: map[int]map[string]commitment{},
 		}
 		var id, gmPower, createdAt, key, recordedHash string
 		var deadline sql.NullString
@@ -160,6 +161,11 @@ func loadAll() error {
 	}
 
 	for _, entry := range loaded {
+		made, err := loadCommitments(entry.id)
+		if err != nil {
+			return fmt.Errorf("game %v commitments: %v", entry.id, err)
+		}
+		entry.f.commitments = made
 		if err := loadPress(entry.id, entry.f); err != nil {
 			return fmt.Errorf("game %v press: %v", entry.id, err)
 		}
@@ -193,17 +199,18 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 	rows, err := db.Query(
 		`SELECT power, seat_token, device, is_gm, locked, epoch,
                 COALESCE(sign_pub, ''), COALESCE(sealed_orders, ''),
-                COALESCE(revealed, 0), COALESCE(box_pub, ''), COALESCE(box_sig, '')
+                COALESCE(sealed_sig, ''), COALESCE(revealed, 0),
+                COALESCE(box_pub, ''), COALESCE(box_sig, '')
          FROM seat WHERE game_id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
-		var power, token, device, signPub, sealed, boxPub, boxSig string
+		var power, token, device, signPub, sealed, sealedSig, boxPub, boxSig string
 		var isGM, locked, revealed bool
 		var epoch int
 		if err := rows.Scan(&power, &token, &device, &isGM, &locked, &epoch, &signPub,
-			&sealed, &revealed, &boxPub, &boxSig); err != nil {
+			&sealed, &sealedSig, &revealed, &boxPub, &boxSig); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -217,7 +224,7 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 		// back and no key to any of them (ADR-004). The phones hold the
 		// keys, which is the property, and they send them again when the
 		// window is open.
-		s.sealed, s.revealed = sealed, revealed
+		s.sealed, s.sealedSig, s.revealed = sealed, sealedSig, revealed
 		s.boxPub, s.boxSig = boxPub, boxSig
 		if token != "" {
 			f.bySeatToken[token] = s.power
@@ -337,7 +344,7 @@ func (self *game) replay(history map[int][]storedOrder, nmr map[int][]string, cu
 		// from the order rows, not stored beside them.
 		position := self.positionNow()
 		asked := self.anyoneCouldOrder()
-		review := self.beginReview(nmr[phase])
+		review := self.beginReview(phase, nmr[phase])
 		if err := self.state.Next(); err != nil {
 			return fmt.Errorf("phase %v adjudication: %v", phase, err)
 		}

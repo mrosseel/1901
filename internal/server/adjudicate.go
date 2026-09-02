@@ -197,7 +197,7 @@ func (self *game) advance(id string, dropUnlocked bool) error {
 	// (ADR-013). It is read before the board moves.
 	position := self.positionNow()
 	asked := self.anyoneCouldOrder()
-	review := self.beginReview(nmr)
+	review := self.beginReview(self.flow.phaseIndex, nmr)
 	if err := self.state.Next(); err != nil {
 		return err
 	}

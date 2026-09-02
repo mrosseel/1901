@@ -82,6 +82,32 @@ type revealedOrder struct {
 }
 
 /*
+commitment is what a seat locked in, kept after the phase resolved (ADR-058).
+
+The orders become public when the phase resolves, and so does the envelope they
+came out of. Keeping the envelope beside them, with the seat's own signature
+over it, turns "these were France's orders" into something anybody at the table
+can check afterwards: the signature is France's, the envelope is what the
+signature covers, and the key France released opens that envelope onto exactly
+these orders.
+
+It settles one argument and not another. An active server can still delete an
+envelope and make it look like a phone that never revealed. What it cannot do
+is produce a signed envelope France did not commit.
+*/
+type commitment struct {
+	Envelope string `json:"envelope"`
+	Sig      string `json:"sig"`
+}
+
+// commitBody is what a seat signs over the envelope it locks in. The game, the
+// phase and the power are the three fields the envelope itself is bound to, so
+// a signature cannot be moved anywhere the envelope cannot.
+func commitBody(id string, phaseIndex int, power godip.Nation, envelope string) string {
+	return fmt.Sprintf("1901 sealed v1|%s|%d|%s|%s", id, phaseIndex, power, envelope)
+}
+
+/*
 sealAAD is what an envelope is bound to and what is never encrypted.
 
 The three fields are exactly the ones that could otherwise let an envelope be
@@ -262,6 +288,7 @@ g.mu.
 func (self *flow) clearCommits() {
 	for _, s := range self.seats {
 		s.sealed = ""
+		s.sealedSig = ""
 		s.revealed = false
 	}
 }
@@ -287,6 +314,9 @@ func handleSeatCommit(g *game, id string, power godip.Nation, w http.ResponseWri
 	// thing.
 	body := struct {
 		Sealed string `json:"sealed"`
+		// The seat's signature over the envelope (ADR-058). Empty from a seat
+		// holding a token, which has nothing to sign with.
+		Sig string `json:"sig"`
 	}{}
 	json.NewDecoder(r.Body).Decode(&body)
 
@@ -320,6 +350,7 @@ func handleSeatCommit(g *game, id string, power godip.Nation, w http.ResponseWri
 	}
 	again := s.sealed != ""
 	s.sealed = body.Sealed
+	s.sealedSig = body.Sig
 	s.revealed = false
 	s.locked = true
 	if again {
@@ -367,6 +398,7 @@ func handleSeatUncommit(g *game, id string, power godip.Nation, w http.ResponseW
 		return
 	}
 	s.sealed = ""
+	s.sealedSig = ""
 	s.revealed = false
 	s.locked = false
 	f.logEvent(id, "%v withdrew its lock", power)
@@ -458,6 +490,10 @@ func handleSeatReveal(g *game, id string, power godip.Nation, w http.ResponseWri
 		}
 	}
 	s.revealed = true
+	// Kept for the record the phase leaves behind (ADR-058). The orders are
+	// about to be public; the envelope they came from and the signature over
+	// it are what make them checkable afterwards.
+	f.recordCommitment(id, f.phaseIndex, power, commitment{Envelope: s.sealed, Sig: s.sealedSig})
 	f.logEvent(id, "%v revealed %v order(s)", power, len(orders))
 
 	if len(f.awaitingReveal()) == 0 {
@@ -470,4 +506,50 @@ func handleSeatReveal(g *game, id string, power godip.Nation, w http.ResponseWri
 		g.persist(id)
 	}
 	httpx.WriteJSON(w, http.StatusOK, g.seatState(id, power, r))
+}
+
+// recordCommitment keeps one seat's envelope and signature for the phase that
+// is resolving. The caller must hold g.mu.
+func (self *flow) recordCommitment(id string, phaseIndex int, power godip.Nation, made commitment) {
+	if self.commitments[phaseIndex] == nil {
+		self.commitments[phaseIndex] = map[string]commitment{}
+	}
+	self.commitments[phaseIndex][string(power)] = made
+	persistCommitment(id, phaseIndex, string(power), made)
+}
+
+func persistCommitment(id string, phaseIndex int, power string, made commitment) {
+	if db == nil {
+		return
+	}
+	if _, err := db.Exec(`
+        INSERT OR REPLACE INTO phase_commitment (game_id, phase_index, power, envelope, sig)
+        VALUES (?, ?, ?, ?, ?)`, id, phaseIndex, power, made.Envelope, made.Sig); err != nil {
+		log.Printf("game %v: PERSIST FAILED (commitment %v): %v", id, power, err)
+	}
+}
+
+// loadCommitments reads back the record every resolved phase left behind.
+func loadCommitments(id string) (map[int]map[string]commitment, error) {
+	out := map[int]map[string]commitment{}
+	rows, err := db.Query(`
+        SELECT phase_index, power, envelope, sig
+        FROM phase_commitment WHERE game_id = ?`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var phaseIndex int
+		var power string
+		var made commitment
+		if err := rows.Scan(&phaseIndex, &power, &made.Envelope, &made.Sig); err != nil {
+			return nil, err
+		}
+		if out[phaseIndex] == nil {
+			out[phaseIndex] = map[string]commitment{}
+		}
+		out[phaseIndex][power] = made
+	}
+	return out, rows.Err()
 }

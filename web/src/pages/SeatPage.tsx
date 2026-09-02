@@ -49,6 +49,7 @@ import {
   discardInheritedEnvelopeKey,
   forgetOldDrafts,
   readDraft,
+  commitBody,
   sealDraft,
   writeDraft,
   type Draft,
@@ -119,7 +120,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
      cheap and neither depends on any state, so they are made here rather than
      inside a panel that is mounted and unmounted by a tap. */
   const pressBox = useMemo(() => pressSecret(gameId), [gameId]);
-  const pressSign = useMemo(() => seatSigner(gameId), [gameId]);
+  const seatSign = useMemo(() => seatSigner(gameId), [gameId]);
   /* The review with the sheet put away, so the map behind it can be read and
      panned. It is still the review: the board takes no orders and the panel
      stays inert. */
@@ -544,7 +545,16 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         state.sealed && wanted
           ? sealDraft(gameId, state.phaseIndex ?? 0, power, draft.current)
           : undefined;
-      const answer = await client.lock(wanted, sealedOrders);
+      /* Signed as well as sealed (ADR-058). The orders are about to become
+         public; this is what lets the table check afterwards that they came
+         out of the envelope this seat committed. */
+      const answer = await client.lock(
+        wanted,
+        sealedOrders,
+        sealedOrders
+          ? seatSign(commitBody(gameId, state.phaseIndex ?? 0, power, sealedOrders))
+          : undefined,
+      );
       // Unlocking removes the inherited envelope; locking replaces it. In
       // either case the former holder's phase key has no further job and must
       // not remain the key used for this device's future commitment.
@@ -767,7 +777,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             you={power}
             api={client}
             secret={pressBox}
-            sign={pressSign}
+            sign={seatSign}
             phaseIndex={state?.phaseIndex ?? 0}
             powers={powersOf(state)}
             onUnread={setPressUnread}

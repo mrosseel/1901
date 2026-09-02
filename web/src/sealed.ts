@@ -204,6 +204,26 @@ export function draftOrders(draft: Draft): DraftOrder[] {
     .map((province) => ({ province: province, parts: draft.orders[province] }));
 }
 
+/*
+What a seat signs over the envelope it locks in (ADR-058).
+
+The orders become public when the phase resolves, and so does the envelope they
+came out of. A signature over it turns "these were France's orders" into
+something anybody at the table can check afterwards, rather than something the
+server asserts.
+
+The three fields are the ones the envelope itself is bound to, so a signature
+cannot be moved anywhere the envelope cannot.
+*/
+export function commitBody(
+  gameId: string,
+  phaseIndex: number,
+  power: string,
+  envelope: string,
+): string {
+  return "1901 sealed v1|" + [gameId, phaseIndex, power, envelope].join("|");
+}
+
 /** This phase's envelope, for the lock. */
 export function sealDraft(
   gameId: string,
