@@ -33,9 +33,9 @@ func TestHandoverMovesTheSeatAndKillsTheOldToken(t *testing.T) {
 	seat.device = "old-device"
 	g.flow.bySeatToken["old-token"] = power
 	g.flow.byDevice["old-device"] = power
-	_, _, revoked, unsubscribe, ok := g.events.subscribe(eventAudienceSeat, power)
-	if !ok {
-		t.Fatal("could not subscribe the old seat view")
+	_, _, revoked, unsubscribe, refused := g.events.subscribe(eventAudienceSeat, power, "10.0.0.1")
+	if refused != "" {
+		t.Fatalf("could not subscribe the old seat view: %v", refused)
 	}
 	defer unsubscribe()
 
@@ -190,9 +190,9 @@ func TestGMRoleHandoverRotatesTheTokenAndTheRefereeDoor(t *testing.T) {
 	}
 	power := g.flow.gmPower
 	sig := gmHandoverSig(id, epoch)
-	_, _, revoked, unsubscribe, ok := g.events.subscribe(eventAudienceGM, "")
-	if !ok {
-		t.Fatal("could not subscribe the old game master view")
+	_, _, revoked, unsubscribe, refused := g.events.subscribe(eventAudienceGM, "", "10.0.0.1")
+	if refused != "" {
+		t.Fatalf("could not subscribe the old game master view: %v", refused)
 	}
 	defer unsubscribe()
 

@@ -75,9 +75,9 @@ func TestRecoveryTakesTheRoleAndKillsTheOldToken(t *testing.T) {
 	g.flow.gmDevice = "the-lost-laptop"
 	before := g.flow.gmToken
 	epoch := g.flow.gmEpoch
-	_, _, revoked, unsubscribe, ok := g.events.subscribe(eventAudienceGM, "")
-	if !ok {
-		t.Fatal("could not subscribe the lost game master view")
+	_, _, revoked, unsubscribe, refused := g.events.subscribe(eventAudienceGM, "", "10.0.0.1")
+	if refused != "" {
+		t.Fatalf("could not subscribe the lost game master view: %v", refused)
 	}
 	defer unsubscribe()
 

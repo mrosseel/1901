@@ -1,5 +1,8 @@
 // Live game notifications over WebSockets.
 //
+// Capacity is split three ways, because the public route needs no credential
+// and the seats must not have to compete with it. See the quota block below.
+//
 // Mutations still use ordinary HTTP requests and every role still reads its
 // own filtered state endpoint. The socket carries only a monotonically
 // increasing version: it says that something changed, never what another
@@ -9,6 +12,7 @@ package server
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -31,14 +35,104 @@ const (
 	eventAudiencePublic eventAudience = iota
 	eventAudienceSeat
 	eventAudienceGM
-	maxGameSubscribers = 64
 )
+
+/*
+The quotas, and why there are three of them.
+
+The bare `/api/v1/game/{id}/events` route is public by design (ADR-013): a
+watcher needs no credential. So anybody who knows a game's address can open
+sockets on it, and one pool shared with the seats meant a raw client could take
+every slot and push the table back onto polling.
+
+	maxPublicSubscribers   what an unauthenticated watcher pool holds.
+	maxAuthedSubscribers   held for the seats and the game master, and never
+	                       reachable from the public route. A board has seven
+	                       powers and a referee, and a player may have the
+	                       game open on a phone and a laptop, so this is
+	                       comfortably more than a full table needs.
+	maxPublicPerSource     one address's share of the public pool. A watcher
+	                       at a table opens one or two; a script opens as many
+	                       as it can.
+
+maxLiveSockets is the whole server. Without it the per-game cap still allows
+the game limit times the game cap, which is thousands of file descriptors on a
+laptop under a table.
+*/
+const (
+	maxPublicSubscribers = 32
+	maxAuthedSubscribers = 32
+	maxPublicPerSource   = 4
+	maxLiveSockets       = 512
+)
+
+/*
+liveSockets counts every live view this process holds, across every game.
+
+Public connections are also counted per source address, because the public
+route is the one with no credential behind it and one machine opening thirty
+watchers is not a table.
+*/
+type liveSocketCount struct {
+	mu       sync.Mutex
+	total    int
+	bySource map[string]int
+}
+
+var liveSockets = liveSocketCount{bySource: map[string]int{}}
+
+// take claims one server-wide slot, and one of this source's public slots.
+// The reason is the sentence the caller shows.
+func (self *liveSocketCount) take(audience eventAudience, source string) string {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+	if self.total >= maxLiveSockets {
+		return "this server is carrying as many live views as it can"
+	}
+	if audience == eventAudiencePublic {
+		if self.bySource[source] >= maxPublicPerSource {
+			return "too many live views from this address"
+		}
+		self.bySource[source]++
+	}
+	self.total++
+	return ""
+}
+
+func (self *liveSocketCount) give(audience eventAudience, source string) {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+	if self.total > 0 {
+		self.total--
+	}
+	if audience != eventAudiencePublic {
+		return
+	}
+	if self.bySource[source] <= 1 {
+		delete(self.bySource, source)
+		return
+	}
+	self.bySource[source]--
+}
+
+// eventSource is the address a public connection is counted against. The port
+// changes with every connection, so only the host is kept.
+func eventSource(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
 
 type eventSubscriber struct {
 	events   chan gameEvent
 	revoked  chan struct{}
 	audience eventAudience
 	power    godip.Nation
+	// source is the address a public connection is counted against, so the
+	// server-wide accounting can be given back when this one goes.
+	source string
 }
 
 type gameEvents struct {
@@ -78,25 +172,54 @@ func (self *gameEvents) publish() {
 	}
 }
 
-func (self *gameEvents) subscribe(audience eventAudience, power godip.Nation) (gameEvent, <-chan gameEvent, <-chan struct{}, func(), bool) {
+/*
+subscribe takes a slot, or says why there is none.
+
+A seat and the game master are counted apart from the watchers, so a public
+pool somebody filled cannot refuse a player. The returned function gives the
+slot back and runs exactly once, from the handler's defer; revoke takes a
+subscriber out of the game's pool without touching the server-wide count,
+because the handler that owns it is still on its way out.
+*/
+func (self *gameEvents) subscribe(audience eventAudience, power godip.Nation, source string) (gameEvent, <-chan gameEvent, <-chan struct{}, func(), string) {
+	if reason := liveSockets.take(audience, source); reason != "" {
+		return gameEvent{}, nil, nil, func() {}, reason
+	}
 	self.mu.Lock()
-	defer self.mu.Unlock()
-	if len(self.subscribers) >= maxGameSubscribers {
-		return gameEvent{}, nil, nil, func() {}, false
+	held := 0
+	for subscriber := range self.subscribers {
+		if (subscriber.audience == eventAudiencePublic) == (audience == eventAudiencePublic) {
+			held++
+		}
+	}
+	limit := maxAuthedSubscribers
+	reason := "too many players and referees are watching this game"
+	if audience == eventAudiencePublic {
+		limit = maxPublicSubscribers
+		reason = "too many live views of this game"
+	}
+	if held >= limit {
+		self.mu.Unlock()
+		liveSockets.give(audience, source)
+		return gameEvent{}, nil, nil, func() {}, reason
 	}
 	subscriber := &eventSubscriber{
 		events:   make(chan gameEvent, 1),
 		revoked:  make(chan struct{}),
 		audience: audience,
 		power:    power,
+		source:   source,
 	}
 	self.subscribers[subscriber] = struct{}{}
 	initial := gameEvent{Type: "state", Version: self.version}
-	return initial, subscriber.events, subscriber.revoked, func() {
+	self.mu.Unlock()
+	release := sync.OnceFunc(func() {
 		self.mu.Lock()
 		delete(self.subscribers, subscriber)
 		self.mu.Unlock()
-	}, true
+		liveSockets.give(audience, source)
+	})
+	return initial, subscriber.events, subscriber.revoked, release, ""
 }
 
 func (self *gameEvents) revoke(audience eventAudience, power godip.Nation) {
@@ -140,9 +263,9 @@ func serveEvents(g *game, audience eventAudience, power godip.Nation, w http.Res
 		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET only")
 		return
 	}
-	initial, events, revoked, unsubscribe, ok := g.events.subscribe(audience, power)
-	if !ok {
-		httpx.WriteErr(w, http.StatusTooManyRequests, "too many live views for this game")
+	initial, events, revoked, unsubscribe, refused := g.events.subscribe(audience, power, eventSource(r))
+	if refused != "" {
+		httpx.WriteErr(w, http.StatusTooManyRequests, "%v", refused)
 		return
 	}
 	defer unsubscribe()

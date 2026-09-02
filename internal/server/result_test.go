@@ -206,9 +206,9 @@ func TestANonDIASDrawNeedsEveryExcludedSurvivor(t *testing.T) {
 
 func TestADrawProposalPublishesALiveUpdate(t *testing.T) {
 	g := watchTestGame(t)
-	_, events, _, unsubscribe, ok := g.events.subscribe(eventAudiencePublic, "")
-	if !ok {
-		t.Fatal("could not subscribe the public view")
+	_, events, _, unsubscribe, refused := g.events.subscribe(eventAudiencePublic, "", "10.0.0.1")
+	if refused != "" {
+		t.Fatalf("could not subscribe the public view: %v", refused)
 	}
 	defer unsubscribe()
 
