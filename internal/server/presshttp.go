@@ -424,6 +424,17 @@ func handlePressSend(g *game, id string, actor pressActor, w http.ResponseWriter
 		httpx.WriteErr(w, http.StatusBadRequest, "box is required")
 		return
 	}
+	/*
+		The one thing this server may say about a message it cannot read: that
+		it is one of the lengths press pads to (ADR-057). Refusing an unpadded
+		one keeps a client that skipped the padding from spending the evening
+		telling this server how long every sentence was.
+	*/
+	raw, err := base64.RawURLEncoding.DecodeString(body.Box)
+	if err != nil || !pressBucketed(len(raw)) {
+		httpx.WriteErr(w, http.StatusBadRequest, "a message must be boxed and padded")
+		return
+	}
 	at, err := time.Parse(time.RFC3339, body.At)
 	if err != nil {
 		httpx.WriteErr(w, http.StatusBadRequest, "at must be an RFC3339 time")

@@ -31,12 +31,14 @@ sealed.go checks the same three fields when it opens one.
 
 The wire form is base64url of the 24-byte nonce followed by the ciphertext and
 its tag. The plaintext is the order list as JSON, sorted by province, which is
-what canonicalOrders builds on the Go side.
+what canonicalOrders builds on the Go side, framed and padded to one fixed
+size so that every envelope is the same length (ADR-057).
 */
 
 import { xchacha20poly1305 } from "@noble/ciphers/chacha.js";
 
 import { deriveOrderKey, fromBase64Url, randomBytes, toBase64Url } from "./keys";
+import { ORDER_PLAINTEXT, frame } from "./pad";
 import { readSeatSeed } from "./seatkey";
 
 /** One order, as this phone holds it and as the server will read it. */
@@ -95,7 +97,11 @@ export function sealOrders(
 ): string {
   const nonce = randomBytes(NONCE_BYTES);
   const box = xchacha20poly1305(key, nonce, associated(gameId, phaseIndex, power));
-  const body = box.encrypt(new TextEncoder().encode(canonicalOrders(orders)));
+  // Padded to one size, so the server cannot read the orders off the length
+  // of the envelope (ADR-057).
+  const body = box.encrypt(
+    frame(new TextEncoder().encode(canonicalOrders(orders)), ORDER_PLAINTEXT),
+  );
   const out = new Uint8Array(nonce.length + body.length);
   out.set(nonce);
   out.set(body, nonce.length);

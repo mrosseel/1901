@@ -69,6 +69,7 @@ import {
   toBase64Url,
   wrapKeyFor,
 } from "./keys";
+import { bucketFor, frame, unframe } from "./pad";
 import { readSeatSeed } from "./seatkey";
 
 /** What this seat's press key is for. Never the signing key's name. */
@@ -460,16 +461,26 @@ function verifySignature(sig: string, body: string, signPub: string): boolean {
   }
 }
 
-/** One message, boxed under the room key. */
+/*
+One message, boxed under the room key and padded to a bucket (ADR-057).
+
+Without the padding the server reads the length of every sentence, and at a
+table a length is most of a sentence: "no" and a paragraph of terms are not the
+same news. A message too long for the largest bucket is refused here rather
+than sent, because the alternative is a message only this device can see.
+*/
 export function sealMessage(
   gameId: string,
   place: PressPlace,
   roomKey: Uint8Array,
   text: string,
 ): string {
+  const content = new TextEncoder().encode(text);
+  const bucket = bucketFor(content.length);
+  if (!bucket) throw new Error("this message is too long to send");
   const nonce = randomBytes(NONCE_BYTES);
   const box = xchacha20poly1305(roomKey, nonce, associated(gameId, place));
-  const body = box.encrypt(new TextEncoder().encode(text));
+  const body = box.encrypt(frame(content, bucket));
   const out = new Uint8Array(nonce.length + body.length);
   out.set(nonce);
   out.set(body, nonce.length);
@@ -493,7 +504,12 @@ export function openMessage(
       phaseIndex: message.phaseIndex,
       at: message.at,
     }));
-    return new TextDecoder().decode(box.decrypt(raw.slice(NONCE_BYTES)));
+    const plain = box.decrypt(raw.slice(NONCE_BYTES));
+    const content = unframe(plain);
+    // A message from before padding existed is the text itself, with nothing
+    // in front of it. Remove this once no game that old can still be running;
+    // ADR-057 names the release.
+    return new TextDecoder().decode(content ?? plain);
   } catch {
     return null;
   }

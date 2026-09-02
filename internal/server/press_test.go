@@ -128,14 +128,38 @@ sendPress writes into a room the way a device does: sealed against the place
 it believes it is writing into, which the server then checks.
 */
 func sendPress(g *game, id string, actor pressActor, threadID, box string) *httptest.ResponseRecorder {
+	return sendPressRaw(g, id, actor, threadID, pressBox(box))
+}
+
+func sendPressRaw(g *game, id string, actor pressActor, threadID, box string) *httptest.ResponseRecorder {
 	seq := 1
 	if t := g.flow.pressByID[threadID]; t != nil {
 		seq = len(t.messages) + 1
 	}
-	return sendPressAt(g, id, actor, threadID, box, seq, g.flow.phaseIndex, time.Now())
+	return sendPressAtRaw(g, id, actor, threadID, box, seq, g.flow.phaseIndex, time.Now())
+}
+
+/*
+pressBox is a message the way a device sends one: padded to the smallest
+bucket (ADR-057), which is the one thing the server checks about it.
+
+Nothing here is encrypted. The server never looks inside a message, and these
+tests are about the rules around one rather than its contents.
+*/
+func pressBox(text string) string {
+	raw := make([]byte, pressBuckets[0]+pressBoxOverhead)
+	copy(raw, text)
+	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
 func sendPressAt(
+	g *game, id string, actor pressActor, threadID, box string,
+	seq, phaseIndex int, at time.Time,
+) *httptest.ResponseRecorder {
+	return sendPressAtRaw(g, id, actor, threadID, pressBox(box), seq, phaseIndex, at)
+}
+
+func sendPressAtRaw(
 	g *game, id string, actor pressActor, threadID, box string,
 	seq, phaseIndex int, at time.Time,
 ) *httptest.ResponseRecorder {
@@ -171,7 +195,7 @@ func TestPressIsARoomAndEverybodyInItGetsEverything(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatal(err)
 		}
-		if len(out.Messages) != 1 || out.Messages[0].Box != "box-one" {
+		if len(out.Messages) != 1 || out.Messages[0].Box != pressBox("box-one") {
 			t.Fatalf("%v got %#v, want the one message", member, out.Messages)
 		}
 		if out.Unread != 1 {
@@ -769,7 +793,7 @@ func TestPressSurvivesARestart(t *testing.T) {
 			t.Errorf("%v's wrapped key came back as %q", holder, t2.keys[holder])
 		}
 	}
-	if len(t2.messages) != 1 || t2.messages[0].Box != "an envelope" {
+	if len(t2.messages) != 1 || t2.messages[0].Box != pressBox("an envelope") {
 		t.Errorf("messages came back as %#v", t2.messages)
 	}
 	if t2.read["Italy"] != 1 {

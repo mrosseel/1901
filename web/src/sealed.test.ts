@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { deriveOrderKey, fromBase64Url, toBase64Url } from "./keys";
+import { ORDER_PLAINTEXT } from "./pad";
 import {
   canonicalOrders,
   discardInheritedEnvelopeKey,
@@ -64,7 +65,30 @@ describe("an envelope", () => {
   */
   it("carries its nonce in front", () => {
     const raw = fromBase64Url(sealOrders("g1", 0, "Austria", KEY, ORDERS));
-    expect(raw.length).toBe(24 + canonicalOrders(ORDERS).length + 16);
+    expect(raw.length).toBe(24 + ORDER_PLAINTEXT + 16);
+  });
+
+  /*
+  Every order set is the same length on the wire (ADR-057).
+
+  Without this the server reads the size of the order list, and for a retreat
+  or an adjustment there are few enough legal sets that the size names them.
+  */
+  it("is the same length whatever the orders are", () => {
+    const one = sealOrders("g1", 0, "Austria", KEY, ORDERS);
+    const none = sealOrders("g1", 0, "Austria", KEY, []);
+    const many = sealOrders("g1", 0, "Austria", KEY, [
+      { province: "bud", parts: ["Support", "vie", "Move", "gal"] },
+      { province: "vie", parts: ["Move", "gal"] },
+      { province: "tri", parts: ["Support", "vie", "Move", "gal"] },
+    ]);
+    expect(none.length).toBe(one.length);
+    expect(many.length).toBe(one.length);
+  });
+
+  it("stays inside what the server accepts", () => {
+    // maxEnvelope in sealed.go.
+    expect(sealOrders("g1", 0, "Austria", KEY, ORDERS).length).toBeLessThan(8192);
   });
 
   /*

@@ -36,10 +36,15 @@ const pressKeyBytes = 32
 // it (ADR-056), so this server checks its shape and never its value.
 const pressThreadIDBytes = 16
 
-// maxPressBody is the biggest envelope a message may carry. A boxed sentence
-// is a few hundred bytes; this is room for a long one and a bound on what a
-// single POST can put in memory.
-const maxPressBody = 16 << 10
+/*
+maxPressBody is the biggest body a press route may carry.
+
+A message is padded to one of a few sizes (ADR-057), and the largest of them is
+16 KiB of plaintext, which is 21900 base64url characters on the wire. This
+leaves room for that inside its JSON and still bounds what a single POST can
+put in memory.
+*/
+const maxPressBody = 32 << 10
 
 // maxPressThreads bounds one game. A seven-power board has 127 possible
 // rooms; anything past this is a client in a loop, not a table talking.

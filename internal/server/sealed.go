@@ -63,6 +63,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"time"
@@ -113,7 +114,13 @@ func canonicalOrders(orders []revealedOrder) ([]byte, error) {
 // — the phone does the sealing — but the tests and the reference client need
 // exactly the same bytes, so the one implementation lives here.
 func sealOrders(id string, phaseIndex int, power godip.Nation, key []byte, orders []revealedOrder) (string, error) {
-	plain, err := canonicalOrders(orders)
+	content, err := canonicalOrders(orders)
+	if err != nil {
+		return "", err
+	}
+	// Padded, so that every order set of the phase is the same length on the
+	// wire and the server learns nothing from the size (ADR-057).
+	plain, err := framePad(content, orderPlaintext)
 	if err != nil {
 		return "", err
 	}
@@ -153,15 +160,35 @@ func openOrders(id string, phaseIndex int, power godip.Nation, key []byte, envel
 	if err != nil {
 		return nil, fmt.Errorf("this key does not open what %v locked in", power)
 	}
+	content, err := unframePad(plain)
+	if err != nil {
+		/*
+			An envelope from before padding existed, which is a game that was
+			mid-phase when this version arrived. The plaintext is the order list
+			as JSON and starts with its bracket. Remove this once no game that
+			old can still be running; ADR-057 names the release.
+		*/
+		if len(plain) > 0 && plain[0] == '[' {
+			log.Printf("game %v: %v revealed an envelope from before padding", id, power)
+			content = plain
+		} else {
+			return nil, fmt.Errorf("the envelope is not padded as this version pads")
+		}
+	}
 	orders := []revealedOrder{}
-	if err := json.Unmarshal(plain, &orders); err != nil {
+	if err := json.Unmarshal(content, &orders); err != nil {
 		return nil, fmt.Errorf("the envelope does not hold an order list")
 	}
 	return orders, nil
 }
 
-// maxEnvelope bounds what a client may send. A movement phase is a handful of
-// short orders, so anything past this is not one.
+/*
+maxEnvelope bounds what a client may send.
+
+Every envelope is now one length: the nonce, a padded 4096-byte plaintext and
+the tag, base64url, which is 5515 characters. This leaves room for that and
+refuses anything that is not an envelope at all.
+*/
 const maxEnvelope = 8192
 
 /*
