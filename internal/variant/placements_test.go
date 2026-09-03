@@ -89,6 +89,9 @@ func TestPlacementLabelsPassThrough(t *testing.T) {
 	          "labelRuns": [
 	            {"at": [100, 55], "size": 12, "width": 80, "height": 9, "text": "Village of"},
 	            {"at": [100, 66], "size": 12, "width": 46, "height": 9, "text": "Aeolus"}]},
+	  "cor": {"unit": [300, 400], "scale": 0.6, "dislodged": [310, 390],
+	          "label": {"at": [260, 430], "size": 9, "width": 40, "height": 7,
+	                    "leader": [301, 402]}},
 	  "bud": {"unit": [812, 812], "dislodged": [850, 780]}
 	}`
 	var table PlacementTable
@@ -132,6 +135,20 @@ func TestPlacementLabelsPassThrough(t *testing.T) {
 	}
 	if vil.Label.Rot != 0 {
 		t.Errorf("vil gained a rotation: %v", vil.Label.Rot)
+	}
+
+	// A name drawn outside its own province carries the point it belongs to,
+	// and the board draws a line from the box to that point. Drop the field on
+	// the way through and the name floats beside four countries naming none.
+	cor := again["cor"]
+	if cor.Label == nil || cor.Label.Leader == nil {
+		t.Fatalf("cor lost its leader: %+v", cor.Label)
+	}
+	if *cor.Label.Leader != [2]float64{301, 402} {
+		t.Errorf("the leader came back as %v", *cor.Label.Leader)
+	}
+	if dal.Label.Leader != nil {
+		t.Errorf("dal gained a leader it never had: %v", *dal.Label.Leader)
 	}
 
 	// A province that draws no name, no ring and no code costs the board

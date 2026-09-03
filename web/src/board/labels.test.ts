@@ -314,6 +314,35 @@ describe("names drawn from records", () => {
     board.destroy();
   });
 
+  it("draws a line from a name set outside its province to the point it names", async () => {
+    /*
+    A province too small to hold its own name gets the name beside it, and the
+    record carries the point it belongs to. Without the line the name floats
+    over the water naming whichever neighbour the reader guesses.
+    */
+    const led: Record<string, Placement> = {
+      ...PLACEMENTS,
+      att: { ...PLACEMENTS.att, label: { ...PLACEMENTS.att.label!, leader: [400, 300] } },
+    };
+    const board = await boardFor(dataModeArt(), { ...DATA_STATE, placements: led });
+    const lines = document.querySelectorAll<SVGLineElement>("#data-labels line.province-leader");
+    expect(lines.length).toBe(1);
+    expect(Number(lines[0].getAttribute("x2"))).toBe(400);
+    expect(Number(lines[0].getAttribute("y2"))).toBe(300);
+    // It starts outside the ink box, so it never runs under the letters.
+    const box = PLACEMENTS.att.label!;
+    const dx = Number(lines[0].getAttribute("x1")) - box.at[0];
+    const dy = Number(lines[0].getAttribute("y1")) - box.at[1];
+    expect(Math.abs(dx) > box.width / 2 || Math.abs(dy) > box.height / 2).toBe(true);
+    board.destroy();
+  });
+
+  it("draws no line for a name that sits in its own province", async () => {
+    const board = await boardFor(dataModeArt(), DATA_STATE);
+    expect(document.querySelectorAll("#data-labels line.province-leader").length).toBe(0);
+    board.destroy();
+  });
+
   it("draws the author's lines when a name was broken across them", async () => {
     const runs: Record<string, Placement> = {
       ...PLACEMENTS,

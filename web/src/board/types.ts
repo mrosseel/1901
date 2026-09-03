@@ -93,6 +93,14 @@ export interface Label {
   height: number;
   /** Rotation in degrees about `at`, absent when the name is drawn flat. */
   rot?: number;
+  /*
+  The point in the province this name belongs to, present only when the name is
+  drawn outside it. A province too small or too oddly shaped to hold its own
+  name gets the name beside it, and the board draws a line from the box to this
+  point. Without the line a name beside a province says nothing about which
+  province it names.
+  */
+  leader?: [number, number];
 }
 
 export interface LabelRun extends Label {

@@ -1249,6 +1249,51 @@ export function mount(
     return node;
   }
 
+  /*
+  The line from a name to the province it names.
+
+  A name that does not fit inside its province is drawn beside it, and the
+  placement table carries `leader`, the point it belongs to. The line is what
+  makes that readable: a name over the water beside four small countries names
+  none of them without one.
+
+  It starts at the edge of the ink box rather than its centre, so it does not
+  run under the letters, and it stops short of the point so its end does not
+  sit under a marker standing there.
+  */
+  function leaderLine(label: Label, face: LabelFace | null): SVGElement | null {
+    const to = label.leader;
+    if (!Array.isArray(to)) return null;
+    const from = label.at;
+    const dx = to[0] - from[0];
+    const dy = to[1] - from[1];
+    const span = Math.hypot(dx, dy);
+    if (!span) return null;
+    // Where the ray out of the box centre leaves the box.
+    const half = { x: label.width / 2, y: label.height / 2 };
+    const scale = Math.min(
+      Math.abs(dx) > 1e-6 ? Math.abs(half.x / dx) : Infinity,
+      Math.abs(dy) > 1e-6 ? Math.abs(half.y / dy) : Infinity,
+    );
+    const gap = label.size * 0.35;
+    const start = {
+      x: from[0] + dx * scale + (dx / span) * gap,
+      y: from[1] + dy * scale + (dy / span) * gap,
+    };
+    const line = document.createElementNS(SVG_NS, "line");
+    line.setAttribute("x1", String(start.x));
+    line.setAttribute("y1", String(start.y));
+    line.setAttribute("x2", String(to[0]));
+    line.setAttribute("y2", String(to[1]));
+    line.setAttribute("class", "province-leader");
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", face ? face.fill : "currentColor");
+    line.setAttribute("stroke-width", String(label.size * 0.09));
+    line.setAttribute("stroke-linecap", "round");
+    line.setAttribute("opacity", "0.7");
+    return line;
+  }
+
   function renderDataNames(): void {
     if (!svgRoot) return;
     const plan = labelPlan();
@@ -1293,6 +1338,9 @@ export function mount(
       const drawn = runs
         ? runs.map((run) => nameText(run, run.text, face))
         : [nameText(label, provinceName(province), face)];
+      // The line comes first so the text is drawn over its own end.
+      const line = leaderLine(label, face);
+      if (line) drawn.unshift(line);
       if (!label.rot) {
         drawn.forEach((node) => layer.appendChild(node));
         return;

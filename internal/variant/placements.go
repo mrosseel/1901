@@ -90,6 +90,12 @@ type labelJSON struct {
 	// Rot is the rotation in degrees about At, omitted when zero. Classical
 	// rotates 73 of its 90 names; Portugal drawn flat runs across Spain.
 	Rot float64 `json:"rot,omitempty"`
+	// Leader is the point in the province this name belongs to, present only
+	// when the name is drawn outside it. A province too small or too oddly
+	// shaped to hold its own name gets the name beside it, and the board draws
+	// a line from the box to this point. A name over the water beside four
+	// small countries names none of them without that line.
+	Leader *[2]float64 `json:"leader,omitempty"`
 }
 
 // labelRunJSON is one line of a name the map's author broke across lines. It
