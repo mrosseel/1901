@@ -65,7 +65,7 @@ export function LandingPage() {
           <a href="#turn">How a turn runs</a>
           <a href="/variants">Variants</a>
           <a href="/sandbox">Sandbox</a>
-          <a href="/games">Watch a game</a>
+          <a href="/games">Games</a>
           <a href="/recover">Return to a game</a>
           <a href="/faq">Questions</a>
           <a className="cta" href="/new">

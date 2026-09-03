@@ -162,7 +162,7 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
 
   return (
     <>
-      <TopBar here="new" />
+      <TopBar here={sandbox ? "sandbox" : "new"} />
       <main className="page variant-gallery-page">
         <h1>{sandbox ? "New sandbox" : "New game"}</h1>
         <p className="lead">

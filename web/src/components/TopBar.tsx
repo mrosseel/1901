@@ -14,23 +14,31 @@ room is not going to navigate it, and the seat page is a map fighting a phone
 for every pixel; that one carries the same links inside the seat menu instead,
 which is one tap away and costs no height.
 */
-export function TopBar({ here }: { here?: "games" | "faq" | "new" | "datc" | "variants" }) {
+export function TopBar({
+  here,
+}: {
+  here?: "games" | "faq" | "new" | "sandbox" | "variants" | "datc";
+}) {
   const game = readRecentGame();
+
+  /* The same links the landing page carries, in the same order, so the bar
+     reads as one thing wherever it is met. */
+  const link = (page: typeof here, href: string, label: string) => (
+    <a className={here === page ? "here" : undefined} href={href}>
+      {label}
+    </a>
+  );
 
   return (
     <nav className="topbar">
       <a className="topbar-mark" href="/">
         1901
       </a>
-      <a className={here === "games" ? "here" : undefined} href="/games">
-        Games
-      </a>
-      <a className={here === "variants" ? "here" : undefined} href="/variants">
-        Variants
-      </a>
-      <a className={here === "faq" ? "here" : undefined} href="/faq">
-        Questions
-      </a>
+      {link("variants", "/variants", "Variants")}
+      {link("sandbox", "/sandbox", "Sandbox")}
+      {link("games", "/games", "Games")}
+      <a href="/recover">Return to a game</a>
+      {link("faq", "/faq", "Questions")}
       {/* The way back in. It names the game rather than saying "your game",
           because a phone that has been at two tables this weekend should be
           told which one it is about to open. */}
