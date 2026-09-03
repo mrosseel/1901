@@ -211,8 +211,8 @@
  "key": "sailhocrowded",
  "kind": "jdip",
  "map": {
-  "bytes": 81635,
-  "sha256": "d68f7f1dc34806e0fbe55f878c6e4cadd7a56358c7a171fc106fc07977717412",
+  "bytes": 82654,
+  "sha256": "601677aed946be697e0a9055349dd68df388ea86995ca066e6d15fc9cf2fd1ad",
   "viewBoxWidth": 7300
  },
  "name": "Sail Ho! Crowded",

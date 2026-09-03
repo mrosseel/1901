@@ -27,14 +27,21 @@ func WithGeneratedDir(t TB, dir string) {
 	// version-2 plan in the map for every test after it, and which tests
 	// those were depended on the file names in this package.
 	savedPlans := plans
+	// The art digests load from the same directory and are what a style
+	// plan's pin is held against, so they go back with the rest. Left behind,
+	// a test that read testdata held every later test's plan against the
+	// wrong picture, and every styled map came back as an unknown style.
+	savedDigests := artDigest
 	Generated = map[string]GeneratedVariant{}
 	placements = map[string]PlacementTable{}
 	plans = map[string]*stylePlan{}
+	artDigest = map[string]string{}
 
 	t.Cleanup(func() {
 		Generated = savedVariants
 		placements = savedPlacements
 		plans = savedPlans
+		artDigest = savedDigests
 		// The key index caches whatever was loaded, so it has to follow.
 		rebuildIndex()
 	})

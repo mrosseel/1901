@@ -229,8 +229,8 @@
  "key": "1900",
  "kind": "jdip",
  "map": {
-  "bytes": 177375,
-  "sha256": "40b47e91ee864c5e0584a9afd38a2d9e72f71279ba27d7121310d2ac500eb42c",
+  "bytes": 175777,
+  "sha256": "e35446c6553330c18987e6434447cac5ccc82a563a892e999e7e1dd79a95eb7f",
   "viewBoxWidth": 761
  },
  "name": "1900",

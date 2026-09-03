@@ -4,8 +4,8 @@
   "name": "Gateway West",
   "kind": "godip",
   "map": {
-    "bytes": 1228624,
-    "sha256": "d94fc11a60920b147f7c8b444dae66dca8c35eb03026a78a005c7e0dd7621525",
+    "bytes": 1267643,
+    "sha256": "4c92b388d2aaca598b91c03d5e3b9f025165ea4fb4d12ff136d1a2d8d81fc582",
     "viewBoxWidth": 2050
   },
   "godip": {

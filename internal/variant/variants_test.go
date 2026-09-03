@@ -137,7 +137,15 @@ func TestStalePlanIsNotApplied(t *testing.T) {
 	styledArt.mu.Lock()
 	delete(styledArt.by, "classical/midnight")
 	styledArt.mu.Unlock()
+	// The pin is held against the digest of the art FILE, so a redrawn map is
+	// a digest that no longer matches, not different bytes in memory. The
+	// sanitiser rewrites what it reads, so the served bytes never equal any
+	// file and hashing them would hold every plan against a digest nobody
+	// could compute.
+	held := artDigest["classical"]
+	artDigest["classical"] = "redrawn"
 	t.Cleanup(func() {
+		artDigest["classical"] = held
 		styledArt.mu.Lock()
 		delete(styledArt.by, "classical/midnight")
 		styledArt.mu.Unlock()

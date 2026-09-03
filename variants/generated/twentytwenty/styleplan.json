@@ -4,8 +4,8 @@
   "name": "Twenty Twenty",
   "kind": "godip",
   "map": {
-    "bytes": 1000212,
-    "sha256": "3979b02c1dfd5bbb4858ac295448a2014130dd9f315fc0d4dedb82ec2ae002a0",
+    "bytes": 1131660,
+    "sha256": "e6b5ab25ba6185cec47328be642daf3312cf11732987d12757cc10fd1d0cb783",
     "viewBoxWidth": 7680
   },
   "godip": {

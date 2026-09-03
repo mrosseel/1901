@@ -31,6 +31,7 @@
 package variant
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,6 +65,19 @@ type GeneratedVariant struct {
 // before any request is served and read-only afterwards, like placements.
 var Generated = map[string]GeneratedVariant{}
 
+// artDigest is the SHA-256 of each variant's map.svg AS IT SITS ON DISK, by
+// variant key. A variant drawn on another's art carries that art's digest, so
+// the two agree about which picture they are.
+//
+// It is what a style plan's pin is held against. Hashing the served bytes
+// instead would hold the pin against the sanitiser's output, which no map
+// author can reproduce.
+var artDigest = map[string]string{}
+
+// ArtDigest returns the digest of a variant's art file, or "" for a variant
+// this server did not load from disk.
+func ArtDigest(key string) string { return artDigest[key] }
+
 // LoadGenerated reads every subdirectory of the generated directory.
 //
 // A missing directory is not an error: a checkout with no generated maps is a
@@ -85,6 +99,7 @@ func LoadGenerated() error {
 	// directory has been read.
 	pending := []pendingVariant{}
 	drawnOn := map[string]string{}
+	clear(artDigest)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -110,15 +125,17 @@ func LoadGenerated() error {
 			return err
 		}
 		if _, done := art[owner]; !done {
-			b, err := loadVariantArt(fsys, owner)
+			b, digest, err := loadVariantArt(fsys, owner)
 			if err != nil {
 				return err
 			}
 			art[owner] = b
+			artDigest[owner] = digest
 		}
 		drawn := art[owner]
 		gen := one.gen
 		gen.SVG = drawn
+		artDigest[one.key] = artDigest[owner]
 		gen.Variant.SVGMap = func() ([]byte, error) { return drawn, nil }
 		Generated[one.key] = gen
 
@@ -283,33 +300,40 @@ func loadGeneratedVariant(fsys fs.FS, key string) (pendingVariant, error) {
 	}, nil
 }
 
-// loadVariantArt reads and sanitises one variant's map.svg.
+// loadVariantArt reads and sanitises one variant's map.svg, and returns the
+// digest of the file it read.
 //
 // It is called once per picture, not once per variant: several variants may be
 // drawn on the same art, and they must be served the same bytes rather than
 // two sanitiser runs that happen to agree.
-func loadVariantArt(fsys fs.FS, key string) ([]byte, error) {
+//
+// The digest is over the FILE, never over the sanitised bytes. A style plan
+// pins the art it was measured on (ADR-026), and the sanitiser re-serialises
+// every document it reads, so the bytes it returns are nobody's file and match
+// no digest a map author can compute.
+func loadVariantArt(fsys fs.FS, key string) ([]byte, string, error) {
 	svgPath := assets.GeneratedPath(path.Join(key, "map.svg"))
 	rawSVG, err := fs.ReadFile(fsys, path.Join(key, "map.svg"))
 	if err != nil {
-		return nil, fmt.Errorf("read %v: %w", svgPath, err)
+		return nil, "", fmt.Errorf("read %v: %w", svgPath, err)
 	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(rawSVG))
 	sanitized, err := svgsafe.Sanitize(rawSVG)
 	if err != nil {
-		return nil, fmt.Errorf("%v: %w", svgPath, err)
+		return nil, "", fmt.Errorf("%v: %w", svgPath, err)
 	}
 	if sanitized.Dropped() {
 		log.Printf("generated variant %v: removed unsafe svg %v",
 			key, sanitized.Summary())
 	}
 	if err := svgsafe.RequireBoardLayers(sanitized.Clean); err != nil {
-		return nil, fmt.Errorf("%v: %w", svgPath, err)
+		return nil, "", fmt.Errorf("%v: %w", svgPath, err)
 	}
 	if svgsafe.MissingCenterAnchors(sanitized.Clean) {
 		log.Printf("generated variant %v: art has no province-centers layer, so "+
 			"markers fall back to the placement table alone", key)
 	}
-	return sanitized.Clean, nil
+	return sanitized.Clean, digest, nil
 }
 
 // generatedVariantList returns the loaded variants in key order, for the

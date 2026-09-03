@@ -95,19 +95,40 @@ func TestOnlyTheTwoKnownPlanVersionsAreRead(t *testing.T) {
 	}
 }
 
-// Every plan in the repository is version 1 and stays version 1 until its map
-// is re-authored (ADR-039). If this fails because a plan moved to version 2, the
-// byte-for-byte promise below it is what has to be re-checked.
-func TestEveryCheckedInPlanIsStillVersionOne(t *testing.T) {
+// A plan says which of the two kinds of map it describes, and its art has to
+// agree with it (ADR-038).
+//
+// This was "every plan is version 1", written when no map here had been
+// re-authored. Fourteen have been since, so the pin moved to the thing that is
+// actually invariant: a version-2 plan in data mode goes with art that draws
+// no text, and a version-1 plan whose art claims a names layer goes with art
+// that draws one. A plan that disagrees with its art is the failure the old
+// pin stood in for.
+func TestEveryPlanAgreesWithItsArt(t *testing.T) {
 	if err := ReportPlans(); err != nil {
 		t.Fatalf("ReportPlans: %v", err)
 	}
 	for key, plan := range plans {
-		if plan.Version != 1 {
+		if !plan.versionSupported() {
 			t.Errorf("%v is version %v", key, plan.Version)
+			continue
 		}
-		if plan.DataMode {
-			t.Errorf("%v is in data mode, and no map here is", key)
+		if plan.DataMode != (plan.Version == 2) {
+			t.Errorf("%v is version %v and dataMode %v; the two go together",
+				key, plan.Version, plan.DataMode)
+		}
+		gen, found := Generated[key]
+		if !found {
+			continue
+		}
+		/* Only one direction is an invariant. Data mode means the board
+		   draws the names, so a `<text>` left in the art would be a second
+		   set on top of the first. Art mode does not imply text: Gateway
+		   West, North Sea Wars, Sengoku and Vietnam War draw their names as
+		   outlined shapes carrying no string, and Ancient Mediterranean and
+		   Unconstitutional draw none at all (ADR-038). */
+		if plan.DataMode && strings.Contains(string(gen.SVG), "<text") {
+			t.Errorf("%v is in data mode and its art still draws text", key)
 		}
 	}
 }

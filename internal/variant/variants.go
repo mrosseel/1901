@@ -260,14 +260,23 @@ func styledMapBytes(key string, v common.Variant, style string) ([]byte, error) 
 	if err != nil {
 		return nil, err
 	}
-	sum := fmt.Sprintf("%x", sha256.Sum256(original))
+	/* The pin is over the art FILE, which is what dipmap hashed when it wrote
+	   the plan. The sanitiser re-serialises every document it reads, so the
+	   bytes served are nobody's file: hashing those held every plan against a
+	   digest its author could not compute. A variant this server did not load
+	   from disk has no file, and the served bytes are the only thing to
+	   hash. */
+	sum := ArtDigest(key)
+	if sum == "" {
+		sum = fmt.Sprintf("%x", sha256.Sum256(original))
+	}
 	if sum != plan.Map.SHA256 {
 		stalePlans.mu.Lock()
 		if !stalePlans.by[key] {
 			stalePlans.by[key] = true
 			log.Printf("style plan: %v was measured on different art (%v, now %v) — "+
 				"serving godip's own colours until dipmap writes it a plan",
-				key, plan.Map.SHA256[:12], sum[:12])
+				key, shortDigest(plan.Map.SHA256), shortDigest(sum))
 		}
 		stalePlans.mu.Unlock()
 		return nil, fmt.Errorf("%q: %w", style, ErrUnknownStyle)
@@ -288,6 +297,16 @@ func styledMapBytes(key string, v common.Variant, style string) ([]byte, error) 
 	}
 	styledArt.mu.Unlock()
 	return out, nil
+}
+
+// shortDigest is the first twelve characters of a digest, for a log line. A
+// plan states its own pin, so it may state a short one, and a message about a
+// malformed plan must not be the thing that brings the server down.
+func shortDigest(sum string) string {
+	if len(sum) <= 12 {
+		return sum
+	}
+	return sum[:12]
 }
 
 // variantMapBytes returns the art to serve for one variant: the map in the
