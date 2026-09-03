@@ -1,5 +1,6 @@
 {
   "ada": {
+    "brief": [507.28, 376.48],
     "centre": [507.28, 376.48],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -8,20 +9,23 @@
     "scale": 1.0,
     "unit": [520.0, 376.5]
   },
-  "adr": {"dislodged": [275.88, 326.35], "scale": 1.0, "unit": [282.39, 337.62]},
+  "adr": {"brief": [282.39, 337.62], "dislodged": [275.88, 326.35], "scale": 1.0, "unit": [282.39, 337.62]},
   "aeg": {
+    "brief": [385.39, 412.32],
     "dislodged": [388.76, 399.76],
     "label": {"at": [385.39, 423.74], "height": 5.47, "size": 7.6, "width": 41.8},
     "scale": 1.0,
     "unit": [385.39, 412.32]
   },
   "alb": {
+    "brief": [327.71, 369.74],
     "dislodged": [335.53, 361.92],
     "label": {"at": [316.25, 381.2], "height": 5.04, "leader": [327.71, 369.74], "size": 7.0, "width": 26.95},
     "scale": 0.85,
     "unit": [327.71, 369.74]
   },
   "ale": {
+    "brief": [421.24, 501.48],
     "centre": [421.24, 501.48],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -37,20 +41,23 @@
     "scale": 1.0,
     "unit": [143.5, 469.76]
   },
-  "als": {"dislodged": [196.64, 246.83], "scale": 1.0, "unit": [205.84, 256.03]},
+  "als": {"brief": [205.84, 256.03], "dislodged": [196.64, 246.83], "scale": 1.0, "unit": [205.84, 256.03]},
   "ana": {
+    "brief": [463.65, 400.13],
     "dislodged": [470.15, 388.86],
     "label": {"at": [480.78, 417.27], "height": 5.04, "leader": [463.65, 400.13], "size": 7.0, "width": 30.8},
     "scale": 1.0,
     "unit": [463.65, 400.13]
   },
   "and": {
+    "brief": [90.74, 372.55],
     "dislodged": [99.94, 363.35],
     "label": {"at": [118.65, 384.11], "height": 5.04, "leader": [90.74, 372.55], "size": 7.0, "width": 34.65},
     "scale": 1.0,
     "unit": [90.74, 372.55]
   },
   "ank": {
+    "brief": [470.97, 356.0],
     "centre": [470.97, 356.0],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -60,6 +67,7 @@
     "unit": [458.5, 356.0]
   },
   "apu": {
+    "brief": [291.82, 367.2],
     "dislodged": [298.72, 360.3],
     "label": {"at": [277.33, 402.18], "height": 5.04, "leader": [291.82, 367.2], "size": 7.0, "width": 23.1},
     "scale": 0.75,
@@ -80,12 +88,14 @@
     "unit": [67.5, 18.4]
   },
   "arm": {
+    "brief": [569.36, 329.58],
     "dislodged": [578.56, 320.38],
     "label": {"at": [582.61, 342.83], "height": 5.04, "leader": [569.36, 329.58], "size": 7.0, "width": 26.95},
     "scale": 1.0,
     "unit": [569.36, 329.58]
   },
   "asw": {
+    "brief": [442.15, 540.4],
     "centre": [442.15, 540.4],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -95,6 +105,7 @@
     "unit": [455.0, 540.5]
   },
   "aus": {
+    "brief": [279.2, 275.06],
     "centre": [279.2, 275.06],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -104,24 +115,28 @@
     "unit": [292.0, 274.5]
   },
   "auv": {
+    "brief": [158.41, 307.65],
     "dislodged": [167.61, 298.45],
     "label": {"at": [166.34, 326.79], "height": 5.04, "leader": [158.41, 307.65], "size": 7.0, "width": 30.8},
     "scale": 1.0,
     "unit": [158.41, 307.65]
   },
   "aze": {
+    "brief": [597.3, 323.74],
     "dislodged": [611.38, 315.61],
     "label": {"at": [620.57, 300.47], "height": 5.04, "leader": [597.3, 323.74], "size": 7.0, "width": 38.5},
     "scale": 1.0,
     "unit": [597.3, 323.74]
   },
   "bal": {
+    "brief": [316.61, 158.03],
     "dislodged": [325.81, 148.83],
     "label": {"at": [326.53, 134.11], "height": 5.04, "leader": [316.61, 158.03], "size": 7.0, "width": 38.5},
     "scale": 1.0,
     "unit": [316.61, 158.03]
   },
   "bar": {
+    "brief": [119.72, 337.99],
     "centre": [119.72, 337.99],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -130,8 +145,9 @@
     "scale": 1.0,
     "unit": [113.5, 350.5]
   },
-  "bel": {"centre": [196.49, 223.52], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [205.23, 214.78], "scale": 0.95, "unit": [196.49, 223.52]},
+  "bel": {"brief": [196.49, 223.52], "centre": [196.49, 223.52], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [205.23, 214.78], "scale": 0.95, "unit": [196.49, 223.52]},
   "ber": {
+    "brief": [271.48, 203.56],
     "centre": [271.48, 203.56],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -140,8 +156,9 @@
     "scale": 1.0,
     "unit": [269.5, 194.0]
   },
-  "bhm": {"dislodged": [300.88, 166.74], "scale": 1.0, "unit": [291.68, 175.94]},
+  "bhm": {"brief": [291.68, 175.94], "dislodged": [300.88, 166.74], "scale": 1.0, "unit": [291.68, 175.94]},
   "bie": {
+    "brief": [398.23, 195.21],
     "centre": [398.23, 195.21],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -158,6 +175,7 @@
     "unit": [96.0, 251.0]
   },
   "bor": {
+    "brief": [141.45, 288.71],
     "centre": [141.45, 288.71],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -166,20 +184,23 @@
     "scale": 1.0,
     "unit": [133.5, 300.5]
   },
-  "bos": {"dislodged": [317.85, 312.51], "scale": 1.0, "unit": [308.65, 321.71]},
+  "bos": {"brief": [308.65, 321.71], "dislodged": [317.85, 312.51], "scale": 1.0, "unit": [308.65, 321.71]},
   "bri": {
+    "brief": [139.38, 246.03],
     "dislodged": [142.75, 258.59],
     "label": {"at": [139.38, 226.5], "height": 5.04, "leader": [139.38, 246.03], "size": 7.0, "width": 30.8},
     "scale": 1.0,
     "unit": [139.38, 246.03]
   },
   "brn": {
+    "brief": [298.94, 12.34],
     "dislodged": [311.5, 8.97],
     "label": {"at": [284.75, 26.52], "height": 5.04, "leader": [298.94, 12.34], "size": 7.0, "width": 42.35},
     "scale": 1.0,
     "unit": [298.94, 12.34]
   },
   "bul": {
+    "brief": [374.58, 341.94],
     "centre": [374.58, 341.94],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -189,6 +210,7 @@
     "unit": [387.0, 342.0]
   },
   "cai": {
+    "brief": [475.13, 496.19],
     "centre": [475.13, 496.19],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -198,30 +220,35 @@
     "unit": [493.0, 512.0]
   },
   "cas": {
+    "brief": [640.62, 324.87],
     "dislodged": [649.82, 315.67],
     "label": {"at": [640.62, 295.18], "height": 5.04, "leader": [640.62, 324.87], "size": 7.0, "width": 42.35},
     "scale": 1.0,
     "unit": [640.62, 324.87]
   },
   "cau": {
+    "brief": [559.68, 286.98],
     "dislodged": [572.69, 286.98],
     "label": {"at": [577.47, 269.19], "height": 5.04, "leader": [559.68, 286.98], "size": 7.0, "width": 30.8},
     "scale": 1.0,
     "unit": [559.68, 286.98]
   },
   "cen": {
+    "brief": [473.65, 207.95],
     "dislodged": [482.85, 198.75],
     "label": {"at": [473.65, 172.25], "height": 5.04, "leader": [473.65, 207.95], "size": 7.0, "width": 88.55},
     "scale": 1.0,
     "unit": [473.65, 207.95]
   },
   "cly": {
+    "brief": [149.84, 111.0],
     "dislodged": [157.2, 103.64],
     "label": {"at": [138.75, 122.09], "height": 5.04, "leader": [149.84, 111.0], "size": 7.0, "width": 19.25},
     "scale": 0.8,
     "unit": [149.84, 111.0]
   },
   "cro": {
+    "brief": [289.87, 297.03],
     "centre": [289.87, 297.03],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -230,8 +257,9 @@
     "scale": 1.0,
     "unit": [296.0, 299.0]
   },
-  "cze": {"centre": [284.29, 244.68], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [289.99, 240.23], "scale": 1.0, "unit": [296.5, 251.5]},
+  "cze": {"brief": [284.29, 244.68], "centre": [284.29, 244.68], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [289.99, 240.23], "scale": 1.0, "unit": [296.5, 251.5]},
   "den": {
+    "brief": [249.65, 153.79],
     "centre": [249.65, 153.79],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -241,18 +269,21 @@
     "unit": [249.65, 153.79]
   },
   "don": {
+    "brief": [471.12, 261.36],
     "dislodged": [483.69, 257.99],
     "label": {"at": [484.82, 275.06], "height": 5.04, "leader": [471.12, 261.36], "size": 7.0, "width": 23.1},
     "scale": 1.0,
     "unit": [471.12, 261.36]
   },
   "ebs": {
+    "brief": [492.6, 317.83],
     "dislodged": [501.8, 308.63],
     "label": {"at": [520.18, 329.26], "height": 5.04, "leader": [492.6, 317.83], "size": 7.0, "width": 65.45},
     "scale": 1.0,
     "unit": [492.6, 317.83]
   },
   "edi": {
+    "brief": [162.13, 121.13],
     "centre": [162.13, 121.13],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -269,18 +300,21 @@
     "unit": [454.0, 450.0]
   },
   "eng": {
+    "brief": [77.58, 218.0],
     "dislodged": [88.85, 211.49],
     "label": {"at": [61.74, 233.84], "height": 5.04, "leader": [77.58, 218.0], "size": 7.0, "width": 57.75},
     "scale": 1.0,
     "unit": [77.58, 218.0]
   },
   "esa": {
+    "brief": [372.19, 504.16],
     "dislodged": [381.39, 494.96],
     "label": {"at": [387.65, 466.84], "height": 5.04, "leader": [372.19, 504.16], "size": 7.0, "width": 53.9},
     "scale": 1.0,
     "unit": [372.19, 504.16]
   },
   "est": {
+    "brief": [371.84, 127.39],
     "dislodged": [381.04, 118.19],
     "label": {"at": [371.84, 97.65], "height": 5.04, "leader": [371.84, 127.39], "size": 7.0, "width": 26.95},
     "scale": 1.0,
@@ -293,8 +327,9 @@
     "scale": 1.0,
     "unit": [367.0, 71.0]
   },
-  "fra": {"centre": [240.14, 224.76], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [242.7, 227.8], "scale": 1.0, "unit": [233.5, 237.0]},
+  "fra": {"brief": [240.14, 224.76], "centre": [240.14, 224.76], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [242.7, 227.8], "scale": 1.0, "unit": [233.5, 237.0]},
   "gda": {
+    "brief": [336.0, 188.71],
     "centre": [336.0, 188.71],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -304,6 +339,7 @@
     "unit": [341.5, 185.5]
   },
   "geo": {
+    "brief": [548.16, 313.48],
     "centre": [548.16, 313.48],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -313,6 +349,7 @@
     "unit": [555.44, 313.7]
   },
   "gib": {
+    "brief": [61.45, 375.19],
     "centre": [61.45, 375.19],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -322,18 +359,21 @@
     "unit": [61.45, 375.19]
   },
   "gob": {
+    "brief": [335.68, 123.48],
     "dislodged": [329.18, 112.21],
     "label": {"at": [322.35, 91.27], "height": 5.04, "leader": [335.68, 123.48], "size": 7.0, "width": 57.75},
     "scale": 1.0,
     "unit": [335.68, 123.48]
   },
   "gol": {
+    "brief": [165.65, 350.48],
     "dislodged": [178.22, 347.12],
     "label": {"at": [165.65, 365.33], "height": 9.12, "size": 12.67, "width": 83.64},
     "scale": 1.0,
     "unit": [165.65, 350.48]
   },
   "gor": {
+    "brief": [500.1, 117.19],
     "centre": [500.1, 117.19],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -343,6 +383,7 @@
     "unit": [513.0, 117.0]
   },
   "gre": {
+    "brief": [343.25, 386.26],
     "centre": [343.25, 386.26],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -352,6 +393,7 @@
     "unit": [344.0, 378.0]
   },
   "ham": {
+    "brief": [245.27, 198.12],
     "centre": [245.27, 198.12],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -361,13 +403,15 @@
     "unit": [233.0, 204.5]
   },
   "hel": {
+    "brief": [223.45, 175.1],
     "dislodged": [232.65, 165.9],
     "label": {"at": [223.45, 120.92], "height": 5.04, "leader": [223.45, 175.1], "size": 7.0, "width": 61.6},
     "scale": 1.0,
     "unit": [223.45, 175.1]
   },
-  "hol": {"centre": [213.44, 199.63], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [218.7, 192.3], "scale": 1.0, "unit": [209.5, 201.5]},
+  "hol": {"brief": [213.44, 199.63], "centre": [213.44, 199.63], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [218.7, 192.3], "scale": 1.0, "unit": [209.5, 201.5]},
   "hun": {
+    "brief": [330.18, 282.39],
     "centre": [330.18, 282.39],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -377,6 +421,7 @@
     "unit": [317.5, 283.0]
   },
   "ice": {
+    "brief": [126.42, 39.16],
     "dislodged": [142.59, 37.35],
     "label": {"at": [126.42, 39.16], "height": 8.03, "size": 11.15, "width": 42.93},
     "scale": 1.0,
@@ -390,6 +435,7 @@
     "unit": [315.5, 410.0]
   },
   "ire": {
+    "brief": [105.97, 157.13],
     "centre": [105.97, 157.13],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -399,6 +445,7 @@
     "unit": [112.5, 144.5]
   },
   "iri": {
+    "brief": [99.65, 188.36],
     "dislodged": [112.22, 191.73],
     "label": {"at": [99.65, 176.42], "height": 7.07, "size": 9.81, "width": 48.58},
     "scale": 1.0,
@@ -412,6 +459,7 @@
     "unit": [583.0, 434.0]
   },
   "irn": {
+    "brief": [664.47, 399.93],
     "centre": [664.47, 399.93],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -421,6 +469,7 @@
     "unit": [676.7, 392.97]
   },
   "isr": {
+    "brief": [507.42, 432.14],
     "centre": [507.42, 432.14],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -430,6 +479,7 @@
     "unit": [507.42, 431.64]
   },
   "ist": {
+    "brief": [412.06, 370.06],
     "centre": [412.06, 370.06],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -439,6 +489,7 @@
     "unit": [424.5, 370.0]
   },
   "izm": {
+    "brief": [418.81, 400.87],
     "centre": [418.81, 400.87],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -448,6 +499,7 @@
     "unit": [424.0, 408.5]
   },
   "jor": {
+    "brief": [517.06, 467.55],
     "dislodged": [523.57, 456.28],
     "label": {"at": [495.82, 446.31], "height": 5.04, "leader": [517.06, 467.55], "size": 7.0, "width": 23.1},
     "scale": 1.0,
@@ -461,6 +513,7 @@
     "unit": [666.98, 218.11]
   },
   "kha": {
+    "brief": [473.52, 237.81],
     "centre": [473.52, 237.81],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -470,6 +523,7 @@
     "unit": [483.0, 234.5]
   },
   "kie": {
+    "brief": [437.0, 226.03],
     "centre": [437.0, 226.03],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -479,6 +533,7 @@
     "unit": [444.5, 238.0]
   },
   "kra": {
+    "brief": [340.02, 238.13],
     "centre": [340.02, 238.13],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -488,24 +543,28 @@
     "unit": [352.0, 230.5]
   },
   "lap": {
+    "brief": [344.09, 19.88],
     "dislodged": [353.29, 10.18],
     "label": {"at": [353.43, 19.88], "height": 7.07, "size": 9.81, "width": 37.78},
     "scale": 1.0,
     "unit": [344.09, 19.38]
   },
   "lat": {
+    "brief": [378.13, 149.94],
     "dislodged": [367.23, 145.99],
     "label": {"at": [366.86, 149.94], "height": 9.12, "size": 12.67, "width": 41.82},
     "scale": 1.0,
     "unit": [378.5, 152.5]
   },
   "lbn": {
+    "brief": [317.91, 462.94],
     "dislodged": [305.35, 466.3],
     "label": {"at": [317.91, 450.64], "height": 7.07, "size": 9.81, "width": 53.97},
     "scale": 1.0,
     "unit": [317.91, 462.94]
   },
   "lib": {
+    "brief": [248.06, 492.8],
     "centre": [248.06, 492.8],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -515,12 +574,14 @@
     "unit": [239.3, 504.3]
   },
   "lig": {
+    "brief": [217.39, 333.29],
     "dislodged": [223.89, 322.02],
     "label": {"at": [217.39, 344.61], "height": 5.47, "size": 7.6, "width": 50.16},
     "scale": 1.0,
     "unit": [217.39, 333.29]
   },
   "lit": {
+    "brief": [361.26, 172.26],
     "centre": [361.26, 172.26],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -530,6 +591,7 @@
     "unit": [348.5, 168.0]
   },
   "liv": {
+    "brief": [153.32, 150.57],
     "centre": [153.32, 150.57],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -540,6 +602,7 @@
     "unit": [143.0, 144.0]
   },
   "lon": {
+    "brief": [162.58, 196.55],
     "centre": [162.58, 196.55],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -549,6 +612,7 @@
     "unit": [166.5, 194.5]
   },
   "lyo": {
+    "brief": [180.32, 271.71],
     "centre": [180.32, 271.71],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -558,12 +622,14 @@
     "unit": [185.5, 262.5]
   },
   "mac": {
+    "brief": [343.61, 355.1],
     "dislodged": [352.81, 345.9],
     "label": {"at": [381.28, 370.7], "height": 5.04, "leader": [343.61, 355.1], "size": 7.0, "width": 34.65},
     "scale": 1.0,
     "unit": [343.61, 355.1]
   },
   "mad": {
+    "brief": [87.26, 331.39],
     "centre": [87.26, 331.39],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -579,14 +645,16 @@
     "scale": 1.0,
     "unit": [250.5, 445.0]
   },
-  "mar": {"centre": [187.26, 295.22], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [178.99, 308.77], "scale": 1.0, "unit": [185.5, 297.5]},
+  "mar": {"brief": [187.26, 295.22], "centre": [187.26, 295.22], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [178.99, 308.77], "scale": 1.0, "unit": [185.5, 297.5]},
   "mid": {
+    "brief": [31.65, 198.48],
     "dislodged": [40.85, 189.28],
     "label": {"at": [46.86, 161.75], "height": 5.04, "leader": [31.65, 198.48], "size": 7.0, "width": 69.3},
     "scale": 1.0,
     "unit": [31.65, 198.48]
   },
   "mil": {
+    "brief": [237.06, 300.62],
     "centre": [237.06, 300.62],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -596,12 +664,14 @@
     "unit": [237.21, 300.69]
   },
   "mol": {
+    "brief": [402.94, 272.16],
     "dislodged": [411.68, 263.42],
     "label": {"at": [422.91, 292.13], "height": 5.04, "leader": [402.94, 272.16], "size": 7.0, "width": 30.8},
     "scale": 0.95,
     "unit": [402.94, 272.16]
   },
   "mon": {
+    "brief": [198.48, 312.61],
     "centre": [198.48, 312.61],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -611,6 +681,7 @@
     "unit": [198.48, 312.61]
   },
   "mor": {
+    "brief": [49.03, 421.76],
     "centre": [49.03, 421.76],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -620,6 +691,7 @@
     "unit": [49.0, 409.0]
   },
   "mos": {
+    "brief": [475.43, 163.55],
     "centre": [475.43, 163.55],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -628,8 +700,9 @@
     "scale": 1.0,
     "unit": [475.5, 151.0]
   },
-  "mun": {"centre": [243.02, 262.52], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [243.07, 258.13], "scale": 1.0, "unit": [230.5, 261.5]},
+  "mun": {"brief": [243.02, 262.52], "centre": [243.02, 262.52], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [243.07, 258.13], "scale": 1.0, "unit": [230.5, 261.5]},
   "mur": {
+    "brief": [467.19, 73.06],
     "centre": [467.19, 73.06],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -646,6 +719,7 @@
     "unit": [56.18, 105.26]
   },
   "nap": {
+    "brief": [275.29, 365.87],
     "centre": [275.29, 365.87],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -663,6 +737,7 @@
     "unit": [111.5, 308.5]
   },
   "nor": {
+    "brief": [258.39, 97.34],
     "centre": [258.39, 97.34],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -686,6 +761,7 @@
     "unit": [194.6, 80.7]
   },
   "ode": {
+    "brief": [423.74, 259.65],
     "centre": [423.74, 259.65],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -695,6 +771,7 @@
     "unit": [411.0, 255.0]
   },
   "par": {
+    "brief": [164.25, 250.54],
     "centre": [164.25, 250.54],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -711,12 +788,14 @@
     "unit": [649.0, 466.5]
   },
   "pic": {
+    "brief": [172.35, 230.13],
     "dislodged": [180.17, 222.31],
     "label": {"at": [136.58, 215.31], "height": 5.04, "leader": [172.35, 230.13], "size": 7.0, "width": 26.95},
     "scale": 0.85,
     "unit": [172.35, 230.13]
   },
   "pie": {
+    "brief": [216.55, 303.03],
     "dislodged": [225.75, 293.83],
     "label": {"at": [187.65, 331.93], "height": 5.04, "leader": [216.55, 303.03], "size": 7.0, "width": 30.8},
     "scale": 1.0,
@@ -730,6 +809,7 @@
     "unit": [384.0, 249.5]
   },
   "por": {
+    "brief": [40.81, 334.69],
     "centre": [40.81, 334.69],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -739,18 +819,21 @@
     "unit": [39.0, 347.5]
   },
   "pru": {
+    "brief": [309.45, 191.23],
     "dislodged": [296.88, 194.59],
     "label": {"at": [302.19, 208.75], "height": 5.04, "leader": [309.45, 191.23], "size": 7.0, "width": 26.95},
     "scale": 1.0,
     "unit": [309.45, 191.23]
   },
   "red": {
+    "brief": [517.02, 507.63],
     "dislodged": [513.65, 495.07],
     "label": {"at": [532.8, 523.41], "height": 5.04, "leader": [517.02, 507.63], "size": 7.0, "width": 26.95},
     "scale": 1.0,
     "unit": [517.02, 507.63]
   },
   "rom": {
+    "brief": [256.52, 346.19],
     "centre": [256.52, 346.19],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -760,6 +843,7 @@
     "unit": [257.8, 347.63]
   },
   "ros": {
+    "brief": [511.03, 279.03],
     "centre": [511.03, 279.03],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -769,12 +853,14 @@
     "unit": [523.5, 279.0]
   },
   "ruh": {
+    "brief": [217.16, 225.61],
     "dislodged": [225.7, 220.3],
     "label": {"at": [217.16, 225.61], "height": 5.47, "size": 7.6, "width": 16.72},
     "scale": 1.0,
     "unit": [216.5, 229.5]
   },
   "rum": {
+    "brief": [372.22, 299.45],
     "centre": [372.22, 299.45],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -784,12 +870,14 @@
     "unit": [372.0, 312.0]
   },
   "sao": {
+    "brief": [21.38, 382.25],
     "dislodged": [30.58, 373.05],
     "label": {"at": [45.48, 440.41], "height": 5.04, "leader": [21.38, 382.25], "size": 7.0, "width": 77.0},
     "scale": 1.0,
     "unit": [21.38, 382.25]
   },
   "sau": {
+    "brief": [583.37, 500.66],
     "centre": [583.37, 500.66],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -806,6 +894,7 @@
     "unit": [252.0, 242.0]
   },
   "ser": {
+    "brief": [336.71, 331.42],
     "centre": [336.71, 331.42],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -814,7 +903,7 @@
     "scale": 1.0,
     "unit": [330.5, 311.5]
   },
-  "sev": {"centre": [460.13, 295.03], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [467.49, 288.67], "scale": 0.8, "unit": [460.13, 296.03]},
+  "sev": {"brief": [460.13, 295.03], "centre": [460.13, 295.03], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [467.49, 288.67], "scale": 0.8, "unit": [460.13, 296.03]},
   "sib": {
     "brief": [661.49, 59.86],
     "dislodged": [673.82, 75.91],
@@ -822,27 +911,31 @@
     "scale": 1.0,
     "unit": [661.25, 72.54]
   },
-  "sil": {"dislodged": [309.59, 232.36], "scale": 1.0, "unit": [300.39, 223.16]},
+  "sil": {"brief": [300.39, 223.16], "dislodged": [309.59, 232.36], "scale": 1.0, "unit": [300.39, 223.16]},
   "sin": {
+    "brief": [497.61, 475.65],
     "dislodged": [506.81, 466.45],
     "label": {"at": [477.83, 427.88], "height": 5.04, "leader": [497.61, 475.65], "size": 7.0, "width": 19.25},
     "scale": 1.0,
     "unit": [497.61, 475.65]
   },
   "ska": {
+    "brief": [253.46, 133.81],
     "dislodged": [243.41, 136.5],
     "label": {"at": [215.09, 133.81], "height": 5.04, "leader": [253.46, 133.81], "size": 7.0, "width": 34.65},
     "scale": 0.8,
     "unit": [253.46, 133.81]
   },
-  "slo": {"dislodged": [328.94, 252.93], "scale": 1.0, "unit": [319.74, 262.13]},
+  "slo": {"brief": [319.74, 262.13], "dislodged": [328.94, 252.93], "scale": 1.0, "unit": [319.74, 262.13]},
   "sog": {
+    "brief": [74.2, 394.35],
     "dislodged": [87.21, 394.35],
     "label": {"at": [113.74, 410.74], "height": 5.04, "leader": [74.2, 394.35], "size": 7.0, "width": 77.0},
     "scale": 1.0,
     "unit": [74.2, 394.35]
   },
   "stp": {
+    "brief": [436.84, 114.32],
     "centre": [436.84, 114.32],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -852,6 +945,7 @@
     "unit": [424.0, 114.5]
   },
   "sve": {
+    "brief": [62.81, 353.36],
     "centre": [62.81, 353.36],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -861,6 +955,7 @@
     "unit": [58.5, 347.5]
   },
   "swe": {
+    "brief": [293.13, 119.42],
     "centre": [293.13, 119.42],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -869,14 +964,16 @@
     "scale": 1.0,
     "unit": [306.0, 119.5]
   },
-  "swi": {"centre": [213.38, 280.49], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [232.7, 270.3], "scale": 1.0, "unit": [223.5, 279.5]},
+  "swi": {"brief": [213.38, 280.49], "centre": [213.38, 280.49], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [232.7, 270.3], "scale": 1.0, "unit": [223.5, 279.5]},
   "syr": {
+    "brief": [527.24, 410.82],
     "dislodged": [532.22, 404.02],
     "label": {"at": [527.24, 410.82], "height": 10.37, "size": 14.4, "width": 39.6},
     "scale": 1.0,
     "unit": [527.0, 423.5]
   },
   "tun": {
+    "brief": [211.91, 443.55],
     "centre": [211.91, 443.55],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -886,12 +983,14 @@
     "unit": [212.5, 456.0]
   },
   "tus": {
+    "brief": [243.94, 330.16],
     "dislodged": [252.68, 321.42],
     "label": {"at": [216.13, 357.97], "height": 5.04, "leader": [243.94, 330.16], "size": 7.0, "width": 26.95},
     "scale": 0.95,
     "unit": [243.94, 330.16]
   },
   "tyr": {
+    "brief": [242.37, 377.65],
     "dislodged": [251.57, 368.45],
     "label": {"at": [272.84, 390.27], "height": 5.04, "leader": [242.37, 377.65], "size": 7.0, "width": 53.9},
     "scale": 1.0,
@@ -904,7 +1003,7 @@
     "scale": 1.0,
     "unit": [564.07, 57.46]
   },
-  "ven": {"centre": [255.1, 296.81], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [250.8, 314.03], "scale": 0.9, "unit": [255.5, 296.5]},
+  "ven": {"brief": [255.1, 296.81], "centre": [255.1, 296.81], "centreRadius": 4.4, "centreStroke": 1.1, "dislodged": [250.8, 314.03], "scale": 0.9, "unit": [255.5, 296.5]},
   "vol": {
     "brief": [548.32, 161.98],
     "dislodged": [560.74, 178.49],
@@ -913,12 +1012,14 @@
     "unit": [548.17, 175.12]
   },
   "wal": {
+    "brief": [140.77, 184.19],
     "dislodged": [149.97, 174.99],
     "label": {"at": [140.77, 184.19], "height": 6.22, "size": 8.64, "width": 23.75},
     "scale": 1.0,
     "unit": [140.77, 184.19]
   },
   "war": {
+    "brief": [325.49, 213.87],
     "centre": [325.49, 213.87],
     "centreRadius": 4.4,
     "centreStroke": 1.1,
@@ -928,12 +1029,14 @@
     "unit": [338.0, 212.5]
   },
   "wbs": {
+    "brief": [435.57, 322.9],
     "dislodged": [444.77, 313.7],
     "label": {"at": [465.92, 335.48], "height": 5.04, "leader": [435.57, 322.9], "size": 7.0, "width": 65.45},
     "scale": 1.0,
     "unit": [435.57, 322.9]
   },
   "whi": {
+    "brief": [436.74, 20.74],
     "dislodged": [445.94, 11.54],
     "label": {"at": [436.74, 40.2], "height": 5.04, "leader": [436.74, 20.74], "size": 7.0, "width": 34.65},
     "scale": 1.0,
@@ -954,6 +1057,7 @@
     "unit": [46.29, 499.79]
   },
   "yor": {
+    "brief": [163.77, 169.39],
     "dislodged": [172.05, 161.11],
     "label": {"at": [128.26, 133.87], "height": 5.04, "leader": [163.77, 169.39], "size": 7.0, "width": 34.65},
     "scale": 0.9,
