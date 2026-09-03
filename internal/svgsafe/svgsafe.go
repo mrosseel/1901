@@ -394,3 +394,23 @@ func RequireBoardLayers(svg []byte) error {
 func MissingCenterAnchors(svg []byte) bool {
 	return !bytes.Contains(svg, []byte(`id="province-centers"`))
 }
+
+// MissingTerrainLayer reports art that paints its terrain nowhere the board
+// can see it.
+//
+// `#provinces` is the hit layer: the board makes every child transparent and
+// paints its own highlights onto them (ADR-059). Terrain belongs in a layer
+// under it, `#background` on godip's own art and `#MapLayer` on a jDip map.
+// Art that paints the land onto `#provinces` and nothing else is served as
+// one flat sea, and the data behind it is perfectly good, so the fault reads
+// as anything but the layer it is.
+//
+// Not fatal, for the same reason as the anchors above: such a map still
+// clicks, orders and highlights. It is a poor picture, not a broken board.
+func MissingTerrainLayer(svg []byte) bool {
+	if !bytes.Contains(svg, []byte(`id="provinces"`)) {
+		return false
+	}
+	return !bytes.Contains(svg, []byte(`id="background"`)) &&
+		!bytes.Contains(svg, []byte(`id="MapLayer"`))
+}

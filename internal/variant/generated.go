@@ -333,6 +333,10 @@ func loadVariantArt(fsys fs.FS, key string) ([]byte, string, error) {
 		log.Printf("generated variant %v: art has no province-centers layer, so "+
 			"markers fall back to the placement table alone", key)
 	}
+	if svgsafe.MissingTerrainLayer(sanitized.Clean) {
+		log.Printf("generated variant %v: the art paints no terrain under the "+
+			"provinces layer, so the board draws it as one flat sea (ADR-059)", key)
+	}
 	return sanitized.Clean, digest, nil
 }
 

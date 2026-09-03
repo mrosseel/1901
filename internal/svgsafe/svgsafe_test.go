@@ -349,3 +349,28 @@ func TestAttributeMarkupIsEscaped(t *testing.T) {
 		t.Errorf("the document stopped parsing: %v", err)
 	}
 }
+
+// The board owns every fill on #provinces, so a map that paints its terrain
+// there and nowhere else is served as one flat sea (ADR-059).
+func TestMissingTerrainLayerFindsArtThatPaintsOnTheHitLayer(t *testing.T) {
+	painted := `<svg><g id="provinces"><path id="par" fill="#f0e2c0"/></g>` +
+		`<g id="coastline"><path/></g></svg>`
+	if !MissingTerrainLayer([]byte(painted)) {
+		t.Error("art with the paint on the hit layer must be reported")
+	}
+	godip := `<svg><g id="background"><path fill="#f0e2c0"/></g>` +
+		`<g id="provinces"><path id="par"/></g></svg>`
+	if MissingTerrainLayer([]byte(godip)) {
+		t.Error("godip's own layering must not be reported")
+	}
+	jdip := `<svg><g id="MapLayer"><path class="land"/></g>` +
+		`<g id="provinces"><path id="par"/></g></svg>`
+	if MissingTerrainLayer([]byte(jdip)) {
+		t.Error("jDip's layering must not be reported")
+	}
+	// Art with no hit layer at all is refused outright, so it is not this
+	// check's business to have an opinion about it.
+	if MissingTerrainLayer([]byte(`<svg><g id="something"/></svg>`)) {
+		t.Error("art with no provinces layer must be left to RequireBoardLayers")
+	}
+}
