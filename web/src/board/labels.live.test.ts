@@ -100,6 +100,26 @@ function centreRecords(): number {
 }
 
 describe("the exporter's own map, in data mode", () => {
+  it("shows a province's code where the exporter drew no name", async () => {
+    /* The exporter drops a name whose fitted size falls under its floor and
+       leaves the code to say the same thing (ADR-038). Reading a missing
+       record as "no label" left 121 of Imperial's 346 provinces blank. */
+    const thinned: Record<string, Placement> = {};
+    Object.keys(PLACEMENTS).forEach((province) => {
+      thinned[province] = { ...PLACEMENTS[province] };
+    });
+    const dropped = Object.keys(thinned).filter((p) => thinned[p].label).slice(0, 3);
+    dropped.forEach((province) => { delete thinned[province].label; });
+
+    const board = await boardFor(ART, { placements: thinned, labels: PLAN });
+    const layer = document.querySelector("#data-labels");
+    expect(layer?.querySelectorAll("text.province-name").length).toBe(73 - dropped.length);
+    const codes = Array.from(layer?.querySelectorAll("text.brief-label") || [])
+      .map((node) => node.textContent);
+    expect(codes.sort()).toEqual(dropped.map((p) => p.toUpperCase()).sort());
+    board.destroy();
+  });
+
   it("draws every name and glyph from the records with nothing stripped", async () => {
     const doc = new DOMParser().parseFromString(ART, "image/svg+xml");
     // What the art must no longer carry. A name, a supply-centre glyph and a

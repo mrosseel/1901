@@ -297,7 +297,7 @@ func isNeutral(owner string) bool {
 // These are not format errors. Real variants break every one of them on
 // purpose: classical gives Russia a fourth home centre, 1900 sets a solo
 // threshold two nations could both reach, and 1900 carries an isolated
-// province called Dummy. A generator should avoid them; a loader has no
+// supply centre called Dummy. A generator should avoid them; a loader has no
 // business refusing a map over them.
 func Warnings(d Descriptor) []string {
 	var out []string
@@ -333,11 +333,32 @@ func Warnings(d Descriptor) []string {
 			}
 		}
 	}
+	/* A province with no borders is normally impassable ground rather than a
+	   fault. jDip states it with an adjacency that names only the province
+	   itself: Switzerland on Loeb 9, Milan and Rootz, and Cori Celesti on
+	   Octarine. godip drops such a province from its graph instead, so the
+	   format has no word for it and a bordersless province is how it arrives.
+	   That is a true statement of the rule, and warning about it every boot
+	   trains a reader to ignore the line.
+
+	   A supply centre nobody can reach is a different thing and stays loud. It
+	   counts toward the total a solo is measured against, so a map with one is
+	   a map whose win condition is off by that many. 1900 has one, called
+	   Dummy. */
+	centres := map[string]bool{}
+	for _, row := range d.Provinces {
+		if len(row) >= 3 && row[2] != nil {
+			if key, ok := row[0].(string); ok {
+				centres[key] = true
+			}
+		}
+	}
 	for _, row := range d.Regions {
 		name, err := regionName(row)
-		if err == nil && degree[name] == 0 {
+		if err == nil && degree[name] == 0 && centres[name] {
 			out = append(out, fmt.Sprintf(
-				"region %q has no borders, so no unit can reach it", name))
+				"region %q has no borders and is a supply centre, so it counts "+
+					"toward a solo and nobody can take it", name))
 		}
 	}
 

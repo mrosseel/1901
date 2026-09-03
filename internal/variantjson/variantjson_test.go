@@ -16,7 +16,7 @@ import (
 // sampleDescriptor is the map dipmap generated for the server's own tests.
 func sampleDescriptor(t *testing.T) Descriptor {
 	t.Helper()
-	path := filepath.Join("..", "testdata", "generated", "demo7", "variant.json")
+	path := filepath.Join("..", "variant", "testdata", "generated", "demo7", "variant.json")
 	f, err := os.Open(path)
 	if err != nil {
 		t.Skipf("no sample descriptor at %v", path)
@@ -273,5 +273,38 @@ func TestBeingDrawnOnAnotherVariantDoesNotChangeTheHash(t *testing.T) {
 	d.Map = "classical"
 	if after := GameHash(d); after != before {
 		t.Errorf("the hash moved when the art moved: %v -> %v", before, after)
+	}
+}
+
+// Impassable ground is a province with no borders, and it is not a fault.
+//
+// jDip says so with an adjacency that names only the province itself:
+// Switzerland on three maps and Cori Celesti on Octarine. godip drops such a
+// province from its graph instead, so the format has no word for it. A warning
+// on every boot for four maps that are right trains a reader to skip the line.
+//
+// The same province holding a supply centre IS a fault, because the centre
+// counts toward the total a solo is measured against and nobody can take it.
+func TestImpassableGroundIsQuietAndAnUnreachableCentreIsNot(t *testing.T) {
+	t.Helper()
+	base := func(centre any) Descriptor {
+		d := sampleDescriptor(t)
+		d.Provinces = append(d.Provinces, []any{"swi", "Switzerland", centre})
+		d.Regions = append(d.Regions, []any{"swi", nil, "land"})
+		return d
+	}
+	mentions := func(warnings []string) bool {
+		for _, w := range warnings {
+			if strings.Contains(w, "swi") {
+				return true
+			}
+		}
+		return false
+	}
+	if mentions(Warnings(base(nil))) {
+		t.Error("impassable ground was reported")
+	}
+	if !mentions(Warnings(base("neutral"))) {
+		t.Error("an unreachable supply centre was not reported")
 	}
 }

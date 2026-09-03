@@ -937,20 +937,38 @@ export function mount(
         is already clear of this province's own marker — so a code no longer
         jumps when a unit moves in or out.
         */
-        const held = placementOf(province)?.brief;
-        const spot = Array.isArray(held) ? held : null;
-        const at = spot
-          ? { x: spot[0], y: spot[1] }
-          : { x: point.x, y: standing[province] ? point.y + rp * 1.95 : point.y };
-        const text = document.createElementNS(SVG_NS, "text");
-        text.setAttribute("x", String(at.x));
-        text.setAttribute("y", String(at.y));
-        text.setAttribute("font-size", String(r * 0.95));
-        text.setAttribute("stroke-width", String(r * 0.16));
-        text.setAttribute("class", "brief-label " + (ink === "dark" ? "on-light" : "on-dark"));
-        text.textContent = mapCode(province);
-        layer.appendChild(text);
+        layer.appendChild(codeText(province, codePoint(province, point, rp, Boolean(standing[province])), r));
       });
+  }
+
+  /*
+  Where a province's three-letter code goes.
+
+  The approved table's answer when it has one, and the offset heuristic when it
+  does not. A measured position beats the heuristic on everything the heuristic
+  cannot see: whether the spot below the marker is still inside the province,
+  whether it is under the supply centre glyph, and whether it is under a
+  NEIGHBOURING province's marker, which is where most of the collisions were.
+  It is also one position rather than two, because it is already clear of this
+  province's own marker, so a code no longer jumps when a unit moves in or out.
+  */
+  function codePoint(province: string, anchor: Point, rp: number, occupied: boolean): Point {
+    const held = placementOf(province)?.brief;
+    if (Array.isArray(held)) return { x: held[0], y: held[1] };
+    return { x: anchor.x, y: occupied ? anchor.y + rp * 1.95 : anchor.y };
+  }
+
+  // One province's code, drawn. Brief mode and the missing-name fallback draw
+  // the same element, so a province never shows two kinds of code.
+  function codeText(province: string, at: Point, r: number): SVGElement {
+    const text = document.createElementNS(SVG_NS, "text");
+    text.setAttribute("x", String(at.x));
+    text.setAttribute("y", String(at.y));
+    text.setAttribute("font-size", String(r * 0.95));
+    text.setAttribute("stroke-width", String(r * 0.16));
+    text.setAttribute("class", "brief-label " + (ink === "dark" ? "on-light" : "on-dark"));
+    text.textContent = mapCode(province);
+    return text;
   }
 
   // --- Names and centres the art does not draw ----------------------------
@@ -1244,9 +1262,32 @@ export function mount(
 
     const faces = labelFaces();
     const sea = new Set(plan.sea || []);
+    const r = markerRadius();
+    const standing = state?.units || {};
     labelledProvinces().forEach(([province, spot]) => {
       const label = spot.label;
-      if (!label || !Array.isArray(label.at)) return;
+      /*
+      A province with no name record shows its code instead (ADR-038).
+
+      The record is absent because the name did not fit: the exporter drops a
+      name whose fitted size falls under its floor, "in favour of the code,
+      which says the same thing and can be read". Drawing nothing was reading
+      that as "this province has no label", and it left 121 of Imperial's 346
+      provinces, 33 of Aberration's and 25 of Rootz's blank at every zoom.
+
+      This is not brief mode. Brief mode replaces every name with a code and is
+      the reader's choice; this fills the gaps the exporter left and is the
+      map's own decision, so the two never show at once.
+      */
+      if (!label || !Array.isArray(label.at)) {
+        const anchor = centerOf(province);
+        if (!anchor) return;
+        const rp = r * scaleOf(province);
+        layer.appendChild(
+          codeText(province, codePoint(province, anchor, rp, Boolean(standing[province])), r),
+        );
+        return;
+      }
       const face = faces ? (sea.has(province) ? faces.sea : faces.land) : null;
       const runs = spot.labelRuns && spot.labelRuns.length ? spot.labelRuns : null;
       const drawn = runs
