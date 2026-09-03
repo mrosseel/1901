@@ -563,9 +563,22 @@ export function mount(
     });
   }
 
-  // Matches the mobile media query: a narrow screen or a short one.
+  /*
+  Whether the board has room, measured on the board and not on the window.
+
+  The thresholds are the mobile media query's, but the question is how much
+  space the map has, and a wide window can hold a narrow map pane. Reading the
+  window opened a map cropped at the right edge in any app that puts a sidebar
+  beside the board, and read as a fault in the fit.
+  */
   function isNarrow(): boolean {
-    return window.innerWidth <= NARROW_PX || window.innerHeight <= SHORT_PX;
+    const rect = mapRect();
+    // A box with no size has not been laid out, and measuring it would call
+    // every board narrow. The window is the best answer left.
+    if (!rect.width || !rect.height) {
+      return window.innerWidth <= NARROW_PX || window.innerHeight <= SHORT_PX;
+    }
+    return rect.width <= NARROW_PX || rect.height <= SHORT_PX;
   }
 
   /*

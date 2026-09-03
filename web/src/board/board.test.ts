@@ -1461,3 +1461,40 @@ describe("a convoy", () => {
     seat.board.destroy();
   });
 });
+
+/*
+The opening view is decided by the space the board has, not by the window.
+
+jsdom lays nothing out, so the host's box is stubbed here. That is also why
+the board falls back to the window when the box has no size at all.
+*/
+describe("how much room the board thinks it has", () => {
+  async function openedWidth(width: number, height: number): Promise<number> {
+    vi.stubGlobal(
+      "fetch",
+      async () => ({ ok: true, status: 200, text: async () => MAP }) as unknown as Response,
+    );
+    const host = document.createElement("div");
+    host.getBoundingClientRect = () =>
+      ({ x: 0, y: 0, top: 0, left: 0, right: width, bottom: height,
+         width: width, height: height }) as DOMRect;
+    document.body.appendChild(host);
+    const board = mount(host, { mapUrl: "/map.svg", options: async () => ({}), order: async () => ({}) }, {
+      status: () => {}, builder: () => {}, state: () => {}, select: () => {},
+    });
+    await board.ready;
+    const view = (document.querySelector("svg")?.getAttribute("viewBox") || "").split(" ");
+    board.destroy();
+    return Number(view[2]);
+  }
+
+  it("opens a wide pane on the whole map", async () => {
+    // fit-width for a 1524x1357 map in a 1200x800 pane.
+    expect(await openedWidth(1200, 800)).toBeCloseTo(1357 * (1200 / 800), 1);
+  });
+
+  it("steps a narrow pane in so a province is big enough to tap", async () => {
+    // The window is 1024 wide here, so the old reading called this pane wide.
+    expect(await openedWidth(600, 800)).toBeCloseTo(1524 / 1.6, 1);
+  });
+});
