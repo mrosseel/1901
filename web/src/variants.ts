@@ -1,8 +1,9 @@
 /*
 The variant catalogue, as the gallery reads it.
 
-The server answers /variants with godip's own metadata, and godip is not tidy:
-a field can be missing, a count can be zero, a description can be empty. So
+The server answers /api/v1/variants with godip's own metadata, and godip is
+not tidy: a field can be missing, a count can be zero, a description can be
+empty. So
 nothing here trusts the shape. Every card line is built by a pure function and
 comes back as "" when there is nothing true to say, and the page simply leaves
 out the empty ones.
@@ -93,6 +94,27 @@ export function preferredVariant(list: Variant[]): string {
 
 export function findVariant(list: Variant[], key: string): Variant | null {
   return list.find((v) => v.key === key) || null;
+}
+
+/*
+A map asked for in the address, as the showcase asks for it: /new?variant=hundred.
+
+The address is read before the catalogue arrives, so this only says what was
+asked. Whether the server has such a map is startingVariant's question.
+*/
+export function requestedVariant(search: string): string {
+  try {
+    return new URLSearchParams(search).get("variant")?.trim() || "";
+  } catch {
+    // A malformed query string is not a variant, and not an error either.
+    return "";
+  }
+}
+
+/** The card the create form opens on: the one asked for, when it exists. */
+export function startingVariant(list: Variant[], asked: string): string {
+  if (asked && list.some((v) => v.key === asked)) return asked;
+  return preferredVariant(list);
 }
 
 // --- filtering by table size ----------------------------------------------

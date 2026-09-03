@@ -14,7 +14,7 @@ room is not going to navigate it, and the seat page is a map fighting a phone
 for every pixel; that one carries the same links inside the seat menu instead,
 which is one tap away and costs no height.
 */
-export function TopBar({ here }: { here?: "games" | "faq" | "new" | "datc" }) {
+export function TopBar({ here }: { here?: "games" | "faq" | "new" | "datc" | "variants" }) {
   const game = readRecentGame();
 
   return (
@@ -24,6 +24,9 @@ export function TopBar({ here }: { here?: "games" | "faq" | "new" | "datc" }) {
       </a>
       <a className={here === "games" ? "here" : undefined} href="/games">
         Games
+      </a>
+      <a className={here === "variants" ? "here" : undefined} href="/variants">
+        Variants
       </a>
       <a className={here === "faq" ? "here" : undefined} href="/faq">
         Questions

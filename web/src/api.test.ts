@@ -43,6 +43,11 @@ describe("routes", () => {
     });
     // The root is the landing page and the list has its own address (ADR-043).
     expect(parseRoute("/games")).toEqual({ kind: "games" });
+    // The showcase of the maps, which is a page and not the catalogue behind it.
+    expect(parseRoute("/variants")).toEqual({ kind: "variants" });
+    expect(parseRoute("/variants/")).toEqual({ kind: "variants" });
+    // One map's art is served by the server, and is not a page.
+    expect(parseRoute("/variants/classical/map.svg").kind).toBe("unknown");
     expect(parseRoute("/games/")).toEqual({ kind: "games" });
     expect(parseRoute("/join/7/abc")).toEqual({
       kind: "join",
@@ -121,7 +126,7 @@ describe("requests", () => {
       ]),
     });
     const list = await fetchVariants();
-    expect(calls[0].url).toBe("http://localhost:3000/variants");
+    expect(calls[0].url).toBe("http://localhost:3000/api/v1/variants");
     expect(list.map((v) => v.key)).toEqual(["classical", "hundred"]);
     expect(list[1].powerCount).toBe(3);
     expect(list[1].mapUrl).toBe("/variants/hundred/map.svg");

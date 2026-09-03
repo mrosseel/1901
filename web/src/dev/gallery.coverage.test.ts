@@ -24,6 +24,7 @@ const ADDRESSES: Record<string, string> = {
   index: "/",
   games: "/games",
   faq: "/faq",
+  variants: "/variants",
   datc: "/datc",
   recover: "/recover",
   new: "/new",

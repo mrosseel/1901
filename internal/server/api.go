@@ -6,10 +6,13 @@ this app talking to itself, and data published to people who are not in the
 room. They need opposite promises, so they get different addresses.
 
 	/api/v1/…            the app's transport. No promises to anybody outside
-	                     the build that ships with it.
+	                     the build that ships with it. The variant catalogue
+	                     is here: only this app reads it, and its shape is
+	                     godip's metadata, which is nobody's promise to keep.
 	/game/{id}/public    published, citable, kept working
 	/game/{id}/watch     the same (ADR-013, ADR-028)
-	/variants, /styles   the catalogue and the art, the same for everyone
+	/variants/{key}/…    the map art, and /styles beside it: the same for
+	                     everyone, and worth pasting into a tab as itself
 
 The version in the path is not ceremony. It is what makes "no promises" safe:
 a breaking change becomes /api/v2 and every tab still open on a table keeps
@@ -27,6 +30,7 @@ import (
 
 	"spring1901/spike/internal/assets"
 	"spring1901/spike/internal/httpx"
+	"spring1901/spike/internal/variant"
 )
 
 // apiPrefix is where the app's own transport lives. One place, because the
@@ -57,6 +61,10 @@ func (self *server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		handleCreateGame(w, r)
 	case rest == "/build":
 		handleBuild(w, r)
+	case rest == "/variants":
+		// The catalogue the gallery reads. The page that shows it is
+		// /variants and is the shell; the map art stays under /variants/{key}.
+		variant.HandleVariants(w, r)
 	case strings.HasPrefix(rest, "/game/"):
 		self.serveFlowAPI(w, r, rest)
 	default:

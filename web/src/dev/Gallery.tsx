@@ -32,6 +32,7 @@ import { NewGame } from "../pages/NewGame";
 import { RecoverPage } from "../pages/RecoverPage";
 import { SandboxPage } from "../pages/SandboxPage";
 import { SeatPage } from "../pages/SeatPage";
+import { VariantsPage } from "../pages/VariantsPage";
 import { WatchPage } from "../pages/WatchPage";
 import { ModalLayer } from "../components/ModalLayer";
 import { PressPanel } from "../components/PressPanel";
@@ -432,6 +433,15 @@ export function buildCatalogue(): Entry[] {
       note: "The rules above, the board gallery below. Variants come from the real server.",
       scenario: { variantKey: VARIANT },
       render: () => <NewGame />,
+    },
+    {
+      route: "variants",
+      screen: "page",
+      state: "variants",
+      title: "The maps",
+      note: "The showcase: every board, notes open, and a bar at the foot once a map is picked.",
+      scenario: { variantKey: VARIANT },
+      render: () => <VariantsPage />,
     },
     {
       route: "join",

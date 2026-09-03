@@ -13,8 +13,10 @@ import { SupportedMark } from "./SupportedMark";
 import { styledMapUrl } from "../style";
 
 /*
-The variant gallery on /new: one card for each map godip can draw, and the
-card that is picked is the game that gets created.
+The variant gallery: one card for each map godip can draw. On /new the picked
+card is the game that gets created; on /variants it is the map the call to
+action then offers to start a game on. Both pages show the same cards, so the
+difference between them is props, not a second gallery.
 
 A gallery shows its maps, so every card draws one. What it must not do is
 fetch twenty-three of them — 0.6 to 4.3 MB each — before anyone has scrolled.
@@ -125,6 +127,7 @@ function VariantCardView({
   mapUrl,
   picked,
   aside,
+  notesOpen,
   onPick,
 }: {
   variant: Variant;
@@ -133,12 +136,14 @@ function VariantCardView({
   picked: boolean;
   /** True for the picked card the filter does not match. */
   aside: boolean;
+  /** True where the page is for reading the maps rather than for filling a form. */
+  notesOpen: boolean;
   onPick: () => void;
 }) {
   const card = variantCard(variant);
   const box = useRef<HTMLLIElement | null>(null);
   const onScreen = useOnScreen(box);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(notesOpen);
   const [looking, setLooking] = useState(false);
 
   /*
@@ -203,7 +208,7 @@ function VariantCardView({
       {/*
       Everything else is folded away. Twenty-three cards of full godip notes is
       a wall of text nobody reads; the one card being considered is worth
-      opening.
+      opening. A page that exists to be read starts them open instead.
       */}
       <button
         type="button"
@@ -236,10 +241,70 @@ function VariantCardView({
   );
 }
 
+/*
+The table-size filter, in its two shapes.
+
+On the create form it is a select: the filter is one line of a form that is
+mostly other questions, and a row of eight buttons there would outweigh the
+clock and the negotiation rule. On the showcase it is the way the page is
+read, so every band is on the page with its count, one tap away.
+*/
+function BandPicker({
+  band,
+  counts,
+  control,
+  onBand,
+}: {
+  band: string;
+  counts: Record<string, number>;
+  control: "select" | "chips";
+  onBand: (band: string) => void;
+}) {
+  if (control === "chips") {
+    return (
+      <div className="band-chips" role="group" aria-label="Show the variants for a table this size">
+        {POWER_BANDS.map((one) => (
+          <button
+            key={one.id}
+            type="button"
+            className={one.id === band ? "band-chip on" : "band-chip"}
+            aria-pressed={one.id === band}
+            disabled={counts[one.id] === 0}
+            onClick={() => onBand(one.id)}
+          >
+            {one.label} <span className="band-chip-count">{counts[one.id]}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+  /* The count rides in the option text. A select shows one option at a time,
+     so a count kept outside it would be invisible while closed — and the
+     count is the reason the filter is worth opening. */
+  return (
+    <label className="band-picker">
+      <span className="band-picker-label">Players</span>
+      <select
+        value={band}
+        title="Show only the variants for a table this size"
+        onChange={(event) => onBand(event.target.value)}
+      >
+        {POWER_BANDS.map((one) => (
+          <option key={one.id} value={one.id} disabled={counts[one.id] === 0}>
+            {one.label} ({counts[one.id]})
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function VariantGallery({
   variants,
   chosen,
   style,
+  bandControl = "select",
+  notesOpen = false,
   onChoose,
   onStyle,
 }: {
@@ -247,6 +312,10 @@ export function VariantGallery({
   chosen: string;
   /** This device's map style, or "" for whatever the server serves. */
   style?: string;
+  /** How the table-size filter is drawn. See BandPicker. */
+  bandControl?: "select" | "chips";
+  /** Start every card with its notes unfolded. */
+  notesOpen?: boolean;
   onChoose: (key: string) => void;
   onStyle: (style: string) => void;
 }) {
@@ -263,24 +332,8 @@ export function VariantGallery({
       gallery, the second only repaints it, so they are the two controls that
       belong above it and nothing else does.
       */}
-      <div className="gallery-bar">
-        {/* The count rides in the option text. A select shows one option at a
-            time, so a count kept outside it would be invisible while closed —
-            and the count is the reason the filter is worth opening. */}
-        <label className="band-picker">
-          <span className="band-picker-label">Players</span>
-          <select
-            value={band}
-            title="Show only the variants for a table this size"
-            onChange={(event) => setBand(event.target.value)}
-          >
-            {POWER_BANDS.map((one) => (
-              <option key={one.id} value={one.id} disabled={counts[one.id] === 0}>
-                {one.label} ({counts[one.id]})
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className={bandControl === "chips" ? "gallery-bar wrapped" : "gallery-bar"}>
+        <BandPicker band={band} counts={counts} control={bandControl} onBand={setBand} />
         <StylePicker value={style || ""} onChange={onStyle} />
       </div>
 
@@ -292,6 +345,7 @@ export function VariantGallery({
             mapUrl={styledMapUrl(variant.mapUrl, style || "")}
             picked={variant.key === chosen}
             aside={aside && variant.key === chosen}
+            notesOpen={notesOpen}
             onPick={() => onChoose(variant.key)}
           />
         ))}

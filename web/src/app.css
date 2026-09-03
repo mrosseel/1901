@@ -495,6 +495,100 @@ details.card > summary::marker { color: var(--muted); }
 
 .variant-line { margin: 4px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+/* --- the showcase at /variants -------------------------------------------
+The same cards, on a page that creates nothing. Two things are its own: the
+table-size filter, which is here a row of chips rather than a select, and the
+bar that answers a pick. */
+
+.band-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.band-chip {
+  padding: 7px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: var(--panel-2);
+  /* A chip has to stay hittable with a thumb once the row wraps. */
+  min-height: 36px;
+}
+
+.band-chip.on {
+  background: #2c4a7c;
+  border-color: #3f6cae;
+  color: var(--text);
+}
+
+.band-chip-count { color: var(--muted); }
+.band-chip.on .band-chip-count { color: inherit; opacity: 0.75; }
+
+/* The chips take a row of their own, so the style picker keeps its place on
+   the right of whatever height they end up. */
+.gallery-bar.wrapped { align-items: flex-start; }
+
+/*
+The call to action, once a map is picked.
+
+Sticky, not fixed: it holds the foot of the screen while there is gallery left
+to scroll and then comes to rest at the end of the page, so the last card is
+never under it. The safe-area inset keeps it clear of a phone's home bar.
+*/
+.variant-cta {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin-top: 4px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  box-shadow: 0 -6px 18px rgb(0 0 0 / 35%);
+}
+
+.variant-cta-name { margin: 0; font-weight: 600; }
+
+.variant-cta-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.cta-primary,
+.cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* The same 48px a thumb gets everywhere else in this app. */
+  min-height: 48px;
+  padding: 9px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  text-decoration: none;
+  color: var(--text);
+  text-align: center;
+}
+
+.cta-primary { background: #2c4a7c; border-color: #3f6cae; }
+.cta-secondary { background: var(--panel-2); }
+.cta-primary:hover, .cta-secondary:hover { border-color: var(--accent); }
+
+/* On a phone the bar is two full-width rows: a name that may be long and two
+   links that must not shrink to a word each. */
+@media (max-width: 560px) {
+  .variant-cta { flex-direction: column; align-items: stretch; }
+  .variant-cta-links { flex-direction: column; justify-content: stretch; }
+}
+
 /* What the table calls this game. It sits under the page's own heading and is
    read at a glance, so it takes weight without competing with the phase. */
 .game-name {

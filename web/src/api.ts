@@ -471,6 +471,9 @@ export type Route =
   | { kind: "games" }
   /* The questions a first table asks. One page, no game behind it. */
   | { kind: "faq" }
+  /* The showcase of every map godip can draw. It creates nothing: it is the
+     page to browse from, and each card links on to /new. */
+  | { kind: "variants" }
   /* What this build scored against DATC (ADR-045). Generated, never typed. */
   | { kind: "datc" }
   /* The create form. `sandbox` is the same form asked for a board with no
@@ -495,6 +498,7 @@ export function parseRoute(pathname: string): Route {
   if (parts.length === 1 && parts[0] === "sandbox") return { kind: "new", sandbox: true };
   if (parts.length === 1 && parts[0] === "games") return { kind: "games" };
   if (parts.length === 1 && parts[0] === "faq") return { kind: "faq" };
+  if (parts.length === 1 && parts[0] === "variants") return { kind: "variants" };
   if (parts.length === 1 && parts[0] === "datc") return { kind: "datc" };
   if (parts[0] === "recover" && parts.length <= 2) {
     return { kind: "recover", gameId: parts.length === 2 ? parts[1] : null };
@@ -543,9 +547,9 @@ anything. The version is what makes that safe — a breaking change becomes
 /api/v2 and a phone still on the old page keeps working until somebody
 reloads it, rather than dying mid-phase.
 
-The published reads — a game's public summary, the spectator feed, the
-variant catalogue and the art — are built with `absolute` instead, because
-they are addresses a person may paste and we mean to keep them working.
+The published reads — a game's public summary, the spectator feed, and the
+map art — are built with `absolute` instead, because they are addresses a
+person may paste and we mean to keep them working.
 */
 const API = "/api/v1";
 
@@ -617,12 +621,16 @@ export function watchMapUrl(gameId: string): string {
 // --- variants -------------------------------------------------------------
 
 /*
-The catalogue behind the gallery on /new. It is metadata only: the maps
-themselves are megabytes each and are asked for one at a time, by the card
-that is showing one.
+The catalogue behind the gallery on /new and on /variants. It is metadata
+only: the maps themselves are megabytes each and are asked for one at a time,
+by the card that is showing one.
+
+It is on the transport surface (ADR-050) because only this app reads it, and
+its shape is godip's metadata rather than anything we promised. The maps it
+points at are published, and stay at /variants/{key}/map.svg.
 */
 export async function fetchVariants(): Promise<Variant[]> {
-  return readVariants(await getJSON<unknown>(absolute("/variants")));
+  return readVariants(await getJSON<unknown>(api("/variants")));
 }
 
 // --- creation -------------------------------------------------------------

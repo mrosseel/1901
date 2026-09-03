@@ -11,6 +11,7 @@ import { NewGame } from "./pages/NewGame";
 import { RecoverPage } from "./pages/RecoverPage";
 import { SandboxPage } from "./pages/SandboxPage";
 import { SeatPage } from "./pages/SeatPage";
+import { VariantsPage } from "./pages/VariantsPage";
 import { WatchPage } from "./pages/WatchPage";
 
 /*
@@ -57,6 +58,8 @@ export function App() {
       return <GamesPage />;
     case "faq":
       return <FaqPage />;
+    case "variants":
+      return <VariantsPage />;
     case "datc":
       return <DatcPage />;
     case "recover":

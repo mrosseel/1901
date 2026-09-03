@@ -11,6 +11,8 @@ import {
   offBand,
   preferredVariant,
   readVariants,
+  requestedVariant,
+  startingVariant,
   sortVariants,
   variantCard,
   type Variant,
@@ -84,6 +86,18 @@ describe("reading the catalogue", () => {
     expect(preferredVariant([])).toBe("classical");
     expect(findVariant(readVariants([hundred]), "hundred")?.name).toBe("Hundred");
     expect(findVariant(readVariants([hundred]), "classical")).toBeNull();
+  });
+
+  it("takes the map named in the address, when the server has it", () => {
+    const list = readVariants([hundred, classical]);
+    expect(requestedVariant("?variant=hundred")).toBe("hundred");
+    expect(requestedVariant("?name=x&variant=%20hundred%20")).toBe("hundred");
+    expect(requestedVariant("")).toBe("");
+    expect(requestedVariant("?variant=")).toBe("");
+    expect(startingVariant(list, "hundred")).toBe("hundred");
+    // A key this server does not have falls back rather than failing.
+    expect(startingVariant(list, "nowhere")).toBe("classical");
+    expect(startingVariant(list, "")).toBe("classical");
   });
 });
 

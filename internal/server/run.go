@@ -155,7 +155,10 @@ func Main() {
 	// data and the page is one more route of the same shell.
 	mux.HandleFunc("/datc.json", datc.Handle)
 	mux.HandleFunc("/datc", srv.serveSPA)
-	mux.HandleFunc("/variants", variant.HandleVariants)
+	// The showcase of every map (ADR-043). One more route of the same shell;
+	// the catalogue it reads is /api/v1/variants, with the rest of the
+	// transport (ADR-050).
+	mux.HandleFunc("/variants", srv.serveSPA)
 	mux.HandleFunc("/styles", variant.HandleStyles)
 	mux.HandleFunc("/variants/", variant.HandleVariantMap)
 	mux.HandleFunc("/game/", srv.serveFlow)

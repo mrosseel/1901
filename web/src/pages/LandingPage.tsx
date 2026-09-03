@@ -63,7 +63,7 @@ export function LandingPage() {
         <span className="lp-tag">Diplomacy at a table</span>
         <nav className="lp-nav">
           <a href="#turn">How a turn runs</a>
-          <a href="/new">Variants</a>
+          <a href="/variants">Variants</a>
           <a href="/sandbox">Sandbox</a>
           <a href="/games">Watch a game</a>
           <a href="/recover">Return to a game</a>
@@ -330,6 +330,7 @@ export function LandingPage() {
         <span className="lp-mark">1901</span>
         <a href="/games">Games</a>
         <a href="/new">New game</a>
+        <a href="/variants">Variants</a>
         <a href="/sandbox">Sandbox</a>
         <a href="/faq">Questions</a>
         <span className="note">

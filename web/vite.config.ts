@@ -30,8 +30,9 @@ deliberately few: every address here is one we mean to keep working.
 */
 const endpoints =
   "^/(api/" +
-  // The variant catalogue and its maps.
-  "|variants$|variants/[^/]+/(map\\.svg|provinces\\.json|placement\\.json)" +
+  // The map art. /variants itself is a page and stays with vite; the
+  // catalogue behind it moved under /api/v1 with the rest of the transport.
+  "|variants/[^/]+/(map\\.svg|provinces\\.json|placement\\.json)" +
   "|styles$" + // the map styles this server can draw in
   // The spectator page stays with vite; the board it reads goes to Go.
   "|game/[^/]+/(public|watch(/[0-9]+)?|map\\.svg)" +
@@ -51,7 +52,10 @@ export default defineConfig({
        find out about at the wrong moment. */
     fs: { allow: [".."] },
     proxy: {
-      [endpoints]: { target: API, changeOrigin: false },
+      [endpoints]: {
+        target: API,
+        changeOrigin: false,
+      },
     },
   },
 });

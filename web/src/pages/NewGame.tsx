@@ -9,7 +9,8 @@ import {
   DEFAULT_VARIANT,
   claimLine,
   findVariant,
-  preferredVariant,
+  requestedVariant,
+  startingVariant,
   type Variant,
 } from "../variants";
 
@@ -29,6 +30,11 @@ The gallery is the page's weight, so it is fetched as metadata only and the
 maps are left to the cards (see VariantGallery). A server that does not answer
 /variants yet is not an error worth stopping for: the page falls back to
 creating a classical game, which is what it did before there were variants.
+
+?variant=<key> opens the form on that map. It is how the showcase hands a map
+over: somebody who has already chosen should not have to choose again. A key
+this server does not have is ignored rather than refused, because a stale link
+is a bad address, not a reason to refuse to create a game.
 
 The same form is /sandbox, asked for a board with no players (ADR-047). What a
 sandbox has no use for goes away rather than being disabled: there is no clock
@@ -94,7 +100,9 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
       .then((list) => {
         if (cancelled) return;
         setVariants(list);
-        setChosen(preferredVariant(list));
+        // The showcase links here with the map already named (/new?variant=…).
+        // It is only a starting point: the gallery below still decides.
+        setChosen(startingVariant(list, requestedVariant(location.search)));
       })
       .catch(() => {
         // No catalogue: the game is still creatable, on the default map.
