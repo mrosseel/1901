@@ -40,7 +40,8 @@ import {
 const KEY_NAME = "1901 seat sign v1";
 
 const SEED_BYTES = 32;
-const STORE_PREFIX = "1901.seat.";
+/** One entry per game. Exported so a page can list what this device holds. */
+export const STORE_PREFIX = "1901.seat.";
 
 /** A new seat's seed. */
 export function makeSeatSeed(): Uint8Array {

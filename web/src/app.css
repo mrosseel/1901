@@ -1347,6 +1347,13 @@ only closes a view, without reading either one.
   align-items: baseline;
   gap: 0 8px;
 }
+/* The list of games this device holds a key for. Its rows carry more actions
+   than the main list does, so on a narrow screen they drop under the name
+   instead of squeezing it. */
+.held-list li { flex-wrap: wrap; }
+.held-list .row-main { flex: 1 1 220px; }
+.held-list .row-actions { flex-wrap: wrap; }
+
 .row-actions .row-cancel { font-size: 15px; color: var(--muted); }
 .row-actions .row-cancel:hover:not(:disabled) { color: var(--bad); border-color: var(--bad); }
 

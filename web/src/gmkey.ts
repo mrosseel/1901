@@ -45,7 +45,8 @@ const KEY_NAME = "1901 game master key v1";
 /** 128 bits, which is twelve words. */
 const ENTROPY_BYTES = 16;
 
-const STORE_PREFIX = "1901.gmkey.";
+/** One entry per game. Exported so a page can list what this device holds. */
+export const STORE_PREFIX = "1901.gmkey.";
 
 /** A new key's entropy. Nothing else in this file is random. */
 export function makeEntropy(): Uint8Array {

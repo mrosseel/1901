@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { recoverChallenge, recoverClaim } from "../api";
+import { useEffect, useState } from "react";
+import { fetchGames, recoverChallenge, recoverClaim, refereePath, type GameSummary } from "../api";
+import { phaseLabel } from "../board/provinces";
 import { TopBar } from "../components/TopBar";
-import { entropyFor, signMessage, writeStoredKey } from "../gmkey";
+import { entropyFor, readStoredKey, signMessage, writeStoredKey } from "../gmkey";
+import { gameIdInUrl, heldGames } from "../held";
 import { readRecentGame } from "../recent";
 import { readSeatSeed } from "../seatkey";
 
@@ -18,31 +20,112 @@ The words never leave the browser. They rebuild the key, the key signs a
 sentence the server made up, and the signature is what the server checks
 against the public half it was given when the key was made. What travels is 64
 bytes that prove the words without carrying them.
+
+Typing is the fallback, though, not the common case. A browser that was at a
+table still holds that table's keys, so the list at the top of the page says so
+and offers the door instead of the question.
 */
+
+/** A game on this device, with whatever the server can tell us about it. */
+interface HeldRow {
+  gameId: string;
+  /** The game's name, the recent note's label, or the bare id. */
+  label: string;
+  /** Where the game is, or why we cannot say. */
+  detail: string;
+  seat: boolean;
+  /** A game master key is stored here, so the words are not needed. */
+  gmKey: boolean;
+  /** The server says this browser's cookie is the referee. */
+  referee: boolean;
+  /** The last address this device used, when nothing else opens the game. */
+  recentUrl?: string;
+}
+
+function buildRows(games: GameSummary[] | null): HeldRow[] {
+  const byId = new Map((games || []).map((game) => [game.gameId, game]));
+  const rows: HeldRow[] = [];
+
+  for (const held of heldGames()) {
+    const game = byId.get(held.gameId);
+    rows.push({
+      gameId: held.gameId,
+      label: game?.name || held.gameId,
+      detail: !game
+        ? "The server does not list this game."
+        : game.started
+          ? phaseLabel(game.phase)
+          : "Waiting to start",
+      seat: held.seat,
+      gmKey: held.gameMaster,
+      referee: Boolean(game?.referee),
+    });
+  }
+
+  // The recent note is a URL, not a key, so it earns a row only when no key
+  // already opens that game. Otherwise the same game would be on screen twice.
+  const recent = readRecentGame();
+  const recentId = recent ? gameIdInUrl(recent.url) : null;
+  if (recent && recentId && !rows.some((row) => row.gameId === recentId)) {
+    const game = byId.get(recentId);
+    rows.push({
+      gameId: recentId,
+      label: game?.name || recent.label,
+      detail: !game
+        ? "The server does not list this game."
+        : game.started
+          ? phaseLabel(game.phase)
+          : "Waiting to start",
+      seat: false,
+      gmKey: false,
+      referee: Boolean(game?.referee),
+      recentUrl: recent.url,
+    });
+  }
+
+  return rows;
+}
+
+/** What this device has for a game, in the words the row uses. */
+function holdings(row: HeldRow): string {
+  const parts: string[] = [];
+  if (row.seat) parts.push("seat");
+  if (row.gmKey || row.referee) parts.push("game master");
+  return parts.length ? parts.join(" and ") : "last game open here";
+}
+
 export function RecoverPage({ gameId }: { gameId: string | null }) {
   const [id, setId] = useState(gameId || "");
   const [words, setWords] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rows, setRows] = useState<HeldRow[]>([]);
+
+  useEffect(() => {
+    // The rows exist without the server: the keys are here. The names and the
+    // referee mark are what the list adds, so they arrive a moment later.
+    setRows(buildRows(null));
+    fetchGames()
+      .then((games) => setRows(buildRows(games)))
+      .catch(() => {
+        // An unreachable server still leaves every row openable by id.
+      });
+  }, []);
 
   const typed = words.trim().split(/\s+/).filter(Boolean).length;
   const ready = id.trim() !== "" && typed === 12;
-  const recent = readRecentGame();
   const playerId = id.trim();
   const heldSeat = playerId !== "" && Boolean(readSeatSeed(playerId));
+  const anyStoredKey = rows.some((row) => row.gmKey && !row.referee);
 
-  const recover = async () => {
+  /*
+  The recovery itself, once there is an entropy to sign with. The words form
+  and the stored-key button differ only in where the sixteen bytes came from.
+  */
+  const recoverWith = async (game: string, entropy: Uint8Array) => {
     setError(null);
-    const entropy = entropyFor(words);
-    if (!entropy) {
-      // The checksum is what catches this, and it catches it here rather
-      // than after a round trip: a wrong word is a typo, not a rejection.
-      setError("Those are not twelve words from the list. Check the spelling and the order.");
-      return;
-    }
-    setBusy(true);
+    setBusy(game);
     try {
-      const game = id.trim();
       const challenge = await recoverChallenge(game);
       const { gmUrl } = await recoverClaim(
         game,
@@ -56,8 +139,29 @@ export function RecoverPage({ gameId }: { gameId: string | null }) {
       window.location.href = gmUrl;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      setBusy(false);
+      setBusy(null);
     }
+  };
+
+  const recoverFromWords = () => {
+    setError(null);
+    const entropy = entropyFor(words);
+    if (!entropy) {
+      // The checksum is what catches this, and it catches it here rather
+      // than after a round trip: a wrong word is a typo, not a rejection.
+      setError("Those are not twelve words from the list. Check the spelling and the order.");
+      return;
+    }
+    void recoverWith(id.trim(), entropy);
+  };
+
+  const recoverFromStoredKey = (game: string) => {
+    const entropy = readStoredKey(game);
+    if (!entropy) {
+      setError("The game-master key for that game is no longer on this device.");
+      return;
+    }
+    void recoverWith(game, entropy);
   };
 
   return (
@@ -73,14 +177,67 @@ export function RecoverPage({ gameId }: { gameId: string | null }) {
         {error ? <p className="error">{error}</p> : null}
 
         <section className="card">
-          <h2>Return as a player</h2>
-          {recent ? (
-            <p>
-              <a className="cta" href={recent.url}>
-                Back to {recent.label}{recent.power ? " as " + recent.power : ""}
-              </a>
+          <h2>Games on this device</h2>
+          {rows.length === 0 ? (
+            <p className="muted">This device holds no game.</p>
+          ) : (
+            <ul className="list held-list">
+              {rows.map((row) => (
+                <li key={row.gameId}>
+                  <div className="row-main">
+                    <strong>{row.label}</strong>
+                    <span className="muted">Game {row.gameId}</span>
+                    <span className="muted">
+                      {holdings(row)}
+                      {" · "}
+                      {row.detail}
+                    </span>
+                  </div>
+                  <span className="row-actions">
+                    {row.seat ? (
+                      <a
+                        className="link"
+                        href={"/game/" + encodeURIComponent(row.gameId) + "/seat/me"}
+                      >
+                        Open my seat
+                      </a>
+                    ) : null}
+                    {row.referee ? (
+                      <a className="link" href={refereePath(row.gameId)}>
+                        Open as game master
+                      </a>
+                    ) : null}
+                    {row.gmKey && !row.referee ? (
+                      <button
+                        type="button"
+                        className="link"
+                        disabled={busy !== null}
+                        onClick={() => recoverFromStoredKey(row.gameId)}
+                      >
+                        {busy === row.gameId ? "Checking…" : "Recover the game-master role"}
+                      </button>
+                    ) : null}
+                    {row.recentUrl && !row.seat && !row.referee ? (
+                      <a className="link" href={row.recentUrl}>
+                        Back to the game
+                      </a>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {anyStoredKey ? (
+            <p className="note">
+              Recovering the game-master role ends the game master's old address. Whoever
+              was running the game with it stops being the game master, which is what makes
+              this a recovery and not a second key to the same door.
             </p>
           ) : null}
+        </section>
+
+        <section className="card">
+          <h2>Return as a player</h2>
           <label className="field">
             <span>Game id</span>
             <input
@@ -130,8 +287,13 @@ export function RecoverPage({ gameId }: { gameId: string | null }) {
                 : typed + " of 12 words"}
             </small>
           </label>
-          <button type="button" className="primary" disabled={!ready || busy} onClick={recover}>
-            {busy ? "Checking…" : "Recover game-master access"}
+          <button
+            type="button"
+            className="primary"
+            disabled={!ready || busy !== null}
+            onClick={recoverFromWords}
+          >
+            {busy !== null ? "Checking…" : "Recover game-master access"}
           </button>
           <p className="note">
             This ends the game master's old address. Whoever was running the game with it
