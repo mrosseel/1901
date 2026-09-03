@@ -715,7 +715,9 @@ the list still reads as one family of outcomes.
   display: flex;
   align-items: stretch;
   gap: 0;
-  height: 44px;
+  /* Taller than a toolbar. It carries the facts a player checks most, and a
+     glance across a table should land on them without squinting. */
+  height: 52px;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
   padding-top: env(safe-area-inset-top);
@@ -742,13 +744,13 @@ the list still reads as one family of outcomes.
   background: transparent !important;
   color: inherit !important;
   padding: 0;
-  font-size: 15px;
+  font-size: 17px;
 }
 
 .seat-top-phase {
-  padding: 0 10px;
+  padding: 0 12px;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 16px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -756,13 +758,15 @@ the list still reads as one family of outcomes.
 }
 
 .seat-top-orders {
-  padding: 0 10px;
+  padding: 0 12px;
   font-variant-numeric: tabular-nums;
-  font-size: 14px;
+  font-size: 16px;
   flex: 0 0 auto;
   white-space: nowrap;
 }
 
+.seat-top-orders { gap: 5px; }
+.seat-top-orders svg { flex: 0 0 auto; color: var(--muted); }
 .seat-top-orders .seat-top-of { color: var(--muted); }
 /* Short of what the phase asked for. The warn tone, not the bad one: an
    incomplete set of orders is a normal state for most of a phase. */
@@ -771,10 +775,10 @@ the list still reads as one family of outcomes.
 .seat-top-orders.locked .seat-top-ready { color: var(--good); font-weight: 700; }
 
 .seat-top-clock {
-  padding: 0 10px;
+  padding: 0 12px;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 17px;
   flex: 0 0 auto;
 }
 
@@ -784,7 +788,7 @@ the list still reads as one family of outcomes.
 /* The envelope. A 44px target, because it is tapped mid-sentence. */
 .seat-top-press {
   position: relative;
-  width: 44px;
+  width: 52px;
   border: none;
   border-left: 1px solid var(--line);
   background: transparent;
@@ -1454,7 +1458,7 @@ only closes a view, without reading either one.
   /* Landscape on a phone: every pixel of height is fought over, so the bar
      gives eight of them back. */
   .seat-top { height: 36px; }
-  .seat-top-phase, .seat-top-orders { font-size: 13px; }
+  .seat-top-phase, .seat-top-orders, .seat-top-clock { font-size: 13px; }
   .seat-top-press { width: 40px; }
   .side { padding: 8px 12px calc(112px + env(safe-area-inset-bottom)); gap: 10px; }
   .builder { padding: 6px 12px calc(6px + env(safe-area-inset-bottom)); }

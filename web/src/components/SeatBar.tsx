@@ -90,6 +90,7 @@ export function SeatBar({
             <span className="seat-top-ready">Ready</span>
           ) : (
             <>
+              <OrdersIcon />
               <strong>{ordersIn}</strong>
               <span className="seat-top-of">/{ordersExpected}</span>
             </>
@@ -122,6 +123,19 @@ export function SeatBar({
         </button>
       ) : null}
     </div>
+  );
+}
+
+/* A sheet with three ruled lines: an order form. Bare digits in the bar read
+   as a score, or a phase count, until the icon says what is being counted. */
+function OrdersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+      <rect x="5" y="3" width="14" height="18" rx="2" fill="none" stroke="currentColor"
+        strokeWidth="1.8" />
+      <path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4.5" fill="none" stroke="currentColor"
+        strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
   );
 }
 

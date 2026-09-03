@@ -933,8 +933,9 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           <section className="lock">
             {expectedOrders > 0 ? (
               <p className={missingOrders ? "notice" : "muted"}>
-                {orderRows.length} of {expectedOrders} expected {expectedOrders === 1 ? "order" : "orders"} entered
-                {missingOrders ? " · " + missingOrders + " missing" : " · complete"}
+                {missingOrders === 0
+                  ? "All orders are in"
+                  : missingOrders + (missingOrders === 1 ? " order missing" : " orders missing")}
               </p>
             ) : null}
             {/*
