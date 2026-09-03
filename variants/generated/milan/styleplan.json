@@ -4,8 +4,8 @@
   "name": "Generated 7-player map",
   "kind": "godip",
   "map": {
-    "bytes": 1426420,
-    "sha256": "f54258c54a061bcf12b40decc7f6e5b33a68c9c49d861d0e38e1acb8ce818288",
+    "bytes": 1819153,
+    "sha256": "ab756e5cdc2fdf07f233008fd310d031363364c684235a39023386aed490f7e9",
     "viewBoxWidth": 1835.0
   },
   "dataMode": true,
@@ -23,7 +23,7 @@
     "borders": {
       "found": false,
       "candidates": 0,
-      "provinceCount": 76,
+      "provinceCount": 82,
       "decoration": false
     },
     "names": {
@@ -74,6 +74,7 @@
         "boh": "land",
         "rum": "land",
         "mar": "land",
+        "hel": "sea",
         "par": "land",
         "adr": "sea",
         "bre": "land",
@@ -94,7 +95,6 @@
         "pic": "land",
         "ven": "land",
         "cly": "land",
-        "hel": "sea",
         "con": "land",
         "hol": "land",
         "bel": "land",
