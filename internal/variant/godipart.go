@@ -176,17 +176,47 @@ func applyGodipStyle(original string, plan *godipPlan, style *loadedStyle) (stri
 	if plan.Names.Found {
 		if start, end, ok := layerSpan(svg, "names"); ok {
 			svg = svg[:start] + setNames(svg[start:end], plan, style, carry) + svg[end:]
-			// The faces, where the style embeds any and the map does not
-			// already carry them. They go into the map's own <style> block,
-			// which every godip map has for exactly this purpose.
-			if style.FontFaces != "" && !strings.Contains(svg, "@font-face") {
-				if m := regexp.MustCompile(`<style\b[^>]*>`).FindStringIndex(svg); m != nil {
-					svg = svg[:m[1]] + "\n" + style.FontFaces + "\n" + svg[m[1]:]
-				}
-			}
 		}
 	}
+
+	// 6. The faces the style embeds, whether or not the art draws the names.
+	//
+	// A data-mode map draws no names layer: the board draws every name from a
+	// record, in this style's typography (ADR-038). So the face has to travel
+	// with the map either way. Serving it only with a names layer left those
+	// maps on a system serif, which is narrower than the style's face, and a
+	// name set to a width measured in the real one then overlapped its
+	// neighbour.
+	svg = withFontFaces(svg, style.FontFaces)
 	return svg, nil
+}
+
+var (
+	styleOpenRe = regexp.MustCompile(`<style\b[^>]*>`)
+	svgOpenRe   = regexp.MustCompile(`<svg\b[^>]*>`)
+)
+
+// withFontFaces puts a style's @font-face rules into the map's own <style>
+// block, which every godip map has for exactly this purpose. A map authored
+// without one gets a block in its <defs>.
+//
+// A map that already carries the rules is left alone, so a map composed from
+// art that was already styled cannot end up with two copies of the face.
+func withFontFaces(svg, faces string) string {
+	if faces == "" || strings.Contains(svg, "@font-face") {
+		return svg
+	}
+	if m := styleOpenRe.FindStringIndex(svg); m != nil {
+		return svg[:m[1]] + "\n" + faces + "\n" + svg[m[1]:]
+	}
+	block := "<style>\n" + faces + "\n</style>"
+	if m := defsOpenRe.FindStringIndex(svg); m != nil {
+		return svg[:m[1]] + block + svg[m[1]:]
+	}
+	if m := svgOpenRe.FindStringIndex(svg); m != nil {
+		return svg[:m[1]] + "<defs>" + block + "</defs>" + svg[m[1]:]
+	}
+	return svg
 }
 
 var textOrTspanRe = regexp.MustCompile(`<(text|tspan)\b([^>]*)>`)

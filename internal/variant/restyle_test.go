@@ -521,3 +521,53 @@ func TestLiftLabelSizeLeavesALegibleClassExactlyAsMeasured(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// A map that draws no names still needs the face its names are set in.
+//
+// In data mode the names are records and the board draws them, in the style's
+// typography (ADR-038). The faces used to be injected inside the names step,
+// which never runs on such a map, so the browser fell back to a system serif
+// and drew every name at a width measured in a different face.
+func TestADataModeMapIsServedTheStylesFontFaces(t *testing.T) {
+	if err := LoadStyles(); err != nil {
+		t.Fatal(err)
+	}
+	style, found := styles["parchment"]
+	if !found {
+		t.Fatal("parchment is not loaded")
+	}
+	if style.FontFaces == "" {
+		t.Fatal("parchment embeds no faces, so this checks nothing")
+	}
+
+	art := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">` +
+		`<g id="background"><rect width="100" height="100" fill="#c9d9e8"/>` +
+		`<path id="parShape" d="M 0,0 h 10 v 10 h -10 z" fill="#f0e2c0"/></g>` +
+		`<g id="provinces" style="display:none"><path id="par" d="M 0,0 h 10 v 10 h -10 z"/></g>` +
+		`</svg>`
+	plan := &stylePlan{
+		Version: maxPlanVersion, Key: "demo", Kind: "godip", DataMode: true,
+		Godip: &godipPlan{Styleable: true, Sea: "#c9d9e8", Land: "#f0e2c0"},
+	}
+
+	styled, err := applyStyle(art, plan, style, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(styled, "@font-face") == 0 {
+		t.Fatalf("a data-mode map was served no faces: %v", styled)
+	}
+	if !strings.Contains(styled, "<style>") {
+		t.Errorf("the rules landed outside a style block: %v", styled)
+	}
+
+	// Composing a map that already carries the rules must not double them.
+	want := strings.Count(styled, "@font-face")
+	again, err := applyStyle(styled, plan, style, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(again, "@font-face"); got != want {
+		t.Errorf("the faces went in twice: %v rules, wanted %v", got, want)
+	}
+}
