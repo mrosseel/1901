@@ -55,7 +55,7 @@
     ["nov", "Novgorod", "Poland"],
     ["nth", "North Sea", null],
     ["nwg", "Norwegian Sea", null],
-    ["nwy", "Norway", null],
+    ["nwy", "Norway", "neutral"],
     ["par", "Paris", "France"],
     ["pic", "Picardy", null],
     ["pie", "Piedmont", null],
@@ -377,7 +377,7 @@
     ["wal", "yor", "land"]
   ],
   "start": {
-    "units": {"ber": ["fleet", "Empire"], "mun": ["army", "Empire"], "vie": ["army", "Empire"], "bre": ["fleet", "England"], "lon": ["army", "England"], "lvp": ["fleet", "England"], "bel": ["fleet", "France"], "mar": ["army", "France"], "par": ["army", "France"], "kra": ["army", "Poland"], "nov": ["fleet", "Poland"], "sev": ["army", "Poland"], "nap": ["fleet", "Spain"], "por": ["army", "Spain"], "spa": ["fleet", "Spain"], "ank": ["fleet", "Turkey"], "bul": ["army", "Turkey"], "con": ["fleet", "Turkey"], "smy": ["army", "Turkey"], "gre": ["fleet", "Venice"], "tri": ["army", "Venice"], "ven": ["fleet", "Venice"]},
+    "units": {"ber": ["fleet", "Empire"], "mun": ["army", "Empire"], "vie": ["army", "Empire"], "bre": ["fleet", "England"], "lon": ["fleet", "England"], "lvp": ["army", "England"], "bel": ["fleet", "France"], "mar": ["army", "France"], "par": ["army", "France"], "kra": ["army", "Poland"], "nov": ["army", "Poland"], "sev": ["fleet", "Poland"], "nap": ["fleet", "Spain"], "por": ["army", "Spain"], "spa": ["fleet", "Spain"], "ank": ["army", "Turkey"], "bul": ["fleet", "Turkey"], "con": ["army", "Turkey"], "smy": ["fleet", "Turkey"], "gre": ["fleet", "Venice"], "tri": ["army", "Venice"], "ven": ["army", "Venice"]},
     "supplyCenters": {"ber": "Empire", "mun": "Empire", "vie": "Empire", "bre": "England", "lon": "England", "lvp": "England", "bel": "France", "mar": "France", "par": "France", "kra": "Poland", "nov": "Poland", "sev": "Poland", "nap": "Spain", "por": "Spain", "spa": "Spain", "ank": "Turkey", "bul": "Turkey", "con": "Turkey", "smy": "Turkey", "gre": "Venice", "tri": "Venice", "ven": "Venice"}
   },
   "rules": {"profile": "classical", "orders": ["move", "moveViaConvoy", "hold", "support", "convoy", "build", "disband"]}

@@ -5,7 +5,7 @@
   "createdBy": "dipmap",
   "version": "1",
   "description": "Imported from the jDip variant Milan.",
-  "soloSupplyCenters": 17,
+  "soloSupplyCenters": 18,
   "nations": ["France", "Austria", "Turkey", "Russia", "England", "Germany", "Italy"],
   "provinces": [
     ["adr", "Adriatic Sea", null],
@@ -54,7 +54,7 @@
     ["nap", "Naples", "Italy"],
     ["nth", "North Sea", null],
     ["nwg", "Norwegian Sea", null],
-    ["nwy", "Norway", null],
+    ["nwy", "Norway", "neutral"],
     ["par", "Paris", "France"],
     ["pic", "Picardy", null],
     ["por", "Portugal", "neutral"],
@@ -372,7 +372,7 @@
     ["wal", "yor", "land"]
   ],
   "start": {
-    "units": {"bre": ["fleet", "France"], "mar": ["army", "France"], "par": ["army", "France"], "bud": ["army", "Austria"], "tri": ["fleet", "Austria"], "vie": ["army", "Austria"], "ank": ["fleet", "Turkey"], "con": ["army", "Turkey"], "smy": ["fleet", "Turkey"], "mos": ["army", "Russia"], "sev": ["fleet", "Russia"], "stp": ["army", "Russia"], "war": ["army", "Russia"], "edi": ["fleet", "England"], "lon": ["army", "England"], "lvp": ["fleet", "England"], "ber": ["fleet", "Germany"], "kie": ["army", "Germany"], "mun": ["army", "Germany"], "mil": ["army", "Italy"], "nap": ["fleet", "Italy"], "rom": ["army", "Italy"]},
+    "units": {"bre": ["fleet", "France"], "mar": ["army", "France"], "par": ["army", "France"], "bud": ["army", "Austria"], "tri": ["fleet", "Austria"], "vie": ["army", "Austria"], "ank": ["fleet", "Turkey"], "con": ["army", "Turkey"], "smy": ["army", "Turkey"], "mos": ["army", "Russia"], "sev": ["fleet", "Russia"], "stp": ["fleet", "Russia"], "war": ["army", "Russia"], "edi": ["fleet", "England"], "lon": ["fleet", "England"], "lvp": ["army", "England"], "ber": ["army", "Germany"], "kie": ["fleet", "Germany"], "mun": ["army", "Germany"], "mil": ["army", "Italy"], "nap": ["fleet", "Italy"], "rom": ["army", "Italy"]},
     "supplyCenters": {"bre": "France", "mar": "France", "par": "France", "bud": "Austria", "tri": "Austria", "vie": "Austria", "ank": "Turkey", "con": "Turkey", "smy": "Turkey", "mos": "Russia", "sev": "Russia", "stp": "Russia", "war": "Russia", "edi": "England", "lon": "England", "lvp": "England", "ber": "Germany", "kie": "Germany", "mun": "Germany", "mil": "Italy", "nap": "Italy", "rom": "Italy"}
   },
   "rules": {"profile": "classical", "orders": ["move", "moveViaConvoy", "hold", "support", "convoy", "build", "disband"]}

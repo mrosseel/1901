@@ -5,7 +5,7 @@
   "createdBy": "dipmap",
   "version": "1",
   "description": "Imported from the jDip variant Loeb9.",
-  "soloSupplyCenters": 19,
+  "soloSupplyCenters": 20,
   "nations": ["Austria", "England", "France", "Germany", "Italy", "Russia", "Turkey", "Spain", "Norway"],
   "provinces": [
     ["adr", "Adriatic Sea", null],
@@ -62,7 +62,7 @@
     ["nav", "Navarre", null],
     ["nth", "North Sea", null],
     ["nwg", "Norwegian Sea", null],
-    ["nwy", "Norway", null],
+    ["nwy", "Norway", "Norway"],
     ["par", "Paris", "France"],
     ["pic", "Picardy", null],
     ["pie", "Piedmont", null],
@@ -427,8 +427,8 @@
     ["wal", "yor", "land"]
   ],
   "start": {
-    "units": {"bud": ["army", "Austria"], "tri": ["fleet", "Austria"], "vie": ["army", "Austria"], "edi": ["fleet", "England"], "lon": ["army", "England"], "lvp": ["fleet", "England"], "bre": ["fleet", "France"], "mar": ["army", "France"], "par": ["army", "France"], "ber": ["fleet", "Germany"], "kie": ["army", "Germany"], "mun": ["army", "Germany"], "nap": ["fleet", "Italy"], "rom": ["army", "Italy"], "ven": ["fleet", "Italy"], "mos": ["army", "Russia"], "sev": ["fleet", "Russia"], "stp": ["army", "Russia"], "war": ["army", "Russia"], "ank": ["fleet", "Turkey"], "con": ["army", "Turkey"], "smy": ["fleet", "Turkey"], "cor": ["fleet", "Spain"], "mad": ["army", "Spain"], "por": ["fleet", "Spain"], "den": ["fleet", "Norway"], "swe": ["army", "Norway"]},
-    "supplyCenters": {"bud": "Austria", "tri": "Austria", "vie": "Austria", "edi": "England", "lon": "England", "lvp": "England", "bre": "France", "mar": "France", "par": "France", "ber": "Germany", "kie": "Germany", "mun": "Germany", "nap": "Italy", "rom": "Italy", "ven": "Italy", "mos": "Russia", "sev": "Russia", "stp": "Russia", "war": "Russia", "ank": "Turkey", "con": "Turkey", "smy": "Turkey", "cor": "Spain", "mad": "Spain", "por": "Spain", "den": "Norway", "swe": "Norway"}
+    "units": {"bud": ["army", "Austria"], "tri": ["fleet", "Austria"], "vie": ["army", "Austria"], "edi": ["fleet", "England"], "lon": ["fleet", "England"], "lvp": ["army", "England"], "bre": ["fleet", "France"], "mar": ["army", "France"], "par": ["army", "France"], "ber": ["army", "Germany"], "kie": ["fleet", "Germany"], "mun": ["army", "Germany"], "nap": ["fleet", "Italy"], "rom": ["army", "Italy"], "ven": ["army", "Italy"], "mos": ["army", "Russia"], "sev": ["fleet", "Russia"], "stp": ["fleet", "Russia"], "war": ["army", "Russia"], "ank": ["fleet", "Turkey"], "con": ["army", "Turkey"], "smy": ["army", "Turkey"], "cor": ["army", "Spain"], "mad": ["army", "Spain"], "por": ["fleet", "Spain"], "den": ["fleet", "Norway"], "nwy": ["army", "Norway"], "swe": ["fleet", "Norway"]},
+    "supplyCenters": {"bud": "Austria", "tri": "Austria", "vie": "Austria", "edi": "England", "lon": "England", "lvp": "England", "bre": "France", "mar": "France", "par": "France", "ber": "Germany", "kie": "Germany", "mun": "Germany", "nap": "Italy", "rom": "Italy", "ven": "Italy", "mos": "Russia", "sev": "Russia", "stp": "Russia", "war": "Russia", "ank": "Turkey", "con": "Turkey", "smy": "Turkey", "cor": "Spain", "mad": "Spain", "por": "Spain", "den": "Norway", "nwy": "Norway", "swe": "Norway"}
   },
   "rules": {"profile": "classical", "orders": ["move", "moveViaConvoy", "hold", "support", "convoy", "build", "disband"]}
 }
