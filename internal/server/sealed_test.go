@@ -2,6 +2,7 @@
 package server
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -119,7 +120,14 @@ func TestASealedGameHoldsNoOrderUntilEveryoneHasLocked(t *testing.T) {
 	if envelope == "" {
 		t.Fatal("Austria locked in and the server kept nothing")
 	}
-	if strings.Contains(envelope, "ser") || strings.Contains(envelope, "bud") {
+	// The check is on the ciphertext bytes, not on the base64 text: a short
+	// province name turns up in a few thousand base64 characters by chance
+	// often enough to fail a run that is in fact sealed.
+	cipher, err := base64.RawURLEncoding.DecodeString(envelope)
+	if err != nil {
+		t.Fatalf("the stored envelope is not base64: %v", err)
+	}
+	if bytes.Contains(cipher, []byte("ser")) || bytes.Contains(cipher, []byte("bud")) {
 		t.Errorf("the stored envelope is not opaque: %q", envelope)
 	}
 	if _, err := openOrders("game", 0, "Austria", make([]byte, 32), envelope); err == nil {
