@@ -52,12 +52,19 @@ export function msLeft(deadlineAt: string | null | undefined): number | null {
   return at - serverNow();
 }
 
-export type ClockTone = "calm" | "low" | "urgent" | "over";
+export type ClockTone = "calm" | "low" | "urgent" | "flash" | "over";
 
-/** Amber under five minutes, red under one, and plain once it has run out. */
-export function clockTone(left: number | null): ClockTone {
+/**
+ * Amber under five minutes, red under one, red and blinking under thirty
+ * seconds, and plain once it has run out.
+ *
+ * `flashEnabled` lets a caller keep the old two-tone behaviour (fix c011,
+ * off) without touching the thresholds above it.
+ */
+export function clockTone(left: number | null, flashEnabled = true): ClockTone {
   if (left === null) return "calm";
   if (left <= 0) return "over";
+  if (flashEnabled && left < 30_000) return "flash";
   if (left < 60_000) return "urgent";
   if (left < 5 * 60_000) return "low";
   return "calm";

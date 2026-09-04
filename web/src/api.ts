@@ -107,6 +107,8 @@ export interface VariantRef {
   key: string;
   name: string;
   supported: boolean;
+  /** What a person wrote about this map's review, if anything (ADR-061). */
+  note?: string;
 }
 
 /*
@@ -476,6 +478,9 @@ export type Route =
   | { kind: "variants" }
   /* What this build scored against DATC (ADR-045). Generated, never typed. */
   | { kind: "datc" }
+  /* Where the person who runs the server types their token (ADR-060). It is
+     the only page in the app that is not about a game. */
+  | { kind: "admin" }
   /* The create form. `sandbox` is the same form asked for a board with no
      players (ADR-047), which is /sandbox: the clock and the seats go away
      and the answer is one link instead of an invite. */
@@ -500,6 +505,7 @@ export function parseRoute(pathname: string): Route {
   if (parts.length === 1 && parts[0] === "faq") return { kind: "faq" };
   if (parts.length === 1 && parts[0] === "variants") return { kind: "variants" };
   if (parts.length === 1 && parts[0] === "datc") return { kind: "datc" };
+  if (parts.length === 1 && parts[0] === "admin") return { kind: "admin" };
   if (parts[0] === "recover" && parts.length <= 2) {
     return { kind: "recover", gameId: parts.length === 2 ? parts[1] : null };
   }
@@ -652,6 +658,58 @@ export function createGame(settings: Settings): Promise<CreatedGame> {
  */
 export function fetchGames(): Promise<GameSummary[]> {
   return getJSON<GameSummary[]>(api("/games"));
+}
+
+// --- the owner ------------------------------------------------------------
+
+/*
+The person who runs the server (ADR-060).
+
+There are no accounts here and this is not one: it is one secret from the
+environment, and the only thing behind it is deleting a game. A server started
+without ADMIN_TOKEN answers 404 to every call below, which is what `adminMe`
+reports as "not enabled" rather than as "not logged in".
+*/
+export interface AdminState {
+  /** Whether this browser holds a live session. */
+  admin: boolean;
+  /** False when the server was started with no ADMIN_TOKEN at all. */
+  enabled: boolean;
+}
+
+const NOT_ENABLED: AdminState = { admin: false, enabled: false };
+
+export async function adminMe(): Promise<AdminState> {
+  try {
+    const answer = await getJSON<{ admin: boolean }>(api("/admin/me"));
+    return { admin: answer.admin, enabled: true };
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return NOT_ENABLED;
+    throw err;
+  }
+}
+
+export async function adminLogin(token: string): Promise<AdminState> {
+  try {
+    const answer = await postJSON<{ admin: boolean }>(api("/admin/login"), { token: token });
+    return { admin: answer.admin, enabled: true };
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return NOT_ENABLED;
+    throw err;
+  }
+}
+
+export async function adminLogout(): Promise<void> {
+  await postJSON(api("/admin/logout"));
+}
+
+/** Deletes a game and everything under it. There is no undo. */
+export async function adminDeleteGame(gameId: string): Promise<void> {
+  const res = await fetch(api("/admin/games/" + encodeURIComponent(gameId)), {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  if (!res.ok) throw await readError(res);
 }
 
 // --- join -----------------------------------------------------------------

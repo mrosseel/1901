@@ -47,5 +47,10 @@ go_run build -o 1901srv ./cmd/1901
 # invite QR names this machine's LAN address and the phones dial it.
 export ADDR="${HOST}:${PORT}"
 export DB
+# The owner's door (ADR-060). Unset means there is no admin on this server,
+# and every admin address answers 404. It is never printed.
+if [[ -n "${ADMIN_TOKEN:-}" ]]; then
+  export ADMIN_TOKEN
+fi
 echo "run.sh: serving on http://${HOST:-0.0.0.0}:${PORT}, database ${DB}"
 exec ./1901srv "$@"

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { type Handover, type SeatClient } from "../api";
+import { refereePath, type Handover, type SeatClient } from "../api";
 import { readSeatSeed, seatLink, withSeed } from "../seatkey";
 import { LinkShare } from "./LinkShare";
 import { PowerChip } from "./PowerChip";
@@ -162,6 +162,10 @@ export function SeatMenu({
                 the map wants every pixel — so the links live here, one tap
                 from the board (ADR-043). */}
             <nav className="seat-menu-links">
+              {/* A game master who plays has two screens and one device. The
+                  address carries no secret: the referee cookie set when the
+                  game was made is what opens it, and this browser holds it. */}
+              {isGameMaster ? <a href={refereePath(gameId)}>Game master view</a> : null}
               <a href="/games">All games</a>
               <a href="/faq">Questions</a>
               <a href="/">About 1901</a>

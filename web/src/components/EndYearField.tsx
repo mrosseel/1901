@@ -45,11 +45,6 @@ export function EndYearField({
             onYearChange(event.target.value === "" ? "" : Number(event.target.value))}
         />
       </div>
-      <small>
-        {enabled
-          ? "Enter the last year to play."
-          : "Off — the game continues until a solo or an agreed draw."}
-      </small>
     </div>
   );
 }

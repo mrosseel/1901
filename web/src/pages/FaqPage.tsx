@@ -12,7 +12,7 @@ export function FaqPage() {
   return (
     <>
       <TopBar here="faq" />
-      <main className="page wide">
+      <main className="page wide faq">
         <h1>Questions</h1>
         <p className="lead">
           What this does at a table, and what it does not do yet.
@@ -21,12 +21,11 @@ export function FaqPage() {
         <section className="card">
           <h2>Do I need an account?</h2>
           <p>
-            No. There are no accounts, names or passwords anywhere in this app. The game
-            master shares one invite link or QR code, and scanning it deals you a random
-            power.
+            No. This app has no accounts, names or passwords. The game master shares one
+            invite link or QR code, and scanning it deals you a random power.
           </p>
           <p>
-            Your phone makes the seat's key itself and keeps it. The server is given a
+            Your phone makes the seat's key itself and keeps it. The server holds a
             public half that opens nothing, so a copy of its database is not a set of
             seats. To play the same power on a second device, open the seat menu and use{" "}
             <strong>Back up or open this seat on another device</strong>: the key rides in the part of the
@@ -47,8 +46,8 @@ export function FaqPage() {
             out any seat can take any seat, and the record is what keeps it visible.
           </p>
           <p className="note">
-            The phone that takes the seat makes a new key. The one that gave it away keeps
-            nothing that opens the seat, which is what makes a handover a handover.
+            The phone that takes the seat makes a new key. The phone that gave it away
+            keeps nothing that opens the seat.
           </p>
         </section>
 
@@ -60,13 +59,13 @@ export function FaqPage() {
             written on that screen and nowhere else.
           </p>
           <p>
-            Typing the words at <a href="/recover">/recover</a> gives the game back on any
-            device. The server is handed a public half that opens nothing, so it cannot
-            run your game and cannot help anybody who does not have the words.
+            Typing the words at <a href="/games#recover">/games#recover</a> gives the game
+            back on any device. The server holds a public half that opens nothing. It
+            cannot run your game, and it cannot help anybody without the words.
           </p>
           <p className="note">
             A game whose game master never made a key has no recovery. Nothing on the
-            server can give the role back, because nothing on the server is the role.
+            server is the role, so nothing on the server can give it back.
           </p>
         </section>
 
@@ -74,7 +73,7 @@ export function FaqPage() {
           <h2>Can the game master read my orders?</h2>
           <p>
             Not from the server while the phase is open. Your draft stays on your phone.
-            Marking ready sends an encrypted envelope; the key is released only after every
+            Marking ready sends an encrypted envelope. The key goes up only after every
             required power is ready, when orders become public for adjudication.
           </p>
           <p className="note">
@@ -118,22 +117,21 @@ export function FaqPage() {
         <section className="card">
           <h2>Who adjudicates?</h2>
           <p>
-            <a href="https://github.com/zond/godip">godip</a>, which has survived a decade of
-            real games and is tested here against the DATC corpus on every push.
-            The score, and what it leaves out, is on <a href="/datc">the adjudication page</a>.
+            <a href="https://github.com/zond/godip">godip</a>, tested here against the DATC
+            corpus on every push. The score, and what it leaves out, is on{" "}
+            <a href="/datc">the adjudication page</a>.
           </p>
         </section>
 
         <section className="card">
           <h2>How does a game end?</h2>
           <p>
-            On a solo, when one power holds enough supply centres — eighteen on
-            the classical board. On an inclusive draw, which the table agrees and the game
+            On a solo, when one power holds enough supply centres. That is
+            eighteen on the classical board. On an inclusive draw, which the table agrees and the game
             master records. A proposal excluding a survivor ends only after every excluded
-            survivor confirms it from their own seat. Or at an end year, if
-            the game was created with one, which is how a tournament round with
-            a hard stop finishes. An ended game freezes: the result and the
-            supply centre counts stay on the spectator link forever.
+            survivor confirms it from their own seat. Or at an end year, if the game was
+            created with one. An ended game freezes. The result and the supply centre
+            counts stay on the spectator link forever.
           </p>
         </section>
 

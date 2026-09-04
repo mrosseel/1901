@@ -1,5 +1,6 @@
 import { Suspense, lazy } from "react";
 import { parseRoute } from "./api";
+import { AdminPage } from "./pages/AdminPage";
 import { DatcPage } from "./pages/DatcPage";
 import { FaqPage } from "./pages/FaqPage";
 import { GamesPage } from "./pages/GamesPage";
@@ -8,7 +9,6 @@ import { HandoverPage } from "./pages/HandoverPage";
 import { JoinPage } from "./pages/JoinPage";
 import { LandingPage } from "./pages/LandingPage";
 import { NewGame } from "./pages/NewGame";
-import { RecoverPage } from "./pages/RecoverPage";
 import { SandboxPage } from "./pages/SandboxPage";
 import { SeatPage } from "./pages/SeatPage";
 import { VariantsPage } from "./pages/VariantsPage";
@@ -62,8 +62,13 @@ export function App() {
       return <VariantsPage />;
     case "datc":
       return <DatcPage />;
+    case "admin":
+      /* The one page that is about the server rather than a game (ADR-060). */
+      return <AdminPage />;
     case "recover":
-      return <RecoverPage gameId={route.gameId} />;
+      /* The recovery cards live on the game list now, so this address opens
+         that page at them (#recover) with the id already typed in. */
+      return <GamesPage recoverGameId={route.gameId} focusRecover />;
     case "handover":
       return (
         <HandoverPage

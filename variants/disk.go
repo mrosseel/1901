@@ -11,3 +11,7 @@ import "io/fs"
 
 // Generated reports that this build carries no descriptors of its own.
 func Generated() (fs.FS, bool) { return nil, false }
+
+// Notes reports that this build carries no review notes of its own, so the
+// reader falls back to the file in the working directory.
+func Notes() ([]byte, bool) { return nil, false }

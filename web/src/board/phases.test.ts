@@ -3,6 +3,7 @@ import {
   candidates,
   describeInPhase,
   dutyLine,
+  dutyLineParts,
   dutyOf,
   dutyProgress,
   emptyPlan,
@@ -108,10 +109,10 @@ describe("the line that says what this phase wants", () => {
 
   it("says when there is nothing to do", () => {
     expect(dutyLine(emptyPlan("Austria", "retreat"), state)).toBe(
-      "Nothing to order this phase — waiting for others.",
+      "Nothing to order this phase. Waiting for others.",
     );
     expect(dutyLine(emptyPlan("Austria", "adjustment"), state)).toBe(
-      "Nothing to order this phase — waiting for others.",
+      "Nothing to order this phase. Waiting for others.",
     );
   });
 
@@ -156,6 +157,92 @@ describe("the line that says what this phase wants", () => {
 
   it("stays quiet in a movement phase", () => {
     expect(dutyLine(emptyPlan("Austria"), state)).toBe("");
+  });
+});
+
+describe("the duty line split into its unit and the rest", () => {
+  const state: BoardState = {
+    units: { tri: { type: "Army", nation: "Italy" } },
+    dislodged: { tri: { type: "Fleet", nation: "Austria" } },
+  };
+
+  it("names the retreating unit as the unit part", () => {
+    const plan = {
+      kind: "retreat" as const,
+      power: "Austria",
+      actionable: { tri: {} },
+      duty: null,
+    };
+    expect(dutyLineParts(plan, state)).toEqual({
+      unit: "Fleet Trieste",
+      rest: " must retreat or disband.",
+    });
+  });
+
+  it("names the build or disband count as the unit part", () => {
+    expect(
+      dutyLineParts(
+        {
+          kind: "adjustment",
+          power: "Italy",
+          actionable: { rom: {}, nap: {} },
+          duty: { type: "Build", count: 2 },
+        },
+        state,
+      ),
+    ).toEqual({ unit: "Build 2", rest: ": tap a highlighted supply centre." });
+    expect(
+      dutyLineParts(
+        {
+          kind: "adjustment",
+          power: "Austria",
+          actionable: { bud: {} },
+          duty: { type: "Disband", count: 1 },
+        },
+        state,
+      ),
+    ).toEqual({ unit: "Disband 1", rest: ": tap a unit to remove." });
+  });
+
+  it("keeps the build count as the unit part when sites are waived", () => {
+    expect(
+      dutyLineParts(
+        {
+          kind: "adjustment",
+          power: "NATO",
+          actionable: { lon: { Build: {} }, nyk: { Build: {} }, par: { Build: {} } },
+          duty: { type: "Build", count: 4 },
+        },
+        state,
+      ),
+    ).toEqual({
+      unit: "Build 4",
+      rest: ", but only 3 legal build sites are open; the remaining build is waived.",
+    });
+  });
+
+  it("carries no unit part where the line names none", () => {
+    expect(dutyLineParts(emptyPlan("Austria", "retreat"), state)).toEqual({
+      unit: "",
+      rest: "Nothing to order this phase. Waiting for others.",
+    });
+    expect(
+      dutyLineParts(
+        { kind: "adjustment", power: "Austria", actionable: { bud: {} }, duty: null },
+        state,
+      ),
+    ).toEqual({ unit: "", rest: "Adjustments are open." });
+  });
+
+  it("joins back into the plain sentence dutyLine returns", () => {
+    const plan = {
+      kind: "retreat" as const,
+      power: "Austria",
+      actionable: { tri: {} },
+      duty: null,
+    };
+    const parts = dutyLineParts(plan, state);
+    expect(parts.unit + parts.rest).toBe(dutyLine(plan, state));
   });
 });
 

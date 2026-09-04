@@ -79,6 +79,7 @@ scan the invite QR from the phones. Useful environment variables:
 | `BASE_URL` | derived from the request | Pin the origin used in invite links (set this behind a proxy) |
 | `MAX_GAMES` | `100` | Cap on live games |
 | `TRUSTED_PROXY` | unset | Proxy addresses or CIDR ranges whose `X-Forwarded-For` names the client, for the per-address live-view limit |
+| `ADMIN_TOKEN` | unset | The owner's secret. Set it, then open `/admin` and type it to delete games. Unset means there is no admin on this server and every admin address answers 404 |
 
 A link to `localhost` cannot open on a phone. When `BASE_URL` is unset and the
 GM reaches the server on localhost, the server puts its own LAN address in the
@@ -155,7 +156,13 @@ go run ./cmd/1901      # API on :8190
 cd web && npm run dev  # UI on :5173, proxied to :8190
 ```
 
-The frontend hot-reloads. `npm run dev` also enables the design gallery at
+The dev server holds code updates back instead of pushing them at the browser,
+so a screen never reloads on its own: not on a file change, and not on a dev
+server restart. The comment tool in the gallery shows how many fixes are
+ready and reloads the page once, when it is clicked. Run `HOLD_RELOADS=0 npm
+run dev` to get ordinary hot reloading back.
+
+`npm run dev` also enables the design gallery at
 `/dev/screens`, which renders every game-state screen (mid-movement, retreats,
 builds, reviews, GM views, spectator pages) from captured fixtures, so you can
 iterate on any screen without creating or joining a game. Playing a real game

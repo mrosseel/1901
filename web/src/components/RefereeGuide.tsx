@@ -81,7 +81,7 @@ export function RefereeGuide({
                     <span className="dot" style={{ background: powerColor(action.power) }} />
                     <span className="referee-text">
                       {action.text}
-                      {action.note ? <span className="referee-note"> — {action.note}</span> : null}
+                      {action.note ? <span className="referee-note"> · {action.note}</span> : null}
                     </span>
                   </li>
                 ) : (
@@ -95,7 +95,7 @@ export function RefereeGuide({
                       <span className="dot" style={{ background: powerColor(action.power) }} />
                       <span className="referee-text">
                         {action.text}
-                        {action.note ? <span className="referee-note"> — {action.note}</span> : null}
+                        {action.note ? <span className="referee-note"> · {action.note}</span> : null}
                       </span>
                     </label>
                   </li>

@@ -1,5 +1,8 @@
 import type { GameResult } from "../api";
+import type { BoardState } from "../board/types";
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
 import { PowerChip } from "./PowerChip";
+import { Standings } from "./Standings";
 
 /*
 The last screen (ADR-044).
@@ -21,7 +24,31 @@ The centre counts come with it. They are what a tournament director writes
 down, what ADR-046 publishes, and the one thing everybody looks for the moment
 a game stops.
 */
-export function GameOver({ result }: { result: GameResult | null | undefined }) {
+export function GameOver({
+  result,
+  board,
+  powers,
+  you,
+}: {
+  result: GameResult | null | undefined;
+  /*
+  Fix c024: the board this result came off, so the card can carry the same
+  supply-centre table the sidebar shows everywhere else instead of an ad-hoc
+  count of its own. Omit it on a screen with no board to read one from — the
+  game master's own view has no board state, so it keeps the ad-hoc list.
+  */
+  board?: BoardState | null;
+  /** Every power in the variant, so one eliminated before the end still gets a row. */
+  powers?: string[];
+  you?: string;
+}) {
+  // c024: reuse the shared supply-centre table instead of drawing centre
+  // counts a second, different way, and keep it inside this card.
+  const sharedTable = useFixEnabled("c024") && Boolean(board);
+  // c023: the ending is the headline and the powers named under it. Who
+  // agreed to it, and in which year, is already in those two lines, so the
+  // sentence that restated them is gone. OFF puts it back.
+  const headlineSaysItAll = useFixEnabled("c023");
   if (!result) return null;
 
   const ranked = Object.entries(result.centres)
@@ -30,26 +57,36 @@ export function GameOver({ result }: { result: GameResult | null | undefined }) 
 
   return (
     <section className="card game-over">
-      <h2>{headline(result)}</h2>
+      <h2>{resultHeadline(result)}</h2>
       <p className="game-over-powers">
         {result.powers.map((power) => (
           <PowerChip key={power} power={power} />
         ))}
       </p>
-      <p className="note">{sentence(result)}</p>
-      <ul className="game-over-centres">
-        {ranked.map(([power, count]) => (
-          <li key={power}>
-            <PowerChip power={power} small />
-            <span className="game-over-count">{count}</span>
-          </li>
-        ))}
-      </ul>
+      {headlineSaysItAll ? null : <p className="note">{sentence(result)}</p>}
+      {sharedTable ? (
+        /* Inside the card, bare: the result and the centres that made it are
+           one thing to read, and a bordered table within a bordered card is
+           two boxes saying so. The card's own heading names the ending, and
+           the table's legend names its columns, so the table drops its
+           heading here. */
+        <Standings state={board} you={you} powers={powers} bare />
+      ) : (
+        <ul className="game-over-centres">
+          {ranked.map(([power, count]) => (
+            <li key={power}>
+              <PowerChip power={power} small />
+              <span className="game-over-count">{count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
 
-function headline(result: GameResult): string {
+/* The ending in three or four words, which is the whole heading of the card. */
+function resultHeadline(result: GameResult): string {
   if (result.kind === "solo") return "Solo in " + result.year;
   if (result.kind === "draw") {
     return result.powers.length === 1 ? "Conceded in " + result.year : "Draw in " + result.year;

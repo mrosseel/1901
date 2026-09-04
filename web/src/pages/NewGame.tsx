@@ -5,6 +5,8 @@ import { createGame, fetchVariants, refereePath } from "../api";
 import { VariantGallery } from "../components/VariantGallery";
 import { useMapStyle } from "../components/StylePicker";
 import { EndYearField } from "../components/EndYearField";
+import { PRESS_HELP, type PressMode } from "../pressmode";
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
 import {
   DEFAULT_VARIANT,
   claimLine,
@@ -48,27 +50,7 @@ is a scroll away — and a game master taking the default map should not have to
 scroll past every other map to reach the button. The picked map is named on the
 line above the button, so the choice is read back where it is acted on.
 */
-type PressMode = "ftf" | "gunboat" | "rulebook" | "fullpress";
 
-/*
-What each negotiation rule means, in the words of the thing that happens.
-
-The first two are about the room and the app carries nothing. The last two are
-the app carrying messages, and the difference between them is the one WDC 3b
-draws: negotiation is forbidden during the retreats and the adjustments.
-*/
-const PRESS_HELP: Record<PressMode, string> = {
-  ftf: "Negotiation happens in person. This app carries no messages.",
-  gunboat: "No negotiation at all, and the seats stay anonymous.",
-  rulebook:
-    "Messages during movement phases only, and none during retreats and builds. " +
-    "This is how a tournament board plays. Only the powers in a conversation " +
-    "can read it; the server still knows who talks to whom, and when.",
-  fullpress:
-    "Messages in every phase. Best for a table that is not in one room. Only " +
-    "the powers in a conversation can read it; the server still knows who " +
-    "talks to whom, and when.",
-};
 
 export function NewGame({ sandbox }: { sandbox?: boolean }) {
   const [name, setName] = useState("");
@@ -93,6 +75,7 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
   const [chosen, setChosen] = useState(DEFAULT_VARIANT);
   const [style, setStyle] = useMapStyle();
   const [loadingVariants, setLoadingVariants] = useState(true);
+  const evenPickedMapColor = useFixEnabled("c018");
 
   useEffect(() => {
     let cancelled = false;
@@ -175,7 +158,7 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
           <section className="card">
             <h2>The game</h2>
             <label className="field">
-              <span>Name of this game</span>
+              <span>Name of this game (optional)</span>
               <input
                 type="text"
                 name="gameName"
@@ -185,12 +168,11 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
               />
-              <small>Optional. A game with no name is known by its id.</small>
             </label>
 
             {sandbox ? null : (
             <label className="field">
-              <span>Minutes for movement phases</span>
+              <span>Minutes for movement phases (0 for no deadline)</span>
               <input
                 type="number"
                 min={0}
@@ -201,7 +183,6 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
                   setDeadlineMinutes(Number(event.target.value))
                 }
               />
-              <small>Zero runs the game with no deadline.</small>
             </label>
             )}
 
@@ -209,18 +190,18 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
             <details>
               <summary>Clock details</summary>
               <label className="field">
-                <span>Retreat and adjustment clock</span>
+                <span>Retreat and adjustment clock (% of the movement clock)</span>
                 <input type="number" min={1} max={100} inputMode="numeric"
                   value={retreatBuildPercent}
                   onChange={(event) => setRetreatBuildPercent(Number(event.target.value))} />
-                <small>Percentage of the movement clock; 50% gives 7½ minutes from a 15-minute movement phase.</small>
+                <small>50 gives 7½ minutes from a 15-minute movement phase.</small>
               </label>
               <label className="field">
                 <span>Grace after the deadline (minutes)</span>
                 <input type="number" min={0} max={600} inputMode="numeric"
                   value={graceMinutes}
                   onChange={(event) => setGraceMinutes(Number(event.target.value))} />
-                <small>Orders remain open during grace; force adjudication stays unavailable.</small>
+                <small>Orders stay open during grace, and nobody can force adjudication.</small>
               </label>
               <label className="field">
                 <span>Extra time for Spring 1901 (minutes)</span>
@@ -246,9 +227,11 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
                   <option key={one.name} value={one.name}>{one.title}</option>
                 ))}
               </select>
+              {/* What the style looks like, and nothing about who it binds:
+                  the same picker sits in the map toolbar, where any player
+                  changes it for their own screen. */}
               <small>
                 {MARKER_STYLES.find((one) => one.name === markerStyle)?.description}
-                {" Anyone may change it on their own screen."}
               </small>
             </label>
 
@@ -281,9 +264,8 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
                     value={pressSilenceSeconds}
                     onChange={(event) => setPressSilenceSeconds(Number(event.target.value))} />
                   <small>
-                    Messages close this long before the deadline, so the last
-                    of the phase is for writing orders. Zero keeps them open to
-                    the end.
+                    Messages close this long before the deadline. Zero keeps
+                    them open to the end.
                   </small>
                 </label>
                 {/* Not offered here. The mailbox is opened with the game
@@ -292,9 +274,9 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
                     beside the key rather than in front of it. */}
                 {gmPlays ? null : (
                   <p className="note">
-                    A game master who does not play can be given every message to
-                    read. Make the game master key on the next screen, then turn
-                    it on there, before anybody joins.
+                    A game master who does not play can read every message.
+                    Make the game master key on the next screen, then turn this
+                    on there, before anybody joins.
                   </p>
                 )}
               </>
@@ -319,9 +301,8 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
               />
               <span>I play a power as well</span>
               <small>
-                One power is held back for you and revealed when the game
-                starts. “Game master” means this table's host/referee, not the
-                tournament director.
+                One power is held back for you, and revealed when the game
+                starts.
               </small>
             </label>
             )}
@@ -334,7 +315,7 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
               />
               <span>Accept orders exactly as entered</span>
               <small>
-                Invalid orders fail under the rules instead of being blocked during entry.
+                The server takes an invalid order, and the rules make it fail.
               </small>
             </label>
 
@@ -342,16 +323,32 @@ export function NewGame({ sandbox }: { sandbox?: boolean }) {
               button is: the choice is out of sight from the button, so it is
               read back beside it. */}
             {picked ? (
-              <p className={picked.supported ? "muted" : "notice"}>
+              <p
+                className={
+                  evenPickedMapColor
+                    ? "notice"
+                    : picked.supported
+                      ? "muted"
+                      : "notice"
+                }
+              >
                 {picked.name}
                 {picked.powerCount
                   ? sandbox
-                    ? " — " + picked.powerCount + " powers, all of them yours"
-                    : " — " + claimLine(picked.powerCount, gmPlays)
+                    ? ". " + picked.powerCount + " powers, all of them yours."
+                    : ". " + claimLine(picked.powerCount, gmPlays)
                   : ""}
-                {!picked.supported
-                  ? " — its starting positions and board art have not yet been verified for live play."
-                  : ""}
+                {!picked.supported ? (
+                  evenPickedMapColor ? (
+                    <span className="warn-text">
+                      {" "}
+                      Its starting positions and board art have not yet
+                      been verified for live play.
+                    </span>
+                  ) : (
+                    " Its starting positions and board art have not yet been verified for live play."
+                  )
+                ) : null}
               </p>
             ) : null}
 

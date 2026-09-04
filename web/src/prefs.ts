@@ -66,6 +66,24 @@ export function writeBriefLabels(on: boolean): void {
   write(BRIEF_LABELS_KEY, on);
 }
 
+export const ONLY_MY_GAMES_KEY = "1901.onlyMyGames";
+
+/*
+The game list cut down to the games this device can open.
+
+A server that hosts a club runs dozens of games and one of them is yours. The
+switch is off by default, because a stranger's first visit should show the
+server and not an empty page, and it is remembered because somebody who has
+turned it on is at a table and will come back to the same one.
+*/
+export function readOnlyMyGames(): boolean {
+  return read(ONLY_MY_GAMES_KEY);
+}
+
+export function writeOnlyMyGames(on: boolean): void {
+  write(ONLY_MY_GAMES_KEY, on);
+}
+
 export const MARKER_STYLE_KEY = "1901.markerStyle";
 
 /*
@@ -160,6 +178,10 @@ export function useBriefLabels(): [boolean, (brief: boolean) => void] {
 
 export function useBriefMoves(): [boolean, (brief: boolean) => void] {
   return usePref(readBriefMoves, writeBriefMoves);
+}
+
+export function useOnlyMyGames(): [boolean, (only: boolean) => void] {
+  return usePref(readOnlyMyGames, writeOnlyMyGames);
 }
 
 function usePref(

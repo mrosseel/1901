@@ -35,7 +35,7 @@ let
 
   webDeps = fetchNpmDeps {
     src = webSrc;
-    hash = "sha256-bihqU47i5bNgrqOXAJYsP90fRy2O5p3cqrL9+gPfKRc=";
+    hash = "sha256-VW7XiV779SoL6ID9O5vHDQJVEj0OxQ41toXglzPctrE=";
   };
 
   web = stdenv.mkDerivation {

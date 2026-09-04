@@ -59,6 +59,12 @@ export interface Scenario {
   ciphertext or the screen would be a drawing of one.
   */
   press?: PressState;
+  /*
+  Whether this screen is the owner's, logged in (ADR-060). The address always
+  answers here, because the gallery is not a server with a token: `false` is
+  the token form and `true` is the list of games.
+  */
+  admin?: boolean;
 }
 
 /* The app's own transport is versioned and prefixed (ADR-050); the published
@@ -70,6 +76,12 @@ const SANDBOX = /^\/api\/v1\/game\/[^/]+\/sandbox\/[^/]+\/(state|options|order|a
 const WATCH = /^\/game\/[^/]+\/watch(?:\/(\d+))?$/;
 const PUBLIC = /^\/game\/[^/]+\/public$/;
 const MAP = /\/map\.svg$/;
+
+/* The comment tool's collector, which is the dev server itself and not the
+   game server. Its addresses go through untouched: the rule further down that
+   swallows an unrecognised write is about the app's own endpoints, and a
+   comment saved by a reviewer must actually be saved. */
+const COLLECTOR = /^\/__(feedback|comments)\//;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -197,6 +209,13 @@ function answer(scene: Scenario, url: URL, method: string): Response | null {
     return json(scene.games || []);
   }
 
+  /* The owner's door (ADR-060). It is answered rather than passed through
+     even when the screen is not the admin page, because the bar on every page
+     may ask. */
+  if (path.startsWith("/api/v1/admin/")) {
+    return json({ admin: Boolean(scene.admin) });
+  }
+
   /* The DATC report is published data, not a game (ADR-045), so it is matched
      by its whole address rather than by a game route. */
   if (path === "/datc.json") {
@@ -243,6 +262,8 @@ export function installStub(scene: Scenario): () => void {
     const method = (init?.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
 
     if (url.origin !== window.location.origin) return real(input, init);
+
+    if (COLLECTOR.test(url.pathname)) return real(input, init);
 
     if (MAP.test(url.pathname)) return real(realMap(scene, url), init);
 

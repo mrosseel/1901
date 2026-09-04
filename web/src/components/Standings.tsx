@@ -25,12 +25,19 @@ export function Standings({
   state,
   you,
   powers,
+  bare,
 }: {
   state: BoardState | null | undefined;
   /** This device's own power, so its row can be marked. Absent for a watcher. */
   you?: string;
   /** Every power in the variant, so one that has lost everything is still listed. */
   powers?: string[];
+  /*
+  Drawn inside a card that already has a border and a heading — the game-over
+  card (fix c024). The rows are the same rows; the chrome around them would be
+  a second box and a second title, so it goes.
+  */
+  bare?: boolean;
 }) {
   const rows = standings(state, powers);
   if (!rows.length) return null;
@@ -40,9 +47,11 @@ export function Standings({
   // otherwise.
   const settled = state?.phase?.type === "Adjustment";
 
+  const Frame = bare ? "div" : "section";
+
   return (
-    <section className="card standings">
-      <h2>Supply centres</h2>
+    <Frame className={bare ? "standings" : "card standings"}>
+      {bare ? null : <h2>Supply centres</h2>}
       <ul className="standings-rows">
         <li className="standings-legend" aria-hidden="true">
           <span className="standings-centres">SC</span>
@@ -77,10 +86,13 @@ export function Standings({
       </ul>
       {/* One line, and only where it says something a player cannot see: the
           board is mid-year and these counts are not yet the ones that pay.
-          Nobody at the table needs the rule explained. */}
-      <p className="note">
-        {settled ? "+ build, − remove." : "Ownership changes after the Fall retreats."}
-      </p>
-    </section>
+          Nobody at the table needs the rule explained, and nobody reading a
+          finished game is owed a rule about the builds it will never take. */}
+      {bare ? null : (
+        <p className="note">
+          {settled ? "+ build, − remove." : "Ownership changes after the Fall retreats."}
+        </p>
+      )}
+    </Frame>
   );
 }

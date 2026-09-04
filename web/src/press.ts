@@ -69,6 +69,7 @@ import {
   toBase64Url,
   wrapKeyFor,
 } from "./keys";
+
 import { bucketFor, frame, unframe } from "./pad";
 import { readSeatSeed } from "./seatkey";
 
@@ -386,6 +387,10 @@ The panel draws that differently rather than pretending it was checked.
 export interface RoomRead {
   key: Uint8Array | null;
   reason?: string;
+  /* Why the room stayed shut, for a reader that wants to say it in its own
+     words. Only the case a handover leaves behind carries one so far; the
+     others are told apart by their sentence alone. */
+  code?: "wrong-device";
   unverified?: boolean;
 }
 
@@ -441,6 +446,7 @@ export function openRoomKey(
   if (!key) {
     return {
       key: null,
+      code: "wrong-device",
       reason:
         "This device cannot open this conversation. The key was wrapped for a " +
         "different device, which is what a handover leaves behind.",

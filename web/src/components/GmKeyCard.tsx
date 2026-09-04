@@ -62,7 +62,7 @@ export function GmKeyCard({
 
   const copy = async () => {
     if (!words) return;
-    setCopied((await copyText(words.join(" "))) ? "Copied" : "Copy failed — write them down");
+    setCopied((await copyText(words.join(" "))) ? "Copied" : "Copy failed. Write them down");
     setTimeout(() => setCopied(null), 2000);
   };
 

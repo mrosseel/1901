@@ -9,7 +9,7 @@ import {
 } from "../variants";
 import { MapLightbox } from "./MapLightbox";
 import { StylePicker } from "./StylePicker";
-import { SupportedMark } from "./SupportedMark";
+import { VariantNote } from "./VariantNote";
 import { styledMapUrl } from "../style";
 
 /*
@@ -183,7 +183,6 @@ function VariantCardView({
           onChange={onPick}
         />
         <span className="variant-name">{card.name}</span>
-        <SupportedMark supported={card.supported} explicit />
         {/* The card is outside the filter and stays anyway, so it says so. A
             tag on the one card, not a notice over the gallery. */}
         {aside ? <span className="variant-aside">Your pick</span> : null}
@@ -204,6 +203,14 @@ function VariantCardView({
           that grows when it is tapped shoves the whole grid down. */}
       <p className="variant-powers">{card.powersLine}</p>
       {card.blurb ? <p className="variant-note">{card.blurb}</p> : null}
+      {/* What somebody wrote about this map's review (ADR-061). It used to be
+          a Verified / Not yet verified chip beside the name, which labelled
+          twenty-five cards with a warning and told nobody anything. */}
+      {card.note ? (
+        <p className="variant-note muted">
+          <VariantNote note={card.note} />
+        </p>
+      ) : null}
 
       {/*
       Everything else is folded away. Twenty-three cards of full godip notes is

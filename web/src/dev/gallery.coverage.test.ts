@@ -26,6 +26,7 @@ const ADDRESSES: Record<string, string> = {
   faq: "/faq",
   variants: "/variants",
   datc: "/datc",
+  admin: "/admin",
   recover: "/recover",
   new: "/new",
   join: "/join/abc/xyz",

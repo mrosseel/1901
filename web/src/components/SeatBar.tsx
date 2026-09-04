@@ -6,6 +6,7 @@ import { PhaseName } from "./PhaseName";
 import type { BoardState } from "../board/types";
 import { inkOn } from "./PowerChip";
 import { powerColor } from "../board/provinces";
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
 
 /*
 One row across the top of the seat screen: everything a player needs without
@@ -31,6 +32,7 @@ export function SeatBar({
   power,
   phase,
   started,
+  variant,
   ordersIn,
   ordersExpected,
   locked,
@@ -45,6 +47,8 @@ export function SeatBar({
   phase: BoardState["phase"];
   /** Before the start there is no phase, no count and no clock to show. */
   started: boolean;
+  /** The variant's name, so the bar can carry it next to the phase (c028). */
+  variant?: string;
   ordersIn: number;
   ordersExpected: number;
   /** This seat has declared the phase done, which is the end of the count. */
@@ -60,6 +64,11 @@ export function SeatBar({
   useTicker(Boolean(deadlineAt));
   const left = msLeft(deadlineAt);
   const background = powerColor(power);
+  const flashEnabled = useFixEnabled("c011");
+  const ordersWordEnabled = useFixEnabled("c013");
+  // c028: the variant rides in the bar, its own box beside the phase,
+  // instead of a muted caption under the map. OFF drops the box.
+  const variantInBar = useFixEnabled("c028");
 
   return (
     <div className="seat-top">
@@ -73,6 +82,14 @@ export function SeatBar({
       <div className="seat-top-phase">
         {started ? <PhaseName phase={phase} /> : "Waiting to start"}
       </div>
+
+      {variantInBar && variant ? (
+        // c030: the box gets its own panel tone in app.css, so it reads as
+        // the variant's own fact instead of trailing off the phase box.
+        <div className="seat-top-variant" title={variant}>
+          {variant}
+        </div>
+      ) : null}
 
       {/* Not a progress bar. A player wants the two numbers, and whether the
           gap between them is a problem. */}
@@ -90,16 +107,21 @@ export function SeatBar({
             <span className="seat-top-ready">Ready</span>
           ) : (
             <>
-              <OrdersIcon />
+              {ordersWordEnabled ? null : <OrdersIcon />}
               <strong>{ordersIn}</strong>
               <span className="seat-top-of">/{ordersExpected}</span>
+              {ordersWordEnabled ? <span className="seat-top-orders-word"> orders</span> : null}
             </>
           )}
         </div>
       ) : null}
 
       {started && left !== null ? (
-        <div className={"seat-top-clock " + clockTone(left)} role="timer" aria-live="off">
+        <div
+          className={"seat-top-clock " + clockTone(left, flashEnabled)}
+          role="timer"
+          aria-live="off"
+        >
           {clockFace(left)}
         </div>
       ) : null}

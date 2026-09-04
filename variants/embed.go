@@ -25,3 +25,12 @@ func Generated() (fs.FS, bool) {
 	}
 	return sub, true
 }
+
+//go:embed notes.json
+var notes []byte
+
+// Notes returns the hand-kept review notes this build carries. They sit beside
+// the generated directory rather than inside it, because a person writes them
+// and the tool that writes the descriptors would overwrite anything it found
+// there.
+func Notes() ([]byte, bool) { return notes, true }

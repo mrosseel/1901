@@ -114,7 +114,7 @@ export function HandoverPage({
               hand out replacement seats.
             </p>
             <p className="note">
-              The rights travel; a power does not. Whoever runs the game now
+              The rights travel. A power does not. Whoever runs the game now
               stops being able to, and keeps whatever power they play.
             </p>
             {error ? <p className="error">{error}</p> : null}
@@ -143,7 +143,7 @@ export function HandoverPage({
           <p>
             This link hands you {power} in game {gameId}. {carriesOrders
               ? "The current locked orders travel with the seat, and you may change them while the phase is open."
-              : "Orders kept only on the previous device cannot be recovered; you may enter new ones while the phase is open."}
+              : "Orders kept only on the previous device cannot be recovered. You may enter new ones while the phase is open."}
           </p>
           <p className="note">
             The phone that holds {power} now loses it the moment you take it. A

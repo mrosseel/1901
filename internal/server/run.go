@@ -101,6 +101,9 @@ func loadState() error {
 	if err := loadAll(); err != nil {
 		return fmt.Errorf("load games: %w", err)
 	}
+	if err := variant.LoadNotes(); err != nil {
+		return fmt.Errorf("load variant notes: %w", err)
+	}
 	if err := variant.LoadStyles(); err != nil {
 		return fmt.Errorf("load map styles: %w", err)
 	}
@@ -172,6 +175,10 @@ func Main() {
 	// of the same shell; the challenge and the answer live under /game/.
 	mux.HandleFunc("/recover/", srv.serveSPA)
 	mux.HandleFunc("/recover", srv.serveSPA)
+	// Where the owner types their token (ADR-060). The page is served on
+	// every build; whether the token behind it exists is decided under
+	// /api/v1/admin, which 404s when ADMIN_TOKEN is unset.
+	mux.HandleFunc("/admin", srv.serveSPA)
 
 	addr := listenAddr()
 	origin := baseURLFixed
@@ -185,6 +192,12 @@ func Main() {
 	log.Printf("1901 %v listening (app from %v, database %v, cap %v game(s))",
 		version, assets.SPASource(), dbPath(), games.limit)
 	log.Printf("open on this computer: %v", localOpenURL(addr))
+	// Whether the owner's door exists, never the secret behind it (ADR-060).
+	if adminEnabled() {
+		log.Printf("admin is on at /admin; ADMIN_TOKEN opens it")
+	} else {
+		log.Printf("admin is off; set ADMIN_TOKEN to delete games from /admin")
+	}
 	log.Printf("phone invite links: %v", origin)
 	if baseURLFixed == "" && lanHost == "" {
 		log.Printf("WARNING: no unambiguous phone-reachable address was found; set BASE_URL and test one invite from a phone before seating the table")

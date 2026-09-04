@@ -280,6 +280,9 @@ the code still resolves.
 | [ADR-056 — A room is signed by whoever opened it](docs/adr/056-a-room-is-signed-by-whoever-opened-it.md) | accepted |
 | [ADR-057 — A length is a message too](docs/adr/057-a-length-is-a-message-too.md) | accepted |
 | [ADR-058 — A resolved phase keeps the envelope it came from](docs/adr/058-a-resolved-phase-keeps-the-envelope-it-came-from.md) | accepted |
+| [ADR-059 — The provinces layer is a hit layer, terrain is painted under it](docs/adr/059-the-provinces-layer-is-a-hit-layer-terrain-is-painted-under-it.md) | accepted |
+| [ADR-060 — Admin is one secret from the environment](docs/adr/060-admin-is-one-secret-from-the-environment.md) | accepted |
+| [ADR-061 — A review note per map, kept by hand beside the generated data](docs/adr/061-a-review-note-per-map-kept-by-hand.md) | accepted |
 
 ## 4. Open questions
 

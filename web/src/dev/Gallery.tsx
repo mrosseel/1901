@@ -20,6 +20,7 @@ The address is the state:
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
+import { AdminPage } from "../pages/AdminPage";
 import { DatcPage } from "../pages/DatcPage";
 import { FaqPage } from "../pages/FaqPage";
 import { GamesPage } from "../pages/GamesPage";
@@ -29,7 +30,6 @@ import { HandoverPage } from "../pages/HandoverPage";
 import { JoinPage } from "../pages/JoinPage";
 import { LandingPage } from "../pages/LandingPage";
 import { NewGame } from "../pages/NewGame";
-import { RecoverPage } from "../pages/RecoverPage";
 import { SandboxPage } from "../pages/SandboxPage";
 import { SeatPage } from "../pages/SeatPage";
 import { VariantsPage } from "../pages/VariantsPage";
@@ -55,6 +55,10 @@ import { makeSeatSeed, writeSeatSeed } from "../seatkey";
 import * as fx from "./fixtures";
 import { installCapture } from "./capture";
 import { installStub, type Scenario } from "./stub";
+import { PageComments } from "@mrosseel/page-comments";
+import { annotate } from "./comments";
+import { FIX_IDS } from "./fixes";
+import "@mrosseel/page-comments/styles.css";
 import "./gallery.css";
 
 // --- the catalogue --------------------------------------------------------
@@ -494,13 +498,33 @@ export function buildCatalogue(): Entry[] {
       ),
     },
     {
+      route: "admin",
+      screen: "page",
+      state: "admin-login",
+      title: "Admin: the token",
+      note: "The owner's door (ADR-060). One secret from the environment, and the only "
+        + "page in the app that is not about a game.",
+      scenario: { variantKey: VARIANT, admin: false },
+      render: () => <AdminPage />,
+    },
+    {
+      route: "admin",
+      screen: "page",
+      state: "admin-games",
+      title: "Admin: every game",
+      note: "What the owner may do, which is delete. Rows rather than cards: nobody here "
+        + "is choosing a game to play.",
+      scenario: { variantKey: VARIANT, admin: true, games: fx.gameList(waiting, live) },
+      render: () => <AdminPage />,
+    },
+    {
       route: "recover",
       screen: "page",
       state: "recover",
       title: "Take a game back",
-      note: "The twelve words (ADR-048). The only screen in the app somebody types a secret into.",
-      scenario: { variantKey: VARIANT },
-      render: () => <RecoverPage gameId={live.gameId} />,
+      note: "The game list opened at its recovery cards (ADR-048): the only place in the app somebody types a secret in.",
+      scenario: { variantKey: VARIANT, games: fx.gameList(waiting, live) },
+      render: () => <GamesPage recoverGameId={live.gameId} focusRecover />,
     },
   );
 
@@ -738,10 +762,36 @@ interface Controls {
   style: string;
 }
 
+/** Where the last screen chosen is kept, so a bare reload reopens it. */
+const CONTROLS_KEY = "1901.dev.screens.controls";
+
+function readStoredControls(): Partial<Controls> | null {
+  try {
+    const raw = window.localStorage.getItem(CONTROLS_KEY);
+    return raw ? (JSON.parse(raw) as Partial<Controls>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredControls(controls: Controls): void {
+  try {
+    window.localStorage.setItem(CONTROLS_KEY, JSON.stringify(controls));
+  } catch {
+    // A locked-down browser keeps nothing between visits.
+  }
+}
+
+/** The address names a field first, storage names it second, and the
+    catalogue's first entry is the last resort. */
 function readControls(list: Entry[]): Controls {
   const params = new URLSearchParams(window.location.search);
-  const screen = params.get("screen") || list[0].screen;
-  const wanted = params.get("state");
+  const stored = readStoredControls();
+  const pick = (key: keyof Controls): string | undefined =>
+    params.get(key) || stored?.[key] || undefined;
+
+  const screen = pick("screen") || list[0].screen;
+  const wanted = pick("state") || null;
   const found =
     list.find((one) => one.screen === screen && one.state === wanted) ||
     list.find((one) => one.screen === screen) ||
@@ -749,9 +799,9 @@ function readControls(list: Entry[]): Controls {
   return {
     screen: found.screen,
     state: found.state,
-    theme: params.get("theme") === "light" ? "light" : "dark",
-    w: WIDTHS.some((one) => one.key === params.get("w")) ? params.get("w")! : "full",
-    style: STYLES.includes(params.get("style") || "") ? params.get("style") || "" : "",
+    theme: pick("theme") === "light" ? "light" : "dark",
+    w: WIDTHS.some((one) => one.key === pick("w")) ? pick("w")! : "full",
+    style: STYLES.includes(pick("style") || "") ? pick("style") || "" : "",
   };
 }
 
@@ -779,7 +829,9 @@ will actually hold.
 */
 function Frame({ controls }: { controls: Controls }) {
   const size = WIDTHS.find((one) => one.key === controls.w) || WIDTHS[2];
-  const src = addressOf(controls, true);
+  // The outer address's own hash names a comment; the frame carries it on so
+  // the comment tool inside can find and highlight that comment on load.
+  const src = addressOf(controls, true) + window.location.hash;
   return (
     <div className={size.width ? "gallery-stage framed" : "gallery-stage"}>
       <iframe
@@ -795,10 +847,30 @@ function Frame({ controls }: { controls: Controls }) {
   );
 }
 
+/** The screen a comment belongs to, so a pin only shows where it was made. */
+function screenKey(controls: Controls): string {
+  return controls.screen + "/" + controls.state;
+}
+
+/** Drops `frame=1`, so a "Go" button lands on the outer page with its rail. */
+function navigateTo(url: string): string {
+  const target = new URL(url, window.location.href);
+  target.searchParams.delete("frame");
+  return target.toString();
+}
+
 export function Gallery() {
   const catalogue = useMemo(buildCatalogue, []);
   const [controls, setControls] = useState<Controls>(() => readControls(catalogue));
-  const framed = new URLSearchParams(window.location.search).get("frame") === "1";
+  /*
+  `frame=1` names the bare screen a real iframe loads (see Frame below). A
+  top-level tab opened on that same address — a reload, a bookmark, a link
+  handed around — is not that iframe, and must not render the bare screen:
+  it is the gallery, chrome and all. Only a document that is actually inside
+  another one takes `frame=1` at its word.
+  */
+  const embedded = window.self !== window.top;
+  const framed = embedded && new URLSearchParams(window.location.search).get("frame") === "1";
 
   const entry =
     catalogue.find((one) => one.screen === controls.screen && one.state === controls.state) ||
@@ -806,6 +878,10 @@ export function Gallery() {
 
   useEffect(() => {
     if (!framed) window.history.replaceState(null, "", addressOf(controls, false));
+  }, [controls, framed]);
+
+  useEffect(() => {
+    if (!framed) writeStoredControls(controls);
   }, [controls, framed]);
 
   useEffect(() => {
@@ -829,8 +905,33 @@ export function Gallery() {
     }
   }, [controls.style]);
 
-  // Inside the frame there is no chrome: the page is the whole document.
-  if (framed) return <Screen entry={entry} />;
+  /*
+  Inside the frame there is no chrome: the page is the whole document, with the
+  comment tools over it. They live in here rather than in the bar outside,
+  because this is the only document whose elements a click can name.
+
+  Review mode is on because the dev server holds its reloads back (see
+  vite.config.ts): the code the browser is running is the code it loaded, and
+  the tool's badge is the only way in. The reload it asks for is the top
+  window's, because the frame is the whole point of the page around it.
+  */
+  if (framed) {
+    return (
+      <>
+        <Screen entry={entry} />
+        <PageComments
+          storagePrefix="1901.dev.comments"
+          screen={screenKey(controls)}
+          fixes={FIX_IDS}
+          annotate={annotate}
+          reviewMode
+          reviewReload="top"
+          navigateReload="top"
+          navigateTo={navigateTo}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="gallery">

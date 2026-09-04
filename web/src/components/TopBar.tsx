@@ -1,3 +1,5 @@
+import { readAdminFlag } from "../admin";
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
 import { readRecentGame } from "../recent";
 
 /*
@@ -17,9 +19,15 @@ which is one tap away and costs no height.
 export function TopBar({
   here,
 }: {
-  here?: "games" | "faq" | "new" | "sandbox" | "variants" | "datc";
+  here?: "games" | "faq" | "new" | "sandbox" | "variants" | "datc" | "index" | "admin";
 }) {
   const game = readRecentGame();
+  /* Read from this device, never asked of the server (admin.ts): a player's
+     first paint must not wait on a question about a link they cannot use. */
+  const admin = readAdminFlag();
+  /* The tag line named a game this app no longer only plays (c014): most
+     tables now sit apart and order by phone, not around one board. */
+  const tagLineGone = useFixEnabled("c014");
 
   /* The same links the landing page carries, in the same order, so the bar
      reads as one thing wherever it is met. */
@@ -34,24 +42,28 @@ export function TopBar({
       <a className="topbar-mark" href="/">
         1901
       </a>
-      {link("variants", "/variants", "Variants")}
-      {link("sandbox", "/sandbox", "Sandbox")}
-      {link("games", "/games", "Games")}
-      <a href="/recover">Return to a game</a>
-      {link("faq", "/faq", "Questions")}
-      {/* The way back in. It names the game rather than saying "your game",
-          because a phone that has been at two tables this weekend should be
-          told which one it is about to open. */}
-      {game ? (
-        <a className="topbar-back" href={game.url}>
-          Back to {game.label}
-          {game.power ? " · " + game.power : ""}
-        </a>
-      ) : (
-        <a className={here === "new" ? "here" : undefined} href="/new">
-          New game
-        </a>
-      )}
+      {tagLineGone ? null : <span className="topbar-tag">Diplomacy at a table</span>}
+      <div className="topbar-links">
+        {link("variants", "/variants", "Variants")}
+        {link("sandbox", "/sandbox", "Sandbox")}
+        {link("games", "/games", "Games")}
+        {link("faq", "/faq", "Questions")}
+        {/* Only for the browser that logged in as the owner (ADR-060). */}
+        {admin ? link("admin", "/admin", "Admin") : null}
+        {/* The way back in. It names the game rather than saying "your game",
+            because a phone that has been at two tables this weekend should be
+            told which one it is about to open. */}
+        {game ? (
+          <a className="topbar-back" href={game.url}>
+            Back to {game.label}
+            {game.power ? " · " + game.power : ""}
+          </a>
+        ) : (
+          <a className="cta" href="/new">
+            New game
+          </a>
+        )}
+      </div>
     </nav>
   );
 }

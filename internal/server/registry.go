@@ -66,6 +66,22 @@ func (self *registry) lookup(id string) (*game, bool) {
 	return g, found
 }
 
+// remove takes a game out of the registry and cuts loose everything watching
+// it, and says whether there was one. Only the owner deletes a game
+// (ADR-060); nothing a player does reaches here.
+func (self *registry) remove(id string) bool {
+	self.mu.Lock()
+	g, found := self.games[id]
+	delete(self.games, id)
+	self.mu.Unlock()
+	if !found {
+		return false
+	}
+	// A live view of a game that no longer exists would poll a 404 forever.
+	g.events.revokeAll()
+	return true
+}
+
 // create registers a new game under a fresh random id.
 func (self *registry) create(key string, v common.Variant, f *flow) (*game, string, error) {
 	g, err := newGame(key, v)

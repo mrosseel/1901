@@ -117,10 +117,6 @@ export function ReviewOverlay({
           </button>
         ) : null}
       </div>
-      <p className="note">
-        Closing this changes nothing in the game. Only your screen — everyone else reads at
-        their own pace.
-      </p>
     </section>
   );
 }

@@ -2,8 +2,9 @@ import { useCallback, useState } from "react";
 import { TopBar } from "../components/TopBar";
 import { claimSeat, fetchPublic, gameEventsUrl, type PublicState } from "../api";
 import { countdown, settingsLines, useGameEvents, usePoll, useTicker } from "../hooks";
+import { ruleLines } from "../rules";
 import { makeSeatSeed, readSeatSeed, seatPublicKey, writeSeatSeed } from "../seatkey";
-import { SupportedMark } from "../components/SupportedMark";
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
 import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 
@@ -61,6 +62,7 @@ export function JoinPage({
     }
   };
 
+  const bulletRules = useFixEnabled("c015");
   const full = Boolean(game && game.joinedCount >= game.totalSeats);
   const heldHere = Boolean(readSeatSeed(gameId));
 
@@ -85,13 +87,20 @@ export function JoinPage({
             on this board, so its name is the first thing to read. */}
           {game?.variant ? (
             <p className="variant-line">
-              <strong>{game.variant.name}</strong>{" "}
-              <SupportedMark supported={game.variant.supported} />
+              <strong>{game.variant.name}</strong>
             </p>
           ) : null}
-          {settingsLines(game?.settings).map((line) => (
-            <p key={line}>{line}</p>
-          ))}
+          {bulletRules ? (
+            <ul className="rule-list">
+              {ruleLines(game?.settings).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : (
+            settingsLines(game?.settings).map((line) => (
+              <p key={line}>{line}</p>
+            ))
+          )}
           {game ? (
             <p className="muted">
               {game.joinedCount} of {game.totalSeats} powers claimed

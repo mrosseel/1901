@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
+
 import type { PressApi } from "../api";
 import { clockFace, msLeft } from "../clock";
 import { usePoll, useTicker } from "../hooks";
@@ -25,6 +27,7 @@ import {
   type PressThread,
   type Pins,
   type ReadMessage,
+  type RoomRead,
 } from "../press";
 import { PowerChip } from "./PowerChip";
 
@@ -451,6 +454,7 @@ function PressRoom({
     [gameId, you, secret, described],
   );
   const roomKey = read.key;
+  const plainerHandover = useFixEnabled("c029");
 
   const load = useCallback(async () => {
     if (!roomKey) return;
@@ -547,7 +551,7 @@ function PressRoom({
         </h2>
       </header>
 
-      {roomKey ? null : <p className="notice">{read.reason}</p>}
+      {roomKey ? null : <p className="notice">{shutReason(read, plainerHandover)}</p>}
       {/* A room whose opener holds no signing key at all: a seat with a token,
           or a game made before ADR-049. It opens and it is not checked, and
           the reader is told which. */}
@@ -637,6 +641,24 @@ WDC 4b2 gives a board its last minute to write orders in, and 4d says the
 silence is enforced. A player who is told about it a second before it lands has
 been ambushed, so the panel counts down to it.
 */
+/*
+Why a shut room is shut, in the words the reader sees.
+
+The press module says what went wrong; the sentence belongs here, where the
+rest of the room's copy lives, so a change of wording never reaches the code
+that holds the keys.
+*/
+function shutReason(read: RoomRead, plainerHandover: boolean): string | undefined {
+  if (plainerHandover && read.code === "wrong-device") {
+    return (
+      "This conversation was opened for the seat's previous holder, so this " +
+      "device cannot open it. A handover passes on the seat and its orders, " +
+      "but not conversations already started, and new ones work as usual."
+    );
+  }
+  return read.reason;
+}
+
 function SilenceLine({ silenceAt }: { silenceAt: string }) {
   useTicker(true);
   const left = msLeft(silenceAt);

@@ -8,9 +8,9 @@ nothing here trusts the shape. Every card line is built by a pure function and
 comes back as "" when there is nothing true to say, and the page simply leaves
 out the empty ones.
 
-Only classical is verified (ADR-014): it is the one card that carries a tick.
-Every other variant draws its map from godip and plays, and says nothing about
-itself either way.
+What a card says about its own review is a sentence somebody wrote by hand,
+carried on `note` (ADR-061). A card with nothing written about it says nothing,
+which is most of them.
 */
 
 export interface Variant {
@@ -25,6 +25,8 @@ export interface Variant {
   rules: string;
   createdBy: string;
   supported: boolean;
+  /** What a person wrote about this map's review, or "" (ADR-061). */
+  note: string;
   mapUrl: string;
 }
 
@@ -57,6 +59,7 @@ export function normalizeVariant(raw: Partial<Variant> | undefined): Variant {
     rules: text(source.rules),
     createdBy: text(source.createdBy),
     supported: source.supported === true,
+    note: text(source.note),
     mapUrl: text(source.mapUrl) || "/variants/" + encodeURIComponent(key) + "/map.svg",
   };
 }
@@ -193,8 +196,10 @@ export function offBand(list: Variant[], band: string, keep: string): boolean {
 export interface VariantCard {
   key: string;
   name: string;
-  /** True for a variant whose board art is verified: it gets a tick. */
+  /** True for a variant whose board art is verified. It sorts the gallery. */
   supported: boolean;
+  /** The review note, or "": the card prints it only when there is one. */
+  note: string;
   /** "7 powers", or "" when the server did not say. */
   powersLine: string;
   /** "Austria, England, …", or "" when the server did not say. */
@@ -231,6 +236,7 @@ export function variantCard(variant: Variant): VariantCard {
     key: variant.key,
     name: variant.name,
     supported: variant.supported,
+    note: variant.note,
     powersLine: powers ? powers + (powers === 1 ? " power" : " powers") : "",
     powerNames: variant.powers.join(", "),
     soloLine:

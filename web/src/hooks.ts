@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { illegalAllowed } from "./illegal";
 import { msLeft } from "./clock";
+import { PRESS_LINES, carriesPress, type RuleSettings } from "./rules";
 
 /*
 Runs a job now and every `ms` after that, and stops while the tab is hidden so
@@ -193,43 +194,9 @@ export function useTicker(enabled = true): void {
 
 export { countdown } from "./clock";
 
-/*
-How each press mode reads to a player (ADR-023, ADR-053).
-
-The first two say what the people at the table do, because the app carries
-nothing in them. The last two say what the app itself does, because a player
-joining a game that carries messages needs to know which phases they may write
-in before anybody has written one.
-*/
-const PRESS_LINES: Record<string, string> = {
-  ftf: "Negotiate out loud, at the table.",
-  gunboat: "Gunboat: no negotiation at all.",
-  rulebook: "Messages in the app, in movement phases only.",
-  fullpress: "Messages in the app, in every phase.",
-};
-
-/** Whether this mode makes the app carry messages at all (ADR-023). */
-function carriesPress(mode: string | undefined): boolean {
-  return mode === "fullpress" || mode === "rulebook";
-}
-
-/** The rules, one plain sentence each. */
-export function settingsLines(
-  settings:
-    | {
-        deadlineMinutes: number;
-        gmPlays: boolean;
-        illegalMoves?: boolean;
-        pressMode?: string;
-        pressSilenceSeconds?: number;
-        gmReadsPress?: boolean;
-        endYear?: number;
-        retreatBuildPercent?: number;
-        graceMinutes?: number;
-        firstTurnExtraMinutes?: number;
-      }
-    | undefined,
-): string[] {
+/** The rules, one plain sentence each. The words come from rules.ts, so this
+    paragraph form and the bullet form can never drift apart. */
+export function settingsLines(settings: RuleSettings | undefined): string[] {
   const rules = settings || { deadlineMinutes: 0, gmPlays: false };
   return [
     rules.deadlineMinutes > 0

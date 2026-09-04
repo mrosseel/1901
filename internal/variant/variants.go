@@ -99,7 +99,11 @@ type variantJSON struct {
 	Rules        string   `json:"rules"`
 	CreatedBy    string   `json:"createdBy"`
 	Supported    bool     `json:"supported"`
-	MapURL       string   `json:"mapUrl"`
+	// Note is what a person wrote about this board's review, if anything
+	// (notes.go). Omitted rather than empty: a card with nothing to say
+	// should carry no line at all.
+	Note   string `json:"note,omitempty"`
+	MapURL string `json:"mapUrl"`
 }
 
 var (
@@ -135,6 +139,7 @@ func variantCatalogue() []variantJSON {
 				Rules:        v.Rules,
 				CreatedBy:    v.CreatedBy,
 				Supported:    Supported[key],
+				Note:         Note(key),
 				MapURL:       "/variants/" + key + "/map.svg",
 			}
 			for _, n := range v.Nations {
@@ -489,16 +494,18 @@ type RefJSON struct {
 	Key       string `json:"key"`
 	Name      string `json:"name"`
 	Supported bool   `json:"supported"`
+	Note      string `json:"note,omitempty"`
 }
 
 // Ref identifies the variant a game is played on. The game knows its key and
-// the name godip gave it; whether this server supports the variant is a fact
-// about the registry.
+// the name godip gave it; whether this server supports the variant, and what
+// anyone wrote about its review, are facts about the registry.
 func Ref(key, name string) RefJSON {
 	return RefJSON{
 		Key:       key,
 		Name:      name,
 		Supported: Supported[key],
+		Note:      Note(key),
 	}
 }
 

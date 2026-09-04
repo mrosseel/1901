@@ -9,11 +9,18 @@ import { PowerChip } from "../components/PowerChip";
 import { ReviewOverlay } from "../components/ReviewOverlay";
 import { SplitLayout } from "../components/SplitLayout";
 import { StaleBuild } from "../components/StaleBuild";
-import { SupportedMark } from "../components/SupportedMark";
 import { GameOver } from "../components/GameOver";
 import { ModalLayer } from "../components/ModalLayer";
 import { useMapStyle } from "../components/StylePicker";
-import { candidates, dutyLine, emptyPlan, phaseKind, planDuty, type PhasePlan } from "../board/phases";
+import {
+  candidates,
+  dutyLine,
+  dutyLineParts,
+  emptyPlan,
+  phaseKind,
+  planDuty,
+  type PhasePlan,
+} from "../board/phases";
 import { provinceName, setPowerPalette, setProvinceNames } from "../board/provinces";
 import type { BoardApi, BoardHandle, BoardState, OptionTree, ReviewDraw, Unit } from "../board/types";
 import { abbreviateOrders, unitsOf } from "../notation";
@@ -22,6 +29,7 @@ import { noteServerTime } from "../clock";
 import { useBriefLabels, useBriefMoves, useHideOrders, useMarkerStyle, resolveMarkerStyle } from "../prefs";
 import { orderText, reviewPlan } from "../review";
 import { styledMapUrl } from "../style";
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
 
 /*
 The sandbox: a board with no players (ADR-047).
@@ -52,6 +60,9 @@ export function SandboxPage({
     () => new SandboxClient(gameId, sandboxToken),
     [gameId, sandboxToken],
   );
+  // c021: the duty line's unit or count is bold; the rest of the sentence is
+  // lighter and grey. OFF keeps the sentence at one weight.
+  const dutyUnitBold = useFixEnabled("c021");
 
   const [state, setState] = useState<SandboxState | null>(null);
   const [power, setPower] = useState("");
@@ -283,6 +294,7 @@ export function SandboxPage({
   const illegalHere = new Set(illegalDrafts);
   const drafted = Object.keys(state?.orderParts || {}).length;
   const duty = dutyLine(plan, boardState);
+  const dutyParts = dutyLineParts(plan, boardState);
   const over = Boolean(state?.result);
 
   return (
@@ -337,11 +349,21 @@ export function SandboxPage({
             </p>
             <h1 className="sandbox-title">Sandbox</h1>
             <p className="muted">
-              {state?.variant ? state.variant.name : ""}{" "}
-              {state?.variant ? <SupportedMark supported={state.variant.supported} /> : null}
+              {state?.variant ? state.variant.name : ""}
               {" · no players, no clock"}
             </p>
-            {duty ? <p className="duty">{duty}</p> : null}
+            {duty ? (
+              <p className={"duty duty-" + plan.kind}>
+                {dutyUnitBold && dutyParts.unit ? (
+                  <>
+                    <strong>{dutyParts.unit}</strong>
+                    <span className="duty-rest">{dutyParts.rest}</span>
+                  </>
+                ) : (
+                  duty
+                )}
+              </p>
+            ) : null}
           </header>
 
           {/* Who you are playing this moment. Every power is yours, so this is
@@ -383,9 +405,7 @@ export function SandboxPage({
             >
               <span className="lock-main">{busy ? "Adjudicating…" : "Adjudicate"}</span>
               <span className="lock-sub">
-                {over
-                  ? "The game has ended."
-                  : "Resolve this phase. A unit with no order holds."}
+                {over ? "The game has ended." : "A unit with no order holds."}
               </span>
             </button>
             {review && !reviewing ? (
@@ -486,7 +506,11 @@ export function SandboxPage({
         </ModalLayer>
       ) : null}
 
-      {state?.result ? <GameOver result={state.result} /> : null}
+      {/* Fix c024: the sandbox's own board carries the same supply-centre
+          table every other screen reuses here, in place of an ad-hoc count. */}
+      {state?.result ? (
+        <GameOver result={state.result} board={state} powers={state.nations} />
+      ) : null}
     </>
   );
 }

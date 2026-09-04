@@ -41,6 +41,115 @@
   /* The thickness of the draggable border between the map and the panel.
      A mouse needs a target it can hit; a thumb needs more of one. */
   --split-grip: 12px;
+  /* Georgia is the Baskerville the map was drawn in, near enough, and it is
+     already on the machine. A webfont would be a megabyte of download on the
+     one page that has to arrive fast, and the app must run with no internet
+     at all. */
+  --lp-serif: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+
+  /*
+  The spacing ladder.
+
+  Six steps and nothing between them. Every gap, every margin and every pad
+  picks one, so the air between a label and its field is the same air wherever
+  that pair appears — which is what the thirty-three gap values and the
+  seventy-two padding values this file used to carry could not say.
+
+  The steps are relations, not places. Hair holds two lines of one control
+  together. Tight holds a label to its field, and a chip to the chip beside
+  it. Snug separates the rows of a list. Block separates the blocks inside a
+  panel or a card. Section separates the sections of a page. Page separates
+  the page's own regions. A token named after a component would only be the
+  old thirty-three numbers under fewer names, so there are none.
+
+  Two rules ride on the ladder and are worth more than the six numbers. A
+  stack sets one gap, and no child escapes it with a margin of its own. And
+  the air under a heading is one step tighter than the air over it, which is
+  what makes a column read as groups rather than as a list.
+
+  The numbers here are the phone's. A phone is held close and has one column,
+  so blocks sit near each other. A laptop is further away and has width to
+  spare, and at that distance the same numbers read as packed (c010), so the
+  desktop block near the foot of this file raises the four steps that grow.
+  The two smallest do not grow: hair and tight hold the parts of one control
+  together, and that distance is set by the type, which a laptop barely moves.
+  */
+  --space-hair: 2px;
+  --space-tight: 6px;
+  --space-snug: 10px;
+  --space-block: 16px;
+  --space-section: 24px;
+  --space-page: 32px;
+
+  /* The same ladder read from inside a box. A control is padded snug against
+     its own text and block away from its ends; a card is padded block on
+     every side. So a button and a card that sit side by side agree on where
+     their edges are, and neither one is padded by a number of its own. */
+  --pad-control-y: var(--space-snug);
+  --pad-control-x: var(--space-block);
+  --pad-card: var(--space-block);
+
+  /* Not steps, and so not on the ladder. The width a line is read at, and
+     the margin that keeps that line off the edge of a phone, answer a
+     different question from how far apart two blocks sit. */
+  --max-page: 640px;
+  --max-page-wide: 760px;
+  --pad-page-x: 16px;
+
+  /*
+  The type ladder.
+
+  Nine steps and nothing between them. Every size on every screen picks one,
+  so a note on the seat page and a note on the game list are the same note,
+  which is what the twenty-seven sizes this file used to carry could not say.
+
+  The numbers here are the phone's, and the desktop block near the foot of the
+  file raises the seven steps that grow — the same two places the spacing
+  tokens are set in, and no other. A step owns its leading and its tracking as
+  well as its size: big type is set tight and pulled in a little, because at
+  that size the gaps between letters and between lines open up on their own;
+  reading type is set loose and left alone.
+  */
+  --type-display: 38px;
+  --lh-display: 1.08;
+  --track-display: -0.015em;
+  --type-title: 30px;
+  --lh-title: 1.1;
+  --track-title: -0.01em;
+  --type-head: 25px;
+  --lh-head: 1.15;
+  --track-head: -0.01em;
+  --type-subhead: 20px;
+  --lh-subhead: 1.2;
+  --type-lead: 17px;
+  --lh-lead: 1.5;
+  --type-body: 15px;
+  --lh-body: 1.5;
+  --type-note: 13px;
+  --lh-note: 1.5;
+  --type-label: 12px;
+  --lh-label: 1.4;
+  --type-micro: 11px;
+  --lh-micro: 1.45;
+  /* A word set in capitals needs air between its letters, and the smaller it
+     is set the more it needs. One value carries every uppercase block here.
+     The tight one is for the chips in the seat bar and the order lists, where
+     a wider name pushes a row off its line. */
+  --track-caps: 0.06em;
+  --track-caps-tight: 0.02em;
+  /* The interface face. It was never named, so the app was drawn in whatever
+     the browser happened to pick while the map beside it was drawn in Georgia.
+     This stack is what the machine already has, on the page that must arrive
+     fast and then run with no internet at all.
+
+     Georgia stays the map's face, and the display and title steps borrow it
+     where they carry words: the landing headline, a power's name. Not where
+     they carry figures. Georgia's numerals are the old-style kind that sit at
+     different heights and have no tabular set, and a clock whose digits hop is
+     a clock nobody can read across a table.
+  */
+  --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+
   color-scheme: dark;
 }
 
@@ -80,13 +189,15 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-ui);
+  font-size: var(--type-body);
+  line-height: var(--lh-body);
 }
 
 a { color: var(--accent); }
 
-h1 { font-size: 20px; margin: 0 0 4px; }
-h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+h1 { font-size: var(--type-subhead); line-height: var(--lh-subhead); margin: 0 0 var(--space-tight); }
+h2 { font-size: var(--type-note); margin: 0; color: var(--muted); text-transform: uppercase; letter-spacing: var(--track-caps); }
 
 button {
   font: inherit;
@@ -94,7 +205,7 @@ button {
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 9px 14px;
+  padding: var(--pad-control-y) var(--pad-control-x);
   cursor: pointer;
 }
 
@@ -122,7 +233,7 @@ input[type="number"] {
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 9px 10px;
+  padding: var(--pad-control-y) var(--pad-control-x);
   width: 7em;
 }
 
@@ -134,7 +245,7 @@ input[type="text"] {
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 9px 10px;
+  padding: var(--pad-control-y) var(--pad-control-x);
   width: 100%;
   max-width: 22em;
 }
@@ -142,56 +253,116 @@ input[type="text"] {
 /* --- ordinary pages ------------------------------------------------------ */
 
 .page {
-  max-width: 640px;
+  max-width: var(--max-page);
   margin: 0 auto;
-  padding: 20px 16px 48px;
+  padding: var(--space-page) var(--pad-page-x);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--space-section);
 }
 
-.page.wide { max-width: 760px; }
+.page.wide { max-width: var(--max-page-wide); }
+
+/*
+The second rule of the ladder, where a heading opens a section.
+
+The air over a heading is one step wider than the air under it, and that
+difference is the whole of what makes a column read as groups rather than as
+a list. The stack's own gap is already the air under, so what is written here
+is only the difference between the two steps: a page runs its blocks at
+section and its headings at page, a panel runs its blocks at block and its
+headings at section. Not the first heading — the page's own top padding is
+that heading's air already.
+*/
+.page > h2 { margin-top: calc(var(--space-page) - var(--space-section)); }
+
+.side > h2,
+.side > section:not([class]) > h2,
+.side > section > .list-head { margin-top: calc(var(--space-section) - var(--space-block)); }
+
+.page > h2:first-child,
+.side > h2:first-child,
+.side > section:first-child:not([class]) > h2,
+.side > section:first-child > .list-head { margin-top: 0; }
+
+/* A bare section is a plain block and not a gapped stack, so it has no gap to
+   give and its heading carries the air under it itself. A card has a gap. */
+.page > section:not([class]) > h2,
+.side > section:not([class]) > h2 { margin-bottom: var(--space-snug); }
 /* The gallery is a wall of maps, so it gets the room for a third column on a
    laptop. Every other page stays a column of text. */
 .page.variant-gallery-page { max-width: 1100px; }
 
-.page-head { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: baseline; }
+.page-head { display: flex; flex-wrap: wrap; gap: var(--space-tight); justify-content: space-between; align-items: baseline; }
+
+/*
+The game master's header, and the one place in the app where five facts arrive
+at once: the role, the game's name, the phase, the game id and the variant.
+Set near each other they read as a list, and a list has no first line.
+
+Only one of the five changes, and it is the one the game master is here for:
+the phase. It keeps the head step and the phase colours. "Game master" drops to
+the label step in capitals — it names the role, which is true all day and never
+tells anybody what to do next — and the id and the variant drop to the note
+step, where a thing you check once belongs.
+
+The clock comes down a step too, for the same reason it goes up on the
+spectator screen and down here: this screen is read by one person at arm's
+length, who is deciding whether to hand a seat over, not by a room.
+*/
+.page-head > div > h1 {
+  font-size: var(--type-label);
+  line-height: var(--lh-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  color: var(--muted);
+}
+
+.page-head .muted,
+.page-head .variant-line { font-size: var(--type-note); line-height: var(--lh-note); }
+
+.page-head .variant-line strong { font-weight: 600; }
+
+.page-head .clock-face { font-size: var(--type-subhead); line-height: var(--lh-subhead); }
 
 .lead { margin: 0; color: var(--muted); }
-.muted { color: var(--muted); margin: 4px 0; }
-.note { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+/* Two utilities that land in plain block flow as often as in a gapped stack,
+   so they keep the smallest step rather than nothing at all. */
+.muted { color: var(--muted); margin: var(--space-hair) 0; }
+.note { color: var(--muted); font-size: var(--type-note); line-height: var(--lh-note); margin: var(--space-hair) 0 0; }
 .error { color: var(--bad); margin: 0; }
 .notice { color: var(--good); margin: 0; }
+.warn-text { color: var(--warn); }
 
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 14px;
+  padding: var(--pad-card);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-snug);
 }
 
 .card p { margin: 0; }
 
 /* A card that folds away: the game master page's invite, needed only when
    someone has left their seat page. The summary reads like a card heading. */
-details.card { gap: 12px; }
 details.card > summary {
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--type-note);
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-caps);
   font-weight: 600;
-  margin: 0 0 -2px;
+  margin: 0;
 }
 details.card > summary::marker { color: var(--muted); }
 
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field > span { color: var(--muted); font-size: 13px; }
-.field small { color: var(--muted); font-size: 12px; }
+.field { display: flex; flex-direction: column; gap: var(--space-tight); }
+.field > span { color: var(--muted); font-size: var(--type-note); }
+.field small { color: var(--muted); font-size: var(--type-label); }
 
 /* Form selects are real tap targets, but do not stretch to the width of their
    longest sentence. The compact map-toolbar selects have their own rules. */
@@ -199,7 +370,8 @@ details.card > summary::marker { color: var(--muted); }
   align-self: flex-start;
   width: min(100%, 18em);
   min-height: 42px;
-  padding: 9px 34px 9px 10px;
+  /* The 34px on the right is the arrow's room, not a step. */
+  padding: var(--pad-control-y) 34px var(--pad-control-y) var(--pad-control-x);
   font: inherit;
   color: var(--text);
   background: var(--panel-2);
@@ -211,20 +383,20 @@ details.card > summary::marker { color: var(--muted); }
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 4px 10px;
+  gap: var(--space-tight) var(--space-snug);
 }
 
 .field.check input { width: 20px; height: 20px; }
-.field.check span { color: var(--text); font-size: 15px; }
+.field.check span { color: var(--text); font-size: var(--type-body); }
 .field.check small { grid-column: 2; }
 
-.field.inline { flex-direction: row; align-items: center; gap: 8px; }
+.field.inline { flex-direction: row; align-items: center; gap: var(--space-tight); }
 
 .end-year-toggle,
 .end-year-range {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-tight);
 }
 
 .end-year-toggle input { width: 20px; height: 20px; }
@@ -232,48 +404,67 @@ details.card > summary::marker { color: var(--muted); }
 .end-year-range input { width: 8em; }
 .end-year-range input:disabled { opacity: 0.45; cursor: default; }
 
-.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-snug); align-items: center; }
 
 .cta {
   display: inline-block;
   background: #2c4a7c;
   border: 1px solid #3f6cae;
   border-radius: 6px;
-  padding: 10px 16px;
+  padding: var(--pad-control-y) var(--pad-control-x);
   color: var(--text);
   text-decoration: none;
 }
 
-.you-are { margin: 0; font-size: 16px; }
+.you-are { margin: 0; font-size: var(--type-body); }
+
+/* --- the questions ------------------------------------------------------- */
+
+/*
+An h2 is a card caption everywhere else in this app, which is why it is set in
+small muted capitals. On the questions page an h2 is the question itself, and a
+caption cannot ask one: capitals read slower than the same words in sentence
+case, and the muted ink puts the question under the answer it opens. So the
+questions page takes the heading back to ink, sentence case, and one step above
+the answer.
+
+One step, and not two. At the subhead step a question was set at the same size
+as the page's own title, and eight of them are: the title lost, and a page with
+nine equal headings has nothing to enter it by. At the lead step the title
+leads the page and the questions read as the list it opens.
+*/
+.faq h2 {
+  font-size: var(--type-lead);
+  line-height: var(--lh-lead);
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+}
 
 /* --- the waiting room ---------------------------------------------------- */
 
 /* The game master's pre-start screen. The count is read across a table, so it
    is the biggest thing on the page; the invite shares the card under it and
    drops its own panel to stay one block. */
-.lobby { gap: 14px; }
+.lobby { gap: var(--space-block); }
 
 .joined-big {
   margin: 0;
-  font-size: 30px;
-  line-height: 1.1;
+  font-size: var(--type-title);
+  line-height: var(--lh-title);
   font-weight: 600;
   color: var(--muted);
 }
 
-.joined-big strong { color: var(--text); font-size: 52px; font-weight: 800; }
+/* The count is the sentence's own emphasis, so it is sized from the sentence
+   rather than set a second time: one step's worth bigger at either width. */
+.joined-big strong { color: var(--text); font-size: 1.7em; font-weight: 800; }
 
 .lobby .share { background: none; border: 0; padding: 0; }
 
 /* The same count on the spectator screen, where it shares a side panel with
    the board and cannot take the whole width. */
-.side .joined-big { font-size: 19px; margin: 6px 0 0; }
-.side .joined-big strong { font-size: 32px; }
-
-@media (min-width: 700px) {
-  .joined-big { font-size: 38px; }
-  .joined-big strong { font-size: 68px; }
-}
+.side .joined-big { font-size: var(--type-lead); margin: 0; }
 
 /* --- shared links -------------------------------------------------------- */
 
@@ -281,34 +472,37 @@ details.card > summary::marker { color: var(--muted); }
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 14px;
+  padding: var(--pad-card);
 }
 
-.share-body { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+/* The box is not a flex column, so its heading carries its own air under it. */
+.share > h2 { margin-bottom: var(--space-snug); }
+
+.share-body { display: flex; gap: var(--space-block); align-items: flex-start; flex-wrap: wrap; }
 .share-text { flex: 1 1 240px; min-width: 0; }
 
 .share-url {
   display: block;
   word-break: break-all;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
-  margin-bottom: 8px;
+  font-size: var(--type-note);
+  margin-bottom: var(--space-snug);
 }
 
-.share-actions { display: flex; gap: 8px; }
+.share-actions { display: flex; gap: var(--space-tight); }
 
 .qr-box { flex: 0 0 auto; width: 148px; }
 .qr { display: block; width: 100%; height: auto; border-radius: 4px; }
 
 /* --- the seat grid on the GM page ---------------------------------------- */
 
-.seats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.seats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-tight); }
 
 .seat {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
+  gap: var(--space-tight);
+  padding: var(--space-tight) 0;
   border-bottom: 1px solid var(--line);
 }
 
@@ -327,9 +521,9 @@ details.card > summary::marker { color: var(--muted); }
 }
 
 .badge {
-  font-size: 11px;
+  font-size: var(--type-micro);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--track-caps);
   border-radius: 999px;
   padding: 2px 8px;
   border: 1px solid var(--line);
@@ -346,7 +540,7 @@ details.card > summary::marker { color: var(--muted); }
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 12px;
+  gap: var(--space-snug);
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
 
@@ -354,10 +548,10 @@ details.card > summary::marker { color: var(--muted); }
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 12px;
+  padding: var(--pad-card);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-tight);
 }
 
 /* The picked card IS the control. There is no tick box to find, because in a
@@ -388,13 +582,12 @@ details.card > summary::marker { color: var(--muted); }
 .variant-pick {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-tight);
   flex-wrap: nowrap;
   cursor: pointer;
 }
 
-.variant-name { font-size: 16px; font-weight: 600; flex: 0 1 auto; min-width: 0; }
-.variant-pick .supported-mark { flex: 0 0 auto; }
+.variant-name { font-size: var(--type-body); font-weight: 600; flex: 0 1 auto; min-width: 0; }
 
 /* Only on the picked card the active chip does not match. It borrows the card's
    own accent rather than adding a second colour, so it reads as a footnote to
@@ -407,10 +600,10 @@ details.card > summary::marker { color: var(--muted); }
   border: 1px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--text);
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: var(--type-micro);
+  line-height: var(--lh-micro);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--track-caps);
   white-space: nowrap;
 }
 
@@ -428,14 +621,13 @@ details.card > summary::marker { color: var(--muted); }
 }
 
 .variant p { margin: 0; }
-.variant-powers { font-size: 13px; }
-.variant-note { font-size: 13px; }
+.variant-powers { font-size: var(--type-note); }
+.variant-note { font-size: var(--type-note); }
 
 /* The box keeps its height empty or full, so a map arriving never shoves the
    card's text around or moves the list under a scrolling thumb. */
 .variant-map {
   position: relative;
-  margin-top: 2px;
   height: 180px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -483,7 +675,7 @@ details.card > summary::marker { color: var(--muted); }
 .variant:hover .variant-map { border-color: var(--accent); }
 
 /* A thumb has to be able to hit it, so the link gets a row of its own. */
-.variant button.link { align-self: flex-start; padding: 9px 0; }
+.variant button.link { align-self: flex-start; padding: var(--pad-control-y) 0; }
 
 /* The card is one big tap target for picking, so its cursor says so — except
    over the two things that do something else. */
@@ -491,9 +683,9 @@ details.card > summary::marker { color: var(--muted); }
 .variant [data-no-select] { cursor: pointer; }
 
 .variant-map-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.variant-map .muted { font-size: 12px; padding: 8px; text-align: center; }
+.variant-map .muted { font-size: var(--type-label); padding: var(--space-snug); text-align: center; }
 
-.variant-line { margin: 4px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.variant-line { margin: 0; display: flex; align-items: center; gap: var(--space-tight); flex-wrap: wrap; }
 
 /* --- the showcase at /variants -------------------------------------------
 The same cards, on a page that creates nothing. Two things are its own: the
@@ -503,14 +695,14 @@ bar that answers a pick. */
 .band-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-tight);
   flex: 1 1 auto;
 }
 
 .band-chip {
-  padding: 7px 11px;
+  padding: var(--space-tight) var(--space-snug);
   border-radius: 999px;
-  font-size: 13px;
+  font-size: var(--type-note);
   background: var(--panel-2);
   /* A chip has to stay hittable with a thumb once the row wraps. */
   min-height: 36px;
@@ -540,8 +732,7 @@ never under it. The safe-area inset keeps it clear of a phone's home bar.
   position: sticky;
   bottom: 0;
   z-index: 5;
-  margin-top: 4px;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  padding: var(--space-snug) var(--space-snug) calc(var(--space-snug) + env(safe-area-inset-bottom));
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -549,7 +740,7 @@ never under it. The safe-area inset keeps it clear of a phone's home bar.
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-tight);
   box-shadow: 0 -6px 18px rgb(0 0 0 / 35%);
 }
 
@@ -557,7 +748,7 @@ never under it. The safe-area inset keeps it clear of a phone's home bar.
 
 .variant-cta-links {
   display: flex;
-  gap: 8px;
+  gap: var(--space-tight);
   flex-wrap: wrap;
   flex: 1 1 auto;
   justify-content: flex-end;
@@ -570,7 +761,7 @@ never under it. The safe-area inset keeps it clear of a phone's home bar.
   justify-content: center;
   /* The same 48px a thumb gets everywhere else in this app. */
   min-height: 48px;
-  padding: 9px 14px;
+  padding: var(--pad-control-y) var(--pad-control-x);
   border-radius: 6px;
   border: 1px solid var(--line);
   text-decoration: none;
@@ -592,17 +783,17 @@ never under it. The safe-area inset keeps it clear of a phone's home bar.
 /* What the table calls this game. It sits under the page's own heading and is
    read at a glance, so it takes weight without competing with the phase. */
 .game-name {
-  margin: 2px 0 0;
-  font-size: 18px;
+  margin: var(--space-hair) 0 0;
+  font-size: var(--type-subhead);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: var(--lh-subhead);
   color: var(--text);
   overflow-wrap: break-word;
 }
 
-.variant-notes { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.variant-notes { display: flex; flex-direction: column; gap: var(--space-tight); font-size: var(--type-note); }
 .variant-notes p { margin: 0; }
-.variant-label { text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
+.variant-label { text-transform: uppercase; font-size: var(--type-micro); letter-spacing: var(--track-caps); }
 
 /* --- the deadline clock --------------------------------------------------
    One element, on the seat page, the game master page and the review sheet.
@@ -613,24 +804,34 @@ never under it. The safe-area inset keeps it clear of a phone's home bar.
 .clock {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin: 6px 0 0;
+  gap: var(--space-tight);
+  margin: var(--space-tight) 0 0;
   color: var(--text);
 }
 
 .clock-face {
-  font-size: 30px;
+  font-size: var(--type-title);
   font-weight: 600;
-  line-height: 1.05;
+  line-height: var(--lh-title);
   font-variant-numeric: tabular-nums;
+  /* Figures, not words: the ladder's negative tracking would close the gap
+     between two digits that have to be told apart at a glance. */
   letter-spacing: 0.01em;
 }
 
-.clock-words { color: var(--muted); font-size: 12px; }
+.clock-words { color: var(--muted); font-size: var(--type-label); }
 
 .clock-low .clock-face { color: var(--warn); }
 .clock-urgent .clock-face { color: var(--bad); }
 .clock-over .clock-face { color: var(--bad); }
+.clock-flash .clock-face {
+  color: var(--bad);
+  animation: seat-clock-flash 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clock-flash .clock-face { animation: none; }
+}
 
 /* --- the review of the phase that just resolved -------------------------- */
 
@@ -638,24 +839,24 @@ never under it. The safe-area inset keeps it clear of a phone's home bar.
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 14px;
+  padding: var(--pad-card);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-snug);
 }
 
-.review-head { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
-.review-head h2 { margin: 0 0 2px; }
+.review-head { display: flex; gap: var(--space-snug); justify-content: space-between; align-items: flex-start; }
+.review-head h2 { margin: 0 0 var(--space-hair); }
 .review-head p { margin: 0; }
 .review-head .clock { margin: 0; }
 
-.review-nmr, .review-list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.review-nmr, .review-list { list-style: none; margin: 0; padding: 0; font-size: var(--type-note); }
 
 .review-nmr li {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 3px 0;
+  gap: var(--space-tight);
+  padding: var(--space-tight) 0;
   color: var(--warn);
 }
 
@@ -665,15 +866,15 @@ never under it. The safe-area inset keeps it clear of a phone's home bar.
 
 .review-row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-tight);
   align-items: baseline;
-  padding: 4px 0;
+  padding: var(--space-tight) 0;
   border-bottom: 1px solid var(--line);
 }
 
 .review-row .order-text { flex: 1 1 auto; min-width: 0; }
 .review-row.failed .order-text { color: var(--muted); text-decoration: line-through; }
-.review-why { color: var(--bad); font-size: 12px; flex: 0 0 auto; }
+.review-why { color: var(--bad); font-size: var(--type-label); flex: 0 0 auto; }
 
 /*
 An order that was never legal (ADR-029). It is struck through like any other
@@ -688,8 +889,8 @@ the list still reads as one family of outcomes.
   font-style: italic;
 }
 
-.events { list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--muted); }
-.events li { padding: 3px 0; border-bottom: 1px solid var(--line); }
+.events { list-style: none; margin: 0; padding: 0; font-size: var(--type-note); color: var(--muted); }
+.events li { padding: var(--space-tight) 0; border-bottom: 1px solid var(--line); }
 
 /* --- the seat page ------------------------------------------------------- */
 
@@ -724,6 +925,20 @@ the list still reads as one family of outcomes.
   box-sizing: content-box;
 }
 
+/*
+The bar promises one line and no wrapping, and the variant block is what broke
+that promise: the six items add up to 438 points, so on a 390 phone the bar set
+a floor the whole document had to widen to, and the map and the panel were cut
+off the right edge.
+
+The variant is the one fact in the bar that does not change while the game runs,
+so it is the one to drop when the line is short. Below 480 points it goes, and
+the five items that are left fit the narrowest phone the app supports.
+*/
+@media (max-width: 480px) {
+  .seat-top > .seat-top-variant { display: none; }
+}
+
 .seat-top > * {
   display: flex;
   align-items: center;
@@ -733,41 +948,137 @@ the list still reads as one family of outcomes.
 /* The power is the bar's own colour block, and the seat menu is behind it
    (ADR-041): the one place on this screen that hands the seat on. */
 .seat-top-power {
-  padding: 0 10px;
+  padding: 0 var(--space-snug);
   font-weight: 800;
   letter-spacing: 0.02em;
   flex: 0 0 auto;
 }
 
+/* Here the colour block is the chip, so the chip draws nothing of its own. The
+   border it wears elsewhere reads as a little box around the name, and the box
+   sits a pixel off the block's own padding, which is what the eye catches. */
 .seat-top-power .power-chip,
 .seat-top-power .power-chip.small {
   background: transparent !important;
   color: inherit !important;
   padding: 0;
-  font-size: 17px;
+  border: 0;
+  border-radius: 0;
+  font-size: var(--type-lead);
+  line-height: 1;
 }
 
+/* The name is the block's label, so it is centred on the block's full height
+   rather than on the button's own 34px minimum, and the button keeps no frame
+   of its own — only the ring a keyboard needs. */
+.seat-top-power .seat-menu-button {
+  align-self: stretch;
+  margin: 0 2px 0 -8px;
+  padding: 0 8px;
+  border-color: transparent;
+}
+
+.seat-top-power .seat-menu-button:hover:not(:disabled) {
+  border-color: transparent;
+  background: none;
+}
+
+.seat-top-power .seat-menu-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
+/* The old look, for review: the chip's border and the button's hover frame. */
+html[data-fix-off~="c002"] .seat-top-power .power-chip,
+html[data-fix-off~="c002"] .seat-top-power .power-chip.small {
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  line-height: 1.25;
+}
+
+html[data-fix-off~="c002"] .seat-top-power .seat-menu-button {
+  align-self: center;
+  margin: -6px 2px -6px -8px;
+  padding: 6px 8px;
+}
+
+html[data-fix-off~="c002"] .seat-top-power .seat-menu-button:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--panel-2);
+}
+
+/* The phase, the variant and the count all sit one step under the clock.
+
+   The bar carries four facts, and for a while they were all set at the reading
+   size, so a glance landed on whichever one happened to be nearest the thumb.
+   The clock is the one that moves: it is the only fact in the bar that answers
+   "how long have I got", and it is the reason a player looks up at all. So it
+   keeps the subhead step and the other three drop to the note step, which is
+   still the size a table reads a label at. */
 .seat-top-phase {
-  padding: 0 12px;
-  font-weight: 700;
-  font-size: 16px;
+  padding: 0 var(--space-snug);
+  font-weight: 600;
+  font-size: var(--type-note);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  /* Fix c028: the variant box takes the growing space this box used to
+     keep for itself, so the two sit snug together on the left. */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+html[data-fix-off~="c028"] .seat-top-phase { flex: 1 1 auto; }
+
+/* Fix c028: the variant's name, in its own box next to the phase, in the
+   bar's accent rather than the flat grey caption it used to be under the
+   map. */
+.seat-top-variant {
+  padding: 0 var(--space-snug);
+  font-weight: 600;
+  font-size: var(--type-note);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+  /* Fix c030: a panel tone of its own, sized to its own text rather than
+     stretched down the bar, so it reads as a third block beside the power
+     and the phase instead of a stripe behind empty space. The ink drops to
+     the plain text colour, since the block itself now carries the
+     separation and the accent would only compete with the power's blue.
+     The auto right margin is the classic flex spacer: it claims the space
+     a growing box would have taken, so the bar's own background shows
+     between this block and the orders count, and the row still ends at
+     the same edge it always did. */
+  flex: 0 0 auto;
+  margin-right: auto;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+html[data-fix-off~="c030"] .seat-top-variant {
   flex: 1 1 auto;
+  margin-right: 0;
+  background: none;
+  color: var(--accent);
 }
 
 .seat-top-orders {
-  padding: 0 12px;
+  padding: 0 var(--space-snug);
   font-variant-numeric: tabular-nums;
-  font-size: 16px;
+  font-size: var(--type-note);
   flex: 0 0 auto;
   white-space: nowrap;
 }
 
-.seat-top-orders { gap: 5px; }
-.seat-top-orders svg { flex: 0 0 auto; color: var(--muted); }
+.seat-top-orders { gap: var(--space-tight); align-items: baseline; }
+.seat-top-orders svg { flex: 0 0 auto; color: var(--muted); align-self: center; }
 .seat-top-orders .seat-top-of { color: var(--muted); }
+.seat-top-orders-word { color: var(--muted); font-size: 0.8em; }
+
+@media (max-width: 400px) {
+  .seat-top-orders-word { display: none; }
+}
 /* Short of what the phase asked for. The warn tone, not the bad one: an
    incomplete set of orders is a normal state for most of a phase. */
 .seat-top-orders.short strong { color: var(--warn); }
@@ -775,15 +1086,33 @@ the list still reads as one family of outcomes.
 .seat-top-orders.locked .seat-top-ready { color: var(--good); font-weight: 700; }
 
 .seat-top-clock {
-  padding: 0 12px;
+  padding: 0 var(--space-snug);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 17px;
+  font-size: var(--type-subhead);
   flex: 0 0 auto;
 }
 
+html[data-fix-off~="c011"] .seat-top-clock { font-size: 17px; }
+
 .seat-top-clock.low { color: var(--warn); }
 .seat-top-clock.urgent, .seat-top-clock.over { color: var(--bad); }
+
+/* Under thirty seconds: red, and blinking, because the last half-minute is
+   the one a player must not miss. */
+.seat-top-clock.flash {
+  color: var(--bad);
+  animation: seat-clock-flash 1s ease-in-out infinite;
+}
+
+@keyframes seat-clock-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat-top-clock.flash { animation: none; }
+}
 
 /* The envelope. A 44px target, because it is tapped mid-sentence. */
 .seat-top-press {
@@ -810,7 +1139,7 @@ the list still reads as one family of outcomes.
   border-radius: 8px;
   background: var(--bad);
   color: var(--bg);
-  font-size: 11px;
+  font-size: var(--type-micro);
   font-weight: 700;
   line-height: 16px;
   text-align: center;
@@ -822,29 +1151,29 @@ the list still reads as one family of outcomes.
   display: flex;
   flex-direction: column;
   min-height: 0;
-  gap: 8px;
+  gap: var(--space-snug);
 }
 
 .press-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-tight);
 }
 
-.press-head h2 { margin: 0; font-size: 17px; display: flex; gap: 4px; flex-wrap: wrap; }
+.press-head h2 { margin: 0; font-size: var(--type-lead); display: flex; gap: var(--space-tight); flex-wrap: wrap; }
 
 .press-new, .press-open {
   border: 1px solid var(--line);
   background: var(--text);
   color: var(--bg);
   border-radius: 8px;
-  padding: 7px 12px;
+  padding: var(--pad-control-y) var(--pad-control-x);
   font-weight: 600;
   cursor: pointer;
 }
 
-.press-open { width: 100%; margin-top: 10px; }
+.press-open { width: 100%; }
 .press-open:disabled, .press-compose button:disabled { opacity: 0.45; cursor: default; }
 
 .press-list { list-style: none; margin: 0; padding: 0; }
@@ -852,10 +1181,11 @@ the list still reads as one family of outcomes.
 .press-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-tight);
   width: 100%;
+  /* 44px stays: a row of the inbox is tapped with a thumb. */
   min-height: 44px;
-  padding: 8px 4px;
+  padding: var(--space-tight) var(--space-hair);
   border: none;
   border-bottom: 1px solid var(--line);
   background: transparent;
@@ -864,8 +1194,8 @@ the list still reads as one family of outcomes.
   color: inherit;
 }
 
-.press-row-who { display: flex; gap: 4px; flex-wrap: wrap; flex: 1 1 auto; }
-.press-row-when { color: var(--muted); font-size: 12px; }
+.press-row-who { display: flex; gap: var(--space-tight); flex-wrap: wrap; flex: 1 1 auto; }
+.press-row-when { color: var(--muted); font-size: var(--type-label); }
 
 .press-row-unread {
   min-width: 18px;
@@ -874,7 +1204,7 @@ the list still reads as one family of outcomes.
   border-radius: 9px;
   background: var(--bad);
   color: var(--bg);
-  font-size: 11px;
+  font-size: var(--type-micro);
   font-weight: 700;
   line-height: 18px;
   text-align: center;
@@ -886,21 +1216,22 @@ the list still reads as one family of outcomes.
    it, so there is nothing to type into and a sentence saying why. */
 .press-shut {
   margin: 0;
-  padding: 10px;
+  padding: var(--space-snug);
   border: 1px dashed var(--line);
   border-radius: 8px;
   color: var(--muted);
 }
 
-.press-silence, .press-gm-note, .press-empty { margin: 0; font-size: 13px; }
+.press-silence, .press-gm-note, .press-empty { margin: 0; font-size: var(--type-note); }
 
-.press-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.press-pick { display: flex; flex-wrap: wrap; gap: var(--space-tight); }
 
 .press-pick-one {
   border: 2px solid transparent;
   border-radius: 8px;
   background: transparent;
-  padding: 4px;
+  padding: var(--space-tight);
+  /* 44px stays: it picks a power with a thumb. */
   min-height: 44px;
   cursor: pointer;
 }
@@ -915,17 +1246,17 @@ the list still reads as one family of outcomes.
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-tight);
   min-height: 0;
 }
 
 /* Where a phase ended, drawn across the conversation. A promise made before
    the orders resolved and one made after are different promises. */
 .press-phase-rule {
-  margin: 8px 0 4px;
+  margin: var(--space-tight) 0 var(--space-hair);
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--type-micro);
   text-align: center;
   line-height: 0.1em;
 }
@@ -935,21 +1266,21 @@ the list still reads as one family of outcomes.
 .press-line {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--space-tight);
   flex-wrap: wrap;
-  padding: 4px 0;
+  padding: var(--space-tight) 0;
 }
 
-.press-line-who { flex: 0 0 auto; font-weight: 600; font-size: 12px; }
+.press-line-who { flex: 0 0 auto; font-weight: 600; font-size: var(--type-label); }
 .press-line-text { flex: 1 1 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
-.press-line-at { color: var(--muted); font-size: 11px; }
+.press-line-at { color: var(--muted); font-size: var(--type-micro); }
 .press-line.mine .press-line-text { color: var(--muted); }
 
 /* Neither is hidden. A message nobody can prove came from that power reads
    differently from one whose signature does not check, and a reader has to
    see both. */
 .press-line-unsigned {
-  font-size: 11px;
+  font-size: var(--type-micro);
   color: var(--muted);
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -957,7 +1288,7 @@ the list still reads as one family of outcomes.
 }
 
 .press-line-forged {
-  font-size: 11px;
+  font-size: var(--type-micro);
   font-weight: 700;
   color: var(--bad);
   border: 1px solid var(--bad);
@@ -965,15 +1296,16 @@ the list still reads as one family of outcomes.
   padding: 0 4px;
 }
 
-.press-compose { display: flex; gap: 8px; align-items: flex-end; }
+.press-compose { display: flex; gap: var(--space-tight); align-items: flex-end; }
 
 .press-compose textarea {
   flex: 1 1 auto;
   resize: none;
   font: inherit;
-  padding: 8px;
+  padding: var(--space-snug);
   border: 1px solid var(--line);
   border-radius: 8px;
+  /* 44px stays: the box is typed into with a thumb. */
   min-height: 44px;
   background: var(--panel-2);
   color: var(--text);
@@ -984,9 +1316,10 @@ the list still reads as one family of outcomes.
   background: var(--text);
   color: var(--bg);
   border-radius: 8px;
-  padding: 10px 14px;
+  padding: var(--pad-control-y) var(--pad-control-x);
   font-weight: 600;
   cursor: pointer;
+  /* 44px stays: it sends the message. */
   min-height: 44px;
 }
 
@@ -1041,7 +1374,7 @@ the list still reads as one family of outcomes.
 .map-pane {
   position: relative;
   overflow: hidden;
-  padding: 8px;
+  padding: var(--space-tight);
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -1054,31 +1387,42 @@ the list still reads as one family of outcomes.
 .side {
   background: var(--panel);
   overflow: auto;
-  padding: 16px;
+  padding: var(--space-block);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-block);
 }
 
-.seat-head h1 { display: flex; align-items: center; gap: 8px; font-size: 18px; }
-.seat-head p { margin: 2px 0 0; }
+.seat-head h1 { display: flex; align-items: center; gap: var(--space-tight); }
+.seat-head p { margin: var(--space-hair) 0 0; }
 
 /* The phase the whole table is playing. It is the one line a player reads
    from across the table, so it is the biggest text on every page that shows
    it — the seat, the game master's screen and the spectator screen alike. */
 .phase-now {
-  margin: 0 0 2px;
-  font-size: 25px;
-  line-height: 1.12;
+  margin: 0 0 var(--space-hair);
+  font-size: var(--type-head);
+  line-height: var(--lh-head);
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--track-head);
   color: var(--text);
   overflow-wrap: break-word;
 }
 
-/* The spectator screen carries the phase as its heading, so the heading takes
-   the phase's size rather than the panel's. */
-.seat-head h1.phase-now { display: block; font-size: 25px; font-weight: 800; }
+/* The spectator screen carries the phase as its heading, one step under the
+   clock beneath it. That screen is a projector read from across a room, and
+   the phase and the clock were both set large enough to lead it, which left
+   it with two loudest lines and therefore none. The clock takes the lead: the
+   phase is the same six words for half an hour, and the clock is the thing
+   the room is watching change. The phase keeps its weight and its colour, so
+   dropping a size step costs it nothing it needs. */
+.seat-head h1.phase-now {
+  display: block;
+  font-size: var(--type-subhead);
+  line-height: var(--lh-subhead);
+  letter-spacing: normal;
+  font-weight: 800;
+}
 
 /*
 The three words of the phase, each saying what it is (PhaseName.tsx).
@@ -1124,23 +1468,58 @@ and a flex row would either overflow it or shrink the type it is drawn at.
 .review-head h2 .phase-year,
 .review-head h2 .phase-type { font-weight: inherit; }
 
-@media (min-width: 900px) {
-  .phase-now, .seat-head h1.phase-now { font-size: 28px; }
-}
-
 /* What this phase asks of this power. It sits under the phase name because it
    is the first thing a player needs in a retreat or an adjustment. */
+/*
+The retreat or the build/disband a phase owes is the highlight of the phase
+for the player it names, so it gets room to read as one: a bigger, bolder
+line in its own padded band, coloured to the phase that owes it (c021). A
+band that follows another gets less air above it than the first does below
+the phase name, and the last leaves more air below it than a plain paragraph
+would, so the block reads as set apart from what follows.
+*/
 .duty {
-  margin: 6px 0 0;
-  font-size: 13px;
+  margin: var(--space-snug) 0 0;
+  font-size: var(--type-body);
+  font-weight: 600;
+  line-height: var(--lh-body);
   color: var(--text);
   background: var(--panel-2);
   border-left: 3px solid var(--accent);
   border-radius: 0 6px 6px 0;
-  padding: 6px 10px;
+  padding: var(--space-tight) var(--space-snug);
 }
 
+.duty + .duty { margin-top: var(--space-tight); }
+.seat-head .duty:last-child { margin-bottom: var(--space-snug); }
+
+.duty-retreat { border-left-color: var(--phase-retreat); }
+.duty-adjustment { border-left-color: var(--phase-adjustment); }
+
 .duty.idle { border-left-color: var(--line); color: var(--muted); }
+
+/* c021: the unit or count a duty line names ("Fleet Trieste", "Build 2")
+   stays bold; what it must do reads lighter, in grey. */
+.duty .duty-rest {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+html[data-fix-off~="c021"] .duty {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: normal;
+  padding: 6px 10px;
+}
+html[data-fix-off~="c021"] .duty + .duty { margin-top: 6px; }
+html[data-fix-off~="c021"] .seat-head .duty:last-child { margin-bottom: 0; }
+html[data-fix-off~="c021"] .duty-retreat,
+html[data-fix-off~="c021"] .duty-adjustment { border-left-color: var(--accent); }
+html[data-fix-off~="c021"] .duty .duty-rest {
+  font-weight: inherit;
+  color: inherit;
+}
 
 /* --- before the game starts ----------------------------------------------
    The screen a player lands on from the QR code, and may sit on for several
@@ -1155,10 +1534,10 @@ and a flex row would either overflow it or shrink the type it is drawn at.
   background: color-mix(in srgb, var(--power, var(--line)) 22%, var(--panel-2));
   border-left: 5px solid var(--line);
   border-radius: 0 8px 8px 0;
-  padding: 10px 14px;
+  padding: var(--space-snug) var(--space-block);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-snug);
 }
 
 /* The colour at full strength, the size and shape the board draws a unit, so
@@ -1179,28 +1558,25 @@ and a flex row would either overflow it or shrink the type it is drawn at.
 
 .seat-head .you-are-label {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--type-label);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-caps);
   color: var(--muted);
 }
 
 .seat-head .you-are-power {
-  margin: 2px 0 0;
-  font-size: 34px;
-  line-height: 1.05;
+  margin: var(--space-hair) 0 0;
+  font-family: var(--lp-serif);
+  font-size: var(--type-title);
+  line-height: var(--lh-title);
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--track-title);
   overflow-wrap: break-word;
 }
 
-@media (min-width: 900px) {
-  .seat-head .you-are-power { font-size: 40px; }
-}
+.seat-head .variant-line { margin: var(--space-snug) 0 0; }
 
-.seat-head .variant-line { margin: 10px 0 0; }
-
-.waiting-table .seat-count { margin: 0 0 6px; font-size: 15px; }
+.waiting-table .seat-count { margin: 0 0 var(--space-tight); font-size: var(--type-body); }
 
 /* How full the table is, at a glance and without a count to read. */
 .seat-bar {
@@ -1218,17 +1594,65 @@ and a flex row would either overflow it or shrink the type it is drawn at.
   transition: width 300ms ease;
 }
 
-.waiting-table .next { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+.waiting-table .next { margin: var(--space-snug) 0 0; font-size: var(--type-note); color: var(--muted); }
 
-.rule { margin: 0 0 4px; font-size: 13px; }
+/* The bigger, one-sentence form of the same line (c008): a status worth
+   reading at a glance, not a footnote. */
+.waiting-table .next-big {
+  font-size: var(--type-lead);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.rule { margin: 0 0 var(--space-tight); font-size: var(--type-note); }
+
+/* The seat count as large figures (c005), the design that used to sit over
+   the map before the game started. It carries the same tones the games list
+   uses for the same fraction: full is done with, over half is filling up,
+   anything else is plain. The label sits beside the figures, on their
+   baseline, rather than under them (c007) — one line reads faster than two. */
+.seat-figures {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-tight);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.seat-figures.good { color: var(--good); }
+.seat-figures.warn { color: var(--warn); }
+
+.seat-figures-count {
+  font-size: var(--type-head);
+  font-weight: 800;
+  line-height: var(--lh-head);
+  letter-spacing: var(--track-head);
+}
+
+.seat-figures-label {
+  font-size: var(--type-note);
+  color: var(--muted);
+}
+
+/* One fact per bullet, wherever a page states a game's rules (c015) — the
+   waiting room's list, and every other rules summary that used to run its
+   sentences together as plain paragraphs. */
+.rule-list, .seat-rules {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--type-note);
+}
+
+.rule-list li, .seat-rules li { margin: 0 0 var(--space-tight); }
 
 .live {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: var(--space-tight);
+  font-size: var(--type-micro);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-caps);
   color: var(--muted);
 }
 
@@ -1256,8 +1680,18 @@ and a flex row would either overflow it or shrink the type it is drawn at.
   .live-dot { animation: none; }
 }
 
-.lock { display: flex; flex-direction: column; gap: 6px; }
+/*
+Fix c027. The panel used to set a 6px gap and then let one child escape it
+with a margin, so "All orders are in", the button and "0 of 7 players ready"
+sat at three different distances from each other. It is one stack, so it sets
+one gap and nothing patches its way out of it: the three lines read as one
+rhythm at the step the panel's own blocks use.
+*/
+.lock { display: flex; flex-direction: column; gap: var(--space-block); }
 .lock .muted { margin: 0; }
+
+/* Off: back to the tight panel, which is what there is to compare against. */
+html[data-fix-off~="c027"] .lock { gap: var(--space-tight); }
 
 /*
 The phase commitment, and the only button on the page that changes the game
@@ -1270,9 +1704,9 @@ only closes a view, without reading either one.
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-hair);
   min-height: 62px;
-  padding: 11px 14px;
+  padding: var(--space-snug) var(--pad-control-x);
   border-radius: 10px;
   text-align: center;
   color: #fff;
@@ -1281,8 +1715,8 @@ only closes a view, without reading either one.
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
 }
 
-.lock-btn .lock-main { font-size: 18px; font-weight: 700; }
-.lock-btn .lock-sub { font-size: 12px; font-weight: 400; opacity: 0.85; }
+.lock-btn .lock-main { font-size: var(--type-subhead); font-weight: 700; }
+.lock-btn .lock-sub { font-size: var(--type-label); font-weight: 400; opacity: 0.85; }
 .lock-btn:hover:not(:disabled) { border-color: #b9d5ff; }
 .lock-btn:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
 
@@ -1304,57 +1738,68 @@ only closes a view, without reading either one.
 
 .banner {
   display: flex;
-  gap: 10px;
+  gap: var(--space-snug);
   align-items: flex-start;
   justify-content: space-between;
   background: #3a2f1a;
   border: 1px solid #7a5a24;
   border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: var(--space-snug) var(--space-snug);
+  font-size: var(--type-note);
 }
 
-.status { color: var(--muted); font-size: 12px; margin: 0; min-height: 1.4em; }
+.status { color: var(--muted); font-size: var(--type-label); margin: 0; min-height: 1.4em; }
+
+/*
+With nothing to say it takes no room. It is the region the panel speaks
+through, so it stays in the tree to be announced when it does have something;
+out of the flow it costs neither its own line nor the gap either side of it,
+which together were most of the hole under the lock panel.
+*/
+.status:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 .status.error { color: var(--bad); }
 
-.list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.list { list-style: none; margin: 0; padding: 0; font-size: var(--type-note); }
 
 .list li {
-  padding: 4px 0;
+  padding: var(--space-tight) 0;
   border-bottom: 1px solid var(--line);
   display: flex;
-  gap: 8px;
+  gap: var(--space-tight);
   align-items: baseline;
 }
 
 .list li .order-text { flex: 1 1 auto; min-width: 0; }
-.list .nation { color: var(--muted); font-size: 11px; min-width: 82px; }
+.list .nation { color: var(--muted); font-size: var(--type-micro); min-width: 82px; }
+
+/* c020: a resolved order reads as a short OK, in green, with more room
+   left over for the order text beside it to stand out a little more.
+   The territory label matches the order text size, with enough width
+   for the longest power name to still fit on one line. These four sizes stay
+   written out: the note step is 13px on a phone, which is what the off-state
+   already renders, and the pair has to stay a pair to be worth comparing. */
+.resolution-list .order-text { font-size: 14px; }
+.resolution-list .nation { font-size: 14px; min-width: 108px; }
+html[data-fix-off~="c020"] .resolution-list .order-text { font-size: 13px; }
+html[data-fix-off~="c020"] .resolution-list .nation { font-size: 11px; min-width: 82px; }
+.ok-result { color: var(--good); font-weight: 600; }
 .list li.pickable { cursor: pointer; }
 .list li.pickable:hover { background: var(--panel-2); }
 .list li.picked { background: var(--panel-2); box-shadow: inset 2px 0 0 var(--accent); }
 .list li.pickable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-.row-actions { display: flex; gap: 4px; flex: 0 0 auto; align-items: center; }
-.row-actions button { padding: 4px 8px; font-size: 12px; line-height: 1.2; border-radius: 5px; }
-.row-actions a { padding: 4px 8px; font-size: 12px; line-height: 1.2; }
+.row-actions { display: flex; gap: var(--space-tight); flex: 0 0 auto; align-items: center; }
+.row-actions button { padding: var(--space-hair) var(--space-tight); font-size: var(--type-label); line-height: 1.2; border-radius: 5px; }
+.row-actions a { padding: var(--space-hair) var(--space-tight); font-size: var(--type-label); line-height: 1.2; }
 
-/* The main-page game list: one row per game, a muted fact line under the id. */
-.list li .row-main {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 8px;
-}
-/* The list of games this device holds a key for. Its rows carry more actions
-   than the main list does, so on a narrow screen they drop under the name
-   instead of squeezing it. */
-.held-list li { flex-wrap: wrap; }
-.held-list .row-main { flex: 1 1 220px; }
-.held-list .row-actions { flex-wrap: wrap; }
-
-.row-actions .row-cancel { font-size: 15px; color: var(--muted); }
+.row-actions .row-cancel { font-size: var(--type-body); color: var(--muted); }
 .row-actions .row-cancel:hover:not(:disabled) { color: var(--bad); border-color: var(--bad); }
 
 /* The order builder, which the map island fills in. It floats over the foot of
@@ -1369,14 +1814,14 @@ only closes a view, without reading either one.
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 12px;
+  padding: var(--space-snug);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
-.builder-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.builder h2 { color: var(--text); text-transform: none; letter-spacing: 0; font-size: 15px; }
-.crumbs { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
-.buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.builder-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-tight); }
+.builder h2 { color: var(--text); text-transform: none; letter-spacing: 0; font-size: var(--type-body); }
+.crumbs { color: var(--muted); font-size: var(--type-note); margin: var(--space-hair) 0 var(--space-snug); }
+.buttons { display: flex; flex-wrap: wrap; gap: var(--space-tight); }
 
 /* --- phone screens -------------------------------------------------------
    Any viewport that is narrow OR short — a phone held either way. One column:
@@ -1409,15 +1854,17 @@ only closes a view, without reading either one.
   .split-grip-bar { width: 46px; height: 4px; }
 
   .side {
-    padding: 12px 12px calc(128px + env(safe-area-inset-bottom));
-    gap: 14px;
+    /* 128px is the order bar's own height, not a step: it is what
+       keeps the last row of the panel above it. */
+    padding: var(--space-snug) var(--space-snug) calc(128px + env(safe-area-inset-bottom));
+    gap: var(--space-block);
   }
 
   /* One pane: the header scrolls with the orders under it, rather than
      pinning itself while the list moves independently. */
   .seat-head {
     order: -2;
-    padding: 4px 0 8px;
+    padding: var(--space-hair) 0 var(--space-tight);
   }
 
   .builder {
@@ -1428,21 +1875,21 @@ only closes a view, without reading either one.
     z-index: 10;
     border-radius: 12px 12px 0 0;
     border-bottom: none;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    padding: var(--space-snug) var(--space-snug) calc(var(--space-snug) + env(safe-area-inset-bottom));
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
   }
 
   .builder-head { align-items: center; }
-  .builder .crumbs { margin: 2px 0 8px; }
+  .builder .crumbs { margin: var(--space-hair) 0 var(--space-tight); }
 
   .buttons {
     flex-wrap: nowrap;
     overflow-x: auto;
-    padding-bottom: 4px;
+    padding-bottom: var(--space-hair);
     -webkit-overflow-scrolling: touch;
   }
 
-  .buttons button { flex: 0 0 auto; padding: 10px 14px; }
+  .buttons button { flex: 0 0 auto; padding: var(--pad-control-y) var(--pad-control-x); }
 
   /* Keep the hint where the bottom bar cannot cover it. */
   .status {
@@ -1450,26 +1897,27 @@ only closes a view, without reading either one.
     background: var(--panel-2);
     border: 1px solid var(--line);
     border-radius: 6px;
-    padding: 8px 10px;
-    font-size: 13px;
+    padding: var(--space-tight) var(--space-snug);
+    font-size: var(--type-note);
   }
 
-  /* With nothing to say it says nothing: an empty chip between the phase and
-     the lock button is only noise where the loudest control should be. */
-  .status:empty { display: none; }
 }
 
 /* Landscape on a phone: vertical space is the scarce one. */
 @media (max-height: 500px) {
   .seat-layout { grid-template-rows: 75vh var(--split-grip) minmax(0, 1fr); }
   /* Landscape on a phone: every pixel of height is fought over, so the bar
-     gives eight of them back. */
+     gives eight of them back. The three sizes are written out rather than
+     taken from the ladder: this is a fix for a short screen, and a wide phone
+     on its side would otherwise be handed the laptop's step. */
   .seat-top { height: 36px; }
-  .seat-top-phase, .seat-top-orders, .seat-top-clock { font-size: 13px; }
+  .seat-top-phase, .seat-top-orders { font-size: 13px; }
+  .seat-top-clock { font-size: 18px; }
+  html[data-fix-off~="c011"] .seat-top-clock { font-size: 13px; }
   .seat-top-press { width: 40px; }
-  .side { padding: 8px 12px calc(112px + env(safe-area-inset-bottom)); gap: 10px; }
-  .builder { padding: 6px 12px calc(6px + env(safe-area-inset-bottom)); }
-  .builder .crumbs { margin: 0 0 6px; }
+  .side { padding: var(--space-tight) var(--space-snug) calc(112px + env(safe-area-inset-bottom)); gap: var(--space-snug); }
+  .builder { padding: var(--space-tight) var(--space-snug) calc(var(--space-tight) + env(safe-area-inset-bottom)); }
+  .builder .crumbs { margin: 0 0 var(--space-tight); }
 }
 
 /* --- the map style picker ------------------------------------------------- */
@@ -1479,14 +1927,14 @@ only closes a view, without reading either one.
 .band-picker {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-tight);
   flex: 0 0 auto;
 }
 
 .style-picker-label,
 .band-picker-label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--type-note);
   white-space: nowrap;
 }
 
@@ -1496,9 +1944,9 @@ only closes a view, without reading either one.
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: var(--space-tight) var(--space-tight);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--type-note);
 }
 
 /* --- the map's own controls ----------------------------------------------
@@ -1509,13 +1957,13 @@ map draws.
 */
 .map-toolbar {
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: var(--space-snug);
+  left: var(--space-snug);
   z-index: 5;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 6px;
+  gap: var(--space-tight);
+  padding: var(--space-hair) var(--space-tight);
   border: 1px solid var(--line);
   border-radius: 9px;
   background: color-mix(in srgb, var(--panel) 82%, transparent);
@@ -1534,9 +1982,9 @@ map draws.
 .map-tool {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 9px;
-  font-size: 13px;
+  gap: var(--space-tight);
+  padding: var(--space-tight) var(--space-snug);
+  font-size: var(--type-note);
   line-height: 1;
   border-radius: 6px;
   white-space: nowrap;
@@ -1549,26 +1997,26 @@ map draws.
 
 .map-tool-mark {
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--type-note);
   min-width: 1.2em;
   text-align: center;
 }
 
-.map-toolbar .style-picker { gap: 6px; }
-.map-toolbar .style-picker select { padding: 5px 6px; }
+.map-toolbar .style-picker { gap: var(--space-tight); }
+.map-toolbar .style-picker select { padding: var(--space-hair) var(--space-tight); }
 
 /* A phone has room for the marks and not for the words. The words are still
    there for a screen reader and still in every title. */
 @media (max-width: 780px), (max-height: 500px) {
   .map-toolbar {
-    top: 6px;
-    left: 6px;
-    gap: 4px;
-    padding: 4px;
+    top: var(--space-tight);
+    left: var(--space-tight);
+    gap: var(--space-tight);
+    padding: var(--space-hair);
     opacity: 0.9;
   }
 
-  .map-tool { padding: 7px 8px; }
+  .map-tool { padding: var(--space-tight) var(--space-tight); }
   .map-tool-word { display: none; }
   .map-toolbar .style-picker-label { display: none; }
 }
@@ -1580,34 +2028,289 @@ map draws.
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-snug);
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-snug);
 }
 
-/* Compact screens use the tick; the creation gallery labels both states. */
+/* The tick, on the screens that still carry one (ADR-061). */
 .supported-mark {
   color: var(--good);
-  font-size: 14px;
+  font-size: var(--type-note);
   line-height: 1;
   flex: 0 0 auto;
 }
 
-.supported-mark.explicit {
-  display: inline-flex;
-  padding: 3px 6px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  font-size: 11px;
-  white-space: nowrap;
+/* The review note reads as a footnote to the map's name, never as a badge: it
+   is a sentence somebody wrote, and a border round it would make it a verdict
+   the software is passing. */
+.variant-review {
+  color: var(--muted);
+  font-size: var(--type-label);
+  line-height: var(--lh-label);
+  min-width: 0;
 }
-
-.supported-mark.unverified { color: var(--warn); }
 
 .cta.disabled {
   opacity: 0.55;
   pointer-events: none;
 }
+
+/* --- the game list ------------------------------------------------------- */
+
+/*
+Rows, not cards.
+
+A server running public play can gain ten games in a day, and a card each
+would turn the list into a scroll. So the row stays one row and gains a shape:
+each fact has a column, and the columns line up down the page under their own
+heading. A person looking for a table with a free seat reads one column
+instead of every row to the end.
+
+Every row is its own grid, so the columns line up only because every column
+but the first has a fixed width. A fractional column would be measured against
+its own row's content and drift from one row to the next.
+
+On a phone there is no room for six columns, so the same cells wrap onto a
+second line under the name. Nothing is dropped: a narrow screen gets the row
+folded, not a shorter row.
+*/
+.page.games-page { max-width: 1120px; }
+
+.game-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-row,
+.game-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name actions"
+    "facts facts";
+  gap: var(--space-tight) var(--space-snug);
+  align-items: center;
+}
+
+.game-row {
+  padding: var(--space-tight) 0;
+  border-top: 1px solid var(--line);
+}
+
+.game-list > .game-row:first-child { border-top: 0; }
+
+/* The heading is a wide-screen thing: see the media query at the foot. */
+.game-columns { display: none; }
+
+.col-name { grid-area: name; min-width: 0; }
+.game-facts { grid-area: facts; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-hair) var(--space-block); }
+.col-actions { grid-area: actions; justify-self: end; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-tight); }
+
+.game-title { display: flex; align-items: center; gap: var(--space-tight); min-width: 0; }
+.game-name { flex: 0 1 auto; min-width: 0; font-size: var(--type-body); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.game-name-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-note); }
+
+/* The id is small and still copyable: nobody reads one out correctly twice. */
+.game-id { display: flex; align-items: baseline; gap: var(--space-tight); white-space: nowrap; }
+
+.game-id code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--type-micro);
+  color: var(--muted);
+}
+
+.game-id button { font-size: var(--type-micro); }
+
+.col-variant,
+.col-status,
+.col-seats,
+.col-deadline {
+  font-size: var(--type-note);
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  white-space: nowrap;
+}
+
+.col-variant { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.col-status { color: var(--text); }
+
+.tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--type-micro);
+  font-weight: 400;
+  line-height: var(--lh-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  white-space: nowrap;
+}
+
+/* The one badge that says this row is a door and not a listing. */
+.tag-mine {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+}
+
+/*
+How full the table is, without reading.
+
+The colour carries it: a full table is done with, a table more than half taken
+is filling up, and one still wide open is the plain case. Tabular figures keep
+the fraction the same width down the page, so the column never shifts.
+*/
+.seat-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.seat-count.good { color: var(--good); }
+.seat-count.warn { color: var(--warn); }
+
+/* The same tones the seat's own clock uses, so a deadline reads alike
+   wherever it is met. */
+.game-deadline { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.game-deadline.low { color: var(--warn); }
+.game-deadline.urgent { color: var(--bad); }
+.game-deadline.flash {
+  color: var(--bad);
+  animation: seat-clock-flash 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-deadline.flash { animation: none; }
+}
+
+/*
+The two doors, at one width.
+
+Enter and Watch are the same size and always in that order, so the eye lands
+on the same spot in every row. A row with no way in keeps the empty cell,
+which is what holds Watch in its own column.
+*/
+.col-enter,
+.col-watch,
+.col-delete {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* Every door on the row is a thumb's target first and a label second. */
+.col-enter > *,
+.col-watch > *,
+.col-delete > * {
+  /* 44px stays: on a phone this is the row's way in. */
+  min-height: 44px;
+  width: 88px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--type-note);
+  padding: var(--space-tight) var(--space-tight);
+  white-space: nowrap;
+}
+
+.button-link {
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.button-link:hover { border-color: var(--accent); }
+
+/* The button and the filter share a line: they are the two things done to
+   the list itself, and neither one deserves a card. */
+.games-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-snug);
+  flex-wrap: wrap;
+  margin: var(--space-block) 0;
+}
+
+.games-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  font-size: var(--type-note);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.games-filter input { width: 18px; height: 18px; }
+
+/*
+The table proper, once there is width for it.
+
+The row and its heading share one column list, which is the whole trick: the
+facts box stops being a box (display: contents) and its four cells become four
+columns of the row's own grid, in line with every other row on the page.
+*/
+@media (min-width: 860px) {
+  .game-row,
+  .game-columns {
+    grid-template-columns: minmax(0, 1fr) 130px 170px 80px 130px 92px 92px;
+    grid-template-areas: none;
+    gap: 0 var(--space-block);
+  }
+
+  /* The owner's block carries one column more. Nobody else does: an eighth
+     column standing empty on every row would be a column of nothing. */
+  .game-block.can-delete .game-row,
+  .game-block.can-delete .game-columns {
+    grid-template-columns: minmax(0, 1fr) 130px 170px 80px 130px 92px 92px 92px;
+  }
+
+  .game-columns {
+    display: grid;
+    font-size: var(--type-micro);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: var(--track-caps);
+    padding-bottom: var(--space-hair);
+  }
+
+  .game-facts,
+  .col-actions { display: contents; }
+
+  .col-name,
+  .col-variant,
+  .col-status,
+  .col-seats,
+  .col-deadline,
+  .col-enter,
+  .col-watch,
+  .col-delete {
+    grid-area: auto;
+    justify-self: stretch;
+  }
+
+  .col-enter,
+  .col-watch,
+  .col-delete { justify-content: flex-start; }
+
+  /* Two lines high: the name over its id, and everything else beside them. */
+  .col-enter > *,
+  .col-watch > *,
+  .col-delete > * { min-height: 34px; }
+}
+
+/* The manual way back, at the foot of the list. Its own heading sits above
+   the three cards, so it is a section title and not a card heading. */
+.recover { display: flex; flex-direction: column; gap: var(--space-block); scroll-margin-top: var(--space-snug); }
+.recover > h2 { font-size: var(--type-body); color: var(--text); margin: 0; }
 
 /* --- the gallery lightbox ------------------------------------------------- */
 .lightbox {
@@ -1646,15 +2349,15 @@ map draws.
 
 .lightbox-note {
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--type-note);
   margin: 0;
 }
 
 .lightbox-hint {
   margin: 0;
-  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  padding: var(--space-snug) var(--space-block) calc(var(--space-snug) + env(safe-area-inset-bottom));
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--type-label);
   text-align: center;
 }
 
@@ -1666,7 +2369,7 @@ map draws.
   width: 44px;
   height: 44px;
   padding: 0;
-  font-size: 24px;
+  font-size: var(--type-subhead);
   line-height: 1;
   border-radius: 22px;
   background: var(--panel-2);
@@ -1680,48 +2383,48 @@ map draws.
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 16px;
+  padding: var(--pad-card);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-block);
 }
 
-.referee-head { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
-.referee-head h2 { margin: 0 0 2px; font-size: 15px; }
+.referee-head { display: flex; gap: var(--space-snug); justify-content: space-between; align-items: flex-start; }
+.referee-head h2 { margin: 0 0 var(--space-hair); font-size: var(--type-body); }
 .referee-head p { margin: 0; }
 
-.referee-group { display: flex; flex-direction: column; gap: 6px; }
+.referee-group { display: flex; flex-direction: column; gap: var(--space-tight); }
 
 .referee-group h3 {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--type-label);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-caps);
   color: var(--muted);
   border-bottom: 1px solid var(--line);
-  padding-bottom: 4px;
+  padding-bottom: var(--space-hair);
 }
 
 .referee-list { list-style: none; margin: 0; padding: 0; }
 
 .referee-list li {
   display: flex;
-  gap: 10px;
+  gap: var(--space-snug);
   align-items: baseline;
-  padding: 7px 0;
-  font-size: 19px;
-  line-height: 1.35;
+  padding: var(--space-tight) 0;
+  font-size: var(--type-lead);
+  line-height: var(--lh-lead);
 }
 
 .referee-list .dot { position: relative; top: -2px; }
 .referee-text { flex: 1 1 auto; min-width: 0; }
-.referee-note { color: var(--muted); font-size: 15px; }
+.referee-note { color: var(--muted); font-size: var(--type-body); }
 
 /* The whole line is the target: this is tapped by someone looking at the board,
    not at the phone. */
 .referee-tick {
   display: flex;
-  gap: 10px;
+  gap: var(--space-snug);
   align-items: baseline;
   cursor: pointer;
   min-height: 32px;
@@ -1741,19 +2444,19 @@ map draws.
 
 /* The pieces that do not move are still a decision, so they are shown — but
    they are not an act, so they are quieter than the acts. */
-.referee-group.stays .referee-list li { font-size: 16px; color: var(--muted); }
-.referee-empty { margin: 0; font-size: 18px; }
+.referee-group.stays .referee-list li { font-size: var(--type-body); color: var(--muted); }
+.referee-empty { margin: 0; font-size: var(--type-lead); }
 
 /* --- order entry: shortcut letters and the arrows switch ------------------ */
 kbd {
-  margin-left: 6px;
+  margin-left: var(--space-tight);
   padding: 1px 5px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--panel);
   color: var(--muted);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--type-micro);
   text-transform: uppercase;
 }
 
@@ -1763,17 +2466,17 @@ kbd {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-snug);
+  margin-bottom: var(--space-snug);
 }
 
-.list-head h2 { margin-bottom: 8px; }
 
 /* Small enough to be furniture until it is wanted, and wide enough to hit. */
 .notation-toggle {
-  padding: 3px 8px;
-  font-size: 11px;
+  padding: var(--space-hair) var(--space-tight);
+  font-size: var(--type-micro);
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-caps);
   color: var(--muted);
   background: none;
   border-radius: 5px;
@@ -1786,8 +2489,40 @@ kbd {
    text baseline rather than starting a row of its own. */
 .review-head .notation-toggle { vertical-align: baseline; }
 
+/* c019: the two ways an order list can be written, named side by side
+   instead of packed into one switch. Same muted furniture as the toggle it
+   replaces; the chosen option is the one filled in. */
+.notation-toggle-group {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-hair);
+  padding: var(--space-hair);
+  border-radius: 7px;
+  background: var(--panel-2);
+}
+
+.notation-option {
+  padding: var(--space-hair) var(--space-tight);
+  font-size: var(--type-micro);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 5px;
+}
+
+.notation-option.on { color: var(--bg); background: var(--text); }
+.notation-option:hover:not(.on):not(:disabled) { color: var(--text); }
+
+.review-head .notation-toggle-group { vertical-align: baseline; }
+
+@media (max-width: 400px) {
+  .notation-option-word { display: none; }
+}
+
 /* Two ways into the previous phase, side by side under the phase name. */
-.head-links { display: flex; gap: 14px; align-items: baseline; margin: 4px 0 0; }
+.head-links { display: flex; gap: var(--space-block); align-items: baseline; margin: var(--space-hair) 0 0; }
 
 /*
 The only layer that answers a tap while it is open.
@@ -1817,14 +2552,14 @@ to while it stands.
   box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.55);
   border-radius: 14px 14px 0 0;
   border-bottom: none;
-  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--space-block) + env(safe-area-inset-bottom));
 }
 
 /* With room to spare the sheet stops being a sheet and sits in the middle,
    still the only thing on screen that answers. */
 @media (min-width: 781px) and (min-height: 501px) {
-  .modal-layer { align-items: center; padding: 24px; }
-  .modal-layer > * { border-radius: 14px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+  .modal-layer { align-items: center; padding: var(--space-section); }
+  .modal-layer > * { border-radius: 14px; border-bottom: 1px solid var(--line); padding-bottom: var(--space-block); }
 }
 
 /*
@@ -1852,19 +2587,19 @@ so it covers only the strip it needs.
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  gap: var(--space-snug);
+  padding: var(--space-snug) var(--space-snug) calc(var(--space-snug) + env(safe-area-inset-bottom));
   background: color-mix(in srgb, var(--panel-2) 92%, transparent);
   border-top: 1px solid var(--line);
   box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.45);
 }
 
-.review-bar-title { margin: 0; font-size: 14px; color: var(--muted); text-align: center; }
+.review-bar-title { margin: 0; font-size: var(--type-note); color: var(--muted); text-align: center; }
 
 /* The dismiss is the primary action and it spans the sheet. The guide beside
    it is a second way to READ the same turn, so it stays quiet — and on a
    phone it steps out of the thumb's way, above the button that closes. */
-.review-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.review-actions { display: flex; gap: var(--space-tight); flex-wrap: wrap; }
 .review-actions .primary { flex: 1 1 auto; min-height: 48px; font-weight: 600; }
 
 /*
@@ -1890,15 +2625,13 @@ only in colour.
 /* --- the spectator screen ------------------------------------------------- */
 /* The two steps say what they move — a phase, not the game — so they must
    read as one line each. */
-.watch-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.watch-nav button { white-space: nowrap; padding: 9px 10px; }
+.watch-nav { display: flex; align-items: center; justify-content: space-between; gap: var(--space-tight); }
+.watch-nav button { white-space: nowrap; padding: var(--pad-control-y) var(--pad-control-x); }
 .watch-nav .muted { margin: 0; }
-.watch .side { gap: 12px; }
-.watch-blank { margin: auto; color: var(--muted); text-align: center; padding: 24px; }
-
-@media (max-width: 780px), (max-height: 500px) {
-  .referee-list li { font-size: 17px; }
-}
+/* The spectator panel packs one step tighter than the seat's: it is read
+   from across a room and carries no controls to reach past. */
+.watch .side { gap: var(--space-snug); }
+.watch-blank { margin: auto; color: var(--muted); text-align: center; padding: var(--space-section); }
 
 /*
 Your own draft that the rules refuse (ADR-029), in the order list beside the
@@ -1910,7 +2643,7 @@ buys.
 
 .illegal-note {
   display: block;
-  font-size: 11px;
+  font-size: var(--type-micro);
   font-style: italic;
   color: var(--muted);
 }
@@ -1928,11 +2661,6 @@ what they get when they press the button.
 */
 
 .landing {
-  /* Georgia is the Baskerville the map was drawn in, near enough, and it is
-     already on the machine. A webfont would be a megabyte of download on the
-     one page that has to arrive fast, and the app must run with no internet
-     at all. */
-  --lp-serif: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
   --lp-ink: #c3cad6;
   display: flex;
   flex-direction: column;
@@ -1941,29 +2669,9 @@ what they get when they press the button.
 
 .landing p { margin: 0; }
 
-.lp-bar {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 16px 80px;
-  border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
-}
+.lp-mark { font-family: var(--lp-serif); font-size: var(--type-subhead); font-weight: 700; }
 
-.lp-mark { font-family: var(--lp-serif); font-size: 24px; font-weight: 700; }
-.lp-tag { font-size: 13px; color: var(--muted); }
-
-.lp-nav a { text-decoration: none; }
 .lp-foot a { text-decoration: none; }
-
-.lp-nav {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  margin-left: auto;
-  font-size: 14px;
-  flex-wrap: wrap;
-}
 
 /* --- the hero ------------------------------------------------------------
 The map is the background and the words are the foreground, so the art is
@@ -2005,20 +2713,23 @@ the page colour. Any stronger and the headline sits on Belgium.
 .lp-hero-words { flex: 1 1 620px; min-width: 0; }
 
 .landing .lp-eyebrow {
-  font-size: 12px;
+  font-size: var(--type-label);
+  /* Wider than the caps track every other block wears: one short line of
+     small capitals over a 66px headline has to read as a label and not as
+     the first words of the title. */
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--warn);
-  margin-bottom: 20px;
+  margin-bottom: var(--space-block);
 }
 
 .lp-title {
   margin: 0;
   font-family: var(--lp-serif);
-  font-size: 66px;
-  line-height: 1.08;
+  font-size: var(--type-display);
+  line-height: var(--lh-display);
   font-weight: 700;
-  letter-spacing: -0.015em;
+  letter-spacing: var(--track-display);
   text-wrap: balance;
 }
 
@@ -2026,32 +2737,35 @@ the page colour. Any stronger and the headline sits on Belgium.
    make — that the table can play it silent or talk it out — so it takes the
    spring tint rather than the accent, which every button already owns. */
 .landing .lp-tagline {
-  margin-top: 16px;
+  margin-top: var(--space-block);
   font-family: var(--lp-serif);
   font-style: italic;
+  /* Off the ladder on purpose: the title step would set this line as loud
+     as the headline above it, and the head step would drop it into the
+     paragraph below. */
   font-size: 30px;
   line-height: 1.2;
   color: var(--phase-spring);
 }
 
 .landing .lp-lead {
-  margin-top: 28px;
-  font-size: 19px;
-  line-height: 1.55;
+  margin-top: var(--space-section);
+  font-size: var(--type-lead);
+  line-height: var(--lh-lead);
   color: var(--lp-ink);
   max-width: 34em;
 }
 
-.lp-actions { display: flex; gap: 12px; align-items: center; margin: 34px 0 22px; flex-wrap: wrap; }
+.lp-actions { display: flex; gap: var(--space-snug); align-items: center; margin: var(--space-page) 0 var(--space-section); flex-wrap: wrap; }
 
 /* The one action the page is for, drawn as the seat page draws its lock:
    the loudest control on the screen wears the same clothes everywhere. */
 .lp-primary {
   display: inline-block;
-  padding: 15px 28px;
+  padding: var(--space-block) var(--space-section);
   border-radius: 10px;
   color: #fff;
-  font-size: 17px;
+  font-size: var(--type-lead);
   font-weight: 700;
   text-decoration: none;
   background: linear-gradient(180deg, #3f6cae, #2a4880);
@@ -2063,12 +2777,12 @@ the page colour. Any stronger and the headline sits on Belgium.
 
 .lp-secondary {
   display: inline-block;
-  padding: 15px 24px;
+  padding: var(--space-block) var(--space-section);
   border-radius: 10px;
   background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--text);
-  font-size: 16px;
+  font-size: var(--type-body);
   text-decoration: none;
 }
 
@@ -2079,7 +2793,7 @@ the page colour. Any stronger and the headline sits on Belgium.
 .lp-phone {
   flex: 0 0 auto;
   width: 340px;
-  padding: 12px;
+  padding: var(--space-snug);
   border-radius: 30px;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -2101,20 +2815,20 @@ the page colour. Any stronger and the headline sits on Belgium.
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
 }
 
-.lp-screen-body { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
-.landing .lp-screen-power { font-size: 26px; font-weight: 800; line-height: 1.05; margin-top: 2px; }
-.lp-screen-phase { font-size: 22px; font-weight: 800; line-height: 1.1; }
+.lp-screen-body { display: flex; flex-direction: column; gap: var(--space-snug); padding: var(--pad-card); }
+.landing .lp-screen-power { font-size: var(--type-head); font-weight: 800; line-height: var(--lh-head); margin-top: var(--space-hair); }
+.lp-screen-phase { font-size: var(--type-subhead); font-weight: 800; line-height: var(--lh-subhead); }
 
-.lp-screen-orders { list-style: none; margin: 0; padding: 0; font-size: 13px; }
-.lp-screen-orders li { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.lp-screen-orders { list-style: none; margin: 0; padding: 0; font-size: var(--type-note); }
+.lp-screen-orders li { padding: var(--space-tight) 0; border-bottom: 1px solid var(--line); }
 
 .lp-screen-lock {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-hair);
   min-height: 62px;
-  padding: 11px 14px;
+  padding: var(--space-snug) var(--space-block);
   border-radius: 10px;
   color: #fff;
   background: linear-gradient(180deg, #3f6cae, #2a4880);
@@ -2132,41 +2846,66 @@ the page colour. Any stronger and the headline sits on Belgium.
   padding: 0 80px;
 }
 
-.lp-facts > div { flex: 1 1 0; padding: 26px 0; border-bottom: 1px solid var(--line); }
-.lp-fact { font-family: var(--lp-serif); font-size: 30px; font-weight: 700; }
+.lp-facts > div { flex: 1 1 0; padding: var(--space-section) 0; border-bottom: 1px solid var(--line); }
+
+/*
+Each fact is a figure and the words that say what it counts, and neither half
+means anything alone. The figures used to be set nearly at the title step over
+words at the note step, so the row read as four big numbers with their meaning
+in the small print under them — 26 of what, 4 of what.
+
+So the figures come down to the subhead step and the words go up to the
+reading step, close enough in size that the eye takes the pair as one line.
+
+One of the four is not like the others. Three are inventory; "0 accounts,
+names or passwords" is the claim the whole app is built on, and it is what a
+stranger who was sent a link is really asking. It keeps the head step and its
+words are set in the full ink, so the row has a first fact.
+*/
+.lp-fact {
+  font-family: var(--lp-serif);
+  font-size: var(--type-subhead);
+  line-height: var(--lh-subhead);
+  font-weight: 700;
+}
+
+.lp-facts .note { font-size: var(--type-body); line-height: var(--lh-body); }
+
+.lp-facts .lp-fact-first .lp-fact { font-size: var(--type-head); line-height: var(--lh-head); }
+.lp-facts .lp-fact-first .note { color: var(--text); font-weight: 600; }
 
 /* --- the sections -------------------------------------------------------- */
 
 .lp-section { max-width: 1280px; width: 100%; margin: 0 auto; padding: 76px 80px; }
 
-.lp-head { font-family: var(--lp-serif); font-size: 38px; line-height: 1.2; font-weight: 700; margin: 0; color: var(--text); text-transform: none; letter-spacing: 0; }
-.lp-head.small { font-size: 34px; }
+.lp-head { font-family: var(--lp-serif); font-size: var(--type-title); line-height: var(--lh-title); font-weight: 700; margin: 0; color: var(--text); text-transform: none; letter-spacing: var(--track-title); }
+.lp-head.small { font-size: var(--type-head); line-height: var(--lh-head); }
 
-.landing .lp-body { margin-top: 18px; font-size: 17px; line-height: 1.6; color: var(--lp-ink); }
+.landing .lp-body { margin-top: var(--space-block); font-size: var(--type-lead); line-height: var(--lh-lead); color: var(--lp-ink); }
 
-.lp-cards { display: grid; gap: 20px; margin-top: 32px; }
+.lp-cards { display: grid; gap: var(--space-block); margin-top: var(--space-page); }
 .lp-cards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .lp-cards.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .lp-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-snug);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 22px;
+  padding: var(--space-section);
 }
 
-.lp-card-head { font-size: 18px; font-weight: 700; }
-.lp-card .note { font-size: 15px; line-height: 1.55; margin: 0; }
-.lp-card .badge { margin-left: 6px; vertical-align: 2px; }
+.lp-card-head { font-size: var(--type-subhead); font-weight: 700; }
+.lp-card .note { font-size: var(--type-body); line-height: var(--lh-body); margin: 0; }
+.lp-card .badge { margin-left: var(--space-tight); vertical-align: 2px; }
 
 .lp-icon { width: 28px; height: 28px; fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
 .lp-split { display: flex; gap: 64px; align-items: center; }
 .lp-split > div:first-child { flex: 1 1 460px; min-width: 0; }
-.lp-split .note { margin-top: 20px; font-size: 15px; line-height: 1.6; }
+.lp-split .note { margin-top: var(--space-block); font-size: var(--type-body); line-height: var(--lh-body); }
 
 /* A band of its own colour, so the four claims read as one block and not as
    four more cards after three cards. */
@@ -2175,24 +2914,24 @@ the page colour. Any stronger and the headline sits on Belgium.
 
 /* --- the review sheet, as the board keeper reads it ---------------------- */
 
-.lp-sheet { flex: 0 0 520px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+.lp-sheet { flex: 0 0 520px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: var(--pad-card); }
 
 .lp-sheet-head {
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  font-size: var(--type-label);
+  letter-spacing: var(--track-caps);
   text-transform: uppercase;
   color: var(--muted);
   font-weight: 600;
   border-bottom: 1px solid var(--line);
-  padding-bottom: 8px;
+  padding-bottom: var(--space-tight);
 }
 
-.lp-sheet-list { list-style: none; margin: 0 0 12px; padding: 0; }
-.lp-sheet-list li { display: flex; gap: 12px; align-items: center; padding: 10px 0; font-size: 19px; }
+.lp-sheet-list { list-style: none; margin: 0 0 var(--space-snug); padding: 0; }
+.lp-sheet-list li { display: flex; gap: var(--space-snug); align-items: center; padding: var(--space-snug) 0; font-size: var(--type-lead); }
 .lp-sheet-list li.failed { color: var(--muted); }
 .lp-sheet-list li.failed span:nth-child(3) { text-decoration: line-through; }
 .lp-sheet-list li span:nth-child(3) { flex: 1 1 auto; }
-.lp-why { color: var(--bad); font-size: 14px; flex: 0 0 auto; }
+.lp-why { color: var(--bad); font-size: var(--type-note); flex: 0 0 auto; }
 .lp-tick { width: 18px; height: 18px; border: 1px solid var(--line); border-radius: 4px; flex: none; }
 
 /* --- the last word ------------------------------------------------------- */
@@ -2204,42 +2943,56 @@ the page colour. Any stronger and the headline sits on Belgium.
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
+  gap: var(--space-block);
   padding: 72px 80px 78px;
   text-align: center;
 }
 
 .lp-foot {
   display: flex;
-  gap: 24px;
+  gap: var(--space-section);
   align-items: baseline;
   flex-wrap: wrap;
   padding: 28px 80px 36px;
   border-top: 1px solid var(--line);
   background: #101216;
-  font-size: 13px;
+  font-size: var(--type-note);
 }
 
-.lp-foot .lp-mark { font-size: 16px; }
-.lp-foot .note { margin-left: auto; max-width: 46em; text-align: right; line-height: 1.6; }
+.lp-foot .lp-mark { font-size: var(--type-body); }
+.lp-foot .note { margin-left: auto; max-width: 46em; text-align: right; }
 
 /* --- narrow screens ------------------------------------------------------
 The page is read on the phone it is about, so every row becomes a column and
 the margins come in. The phone mock stays: it is the picture of the thing.
 */
 @media (max-width: 900px) {
-  .lp-bar, .lp-facts, .lp-section, .lp-close-body, .lp-foot { padding-left: 20px; padding-right: 20px; }
-  .lp-hero-body { flex-direction: column; align-items: flex-start; gap: 36px; padding: 34px 20px 40px; }
-  .lp-title { font-size: 38px; }
+  .lp-facts, .lp-section, .lp-close-body, .lp-foot { padding-left: 20px; padding-right: 20px; }
+  .lp-hero-body { flex-direction: column; align-items: flex-start; gap: var(--space-page); padding: 34px 20px 40px; }
+  /* The page changes shape forty pixels above the breakpoint the two ladders
+     turn at, so between the two it would wear the laptop's spacing and type in
+     the phone's layout. Both sets of steps come back to their phone values for
+     as long as the layout is the phone's. */
+  .landing {
+    --space-snug: 10px;
+    --space-block: 16px;
+    --space-section: 24px;
+    --space-page: 32px;
+    --type-display: 38px;
+    --type-title: 30px;
+    --type-head: 25px;
+    --type-subhead: 20px;
+    --type-lead: 17px;
+    --type-body: 15px;
+    --type-note: 13px;
+  }
+
   .lp-tagline { font-size: 21px; }
-  .lp-lead { font-size: 16px; }
-  .lp-head { font-size: 27px; }
-  .lp-head.small { font-size: 24px; }
   .lp-section { padding-top: 40px; padding-bottom: 40px; }
   .lp-cards.three, .lp-cards.two { grid-template-columns: minmax(0, 1fr); }
-  .lp-split { flex-direction: column; align-items: stretch; gap: 28px; }
+  .lp-split { flex-direction: column; align-items: stretch; gap: var(--space-section); }
   .lp-sheet { flex: 1 1 auto; }
-  .lp-facts { flex-wrap: wrap; gap: 0 20px; }
+  .lp-facts { flex-wrap: wrap; gap: 0 var(--space-block); }
   .lp-facts > div { flex: 1 1 40%; }
   .lp-foot .note { margin-left: 0; text-align: left; }
   .lp-actions .lp-primary, .lp-actions .lp-secondary { flex: 1 1 100%; text-align: center; }
@@ -2255,7 +3008,10 @@ target around it is the size a finger needs.
 .seat-menu-button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-tight);
+  /* The padding is the target a finger needs and the margin cancels it
+     exactly, so the drawing stays where the heading put it. The two are one
+     number written twice, not a step, and c002 compares them as a pair. */
   padding: 6px 8px;
   margin: -6px 2px -6px -8px;
   min-height: 34px;
@@ -2278,12 +3034,40 @@ target around it is the size a finger needs.
 
 .seat-menu-button:hover .seat-menu-icon { stroke: var(--text); }
 
-.seat-menu { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
-.seat-menu header { display: flex; flex-direction: column; gap: 2px; }
+/* c009: in the bar, the icon reads as a control rather than a decoration —
+   full ink, ringed, on the same centre line as the power name. */
+.seat-top-power .seat-menu-icon {
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  box-sizing: border-box;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  stroke: currentColor;
+}
+
+.seat-top-power .seat-menu-button:hover .seat-menu-icon { stroke: currentColor; }
+
+html[data-fix-off~="c009"] .seat-top-power .seat-menu-icon {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  box-sizing: content-box;
+  border: none;
+  border-radius: 0;
+  stroke: var(--muted);
+}
+
+html[data-fix-off~="c009"] .seat-top-power .seat-menu-button:hover .seat-menu-icon {
+  stroke: var(--text);
+}
+
+.seat-menu { display: flex; flex-direction: column; gap: var(--space-block); padding: var(--pad-card); }
+.seat-menu header { display: flex; flex-direction: column; gap: var(--space-hair); }
 
 /* The power is the answer to "which seat is this", read at arm's length in a
    noisy room, so it takes the size the seat page gives it. */
-.seat-menu-power { margin: 0; font-size: 30px; font-weight: 800; line-height: 1.05; }
+.seat-menu-power { margin: 0; font-family: var(--lp-serif); font-size: var(--type-title); font-weight: 800; line-height: var(--lh-title); }
 
 .seat-menu .share { background: var(--panel); }
 .seat-menu > .primary { min-height: 48px; }
@@ -2308,7 +3092,7 @@ target around it is the size a finger needs.
 /* Two handovers side by side (ADR-041): the role and a power. They are the same
    kind of object, so they are laid out as one row of equals and wrap to a
    column when there is no room for two. */
-.handovers { display: flex; flex-wrap: wrap; gap: 12px; }
+.handovers { display: flex; flex-wrap: wrap; gap: var(--space-snug); }
 .handovers > * { flex: 1 1 300px; min-width: 0; }
 
 /* --- the bar every ordinary page wears (ADR-043) ---------------------------
@@ -2321,15 +3105,17 @@ The spectator view and the seat page do not carry it. One is a board on a
 beamer that nobody navigates, and the other is a map fighting a phone for
 height; the seat's links live in its own menu instead.
 */
+/* One bar, the landing page's, worn by every page: the serif mark and the
+   tag line on the left, the same five links on the right. The width is the
+   landing page's too, and it comes in on a phone with the rest of that page. */
 .topbar {
   display: flex;
   align-items: baseline;
-  gap: 18px;
+  gap: var(--space-snug);
   flex-wrap: wrap;
-  padding: 12px 16px;
+  padding: var(--space-block) 80px;
   border-bottom: 1px solid var(--line);
-  background: var(--panel);
-  font-size: 14px;
+  font-size: var(--type-note);
 }
 
 .topbar a { text-decoration: none; color: var(--muted); }
@@ -2337,32 +3123,47 @@ height; the seat's links live in its own menu instead.
 .topbar a.here { color: var(--text); }
 
 .topbar-mark {
-  font-size: 17px;
+  font-family: var(--lp-serif);
+  font-size: var(--type-subhead);
   font-weight: 700;
   color: var(--text) !important;
-  letter-spacing: 0.01em;
 }
+
+.topbar-tag { font-size: var(--type-note); color: var(--muted); }
+
+.topbar-links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-section);
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.topbar-links .cta { color: var(--text); }
 
 /* The way back in, and the only entry that is not furniture: it is the one
    thing on the bar a player at a table actually wants. */
 .topbar-back {
-  margin-left: auto;
   color: var(--text) !important;
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 5px 10px;
+  padding: var(--space-tight) var(--space-snug);
 }
 
 .topbar-back:hover { border-color: var(--accent); }
 
-.seat-menu-links { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
+@media (max-width: 900px) {
+  .topbar { padding-left: 20px; padding-right: 20px; }
+}
+
+.seat-menu-links { display: flex; gap: var(--space-block); flex-wrap: wrap; font-size: var(--type-note); }
 
 /* A link that is not being shown, on a screen a room can see. It takes the
    space the address would, so opening a fold never moves the page under a
    hand that is about to press Copy. */
 .share-hidden {
-  margin: 0 0 8px;
-  font-size: 13px;
+  margin: 0 0 var(--space-tight);
+  font-size: var(--type-note);
   color: var(--muted);
 }
 
@@ -2375,21 +3176,22 @@ screen has room for.
 .seed-words {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 6px 16px;
-  margin: 10px 0 0;
+  gap: var(--space-tight) var(--space-block);
+  margin: var(--space-snug) 0 0;
+  /* 28px is the room the numbers need, not a step. */
   padding-left: 28px;
 }
 
 .seed-words li {
   font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 16px;
+  font-size: var(--type-body);
   letter-spacing: 0.02em;
   color: var(--text);
 }
 
 .seed-words li::marker {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--type-note);
   color: var(--muted);
 }
 
@@ -2406,7 +3208,7 @@ piece on the map.
   border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.35);
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--type-note);
   line-height: 1.25;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -2415,8 +3217,8 @@ piece on the map.
 .power-chip.small {
   padding: 1px 6px;
   border-radius: 5px;
-  font-size: 11px;
-  letter-spacing: 0.02em;
+  font-size: var(--type-micro);
+  letter-spacing: var(--track-caps-tight);
   text-transform: uppercase;
   flex: 0 0 auto;
   align-self: center;
@@ -2426,21 +3228,21 @@ piece on the map.
    beside them start on one line rather than stepping in and out. */
 .review-row .power-chip.small, .review-nmr .power-chip.small { min-width: 74px; text-align: center; }
 
-.seat-you { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.seat-you-word { font-size: 15px; font-weight: 500; color: var(--muted); }
-.seat-menu-power .power-chip { font-size: 20px; padding: 5px 12px; }
+.seat-you { display: flex; align-items: center; gap: var(--space-tight); flex-wrap: wrap; }
+.seat-you-word { font-size: var(--type-body); font-weight: 500; color: var(--muted); }
+.seat-menu-power .power-chip { font-size: var(--type-subhead); padding: 5px 12px; }
 
 /* --- who is winning ------------------------------------------------------
 Public arithmetic on a board everybody can see: ownership and units are both
 drawn on the map and both published to the spectator screen (ADR-013).
 */
-.standings ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.standings ul { list-style: none; margin: var(--space-snug) 0 0; padding: 0; }
 
 .standings li {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px 0;
+  gap: var(--space-snug);
+  padding: var(--space-tight) 0;
   border-bottom: 1px solid var(--line);
 }
 
@@ -2449,7 +3251,7 @@ drawn on the map and both published to the spectator screen (ADR-013).
 
 .standings-centres {
   margin-left: auto;
-  font-size: 18px;
+  font-size: var(--type-lead);
   font-variant-numeric: tabular-nums;
   min-width: 2ch;
   text-align: right;
@@ -2460,7 +3262,7 @@ drawn on the map and both published to the spectator screen (ADR-013).
    count. Narrow, because it now holds one character most of the time. */
 .standings-units {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--type-note);
   min-width: 3ch;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -2468,7 +3270,7 @@ drawn on the map and both published to the spectator screen (ADR-013).
 
 /* Builds owed and units to come off are two different pieces of news, so they
    are two colours. Only ever drawn once the Fall has moved the ownership. */
-.standings-build { color: var(--good); font-size: 12px; min-width: 3ch; text-align: right; }
+.standings-build { color: var(--good); font-size: var(--type-label); min-width: 3ch; text-align: right; }
 .standings-build.off { color: var(--bad); }
 
 /* The two numbers are unlabelled otherwise, and "7  5 units" reads as a score
@@ -2476,14 +3278,14 @@ drawn on the map and both published to the spectator screen (ADR-013).
    two-character column is exactly where CONTEXT.md allows it. */
 .standings-legend {
   border-bottom: 1px solid var(--line);
-  padding-bottom: 2px;
+  padding-bottom: var(--space-hair);
   color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  font-size: var(--type-micro);
+  letter-spacing: var(--track-caps);
   text-transform: uppercase;
 }
 
-.standings-legend .standings-centres { font-size: 11px; margin-left: auto; }
+.standings-legend .standings-centres { font-size: var(--type-micro); margin-left: auto; }
 
 /* --- "this app has been updated" (ADR-050) -------------------------------
 Above everything, because the alternative is finding out by tapping something
@@ -2499,19 +3301,19 @@ old transport, which is still there.
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--space-snug);
   flex-wrap: wrap;
-  padding: 8px 12px;
+  padding: var(--space-tight) var(--space-snug);
   background: var(--panel-2);
   border-bottom: 1px solid var(--accent);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--type-note);
 }
 
 .stale-build button {
   min-height: 32px;
-  padding: 4px 12px;
-  font-size: 13px;
+  padding: var(--space-hair) var(--space-snug);
+  font-size: var(--type-note);
 }
 
 /*
@@ -2527,7 +3329,7 @@ colour, which is the point: it is the one screen a table will photograph.
 
 .game-over h2 {
   color: var(--good);
-  font-size: 20px;
+  font-size: var(--type-subhead);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -2535,58 +3337,58 @@ colour, which is the point: it is the one screen a table will photograph.
 .game-over-powers {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 0 6px;
+  gap: var(--space-tight);
+  margin: 0 0 var(--space-tight);
 }
 
 .game-over-centres {
   list-style: none;
-  margin: 10px 0 0;
+  margin: var(--space-snug) 0 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 14px;
+  gap: var(--space-tight) var(--space-block);
 }
 
 .game-over-centres li {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-tight);
 }
 
 .game-over-count {
   font-variant-numeric: tabular-nums;
-  font-size: 16px;
+  font-size: var(--type-body);
 }
 
 /* Naming the powers in a draw. A column of checkboxes, because the game
    master is reading power names off a table and ticking them. */
 .draw-picks {
   list-style: none;
-  margin: 8px 0;
+  margin: var(--space-tight) 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  gap: var(--space-tight) var(--space-block);
 }
 
 .draw-picks label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-tight);
   cursor: pointer;
 }
 
 .draw-confirm {
-  margin: 8px 0 0;
+  margin: var(--space-tight) 0 0;
 }
 
 /* The counts a tournament director takes away (ADR-046). */
 .results-links {
-  margin: 8px 0 0;
+  margin: var(--space-tight) 0 0;
   display: flex;
-  gap: 12px;
-  font-size: 13px;
+  gap: var(--space-snug);
+  font-size: var(--type-note);
 }
 
 /* The DATC page (ADR-045). The score is the page, so it is set at the size a
@@ -2596,8 +3398,8 @@ colour, which is the point: it is the one screen a table will photograph.
 }
 
 .datc-number {
-  margin: 0 0 8px;
-  font-size: 40px;
+  margin: 0 0 var(--space-tight);
+  font-size: var(--type-title);
   font-variant-numeric: tabular-nums;
   color: var(--good);
 }
@@ -2612,14 +3414,14 @@ colour, which is the point: it is the one screen a table will photograph.
 .datc-files > li {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--space-snug);
   flex-wrap: wrap;
-  padding: 6px 0;
+  padding: var(--space-tight) 0;
   border-bottom: 1px solid var(--line);
 }
 
 .datc-files code {
-  font-size: 13px;
+  font-size: var(--type-note);
 }
 
 .datc-pass {
@@ -2636,17 +3438,17 @@ colour, which is the point: it is the one screen a table will photograph.
 
 .datc-failed {
   flex-basis: 100%;
-  margin: 4px 0 0;
-  padding-left: 16px;
+  margin: var(--space-hair) 0 0;
+  padding-left: var(--space-block);
   color: var(--bad);
-  font-size: 13px;
+  font-size: var(--type-note);
 }
 
 .datc-limits > li {
-  padding: 6px 0;
+  padding: var(--space-tight) 0;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--type-note);
 }
 
 .datc-limits > li:last-child {
@@ -2675,26 +3477,17 @@ colour, which is the point: it is the one screen a table will photograph.
 .keep-seat-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-top: 10px;
+  gap: var(--space-snug);
+  margin-top: var(--space-snug);
 }
 
 /* The seat's own address, drawn so it can be bookmarked. It wraps, because it
    is long and a phone is narrow. */
 .keep-seat-url {
   display: block;
-  margin-top: 10px;
+  margin-top: var(--space-snug);
   word-break: break-all;
-  font-size: 12px;
-}
-
-/* The seat's own address, drawn so it can be bookmarked. It wraps, because it
-   is long and a phone is narrow. */
-.keep-seat-url {
-  display: block;
-  margin-top: 10px;
-  word-break: break-all;
-  font-size: 12px;
+  font-size: var(--type-label);
 }
 
 /*
@@ -2708,9 +3501,9 @@ on the map, and the number beside it is that power's orders so far — the one
 thing a driver keeps losing track of while working through seven of them.
 */
 .sandbox-title {
-  margin: 2px 0 0;
-  font-size: 20px;
-  letter-spacing: 0.04em;
+  margin: var(--space-hair) 0 0;
+  font-size: var(--type-subhead);
+  letter-spacing: var(--track-caps);
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -2718,14 +3511,14 @@ thing a driver keeps losing track of while working through seven of them.
 .power-switch {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-tight);
 }
 
 .power-pick {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px 4px 4px;
+  gap: var(--space-tight);
+  padding: var(--space-hair) var(--space-tight) var(--space-hair) var(--space-hair);
   border-radius: 999px;
   border: 2px solid transparent;
   background: var(--panel, #1b2432);
@@ -2740,9 +3533,87 @@ thing a driver keeps losing track of while working through seven of them.
    before they do. */
 .power-pick-count {
   min-width: 12px;
-  font-size: 12px;
+  font-size: var(--type-label);
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
-.sandbox-share { margin-top: 14px; }
+.sandbox-share { margin-top: var(--space-block); }
+
+/*
+The owner's list of games (ADR-060).
+
+It borrows .list, which is the app's dense row already, and adds three columns
+of fact and nothing else. This is a page for tidying up a server, not a page
+anybody reads at a table, so the rows stay rows: the game list next door draws
+cards because a player is choosing between games, and here nobody is choosing.
+*/
+.admin-games li { gap: var(--space-snug); }
+.admin-games .admin-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.admin-games .admin-cell {
+  color: var(--muted);
+  font-size: var(--type-label);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+On a phone the row cannot be a row. The three facts refuse to wrap and the
+name is left one character wide, so the name takes a line of its own and the
+facts sit under it, in the order they are read.
+*/
+@media (max-width: 859px) {
+  .admin-games li { flex-wrap: wrap; }
+  .admin-games .admin-name { flex: 1 0 100%; overflow-wrap: normal; word-break: break-word; }
+}
+
+/* --- the desktop rhythm (c010) and the desktop type ----------------------
+A laptop is read from further away than a phone, and it has width the phone
+never had. At that distance the phone's spacing reads as packed: blocks touch,
+sections run together, and the text column sits in the middle of a screen it
+uses a third of. Its type is small for the same reason.
+
+So one breakpoint raises the whole rhythm at once — the four spacing steps
+that grow, by about a quarter each — widens the text column from 640 to 760,
+and lifts the seven type steps that grow. Hair and tight are absent because
+they do not grow: they hold the parts of one control together. Nothing here
+changes a colour, and the second block below is the spacing fix's off-state
+alone: the type ladder is not part of that comparison, so it keeps its laptop
+sizes whether c010 is on or off. The games list and the variant gallery set
+their own widths and keep them.
+
+The breakpoint is 860px, the same one the games table uses to unfold: below it
+a screen is still being treated as narrow.
+*/
+@media (min-width: 860px) {
+  :root {
+    --max-page: 760px;
+    --pad-page-x: 24px;
+    --space-snug: 12px;
+    --space-block: 20px;
+    --space-section: 32px;
+    --space-page: 48px;
+
+    /* The seven steps that grow. Label and micro do not: they are already at
+       the floor a caption can be read at, and a laptop's distance does not
+       change where that floor is. */
+    --type-display: 66px;
+    --type-title: 40px;
+    --type-head: 28px;
+    --type-subhead: 24px;
+    --type-lead: 19px;
+    --type-body: 16px;
+    --type-note: 14px;
+  }
+
+  /* Off: every spacing step back to the number a phone uses, which is what
+     the whole fix amounts to. The type steps above are not touched. */
+  html[data-fix-off~="c010"] {
+    --max-page: 640px;
+    --pad-page-x: 16px;
+    --space-snug: 10px;
+    --space-block: 16px;
+    --space-section: 24px;
+    --space-page: 32px;
+  }
+}

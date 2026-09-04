@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { pageCommentsPlugin } from "@mrosseel/page-comments/vite-plugin";
 
 /*
 The build lands in web/dist, which the Go server serves: the shell at the four
@@ -38,9 +39,27 @@ const endpoints =
   "|game/[^/]+/(public|watch(/[0-9]+)?|map\\.svg)" +
   ")";
 
+const hold = env?.HOLD_RELOADS !== "0";
+
 export default defineConfig({
   base: "/",
-  plugins: [react()],
+  /*
+  The collector behind the gallery's comment tool. It serves nothing in a
+  built site: the plugin applies to the dev server only, and writes what a
+  reviewer clicked to web/feedback/comments.json.
+
+  It also holds every code update back. This dev server is the reviewer's:
+  the gallery is read while somebody else is editing the same files, and a
+  screen that reloads mid-sentence loses the sentence. Nothing is pushed at
+  the browser; the comment tool says work is waiting and reloads when asked.
+  The HMR socket is disabled below for the same reason: without it, the vite
+  client also reloads the page on its own whenever the dev server restarts.
+  HOLD_RELOADS=0 gives hot reloading back, for a server run to write code on.
+  */
+  plugins: [
+    react(),
+    pageCommentsPlugin({ dir: "feedback", holdReloads: hold }),
+  ],
   build: {
     outDir: "dist",
     emptyOutDir: true,
@@ -51,6 +70,9 @@ export default defineConfig({
        refuses what the test server allows is a difference nobody wants to
        find out about at the wrong moment. */
     fs: { allow: [".."] },
+    // See the comment above the plugin: in hold mode the client must never
+    // reload on its own, including when the dev server restarts.
+    hmr: hold ? false : undefined,
     proxy: {
       [endpoints]: {
         target: API,

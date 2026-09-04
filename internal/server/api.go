@@ -65,6 +65,10 @@ func (self *server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		// The catalogue the gallery reads. The page that shows it is
 		// /variants and is the shell; the map art stays under /variants/{key}.
 		variant.HandleVariants(w, r)
+	case strings.HasPrefix(rest, "/admin/"):
+		// The owner's own door (ADR-060). The whole scope is a 404 on a
+		// server that was started without ADMIN_TOKEN.
+		serveAdmin(w, r, rest)
 	case strings.HasPrefix(rest, "/game/"):
 		self.serveFlowAPI(w, r, rest)
 	default:

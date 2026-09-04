@@ -85,15 +85,24 @@ describe("the face and its colour", () => {
     expect(clockFace(null)).toBe("");
   });
 
-  it("turns amber under five minutes and red under one", () => {
+  it("turns amber under five minutes, red under one, and flashes under thirty seconds", () => {
     expect(clockTone(20 * 60_000)).toBe("calm");
     expect(clockTone(5 * 60_000)).toBe("calm");
     expect(clockTone(4 * 60_000 + 59_000)).toBe("low");
     expect(clockTone(60_000)).toBe("low");
     expect(clockTone(59_000)).toBe("urgent");
+    expect(clockTone(30_000)).toBe("urgent");
+    expect(clockTone(29_000)).toBe("flash");
     expect(clockTone(0)).toBe("over");
     expect(clockTone(-1)).toBe("over");
     expect(clockTone(null)).toBe("calm");
+  });
+
+  it("skips the flashing tone when the caller asks for the old thresholds", () => {
+    expect(clockTone(29_000, false)).toBe("urgent");
+    expect(clockTone(59_000, false)).toBe("urgent");
+    expect(clockTone(4 * 60_000 + 59_000, false)).toBe("low");
+    expect(clockTone(0, false)).toBe("over");
   });
 
   it("says there is no clock at all when the game has no deadline", () => {

@@ -1,3 +1,5 @@
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
+
 /*
 The switch between the two ways an order list can be written.
 
@@ -16,6 +18,33 @@ export function OrderNotationToggle({
   value: boolean;
   onChange: (brief: boolean) => void;
 }) {
+  // c019: the single switch names both of the states it carries, not just
+  // the one it would move to.
+  const namedOptions = useFixEnabled("c019");
+
+  if (namedOptions) {
+    return (
+      <div className="notation-toggle-group" role="group" aria-label="Order notation">
+        <button
+          type="button"
+          className={value ? "notation-option" : "notation-option on"}
+          aria-pressed={!value}
+          onClick={() => onChange(false)}
+        >
+          Full<span className="notation-option-word"> orders</span>
+        </button>
+        <button
+          type="button"
+          className={value ? "notation-option on" : "notation-option"}
+          aria-pressed={value}
+          onClick={() => onChange(true)}
+        >
+          Abbreviated<span className="notation-option-word"> orders</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"

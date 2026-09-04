@@ -121,43 +121,64 @@ export function planDuty(actionable: Record<string, OptionTree>): Duty | null {
   return null;
 }
 
-/** The line under the phase name: what this power must do before it finalizes. */
-export function dutyLine(plan: PhasePlan, state: BoardState | null): string {
+/** The duty line, split at the unit or count it names, from what follows. */
+export interface DutyLineParts {
+  /** "Fleet Trieste", "Army Munich, Fleet Rome", "Build 2", "Disband 1" — empty when the
+      line names no unit or count, such as "Adjustments are open." */
+  unit: string;
+  /** The rest of the sentence, including any leading punctuation or space. */
+  rest: string;
+}
+
+/** The line under the phase name, split into its unit part and the rest. */
+export function dutyLineParts(plan: PhasePlan, state: BoardState | null): DutyLineParts {
   const provinces = Object.keys(plan.actionable);
-  if (plan.kind === "movement") return "";
+  if (plan.kind === "movement") return { unit: "", rest: "" };
   if (provinces.length === 0) {
     // Nothing left to order can mean two things: this power was never asked,
     // or it has already spent everything the phase gave it.
     if (Object.keys(state?.orderParts || {}).length > 0) {
-      return plan.kind === "retreat" ? "Your retreat is in." : "Your adjustments are in.";
+      return { unit: "", rest: plan.kind === "retreat" ? "Your retreat is in." : "Your adjustments are in." };
     }
-    return "Nothing to order this phase — waiting for others.";
+    return { unit: "", rest: "Nothing to order this phase. Waiting for others." };
   }
 
   if (plan.kind === "retreat") {
     const names = provinces.map((province) => unitLabel(state, province, true));
-    if (names.length === 1) return names[0] + " must retreat or disband.";
-    return names.join(", ") + " must retreat or disband.";
+    return { unit: names.join(", "), rest: " must retreat or disband." };
   }
 
   const duty = plan.duty;
-  if (!duty) return "Adjustments are open.";
+  if (!duty) return { unit: "", rest: "Adjustments are open." };
   const many = duty.count === 1 ? "" : "s";
   if (duty.type === "Build") {
     /* Not "home centres": several variants let a power build on any centre it
        holds, and the server has already decided which ones — they are the
        highlighted ones. */
     const legalSites = Object.keys(plan.actionable).length;
+    const unit = "Build " + duty.count;
     if (legalSites < duty.count) {
       const waived = duty.count - legalSites;
-      return "Build " + duty.count + ", but only " + legalSites + " legal build " +
-        (legalSites === 1 ? "site is" : "sites are") + " open; " +
-        (waived === 1 ? "the remaining build is" : "the remaining " + waived + " builds are") +
-        " waived.";
+      return {
+        unit,
+        rest: ", but only " + legalSites + " legal build " +
+          (legalSites === 1 ? "site is" : "sites are") + " open; " +
+          (waived === 1 ? "the remaining build is" : "the remaining " + waived + " builds are") +
+          " waived.",
+      };
     }
-    return "Build " + duty.count + ": tap a highlighted supply centre.";
+    return { unit, rest: ": tap a highlighted supply centre." };
   }
-  return "Disband " + duty.count + ": tap " + (duty.count === 1 ? "a unit" : duty.count + " units") + " to remove" + many + ".";
+  return {
+    unit: "Disband " + duty.count,
+    rest: ": tap " + (duty.count === 1 ? "a unit" : duty.count + " units") + " to remove" + many + ".",
+  };
+}
+
+/** The line under the phase name: what this power must do before it finalizes. */
+export function dutyLine(plan: PhasePlan, state: BoardState | null): string {
+  const { unit, rest } = dutyLineParts(plan, state);
+  return unit + rest;
 }
 
 /** How many orders of the duty's type are in already. */

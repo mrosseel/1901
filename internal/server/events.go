@@ -301,6 +301,20 @@ func (self *gameEvents) revoke(audience eventAudience, power godip.Nation) {
 	}
 }
 
+// revokeAll cuts every connection to this game, whatever it was watching. It
+// is what a deleted game does on its way out: there is no board left to poll.
+func (self *gameEvents) revokeAll() {
+	if self == nil {
+		return
+	}
+	self.mu.Lock()
+	defer self.mu.Unlock()
+	for subscriber := range self.subscribers {
+		delete(self.subscribers, subscriber)
+		close(subscriber.revoked)
+	}
+}
+
 func (self *gameEvents) revokeSeat(power godip.Nation) {
 	self.revoke(eventAudienceSeat, power)
 }

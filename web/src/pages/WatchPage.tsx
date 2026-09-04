@@ -20,8 +20,8 @@ import { useMapStyle } from "../components/StylePicker";
 import { MapToolbar } from "../components/MapToolbar";
 import { OrderNotationToggle } from "../components/OrderNotationToggle";
 import { useBriefLabels, useBriefMoves, useMarkerStyle, resolveMarkerStyle } from "../prefs";
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
 import { PhaseName } from "../components/PhaseName";
-import { SupportedMark } from "../components/SupportedMark";
 import { emptyPlan, phaseKind } from "../board/phases";
 import { setPowerPalette, setProvinceNames } from "../board/provinces";
 import { PowerChip } from "../components/PowerChip";
@@ -187,6 +187,11 @@ export function WatchPage({
     };
   }, [watch]);
 
+  // c024: GameOver carries the supply-centre table itself once the game has
+  // ended, so the one further down the panel does not repeat it. OFF keeps
+  // both tables.
+  const standingsInGameOver = useFixEnabled("c024");
+
   /*
   The board is always in review mode, whatever phase is on screen. That is not
   a presentation choice: review mode is the mode in which the island refuses
@@ -326,8 +331,7 @@ export function WatchPage({
               it, because it has nothing else to be called. */}
           <p className="muted">
             {name ? "" : "Game " + gameId + " · "}
-            {variant ? variant.name : ""}{" "}
-            {variant ? <SupportedMark supported={variant.supported} /> : null}
+            {variant ? variant.name : ""}
           </p>
           {historical ? (
             <p className="muted">This phase has resolved.</p>
@@ -358,13 +362,20 @@ export function WatchPage({
         </header>
 
         {/* How the game ended (ADR-044). It rides on every phase of a
-            finished game, so a link to Fall 1904 still says who won. */}
-        <GameOver result={watch?.result} />
+            finished game, so a link to Fall 1904 still says who won. Fix
+            c024: it carries this board's own supply-centre table, so the
+            table below drops out rather than repeating it. */}
+        <GameOver
+          result={watch?.result}
+          board={boardState}
+          powers={Object.keys(summary?.locked || {})}
+        />
 
         {/* The supply centre count, which is what a room watching a board
             wants to know and what the whole game is about. Public arithmetic
-            on a position this page is already drawing (ADR-013). */}
-        {waiting ? null : (
+            on a position this page is already drawing (ADR-013). Fix c024:
+            once the game has ended, GameOver above already carries it. */}
+        {waiting || (watch?.result && standingsInGameOver) ? null : (
           <Standings state={boardState} powers={Object.keys(summary?.locked || {})} />
         )}
 
@@ -403,9 +414,8 @@ export function WatchPage({
         {error ? <p className="status error">{error}</p> : null}
         {feedMissing ? (
           <p className="note">
-            The board and the phase history come from the spectator feed, which this
-            server does not answer yet. The phase, the clock and the locked-in count
-            below are read from the public summary instead.
+            The phase, the clock and the locked-in count below are read from the
+            public summary instead.
           </p>
         ) : null}
 

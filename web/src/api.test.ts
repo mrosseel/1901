@@ -49,6 +49,11 @@ describe("routes", () => {
     // One map's art is served by the server, and is not a page.
     expect(parseRoute("/variants/classical/map.svg").kind).toBe("unknown");
     expect(parseRoute("/games/")).toEqual({ kind: "games" });
+    // The owner's own page (ADR-060). One address, and nothing under it: the
+    // token goes to /api/v1/admin, which is transport and not a route here.
+    expect(parseRoute("/admin")).toEqual({ kind: "admin" });
+    expect(parseRoute("/admin/")).toEqual({ kind: "admin" });
+    expect(parseRoute("/admin/games/7").kind).toBe("unknown");
     expect(parseRoute("/join/7/abc")).toEqual({
       kind: "join",
       gameId: "7",

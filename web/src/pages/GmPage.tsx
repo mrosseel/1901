@@ -25,7 +25,6 @@ import { countdown, settingsLines, useGameEvents, usePoll, useRefreshAt, useTick
 import { StylePicker, useMapStyle } from "../components/StylePicker";
 import { PhaseName } from "../components/PhaseName";
 import { illegalAllowed } from "../illegal";
-import { SupportedMark } from "../components/SupportedMark";
 import { StaleBuild } from "../components/StaleBuild";
 import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
@@ -37,6 +36,10 @@ import { ModalLayer } from "../components/ModalLayer";
 import { refereeGuide } from "../referee";
 import { dismiss, isDismissed, reviewKey, reviewPlan } from "../review";
 import { EndYearField } from "../components/EndYearField";
+import { ruleLines } from "../rules";
+import { PRESS_HELP } from "../pressmode";
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
+
 
 /*
 The game master's screen: the rules, the invite, how many have joined, who has
@@ -103,8 +106,8 @@ function DrawCard({ seats, result, proposal, onDraw, onWithdraw }: {
         <>
       <p className="note">
         Include every surviving power for an agreed draw. Leaving a survivor out
-        asks that power to confirm the exclusion on their own board. A solo is
-        detected automatically.
+        asks that power to confirm the exclusion on their own board. The server
+        detects a solo by itself.
       </p>
       <ul className="draw-picks">
         {survivors.map((seat) => (
@@ -124,7 +127,7 @@ function DrawCard({ seats, result, proposal, onDraw, onWithdraw }: {
         <p className="draw-confirm">
           <span>
             {picked.length === survivors.length
-              ? "This freezes the board and records the draw immediately."
+              ? "This freezes the board and records the draw."
               : "The game continues until every excluded survivor confirms."}
           </span>{" "}
           <button type="button" onClick={() => { onDraw(picked); setConfirming(false); }}>
@@ -326,7 +329,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           <p className="muted">Game {game.gameId}</p>
           {game.variant ? (
             <p className="variant-line">
-              <strong>{game.variant.name}</strong> <SupportedMark supported={game.variant.supported} />
+              <strong>{game.variant.name}</strong>
             </p>
           ) : null}
         </div>
@@ -336,8 +339,8 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
             You are <strong>{game.gmPower}</strong>
             {game.gmSeatUrl ? (
               <>
-                {" "}
-                — <a href={game.gmSeatUrl}>open your board</a>
+                {" · "}
+                <a href={game.gmSeatUrl}>open your board</a>
               </>
             ) : null}
           </p>
@@ -387,8 +390,8 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           </p>
           {!allJoined ? (
             <p className="note">
-              Which power each phone took is not shown while seats are open. The powers
-              are listed once they are all claimed.
+              The powers stay hidden while seats are open. The list appears when the
+              last seat is claimed.
             </p>
           ) : null}
           <button
@@ -402,7 +405,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
           {localOnlyInvite ? (
             <p className="banner error">
               This invite only opens on this computer. Restart with BASE_URL set to an
-              address that players' phones can reach before seating the table.
+              address that players' phones can reach.
             </p>
           ) : (
             <LinkShare
@@ -486,9 +489,9 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
                   <>
                     Whoever opens this takes {handover.power}. The device holding it now
                     loses the seat the moment they do. Any orders {handover.power} entered
-                    on the old device this phase are lost. When the player initiates the
-                    move from their own seat, locked orders can travel with it. Use this
-                    for device recovery or a replacement allowed by your house or tournament rules.
+                    on the old device this phase are lost. Locked orders travel only when
+                    the player starts the move from their own seat. Use this for device
+                    recovery, or for a replacement your house or tournament rules allow.
                   </>
                 }
               />
@@ -560,8 +563,8 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       <details className="card">
         <summary>Back up the game master key</summary>
         <p className="note">
-          This gives nothing away. There is no account here and no password to reset, so
-          the words are the only copy of this role that outlives this browser.
+          This gives nothing away. There is no account here and no password to reset.
+          The words are the only copy of this role that outlives this browser.
         </p>
         <GmKeyCard
           gameId={gameId}
@@ -592,7 +595,9 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
       ) : null}
 
       {/* The result, first, because a finished game has nothing else worth
-          reading at the top of this page (ADR-044). */}
+          reading at the top of this page (ADR-044). No board comes with
+          GmState, so GameOver keeps its own ad-hoc centre list here (fix
+          c024) rather than the shared table it reuses where a board exists. */}
       <GameOver result={game.result} />
 
       <SettingsCard
@@ -642,7 +647,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
               {silent.length
                 ? "The deadline has passed and the orders are going up."
                 : "Every power is ready."}{" "}
-              Still waiting for {asleep.join(", ")} to send their orders — ask them to
+              Still waiting for {asleep.join(", ")} to send their orders. Ask them to
               wake the phone, or force the phase and record an NMR.
             </p>
           ) : null}
@@ -697,7 +702,7 @@ export function GmPage({ gameId, gmToken }: { gameId: string; gmToken: string })
         <h2>This device</h2>
         <StylePicker value={style} onChange={setStyle} />
         <p className="note">
-          Only this screen. It changes nothing any other player sees, and nothing about the game.
+          The map style changes nothing any other player sees, and nothing about the game.
         </p>
       </section>
 
@@ -763,6 +768,7 @@ function SettingsCard({
   const [endYearEnabled, setEndYearEnabled] = useState(savedEndYear > 0);
   const [endYear, setEndYear] = useState<number | "">(savedEndYear || "");
   const [startYear, setStartYear] = useState(0);
+  const bulletRules = useFixEnabled("c015");
 
   // A change made from another device wins over an untouched form.
   useEffect(() => setMinutes(settings.deadlineMinutes), [settings.deadlineMinutes]);
@@ -809,13 +815,21 @@ function SettingsCard({
   return (
     <section className="card">
       <h2>The rules</h2>
-      {settingsLines(settings).map((line) => (
-        <p key={line} className="muted">
-          {line}
-        </p>
-      ))}
+      {bulletRules ? (
+        <ul className="rule-list muted">
+          {ruleLines(settings).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        settingsLines(settings).map((line) => (
+          <p key={line} className="muted">
+            {line}
+          </p>
+        ))
+      )}
       <label className="field">
-        <span>Minutes for movement phases</span>
+        <span>Minutes for movement phases (0 for no deadline)</span>
         <input
           type="number"
           min={0}
@@ -828,12 +842,12 @@ function SettingsCard({
       <details>
         <summary>Clock details</summary>
         <label className="field">
-          <span>Retreat and adjustment clock (%)</span>
+          <span>Retreat and adjustment clock (% of the movement clock)</span>
           <input type="number" min={1} max={100} inputMode="numeric" value={retreatPercent}
             onChange={(event) => setRetreatPercent(Number(event.target.value))} />
         </label>
         <label className="field">
-          <span>Grace after deadline (minutes)</span>
+          <span>Grace after the deadline (minutes)</span>
           <input type="number" min={0} max={600} inputMode="numeric" value={grace}
             onChange={(event) => setGrace(Number(event.target.value))} />
         </label>
@@ -852,17 +866,7 @@ function SettingsCard({
           <option value="rulebook">In-app messages, movement phases only</option>
           <option value="fullpress">In-app messages, every phase</option>
         </select>
-        <small>
-          {started
-            ? "Fixed once the game has started."
-            : pressMode === "rulebook"
-              ? "Messages during movement phases only, and none during retreats and builds. " +
-                "Only the powers in a conversation can read it; the server still knows who talks to whom."
-              : pressMode === "fullpress"
-                ? "Messages in every phase. Best for a table that is not in one room. " +
-                  "Only the powers in a conversation can read it; the server still knows who talks to whom."
-                : "Negotiation happens in person. This app carries no messages."}
-        </small>
+        <small>{started ? "Fixed once the game has started." : PRESS_HELP[pressMode]}</small>
       </label>
       {/* The two settings that only mean something once the app carries
           messages (ADR-054, ADR-055). */}
@@ -873,8 +877,8 @@ function SettingsCard({
             <input type="number" min={0} max={600} inputMode="numeric" value={silence}
               onChange={(event) => setSilence(Number(event.target.value))} />
             <small>
-              Messages close this long before the deadline, so the last of the
-              phase is for writing orders.
+              Messages close this long before the deadline. Zero keeps them open
+              to the end.
             </small>
           </label>
           <label className="field check">
@@ -887,11 +891,11 @@ function SettingsCard({
             <span>The game master reads every message</span>
             <small>
               {started
-                ? "Fixed once the game has started: the room keys already sent name who can read them."
+                ? "Fixed once the game has started. The room keys already sent name who can read them."
                 : plays
-                  ? "Only a game master who does not play may be offered this."
+                  ? "Only a game master who does not play can read the messages."
                   : !hasKey
-                    ? "Make the game master key first — the mailbox is opened with it."
+                    ? "Make the game master key first. The mailbox is opened with it."
                     : "The referee is in every conversation, and the join page says so."}
             </small>
           </label>
@@ -921,7 +925,7 @@ function SettingsCard({
           onChange={(event) => setIllegal(event.target.checked)}
         />
         <span>Accept orders exactly as entered</span>
-        <small>Invalid orders fail under the rules instead of being blocked during entry.</small>
+        <small>The server takes an invalid order, and the rules make it fail.</small>
       </label>
       <button
         type="button"

@@ -6,6 +6,10 @@ Two directories are not code and are not the database:
 	web/dist              the vite build              SPADIR
 	variants/generated    descriptors, art, tables    GENERATED_VARIANTS
 
+One more file is neither, and is written by hand rather than by a tool:
+
+	variants/notes.json   the review note per variant  VARIANT_NOTES
+
 A third, placements, was here until ADR-051 moved map authoring to dipmap. A
 variant's table travels with its art now, so nothing looked in that directory
 any more and it went with the tools that wrote it.
@@ -51,6 +55,29 @@ func GeneratedDir() string {
 		return p
 	}
 	return filepath.Join("variants", "generated")
+}
+
+// NotesPath is the hand-kept review note per variant. VARIANT_NOTES overrides
+// the default, for the same reason GENERATED_VARIANTS does.
+func NotesPath() string {
+	if p := os.Getenv("VARIANT_NOTES"); p != "" {
+		return p
+	}
+	return filepath.Join("variants", "notes.json")
+}
+
+// Notes reads the review notes file. It is one small hand-written file rather
+// than a directory, so it is read whole here instead of handed out as an
+// fs.FS; a missing file comes back as fs.ErrNotExist, which the caller treats
+// as no notes at all.
+func Notes() ([]byte, error) {
+	if p := os.Getenv("VARIANT_NOTES"); p != "" {
+		return os.ReadFile(p)
+	}
+	if b, ok := variants.Notes(); ok {
+		return b, nil
+	}
+	return os.ReadFile(NotesPath())
 }
 
 // GeneratedPath names a file for an error message. The reader has a path

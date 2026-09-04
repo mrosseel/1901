@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 
+import { TopBar } from "../components/TopBar";
 import { classicalMapUrl } from "../variants";
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
 
 /*
 The front door (ADR-043).
@@ -56,35 +58,27 @@ function pieceStyle(piece: (typeof PIECES)[number]): CSSProperties {
 
 export function LandingPage() {
   const map = classicalMapUrl();
+  /* The hero drops its eyebrow line (c025): the headline already says what
+     the game is, and the tag under it repeated that without adding anything. */
+  const eyebrowGone = useFixEnabled("c025");
+  /* The tagline names all three ways to play, full press included, not just
+     the two that ship first (c026). */
+  const taglineNamesFullPress = useFixEnabled("c026");
   return (
     <main className="landing">
-      <header className="lp-bar">
-        <span className="lp-mark">1901</span>
-        <span className="lp-tag">Diplomacy at a table</span>
-        <nav className="lp-nav">
-          <a href="#turn">How a turn runs</a>
-          <a href="/variants">Variants</a>
-          <a href="/sandbox">Sandbox</a>
-          <a href="/games">Games</a>
-          <a href="/recover">Return to a game</a>
-          <a href="/faq">Questions</a>
-          <a className="cta" href="/new">
-            Create a game
-          </a>
-        </nav>
-      </header>
+      <TopBar here="index" />
 
       <section className="lp-hero">
         <div className="lp-wash" style={{ backgroundImage: "url(" + map + ")" }} />
         <div className="lp-hero-body">
           <div className="lp-hero-words">
-            <p className="lp-eyebrow">Free and open source</p>
-            <h1 className="lp-title">
-              Wage diplomacy
-              <br />
-              face-to-face.
-            </h1>
-            <p className="lp-tagline">Face-to-face or gunboat play.</p>
+            {!eyebrowGone && <p className="lp-eyebrow">Free and open source</p>}
+            <h1 className="lp-title">Wage diplomacy.</h1>
+            <p className="lp-tagline">
+              {taglineNamesFullPress
+                ? "Face-to-face, gunboat, or full press."
+                : "Face-to-face or gunboat play."}
+            </p>
             <p className="lp-lead">
               Everyone at the table enters orders on their own phone, at the same time.
               The server resolves the phase and prints the list of pieces to push.
@@ -155,9 +149,11 @@ export function LandingPage() {
         </div>
         <div>
           <p className="lp-fact">4</p>
-          <p className="note">map styles, including print and parchment</p>
+          <p className="note">map styles</p>
         </div>
-        <div>
+        {/* The row's first fact: the others count what the server holds, this
+            one is the promise a stranger arrives wanting checked. */}
+        <div className="lp-fact-first">
           <p className="lp-fact">0</p>
           <p className="note">accounts, names or passwords</p>
         </div>
@@ -185,7 +181,7 @@ export function LandingPage() {
             <p className="lp-card-head">Tap the unit, tap the target</p>
             <p className="note">
               Supports and convoys build the same way. You see your own orders and
-              nobody else's, on the map you are already looking at.
+              nobody else's.
             </p>
           </article>
           <article className="lp-card">
@@ -204,14 +200,12 @@ export function LandingPage() {
           <h2 className="lp-head small">A list for whoever pushes the pieces</h2>
           <p className="lp-body">
             Playing with a physical board is optional. If you do, whoever keeps it gets
-            one line per act after the phase resolves, in big type, with a tick box. Read
-            it, move it, tick it. The pieces that stay put are listed too, quietly, so
-            none of them gets missed.
+            one line per act after the phase resolves, in big type, with a tick box. The
+            list names the pieces that stay put as well, so nobody misses one.
           </p>
           <p className="note">
             Without a board, the map on the screen is the board. Every phase also has a
-            login-free spectator page for the beamer at the back of the room, and those
-            links never expire.
+            login-free spectator page for the beamer, and those links never expire.
           </p>
         </div>
         <div className="lp-sheet">
@@ -251,10 +245,9 @@ export function LandingPage() {
             power, and you press adjudicate. No seats, no clock, nobody to wait for.
           </p>
           <p className="note">
-            Work through an opening. Check what a convoy really does. Type in a
-            tournament board and hand somebody the link. The game id on its own is
-            the same public, permanent spectator page every played game gets, so a
-            sandbox can be cited and read by anyone, forever.
+            Work through an opening. Type in a tournament board and hand somebody the
+            link. The game id on its own opens the same public, permanent spectator
+            page every played game gets, so anyone can read a sandbox, forever.
           </p>
           <div className="lp-actions">
             <a className="lp-primary" href="/sandbox">

@@ -11,6 +11,7 @@ import { provinceName, setPowerPalette, setProvinceNames } from "../board/provin
 import {
   candidates,
   dutyLine,
+  dutyLineParts,
   dutyProgress,
   emptyPlan,
   phaseKind,
@@ -25,7 +26,14 @@ import type {
   ReviewDraw,
   Unit,
 } from "../board/types";
-import { settingsLines, useGameEvents, usePoll, useRefreshAt, useTicker } from "../hooks";
+import {
+  settingsLines,
+  useGameEvents,
+  usePoll,
+  useRefreshAt,
+  useTicker,
+} from "../hooks";
+import { ruleLines } from "../rules";
 import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
 import { SeatBar } from "../components/SeatBar";
@@ -37,6 +45,8 @@ import { OrderNotationToggle } from "../components/OrderNotationToggle";
 import { abbreviateOrders, unitsOf } from "../notation";
 import { illegalAllowed, illegalDraftNote } from "../illegal";
 import { SupportedMark } from "../components/SupportedMark";
+import { VariantNote } from "../components/VariantNote";
+import { useFixEnabled } from "@mrosseel/page-comments/fixes";
 import { styledMapUrl } from "../style";
 import { ReviewOverlay, ReviewPeekBar } from "../components/ReviewOverlay";
 import { ModalLayer } from "../components/ModalLayer";
@@ -87,6 +97,37 @@ function powersOf(state: SeatState | null | undefined): string[] {
 }
 
 export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: string }) {
+  // c003: the map carries the review note somebody wrote, not a green tick.
+  const noteInsteadOfTick = useFixEnabled("c003");
+  // c006: the review note belongs to the variant gallery alone, not to a
+  // running game.
+  const noteGoneHere = useFixEnabled("c006");
+  const bulletRules = useFixEnabled("c015");
+  // c020: a resolved order reads as a plain OK, in green, not a sentence.
+  const okNotSentence = useFixEnabled("c020");
+  // c019: the switch names both states, so the "Your orders" heading above
+  // it is redundant. OFF keeps the heading.
+  const orderNotationHeading = !useFixEnabled("c019");
+  // c022: the ready button's subtext only restates the main label in the
+  // default and idle states. OFF keeps every subtext.
+  const dropRedundantSub = useFixEnabled("c022");
+  // c021: the duty line's unit or count is bold; the rest of the sentence is
+  // lighter and grey. OFF keeps the sentence at one weight.
+  const dutyUnitBold = useFixEnabled("c021");
+  // c023: an ended game's panel is the result and the record of it. The
+  // ready button, the missing-order count, the order entry and the switch
+  // that rewrites it all belong to a phase that is over. OFF keeps them.
+  const outcomeInsteadOfLock = useFixEnabled("c023");
+  // c024: GameOver carries the supply-centre table itself, so the one
+  // further down the panel does not repeat it. OFF keeps both tables.
+  const standingsInGameOver = useFixEnabled("c024");
+  // c027: the ready button gets the sidebar's own spacing from the line
+  // under it, and "All orders are in" reads as a notice, not flat grey.
+  // OFF keeps the old spacing and colour.
+  const livelyLockPanel = useFixEnabled("c027");
+  // c028: the variant name moved to the bar above the map, so the muted
+  // line that used to carry it here drops out. OFF keeps the old line.
+  const variantInTopBar = useFixEnabled("c028");
   const client = useMemo(() => new SeatClient(gameId, seatToken), [gameId, seatToken]);
   /*
   A keyed seat (ADR-049). The address carries no token: the seed does the work,
@@ -658,6 +699,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
     ? new Set(illegalDrafts)
     : new Set<string>();
   const duty = dutyLine(plan, state);
+  const dutyParts = dutyLineParts(plan, state);
   /*
   The reveal window is open (ADR-009), so this phase takes no more locks.
 
@@ -687,6 +729,29 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
   // outcome is listed, not only this one's.
   const resolutions = state?.phaseResolutions || state?.resolutions || {};
   const resolutionRows = Object.keys(resolutions).sort();
+  /*
+  Fix c023. The game has a result, so the panel is a record and not a turn:
+  the result card leads the column, and everything the phase needed — the
+  ready button, the order entry, and the switch that rewrites its list —
+  leaves it. The server refuses an order here anyway.
+  */
+  const overAndRecorded = started && Boolean(state?.result) && outcomeInsteadOfLock;
+
+  /*
+  The result, on the one screen a player is certainly looking at when the game
+  ends (ADR-044). It is written once and placed twice: at the top of the panel
+  once the game is over (fix c023), and where it always sat otherwise. Fix
+  c024: it carries this board's own supply-centre table, so the table at the
+  foot of the panel drops out rather than repeating it.
+  */
+  const resultCard = (
+    <GameOver
+      result={state?.result}
+      board={state}
+      powers={Object.keys(state?.locked || {})}
+      you={power}
+    />
+  );
 
   /*
   A review or a guide is a thing to read, and while one is open it owns the
@@ -718,6 +783,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         power={power}
         phase={state?.phase}
         started={started}
+        variant={state?.variant?.name}
         ordersIn={orderRows.length}
         ordersExpected={expectedOrders}
         locked={Boolean(state?.youLocked)}
@@ -793,6 +859,9 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           />
         ) : (
         <>
+        {/* Fix c023: on a finished game the result is what the column is
+            for, so it is the first thing in it. */}
+        {overAndRecorded ? resultCard : null}
         {connectionLost ? (
           <div className="banner">
             <div>
@@ -811,11 +880,20 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
                 the bar above the map now (SeatBar): they are read in glances
                 between conversations, and hunting for them below a map that
                 is fighting for every pixel was the thing to fix. What is left
-                here is what a player reads once and then acts on. */}
-            <p className="muted">
-              {state?.variant ? state.variant.name : ""}{" "}
-              {state?.variant ? <SupportedMark supported={state.variant.supported} /> : null}
-            </p>
+                here is what a player reads once and then acts on. Fix c028:
+                the variant's name went up to the bar too, in its own box
+                beside the phase, so this line carries only what did not — the
+                review note or tick, when one of those still shows here. */}
+            {state?.variant && (!variantInTopBar || !noteGoneHere) ? (
+              <p className="muted">
+                {variantInTopBar ? null : state.variant.name + " "}
+                {noteGoneHere ? null : noteInsteadOfTick ? (
+                  <VariantNote note={state.variant.note} />
+                ) : (
+                  <SupportedMark supported={state.variant.supported} />
+                )}
+              </p>
+            ) : null}
             {review && !reviewing ? (
               <span className="head-links">
                 <button type="button" className="link" onClick={() => setReviewing(true)}>
@@ -840,8 +918,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             {/* What this phase asks of this power: the units that must retreat,
                 or the builds and disbands owed. */}
             {duty ? (
-              <p className={idle ? "duty idle" : "duty"}>
-                {duty}
+              <p className={"duty duty-" + plan.kind + (idle ? " idle" : "")}>
+                {dutyUnitBold && dutyParts.unit ? (
+                  <>
+                    <strong>{dutyParts.unit}</strong>
+                    <span className="duty-rest">{dutyParts.rest}</span>
+                  </>
+                ) : (
+                  duty
+                )}
                 {plan.duty && !idle ? " (" + done + " of " + plan.duty.count + " in)" : ""}
               </p>
             ) : null}
@@ -852,9 +937,17 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           <div className="banner">
             <div>
               <strong>The rules changed.</strong>
-              {settingsLines(state?.settings).map((line) => (
-                <div key={line}>{line}</div>
-              ))}
+              {bulletRules ? (
+                <ul className="rule-list">
+                  {ruleLines(state?.settings).map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                settingsLines(state?.settings).map((line) => (
+                  <div key={line}>{line}</div>
+                ))
+              )}
             </div>
             <button type="button" className="link" onClick={() => setRulesChanged(false)}>
               Dismiss
@@ -914,7 +1007,16 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           </section>
         ) : null}
 
-        {state?.started && state.nothingToOrder ? (
+        {overAndRecorded ? (
+          /*
+          Fix c023: the game took its last order already. A missing-order
+          count and a "mark ready" button both describe a phase that no
+          longer exists, and the line that replaced them only pointed at the
+          result card. The card is at the top of the column now, so nothing
+          stands here at all.
+          */
+          null
+        ) : state?.started && state.nothingToOrder ? (
           <section className="lock">
             {/*
             No button, because there is no choice being declined: the phase
@@ -924,15 +1026,15 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
               <span className="lock-main">
                 Nothing to order — {state.lockedCount} of {state.totalSeats} players ready
               </span>
-              <span className="lock-sub">
-                {power} has no order to give this phase, so this seat is locked for you.
-              </span>
             </div>
           </section>
         ) : state?.started ? (
           <section className="lock">
             {expectedOrders > 0 ? (
-              <p className={missingOrders ? "notice" : "muted"}>
+              // c027: "All orders are in" is a milestone, not a caption, so
+              // it reads in the same colour as the missing-orders line
+              // instead of flat grey. OFF keeps the old muted line.
+              <p className={livelyLockPanel || missingOrders ? "notice" : "muted"}>
                 {missingOrders === 0
                   ? "All orders are in"
                   : missingOrders + (missingOrders === 1 ? " order missing" : " orders missing")}
@@ -952,28 +1054,32 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             >
               <span className="lock-main">
                 {state.youLocked
-                  ? "Ready — " +
+                  ? "Ready. " +
                     state.lockedCount +
                     " of " +
                     state.totalSeats +
                     " players ready"
                   : missedLock
-                    ? "Orders closed — the phase is being revealed"
+                    ? "Orders closed. The phase is being revealed"
                     : idle
-                      ? "Nothing to order — mark ready"
+                      ? "Nothing to order. Mark ready"
                       : "Mark my orders ready"}
               </span>
-              <span className="lock-sub">
-                {state.youLocked
-                  ? state.revealOpen
+              {state.youLocked ? (
+                <span className="lock-sub">
+                  {state.revealOpen
                     ? "Everybody is in · the orders are going up now"
-                    : "Tap to withdraw readiness"
-                  : missedLock
-                    ? "The deadline passed with this seat unlocked"
-                    : state.sealed
-                      ? "Orders stay on this device until you mark them ready"
-                      : "Mark ready when your orders are complete"}
-              </span>
+                    : "Tap to withdraw readiness"}
+                </span>
+              ) : missedLock ? (
+                <span className="lock-sub">The deadline passed with this seat unlocked</span>
+              ) : state.sealed ? (
+                <span className="lock-sub">
+                  Orders stay on this device until you mark them ready
+                </span>
+              ) : dropRedundantSub ? null : (
+                <span className="lock-sub">Mark ready when your orders are complete</span>
+              )}
             </button>
             {state.youLocked ? null : (
               <p className="muted">
@@ -990,7 +1096,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
               <p className="muted reveal-wait">
                 {missedLock
                   ? "This seat has nothing to send: it never locked in. Ask the game"
-                    + " master to extend the deadline, or to force the phase — then"
+                    + " master to extend the deadline, or to force the phase. Then"
                     + " " + missedOutcome
                   : state.youRevealed
                     ? "Waiting for " + (state.awaitingReveal || []).join(", ")
@@ -1008,12 +1114,16 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
 
         {/* No orders before the start: no phase has asked for one and the
             server refuses one. So the list, its heading and the switch that
-            rewrites it are not on the screen at all. */}
-        {started ? (
+            rewrites it are not on the screen at all. Fix c023: the same is
+            true after the end, where "no orders yet" promises a phase that
+            will never come. */}
+        {started && !overAndRecorded ? (
           <section>
-            {/* The switch belongs to the list it rewrites, not to the map. */}
+            {/* The switch belongs to the list it rewrites, not to the map.
+                Fix c019: the two-option switch already says what this section
+                holds, so the redundant heading is gone; OFF keeps it. */}
             <div className="list-head">
-              <h2>Your orders</h2>
+              {orderNotationHeading ? <h2>Your orders</h2> : null}
               <OrderNotationToggle value={briefMoves} onChange={setBriefMoves} />
             </div>
             {orderRows.length === 0 ? (
@@ -1086,15 +1196,19 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         {resolutionRows.length ? (
           <section>
             <h2>Last phase</h2>
-            <ul className="list">
+            <ul className="list resolution-list">
               {/* A failure is said in the review's words, not godip's code. */}
               {resolutionRows.map((province) => (
                 <li key={province}>
                   <span className="nation">{provinceName(province)}</span>
                   <span className="order-text">
-                    {isFailure(resolutions[province])
-                      ? failureReason(resolutions[province])
-                      : "resolved without an order error"}
+                    {isFailure(resolutions[province]) ? (
+                      failureReason(resolutions[province])
+                    ) : okNotSentence ? (
+                      <span className="ok-result">OK</span>
+                    ) : (
+                      "resolved without an order error"
+                    )}
                   </span>
                 </li>
               ))}
@@ -1102,9 +1216,10 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
           </section>
         ) : null}
 
-        {/* The result, above everything, on the one screen a player is
-            certainly looking at when the game ends (ADR-044). */}
-        <GameOver result={state?.result} />
+        {/* Where the result sits while the fix is off: after the orders, in
+            the order the panel grew. Fix c023 lifts it to the top of the
+            column instead. */}
+        {overAndRecorded ? null : resultCard}
 
         {/* Asked once, at the start, and never again (ADR-004). A copy of
             this seat on another device is what saves the orders of a phone
@@ -1114,8 +1229,9 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
         {/* Last on the panel, because it is read between turns and never
             during one: the orders and the lock are what a player reaches for
             under the clock. Every power's supply centres, counted off the
-            board this screen is already drawing. */}
-        {started ? (
+            board this screen is already drawing. Fix c024: once the game
+            has ended, GameOver above already carries this table. */}
+        {started && !(state?.result && standingsInGameOver) ? (
           <Standings state={state} you={power} powers={Object.keys(state?.locked || {})} />
         ) : null}
 

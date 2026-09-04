@@ -1073,6 +1073,7 @@
     "variant": {
         "key": "classical",
         "name": "Classical",
-        "supported": true
+        "supported": true,
+        "note": "Placement checked against the rulebook map (ADR-014)."
     }
 }
