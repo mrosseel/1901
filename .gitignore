@@ -1,6 +1,7 @@
 /1901
 *.png
 .playwright-mcp/
+node_modules/
 web/node_modules/
 web/dist/
 web/*.tsbuildinfo
@@ -12,3 +13,10 @@ result
 
 # the built server binary
 1901srv
+
+# Comments captured from the dev gallery, with their screen shots
+web/feedback/
+
+# Claude Code's per-machine settings. .mcp.json beside it is shared, this is
+# the local half and names paths that exist on one box.
+.claude/settings.local.json
