@@ -1232,7 +1232,7 @@ export function SeatPage({ gameId, seatToken }: { gameId: string; seatToken: str
             board this screen is already drawing. Fix c024: once the game
             has ended, GameOver above already carries this table. */}
         {started && !(state?.result && standingsInGameOver) ? (
-          <Standings state={state} you={power} powers={Object.keys(state?.locked || {})} />
+          <Standings state={state} note={state?.variant?.standingsNote} you={power} powers={Object.keys(state?.locked || {})} />
         ) : null}
 
         </>

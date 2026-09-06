@@ -376,7 +376,7 @@ export function WatchPage({
             on a position this page is already drawing (ADR-013). Fix c024:
             once the game has ended, GameOver above already carries it. */}
         {waiting || (watch?.result && standingsInGameOver) ? null : (
-          <Standings state={boardState} powers={Object.keys(summary?.locked || {})} />
+          <Standings state={boardState} note={variant?.standingsNote} powers={Object.keys(summary?.locked || {})} />
         )}
 
         {/* The counts, as a file (ADR-046). This is the address a tournament

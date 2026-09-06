@@ -23,11 +23,14 @@ person reads in a sentence is "supply centre" in full (CONTEXT.md).
 */
 export function Standings({
   state,
+  note,
   you,
   powers,
   bare,
 }: {
   state: BoardState | null | undefined;
+  /** The server's line on when ownership settles, worded for this board. */
+  note?: string;
   /** This device's own power, so its row can be marked. Absent for a watcher. */
   you?: string;
   /** Every power in the variant, so one that has lost everything is still listed. */
@@ -94,7 +97,7 @@ export function Standings({
         <p className="note">
           {settled
             ? "+ build, − remove."
-            : state?.variant?.standingsNote || "Ownership changes after the Fall retreats."}
+            : note || "Ownership changes after the Fall retreats."}
         </p>
       )}
     </Frame>
