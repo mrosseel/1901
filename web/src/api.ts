@@ -109,6 +109,8 @@ export interface VariantRef {
   supported: boolean;
   /** What a person wrote about this map's review, if anything (ADR-061). */
   note?: string;
+  /** The line under the supply-centre table while the year is open. */
+  standingsNote?: string;
 }
 
 /*

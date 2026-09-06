@@ -495,6 +495,9 @@ type RefJSON struct {
 	Name      string `json:"name"`
 	Supported bool   `json:"supported"`
 	Note      string `json:"note,omitempty"`
+	// StandingsNote is the line under the supply-centre table in a running
+	// game, filled in by GameRef.
+	StandingsNote string `json:"standingsNote,omitempty"`
 }
 
 // Ref identifies the variant a game is played on. The game knows its key and
@@ -507,6 +510,32 @@ func Ref(key, name string) RefJSON {
 		Supported: Supported[key],
 		Note:      Note(key),
 	}
+}
+
+// GameRef is Ref for a game in play, with the standings line for its board.
+func GameRef(key string, v common.Variant) RefJSON {
+	ref := Ref(key, v.Name)
+	ref.StandingsNote = StandingsNote(key, v)
+	return ref
+}
+
+/*
+StandingsNote is the sentence under the supply-centre table while a year is
+still open: when the counts start to pay.
+
+A descriptor may say it in its own words (rules.standingsNote). Otherwise the
+seasons say it: on a board with a spring and a fall, ownership settles after
+the last season's retreats; on a board with one season per year, after the
+retreats that come before the builds.
+*/
+func StandingsNote(key string, v common.Variant) string {
+	if gen, ok := Generated[key]; ok && gen.StandingsNote != "" {
+		return gen.StandingsNote
+	}
+	if len(v.Seasons) > 1 {
+		return "Ownership changes after the " + string(v.Seasons[len(v.Seasons)-1]) + " retreats."
+	}
+	return "Ownership changes after the retreats, before the builds."
 }
 
 /*

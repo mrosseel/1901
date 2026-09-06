@@ -87,10 +87,14 @@ export function Standings({
       {/* One line, and only where it says something a player cannot see: the
           board is mid-year and these counts are not yet the ones that pay.
           Nobody at the table needs the rule explained, and nobody reading a
-          finished game is owed a rule about the builds it will never take. */}
+          finished game is owed a rule about the builds it will never take.
+          The server words the line for the board's own seasons; the Fall
+          sentence is for a state from before it did. */}
       {bare ? null : (
         <p className="note">
-          {settled ? "+ build, − remove." : "Ownership changes after the Fall retreats."}
+          {settled
+            ? "+ build, − remove."
+            : state?.variant?.standingsNote || "Ownership changes after the Fall retreats."}
         </p>
       )}
     </Frame>

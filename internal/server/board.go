@@ -13,7 +13,7 @@ import "spring1901/spike/internal/variant"
 
 // variantRef identifies the variant this game is played on.
 func (self *game) variantRef() variant.RefJSON {
-	return variant.Ref(self.variantKey, self.variant.Name)
+	return variant.GameRef(self.variantKey, self.variant)
 }
 
 // provinceNames is the abbreviation-to-long-name table the board labels from.

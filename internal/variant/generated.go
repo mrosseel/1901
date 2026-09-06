@@ -59,6 +59,9 @@ type GeneratedVariant struct {
 	// opening position, win condition and rules. Renaming the variant or
 	// reflowing its JSON leaves it unchanged.
 	Hash string
+	// StandingsNote is the descriptor's own sentence about when ownership
+	// settles, or "" when the seasons say it.
+	StandingsNote string
 }
 
 // Generated holds everything loaded at startup, by key. Written once
@@ -293,9 +296,10 @@ func loadGeneratedVariant(fsys fs.FS, key string) (pendingVariant, error) {
 		key:     key,
 		drawnOn: descriptor.Map,
 		gen: GeneratedVariant{
-			Key:     key,
-			Variant: variant,
-			Hash:    variantjson.GameHash(descriptor),
+			Key:           key,
+			Variant:       variant,
+			Hash:          variantjson.GameHash(descriptor),
+			StandingsNote: strings.TrimSpace(descriptor.Rules.StandingsNote),
 		},
 	}, nil
 }

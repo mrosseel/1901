@@ -93,6 +93,9 @@ type Rules struct {
 	// Text is the variant's own rules prose, as its author wrote it. Empty
 	// means the win condition is the only rule worth stating.
 	Text string `json:"text"`
+	// StandingsNote is the one line under the supply-centre table saying when
+	// ownership settles. Empty means the sentence is derived from the seasons.
+	StandingsNote string `json:"standingsNote,omitempty"`
 }
 
 // Start is the opening position, and the phase it stands in.

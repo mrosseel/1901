@@ -127,3 +127,22 @@ func TestShippedNotesParse(t *testing.T) {
 		}
 	}
 }
+
+func TestStandingsNoteFollowsTheSeasons(t *testing.T) {
+	classical, _ := Lookup("classical")
+	if got := StandingsNote("classical", classical); got != "Ownership changes after the Fall retreats." {
+		t.Errorf("classical: %q", got)
+	}
+	hundred, _ := Lookup("hundred")
+	if got := StandingsNote("hundred", hundred); got != "Ownership changes after the retreats, before the builds." {
+		t.Errorf("hundred: %q", got)
+	}
+	saved := Generated["hundred"]
+	gen := saved
+	gen.StandingsNote = "Ownership changes in the years ending in 0."
+	Generated["hundred"] = gen
+	t.Cleanup(func() { Generated["hundred"] = saved })
+	if got := GameRef("hundred", hundred).StandingsNote; got != gen.StandingsNote {
+		t.Errorf("override: %q", got)
+	}
+}
