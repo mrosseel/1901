@@ -1,8 +1,9 @@
+import { useState } from "react";
 import { StylePicker } from "./StylePicker";
 import { MARKER_STYLES } from "../board/markers";
 
 /*
-The switches that change the map, over the map.
+The switches that change the map, over the map, behind a cog.
 
 They were at the bottom of the panel, under the order list and the last
 phase's resolutions — three unrelated controls in the one place a player
@@ -10,11 +11,13 @@ scrolls past. Every one of them changes what the MAP draws and nothing else,
 so the map is where they belong: you flip one and watch the thing you flipped
 it for, with no eye trip across the screen and back.
 
-The bar is deliberately quiet. It sits on the top edge, it is translucent
-until it is pointed at, and it holds nothing that changes the game — every
-switch here is this device's alone, saved in this browser and sent to nobody
-(prefs.ts, style.ts). Two of them are on-or-off and one is a list, so the two
-are pressed buttons that say which way they are and the list stays a select.
+Open, the bar was still a row of controls sitting on the board through every
+phase, and a phone has no board to spare. So the bar is one cog until it is
+tapped, and one cog again when it is tapped closed. It holds nothing that
+changes the game — every switch here is this device's alone, saved in this
+browser and sent to nobody (prefs.ts, style.ts). Two of them are on-or-off
+and one is a list, so the two are pressed buttons that say which way they
+are and the list stays a select.
 
 On a phone the words come off and the marks stand alone. That is not a smaller
 version of the bar; it is the same bar with the room a phone actually has, and
@@ -45,10 +48,23 @@ export function MapToolbar({
   /** What the game master set the game to open on, when there is a game. */
   tableMarkerStyle?: string;
 }) {
+  const [open, setOpen] = useState(false);
   const table = MARKER_STYLES.find((one) => one.name === tableMarkerStyle);
   return (
-    <div className="map-toolbar" role="group" aria-label="Map controls">
-      {onHideOrders ? (
+    <div className={open ? "map-toolbar is-open" : "map-toolbar"} role="group" aria-label="Map controls">
+      <button
+        type="button"
+        className="map-tool map-tool-cog"
+        aria-expanded={open}
+        title={open ? "Hide the map controls" : "Map controls"}
+        onClick={() => setOpen(!open)}
+      >
+        <span className="map-tool-mark" aria-hidden="true">
+          ⚙
+        </span>
+      </button>
+
+      {open && onHideOrders ? (
         <button
           type="button"
           className={hideOrders ? "map-tool off" : "map-tool"}
@@ -63,42 +79,46 @@ export function MapToolbar({
         </button>
       ) : null}
 
-      <button
-        type="button"
-        className={briefLabels ? "map-tool" : "map-tool off"}
-        aria-pressed={briefLabels}
-        title={briefLabels ? "Show full province names" : "Show province codes"}
-        onClick={() => onBriefLabels(!briefLabels)}
-      >
-        <span className="map-tool-mark" aria-hidden="true">
-          Ab
-        </span>
-        <span className="map-tool-word">{briefLabels ? "Codes" : "Names"}</span>
-      </button>
-
-      <label className="style-picker">
-        <span className="style-picker-label">Pieces</span>
-        <select
-          value={markerStyle}
-          title={
-            MARKER_STYLES.find((one) => one.name === markerStyle)?.description ||
-            "The pieces this device draws units as"
-          }
-          onChange={(event) => onMarkerStyle(event.target.value)}
+      {open ? (
+        <button
+          type="button"
+          className={briefLabels ? "map-tool" : "map-tool off"}
+          aria-pressed={briefLabels}
+          title={briefLabels ? "Show full province names" : "Show province codes"}
+          onClick={() => onBriefLabels(!briefLabels)}
         >
-          {/* The way back to the game master's choice, and the only way: a
-              device that has picked a style keeps it until it says otherwise,
-              and there is otherwise nothing for it to pick to stop. */}
-          {table ? <option value="">Table's choice ({table.title})</option> : null}
-          {MARKER_STYLES.map((one) => (
-            <option key={one.name} value={one.name} title={one.description}>
-              {one.title}
-            </option>
-          ))}
-        </select>
-      </label>
+          <span className="map-tool-mark" aria-hidden="true">
+            Ab
+          </span>
+          <span className="map-tool-word">{briefLabels ? "Codes" : "Names"}</span>
+        </button>
+      ) : null}
 
-      <StylePicker value={style} onChange={onStyle} label="Style" />
+      {open ? (
+        <label className="style-picker">
+          <span className="style-picker-label">Pieces</span>
+          <select
+            value={markerStyle}
+            title={
+              MARKER_STYLES.find((one) => one.name === markerStyle)?.description ||
+              "The pieces this device draws units as"
+            }
+            onChange={(event) => onMarkerStyle(event.target.value)}
+          >
+            {/* The way back to the game master's choice, and the only way: a
+                device that has picked a style keeps it until it says otherwise,
+                and there is otherwise nothing for it to pick to stop. */}
+            {table ? <option value="">Table's choice ({table.title})</option> : null}
+            {MARKER_STYLES.map((one) => (
+              <option key={one.name} value={one.name} title={one.description}>
+                {one.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      {open ? <StylePicker value={style} onChange={onStyle} label="Style" /> : null}
     </div>
   );
 }
