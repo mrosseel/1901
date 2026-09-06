@@ -110,6 +110,8 @@ export interface PressThread {
   lastSeq: number;
   lastAt: string;
   messages?: PressMessage[];
+  hasOlder?: boolean;
+  hasMore?: boolean;
 }
 
 export interface PressMessage {

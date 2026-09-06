@@ -1,5 +1,17 @@
 # Security review record
 
+> Updated 2026-09-05: the historical review below is preserved as a record.
+> Current authentication, session, press and cookie rules are in
+> [ADR-062](docs/adr/062-authentication-proofs-are-single-use-and-private-state-is-bounded.md).
+> The four September 5 findings have been addressed: unique/proven key
+> enrollment, single-use recovery/session proofs, bounded sessions and
+> paginated/quota-limited press, and Secure cookies on HTTPS deployments.
+> All API responses and the referee redirect now carry `no-store`.
+> General HTTP rate limiting, CSP/anti-framing headers and HTTPS-only hosting
+> remain outside these fixes. Earlier statements below about all seats being
+> URL tokens, unbounded device joins and manual-only game deletion are outdated.
+
+
 This file records the security review of 2026-08-28. It lists the fixes that
 review produced, the risks we accept, and the checks that keep the record
 true. Read it before you change the auth model, the serving path, or the

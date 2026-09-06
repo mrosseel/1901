@@ -270,6 +270,7 @@ func handlePressOpen(g *game, id string, actor pressActor, w http.ResponseWriter
 
 	t := &pressThread{
 		id:            body.Thread,
+		gameID:        id,
 		openedBy:      actor.holder,
 		members:       members,
 		openedAt:      body.OpenedAt,
@@ -364,18 +365,29 @@ func handlePressThread(g *game, id string, actor pressActor, w http.ResponseWrit
 		http.NotFound(w, r)
 		return
 	}
-	since := 0
-	if raw := r.URL.Query().Get("since"); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil {
-			since = n
+	since, before := -1, 0
+	for name, target := range map[string]*int{"since": &since, "before": &before} {
+		if raw := r.URL.Query().Get(name); raw != "" {
+			n, err := strconv.Atoi(raw)
+			if err != nil || n < 0 {
+				httpx.WriteErr(w, http.StatusBadRequest, "invalid message cursor")
+				return
+			}
+			*target = n
 		}
+	}
+	page, err := t.messagePage(since, before)
+	if err != nil {
+		httpx.WriteErr(w, http.StatusInternalServerError, "could not read messages")
+		return
 	}
 	row := t.summary(actor)
-	for _, m := range t.messages {
-		if m.Seq > since {
-			row.Messages = append(row.Messages, m)
-		}
+	row.Messages = page
+	if len(page) > 0 {
+		row.HasOlder = page[0].Seq > 1
+		row.HasMore = page[len(page)-1].Seq < t.lastSeq()
 	}
+
 	httpx.WriteJSON(w, http.StatusOK, row)
 }
 
@@ -477,7 +489,7 @@ func handlePressSend(g *game, id string, actor pressActor, w http.ResponseWriter
 	// Somebody else spoke between this sender reading the room and writing
 	// into it. Their envelope is sealed against the number they saw, so
 	// storing it under another would make it unreadable to everybody.
-	if body.Seq != len(t.messages)+1 {
+	if body.Seq != t.lastSeq()+1 {
 		httpx.WriteErr(w, http.StatusConflict,
 			"somebody else spoke first — read the room again and send it once more")
 		return
@@ -505,11 +517,21 @@ func handlePressSend(g *game, id string, actor pressActor, w http.ResponseWriter
 		lost would leave the room's sequence with a hole in it that the next
 		message silently overwrites.
 	*/
+	if !g.flow.pressRoomFor(m.Sender, messageBytes(m)) {
+		httpx.WriteErr(w, http.StatusConflict, "your message storage for this game is full; existing messages remain readable")
+		return
+	}
+	if !g.flow.takePressRate(actor.holder, time.Now()) {
+		w.Header().Set("Retry-After", "3")
+		httpx.WriteErr(w, http.StatusTooManyRequests, "messages are arriving too quickly — wait a few seconds")
+		return
+	}
 	if err := persistPressMessage(id, t.id, m); err != nil {
 		httpx.WriteErr(w, http.StatusInternalServerError, "the message was not stored: %v", err)
 		return
 	}
-	t.messages = append(t.messages, m)
+	g.flow.countPressBytes(m.Sender, messageBytes(m))
+	t.rememberMessage(m)
 	/*
 		No socket event. The live socket carries a version to every view of the
 		game, and the public one is unauthenticated (events.go), so a bump on
@@ -546,10 +568,19 @@ func handlePressRead(g *game, id string, actor pressActor, w http.ResponseWriter
 	// Forward only, and never past the room: a marker beyond the last message
 	// would mark everything said afterwards as already read.
 	seq := body.Seq
-	if seq > len(t.messages) {
-		seq = len(t.messages)
+	if seq > t.lastSeq() {
+		seq = t.lastSeq()
 	}
 	if seq > t.read[actor.holder] {
+		unread, err := t.countUnread(actor.holder, seq)
+		if err != nil {
+			httpx.WriteErr(w, http.StatusInternalServerError, "could not mark messages read")
+			return
+		}
+		if t.unread == nil {
+			t.unread = map[string]int{}
+		}
+		t.unread[actor.holder] = unread
 		t.read[actor.holder] = seq
 		persistPressRead(id, t.id, actor.holder, seq)
 	}

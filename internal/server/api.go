@@ -45,6 +45,7 @@ addresses used to reach. Nothing about a game's routing changed except where
 it is answered from.
 */
 func (self *server) serveAPI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	rest := strings.TrimPrefix(r.URL.Path, apiPrefix)
 	if rest == r.URL.Path {
 		http.NotFound(w, r)

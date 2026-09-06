@@ -3,7 +3,7 @@ import { TopBar } from "../components/TopBar";
 import { claimSeat, fetchPublic, gameEventsUrl, type PublicState } from "../api";
 import { countdown, settingsLines, useGameEvents, usePoll, useTicker } from "../hooks";
 import { ruleLines } from "../rules";
-import { makeSeatSeed, readSeatSeed, seatPublicKey, writeSeatSeed } from "../seatkey";
+import { makeSeatSeed, readSeatSeed, writeSeatSeed } from "../seatkey";
 import { useFixEnabled } from "@mrosseel/page-comments/fixes";
 import { noteBuild } from "../build";
 import { noteServerTime } from "../clock";
@@ -51,7 +51,7 @@ export function JoinPage({
       // step before the board opens, so a refused claim leaves nothing
       // behind.
       const seed = makeSeatSeed();
-      const seat = await claimSeat(gameId, inviteToken, seatPublicKey(seed));
+      const seat = await claimSeat(gameId, inviteToken, seed);
       if (seat.keyed) writeSeatSeed(gameId, seed);
       // The board replaces this page: the back button must not lead to a
       // second claim.

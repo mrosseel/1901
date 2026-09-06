@@ -16,9 +16,9 @@ recovery:
 	GET  /game/{id}/recover              a challenge to sign
 	POST /game/{id}/recover              the signature, for a fresh token
 
-The challenge is signed by the server and not stored, the same trick the
-handover links use: it carries its own expiry and an HMAC over the salt, so a
-recovery needs no row and no state between the two requests.
+The challenge carries an expiry and a process-local HMAC. A successful proof
+consumes its nonce in a bounded in-memory cache. Recovery challenges also name
+the current role epoch; neither replay nor a process restart preserves them.
 
 A recovery rotates the token and raises the role epoch, exactly as a handover
 does. Whoever holds the words holds the role, and the device that held it
@@ -47,6 +47,16 @@ import (
 
 	"spring1901/spike/internal/httpx"
 )
+
+// Authentication proofs must not survive a process restart. Handover links
+// deliberately use the separate persisted handoverSalt instead.
+var challengeSalt = func() []byte {
+	salt := make([]byte, 32)
+	if _, err := rand.Read(salt); err != nil {
+		panic("cannot initialize authentication randomness")
+	}
+	return salt
+}()
 
 // recoverWindow is how long a challenge stands. It is a person typing twelve
 // words on the device in front of them, not a link on a table, so minutes.
@@ -81,11 +91,14 @@ func nonceFor(id, purpose string) (string, error) {
 	}
 	body := base64.RawURLEncoding.EncodeToString(raw) + "." +
 		strconv.FormatInt(time.Now().Add(recoverWindow).Unix(), 10)
+	if !canIssueChallenge(id) {
+		return "", fmt.Errorf("too many authentication attempts — try again after ten minutes")
+	}
 	return body + "." + nonceSig(id, purpose, body), nil
 }
 
 func nonceSig(id, purpose, body string) string {
-	mac := hmac.New(sha256.New, handoverSalt)
+	mac := hmac.New(sha256.New, challengeSalt)
 	fmt.Fprintf(mac, "%v|%v|%v", purpose, id, body)
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))[:32]
 }
@@ -105,7 +118,7 @@ func checkNonce(id, purpose, nonce string) bool {
 	if err != nil {
 		return false
 	}
-	return time.Now().Unix() <= expiry
+	return time.Now().Unix() < expiry && nonceUnused(id, nonce)
 }
 
 /*
@@ -160,14 +173,15 @@ screen says out loud anyway.
 func handleRecoverChallenge(g *game, id string, w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	hasKey := g.flow.gmPublicKey != ""
+	purpose := recoveryPurpose(g.flow.gmEpoch)
 	g.mu.Unlock()
 	if !hasKey {
 		httpx.WriteErr(w, http.StatusNotFound, "this game has no recovery key")
 		return
 	}
-	nonce, err := nonceFor(id, "recover")
+	nonce, err := nonceFor(id, purpose)
 	if err != nil {
-		httpx.WriteErr(w, http.StatusInternalServerError, "nonce: %v", err)
+		httpx.WriteErr(w, http.StatusTooManyRequests, "nonce: %v", err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, struct {
@@ -192,10 +206,6 @@ func handleRecoverClaim(g *game, id string, w http.ResponseWriter, r *http.Reque
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		httpx.WriteErr(w, http.StatusBadRequest, "bad body: %v", err)
-		return
-	}
-	if !checkNonce(id, "recover", body.Nonce) {
-		httpx.WriteErr(w, http.StatusForbidden, "this challenge has expired — start again")
 		return
 	}
 	signature, err := base64.RawURLEncoding.DecodeString(body.Signature)
@@ -224,6 +234,10 @@ func handleRecoverClaim(g *game, id string, w http.ResponseWriter, r *http.Reque
 	token, err := newToken()
 	if err != nil {
 		httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
+		return
+	}
+	if !consumeNonce(id, recoveryPurpose(f.gmEpoch), body.Nonce, string(public)) {
+		httpx.WriteErr(w, http.StatusForbidden, "this challenge has expired or was used — start again")
 		return
 	}
 	f.gmToken = token

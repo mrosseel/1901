@@ -29,12 +29,22 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
 	"spring1901/spike/internal/httpx"
 
 	"github.com/zond/godip"
 )
+
+const seatSessionLife = 7 * 24 * time.Hour
+const maxSeatSessions = 8
+
+type seatSession struct {
+	power   godip.Nation
+	expires time.Time
+}
 
 // seatSessionCookieName is one session per game, so one phone can hold seats
 // at two tables. It is scoped to the game's own path: nothing outside
@@ -60,15 +70,22 @@ func sessionMessage(id, nonce string) string {
 // checkSignPub says whether these 32 bytes are a public key at all. Anything
 // else is refused before it reaches a seat.
 func checkSignPub(encoded string) bool {
-	raw, err := base64.RawURLEncoding.DecodeString(encoded)
-	return err == nil && len(raw) == ed25519.PublicKeySize
+	raw, err := base64.RawURLEncoding.Strict().DecodeString(encoded)
+	return err == nil && len(raw) == ed25519.PublicKeySize && base64.RawURLEncoding.EncodeToString(raw) == encoded
 }
 
 // bindSeatKey gives a seat its public half and indexes it. The caller must
 // hold the game lock. A seat that had a token loses it: the two paths are
 // alternatives, and leaving the old string alive would leave the old address
 // working.
-func (f *flow) bindSeatKey(s *seat, signPub string) {
+func (f *flow) bindSeatKey(s *seat, signPub string) error {
+	if !checkSignPub(signPub) {
+		return fmt.Errorf("invalid signing key")
+	}
+	if held, ok := f.bySignPub[signPub]; ok && held != s.power {
+		return fmt.Errorf("this signing key already holds another power")
+	}
+
 	if s.token != "" {
 		delete(f.bySeatToken, s.token)
 		s.token = ""
@@ -78,13 +95,14 @@ func (f *flow) bindSeatKey(s *seat, signPub string) {
 	}
 	s.signPub = signPub
 	f.bySignPub[signPub] = s.power
+	return nil
 }
 
 // dropSessions ends every session open on one power. A handover, and later a
 // recovery, must not leave the last phone reading the board.
 func (f *flow) dropSessions(power godip.Nation) {
 	for token, held := range f.sessions {
-		if held == power {
+		if held.power == power {
 			delete(f.sessions, token)
 		}
 	}
@@ -97,8 +115,30 @@ func (f *flow) openSession(power godip.Nation) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	f.sessions[token] = power
+	f.rememberSession(power, token)
 	return token, nil
+}
+
+func (f *flow) rememberSession(power godip.Nation, token string) {
+	now := time.Now()
+	count := 0
+	oldest := ""
+	for held, session := range f.sessions {
+		if !now.Before(session.expires) {
+			delete(f.sessions, held)
+			continue
+		}
+		if session.power == power {
+			count++
+			if oldest == "" || session.expires.Before(f.sessions[oldest].expires) {
+				oldest = held
+			}
+		}
+	}
+	if count >= maxSeatSessions {
+		delete(f.sessions, oldest)
+	}
+	f.sessions[token] = seatSession{power: power, expires: now.Add(seatSessionLife)}
 }
 
 /*
@@ -111,14 +151,15 @@ anybody who asks for it, because the JavaScript on it is what signs a device
 back in. A cookie scoped to the page would be sent where it is not needed and
 withheld where it is.
 */
-func setSessionCookie(w http.ResponseWriter, id, token string) {
+func setSessionCookie(w http.ResponseWriter, r *http.Request, id, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     seatSessionCookieName(id),
 		Value:    token,
 		Path:     apiPrefix + "/game/" + id + "/",
 		HttpOnly: true,
+		Secure:   secureCookies(r),
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   60 * 60 * 24 * 7,
+		MaxAge:   int(seatSessionLife / time.Second),
 	})
 }
 
@@ -129,8 +170,15 @@ func (f *flow) sessionPower(id string, r *http.Request) (godip.Nation, bool) {
 	if err != nil || c.Value == "" {
 		return "", false
 	}
-	power, found := f.sessions[c.Value]
-	return power, found
+	session, found := f.sessions[c.Value]
+	if !found {
+		return "", false
+	}
+	if !time.Now().Before(session.expires) {
+		delete(f.sessions, c.Value)
+		return "", false
+	}
+	return session.power, true
 }
 
 /*
@@ -150,7 +198,7 @@ func handleSeatSession(g *game, id string, w http.ResponseWriter, r *http.Reques
 	case http.MethodGet:
 		nonce, err := nonceFor(id, "session")
 		if err != nil {
-			httpx.WriteErr(w, http.StatusInternalServerError, "nonce: %v", err)
+			httpx.WriteErr(w, http.StatusTooManyRequests, "nonce: %v", err)
 			return
 		}
 		httpx.WriteJSON(w, http.StatusOK, struct {
@@ -196,12 +244,17 @@ func handleSeatSession(g *game, id string, w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		token, err := f.openSession(power)
+		token, err := newToken()
 		if err != nil {
-			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
+			httpx.WriteErr(w, http.StatusInternalServerError, "could not open a session")
 			return
 		}
-		setSessionCookie(w, id, token)
+		if !consumeNonce(id, "session", body.Nonce, string(public)) {
+			httpx.WriteErr(w, http.StatusForbidden, "this challenge has expired or was used — try again")
+			return
+		}
+		f.rememberSession(power, token)
+		setSessionCookie(w, r, id, token)
 		httpx.WriteJSON(w, http.StatusOK, struct {
 			Power string `json:"power"`
 		}{Power: string(power)})

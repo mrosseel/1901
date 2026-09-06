@@ -8,6 +8,7 @@
 package server
 
 import (
+	"database/sql"
 	"log"
 	"strings"
 
@@ -132,6 +133,7 @@ func loadPress(id string, f *flow) error {
 		}
 		t := &pressThread{
 			id:            threadID,
+			gameID:        id,
 			openedBy:      openedBy,
 			openedAt:      openedAt,
 			openerBoxPub:  openerBoxPub,
@@ -160,7 +162,20 @@ func loadPress(id string, f *flow) error {
 	if err := loadPressMessages(id, f); err != nil {
 		return err
 	}
-	return loadPressRead(id, f)
+	if err := loadPressRead(id, f); err != nil {
+		return err
+	}
+	for _, t := range f.press {
+		t.unread = map[string]int{}
+		for holder := range t.keys {
+			n, err := t.countUnread(holder, t.read[holder])
+			if err != nil {
+				return err
+			}
+			t.unread[holder] = n
+		}
+	}
+	return nil
 }
 
 func loadPressKeys(id string, f *flow) error {
@@ -183,25 +198,41 @@ func loadPressKeys(id string, f *flow) error {
 }
 
 func loadPressMessages(id string, f *flow) error {
-	rows, err := db.Query(`
-        SELECT thread_id, seq, sender, phase_index, box, sig, at
-        FROM press_message WHERE game_id = ? ORDER BY thread_id, seq`, id)
+	// Aggregate sizes without loading ciphertext, then retain only the latest
+	// message per room. Older pages are fetched on demand.
+	sizes, err := db.Query(`SELECT sender, SUM(length(CAST(box AS BLOB))+length(CAST(sig AS BLOB))+length(CAST(sender AS BLOB))+length(CAST(at AS BLOB))+32)
+ FROM press_message WHERE game_id=? GROUP BY sender`, id)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var threadID string
-		var m pressMessage
-		if err := rows.Scan(&threadID, &m.Seq, &m.Sender, &m.PhaseIndex,
-			&m.Box, &m.Sig, &m.At); err != nil {
+	defer sizes.Close()
+	f.pressBytes = 0
+	f.pressSenderBytes = map[string]int64{}
+	for sizes.Next() {
+		var sender string
+		var n int64
+		if err := sizes.Scan(&sender, &n); err != nil {
 			return err
 		}
-		if t := f.pressByID[threadID]; t != nil {
-			t.messages = append(t.messages, m)
-		}
+		f.countPressBytes(sender, n)
 	}
-	return rows.Err()
+	if err := sizes.Err(); err != nil {
+		return err
+	}
+	for _, t := range f.press {
+		t.gameID = id
+		var m pressMessage
+		err := db.QueryRow(`SELECT seq,sender,phase_index,box,sig,at FROM press_message
+   WHERE game_id=? AND thread_id=? ORDER BY seq DESC LIMIT 1`, id, t.id).Scan(&m.Seq, &m.Sender, &m.PhaseIndex, &m.Box, &m.Sig, &m.At)
+		if err == sql.ErrNoRows {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		t.messages = []pressMessage{m}
+	}
+	return nil
 }
 
 func loadPressRead(id string, f *flow) error {

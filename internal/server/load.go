@@ -79,7 +79,7 @@ func loadAll() error {
 			bySeatToken: map[string]godip.Nation{},
 			bySignPub:   map[string]godip.Nation{},
 			byDevice:    map[string]godip.Nation{},
-			sessions:    map[string]godip.Nation{},
+			sessions:    map[string]seatSession{},
 			pressByID:   map[string]*pressThread{},
 			commitments: map[int]map[string]commitment{},
 		}
@@ -231,7 +231,10 @@ func restore(id, key string, v common.Variant, f *flow) (*game, error) {
 			f.bySeatToken[token] = s.power
 		}
 		if signPub != "" {
-			f.bySignPub[signPub] = s.power
+			if err := f.bindSeatKey(s, signPub); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("game %s: conflicting signing key for %s: %w", id, power, err)
+			}
 		}
 		if device != "" {
 			f.byDevice[device] = s.power

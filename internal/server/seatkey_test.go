@@ -20,13 +20,11 @@ import (
 // sends the public half. It returns the private half and the answer.
 func joinWithKey(t *testing.T, g *game, id string) (ed25519.PrivateKey, joinResponse, *httptest.ResponseRecorder) {
 	t.Helper()
-	public, private, err := ed25519.GenerateKey(nil)
+	_, private, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	body, _ := json.Marshal(map[string]string{
-		"signPub": base64.RawURLEncoding.EncodeToString(public),
-	})
+	body, _ := json.Marshal(enrollmentBody(t, id, "join", private))
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/join", bytes.NewReader(body))
 	handleJoin(g, id, g.flow.inviteToken, rec, req)
@@ -185,10 +183,8 @@ func TestHandoverRekeysAndClosesTheSession(t *testing.T) {
 	epoch := g.flow.seats[power].epoch
 	signature := handoverSig(id, power, epoch)
 
-	nextPub, _, _ := ed25519.GenerateKey(nil)
-	body, _ := json.Marshal(map[string]string{
-		"signPub": base64.RawURLEncoding.EncodeToString(nextPub),
-	})
+	_, nextPrivate, _ := ed25519.GenerateKey(nil)
+	body, _ := json.Marshal(enrollmentBody(t, id, handoverPurpose(string(power), epoch), nextPrivate))
 	rec := httptest.NewRecorder()
 	handleHandoverClaim(g, id, []string{string(power), strconv.Itoa(epoch), signature}, rec,
 		httptest.NewRequest(http.MethodPost, "/handover", bytes.NewReader(body)))
@@ -282,7 +278,7 @@ func TestTheSeatPageOpensWithoutASession(t *testing.T) {
 	joinWithKey(t, g, id)
 
 	// Every session gone, as a restart leaves it.
-	g.flow.sessions = map[string]godip.Nation{}
+	g.flow.sessions = map[string]seatSession{}
 
 	// Through the real front doors, so this covers the routing and not one
 	// handler: the page is on the bare surface, its actions are transport.

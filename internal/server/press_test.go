@@ -134,7 +134,7 @@ func sendPress(g *game, id string, actor pressActor, threadID, box string) *http
 func sendPressRaw(g *game, id string, actor pressActor, threadID, box string) *httptest.ResponseRecorder {
 	seq := 1
 	if t := g.flow.pressByID[threadID]; t != nil {
-		seq = len(t.messages) + 1
+		seq = t.lastSeq() + 1
 	}
 	return sendPressAtRaw(g, id, actor, threadID, box, seq, g.flow.phaseIndex, time.Now())
 }
@@ -769,7 +769,7 @@ func TestPressSurvivesARestart(t *testing.T) {
 		bySeatToken: map[string]godip.Nation{},
 		bySignPub:   map[string]godip.Nation{},
 		byDevice:    map[string]godip.Nation{},
-		sessions:    map[string]godip.Nation{},
+		sessions:    map[string]seatSession{},
 		pressByID:   map[string]*pressThread{},
 		commitments: map[int]map[string]commitment{},
 	}

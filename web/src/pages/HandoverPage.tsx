@@ -86,7 +86,7 @@ export function HandoverPage({
               chainBody(gameId, power, seatPublicKey(formerSeed), newPub),
             )
           : "";
-        const seat = await claimHandover(gameId, power, epoch, signature, newPub, chainSig);
+        const seat = await claimHandover(gameId, power, epoch, signature, seatSeed, chainSig);
         if (seat.keyed) {
           writeSeatSeed(gameId, seatSeed);
           if (formerSeed && typeof seat.phaseIndex === "number") {

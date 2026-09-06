@@ -299,6 +299,7 @@ func (self *server) serveTokenScope(g *game, id string, segments []string, w htt
 // every game; it opens the controls only for the browser holding the
 // referee cookie.
 func handleRefereeEntry(g *game, id string, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	g.mu.Lock()
 	device := refereeCookieValue(r, id)
 	ok := g.flow.gmDevice != "" && subtleEqual(device, g.flow.gmDevice)

@@ -128,9 +128,9 @@ func TestHandoverRefusesAForgedSignature(t *testing.T) {
 	}
 }
 
-// TestHandoverRefusesAGet: the signature is the whole credential, so a link
+// The signature is the whole credential, so a link
 // preview or a scanner that fetches before it shows must not take the seat.
-func TestHandoverRefusesAGet(t *testing.T) {
+func TestHandoverGetOnlyIssuesAChallenge(t *testing.T) {
 	id := makeGame(t)
 	g, _ := games.lookup(id)
 	power := g.flow.powers[0]
@@ -140,8 +140,8 @@ func TestHandoverRefusesAGet(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleHandoverClaim(g, id, []string{string(power), strconv.Itoa(epoch), sig}, rec,
 		httptest.NewRequest(http.MethodGet, claimPath(id, string(power), epoch, sig), nil))
-	if rec.Code != http.StatusMethodNotAllowed {
-		t.Errorf("GET: got %v, want a refusal", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("GET challenge: got %v, want 200", rec.Code)
 	}
 	if g.flow.seats[power].epoch != epoch {
 		t.Error("a GET moved the seat")
@@ -268,7 +268,7 @@ func TestAHandoverLeavesASignedStepFromTheOldKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newPub, _, err := ed25519.GenerateKey(rand.Reader)
+	newPub, newPrivate, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +280,9 @@ func TestAHandoverLeavesASignedStepFromTheOldKey(t *testing.T) {
 		t.Helper()
 		epoch := g.flow.seats[power].epoch
 		link := handoverSig(id, power, epoch)
-		body, err := json.Marshal(map[string]string{"signPub": to, "keyChainSig": sig})
+		proof := enrollmentBody(t, id, handoverPurpose(string(power), epoch), newPrivate)
+		proof["keyChainSig"] = sig
+		body, err := json.Marshal(proof)
 		if err != nil {
 			t.Fatal(err)
 		}

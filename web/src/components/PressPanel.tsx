@@ -427,6 +427,9 @@ function PressRoom({
   onChanged: () => void;
 }) {
   const [messages, setMessages] = useState<ReadMessage[] | null>(null);
+  const [before, setBefore] = useState<number | undefined>();
+  const [hasOlder, setHasOlder] = useState(false);
+  const pageRequest = useRef(0);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   /* The same guard as `sending`, in a ref. Two Enter presses inside one render
@@ -458,7 +461,10 @@ function PressRoom({
 
   const load = useCallback(async () => {
     if (!roomKey) return;
-    const full = await api.pressThread(thread.id);
+    const request = ++pageRequest.current;
+    const full = await api.pressThread(thread.id, undefined, before);
+    if (request !== pageRequest.current) return;
+    setHasOlder(Boolean(full.hasOlder));
     setMessages(
       (full.messages || []).map((line) => ({
         ...line,
@@ -468,19 +474,20 @@ function PressRoom({
     );
     // Only when there is something new to mark. Otherwise every poll would
     // post a marker and wake the list behind it.
-    if (full.lastSeq > marked.current) {
+    if (before === undefined && full.lastSeq > marked.current) {
       // After, not before: a marker that failed to reach the server must be
       // sent again, or the badge stays lit on a room that has been read.
       await api.pressRead(thread.id, full.lastSeq);
       marked.current = full.lastSeq;
       onChangedRef.current();
     }
-  }, [api, gameId, roomKey, thread.id]);
+  }, [api, gameId, roomKey, thread.id, before]);
 
   useEffect(() => {
     load().catch((err) => setError(message(err)));
+    return () => { pageRequest.current++; };
   }, [load]);
-  usePoll(3000, () => load().catch(() => undefined));
+  usePoll(3000, () => { if (before === undefined) load().catch(() => undefined); });
 
   useEffect(() => {
     // Not every browser this app runs in has it, and a conversation that does
@@ -520,7 +527,8 @@ function PressRoom({
         sig: sign(signedBody(gameId, place, box)),
       });
       setDraft("");
-      await load();
+      if (before !== undefined) setBefore(undefined);
+      else await load();
       onChangedRef.current();
     } catch (err) {
       setError(message(err));
@@ -562,6 +570,14 @@ function PressRoom({
         </p>
       ) : null}
 
+      <nav aria-label="Conversation history">
+        {hasOlder && messages?.length ? (
+          <button type="button" onClick={() => setBefore(messages[0].seq)}>Older messages</button>
+        ) : null}
+        {before !== undefined ? (
+          <button type="button" onClick={() => setBefore(undefined)}>Latest messages</button>
+        ) : null}
+      </nav>
       <div className="press-log">
         {(messages || []).map((line, index) => (
           <div key={line.seq}>

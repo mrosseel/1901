@@ -116,12 +116,13 @@ and costs the only defence a delete button has against being pressed from
 somebody else's page. The path is the admin scope, so no other request on the
 server ever carries it.
 */
-func setAdminCookie(w http.ResponseWriter, token string) {
+func setAdminCookie(w http.ResponseWriter, r *http.Request, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     adminCookieName,
 		Value:    token,
 		Path:     apiPrefix + "/admin/",
 		HttpOnly: true,
+		Secure:   secureCookies(r),
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   int(adminSessionLife / time.Second),
 	})
@@ -129,12 +130,13 @@ func setAdminCookie(w http.ResponseWriter, token string) {
 
 // clearAdminCookie expires the cookie in the browser. The session itself is
 // dropped from memory beside it, so a copy of the cookie is worth nothing.
-func clearAdminCookie(w http.ResponseWriter) {
+func clearAdminCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     adminCookieName,
 		Value:    "",
 		Path:     apiPrefix + "/admin/",
 		HttpOnly: true,
+		Secure:   secureCookies(r),
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   -1,
 	})
@@ -169,7 +171,7 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteErr(w, http.StatusInternalServerError, "could not open a session")
 		return
 	}
-	setAdminCookie(w, token)
+	setAdminCookie(w, r, token)
 	httpx.WriteJSON(w, http.StatusOK, adminMeJSON{Admin: true})
 }
 
@@ -185,7 +187,7 @@ func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 		delete(adminSessions.open, c.Value)
 		adminSessions.mu.Unlock()
 	}
-	clearAdminCookie(w)
+	clearAdminCookie(w, r)
 	httpx.WriteJSON(w, http.StatusOK, adminMeJSON{Admin: false})
 }
 

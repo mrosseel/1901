@@ -8,6 +8,7 @@ package server
 import (
 	"crypto/rand"
 	"encoding/json"
+	"io"
 	"math/big"
 	"net/http"
 
@@ -23,8 +24,8 @@ type joinResponse struct {
 }
 
 func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET a challenge or POST the claim")
 		return
 	}
 	g.mu.Lock()
@@ -33,6 +34,10 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 
 	if token != f.inviteToken {
 		http.NotFound(w, r)
+		return
+	}
+	if r.Method == http.MethodGet {
+		enrollmentChallenge(w, id, "join")
 		return
 	}
 	// A sandbox has no seat to claim (ADR-047). Its invite token is minted
@@ -49,8 +54,12 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 	// by something that is not this app is not left with a dead page.
 	var body struct {
 		SignPub string `json:"signPub"`
+		enrollmentProof
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && err != io.EOF {
+		httpx.WriteErr(w, http.StatusBadRequest, "could not read the claim")
+		return
+	}
 	if body.SignPub != "" && !checkSignPub(body.SignPub) {
 		httpx.WriteErr(w, http.StatusBadRequest, "signPub must be 32 base64url bytes")
 		return
@@ -108,25 +117,38 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	credential, err := newToken()
+	if err != nil {
+		httpx.WriteErr(w, http.StatusInternalServerError, "could not claim a seat")
+		return
+	}
 	s := f.seats[power]
+	if body.SignPub != "" {
+		// Possession first: the invite link is shared, so it must not be
+		// enough to ask which keys hold a seat here.
+		if !body.enrollmentProof.accept(id, "join", body.SignPub) {
+			httpx.WriteErr(w, http.StatusForbidden, "reload this page and prove the new seat key with a fresh challenge")
+			return
+		}
+		if _, exists := f.bySignPub[body.SignPub]; exists {
+			httpx.WriteErr(w, http.StatusConflict, "this signing key already holds a power")
+			return
+		}
+	}
 	s.device = device
 	f.byDevice[device] = power
 
 	// One or the other, never both (ADR-049).
 	session := ""
 	if body.SignPub != "" {
-		f.bindSeatKey(s, body.SignPub)
-		session, err = f.openSession(power)
-		if err != nil {
-			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
+		if err := f.bindSeatKey(s, body.SignPub); err != nil {
+			httpx.WriteErr(w, http.StatusInternalServerError, "could not bind the seat key: %v", err)
 			return
 		}
+		session = credential
+		f.rememberSession(power, session)
 	} else {
-		seatToken, err := newToken()
-		if err != nil {
-			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
-			return
-		}
+		seatToken := credential
 		s.token = seatToken
 		f.bySeatToken[seatToken] = power
 	}
@@ -138,11 +160,12 @@ func handleJoin(g *game, id, token string, w http.ResponseWriter, r *http.Reques
 		Value:    device,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   secureCookies(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   60 * 60 * 24 * 30,
 	})
 	if session != "" {
-		setSessionCookie(w, id, session)
+		setSessionCookie(w, r, id, session)
 		httpx.WriteJSON(w, http.StatusOK, joinResponse{SeatURL: keyedSeatURL(r, id), Keyed: true})
 		return
 	}

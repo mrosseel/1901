@@ -34,6 +34,8 @@ type pressThreadJSON struct {
 	LastSeq  int            `json:"lastSeq"`
 	LastAt   string         `json:"lastAt"`
 	Messages []pressMessage `json:"messages,omitempty"`
+	HasOlder bool           `json:"hasOlder,omitempty"`
+	HasMore  bool           `json:"hasMore,omitempty"`
 }
 
 type pressStateJSON struct {
@@ -159,12 +161,7 @@ func (t *pressThread) summary(actor pressActor) pressThreadJSON {
 		Wrapped:       t.keys[actor.holder],
 		Notes:         isNotes(actor, t.openedBy, t.members),
 	}
-	seen := t.read[actor.holder]
-	for _, m := range t.messages {
-		if m.Seq > seen && m.Sender != actor.holder {
-			row.Unread++
-		}
-	}
+	row.Unread = t.unreadFor(actor.holder)
 	if n := len(t.messages); n > 0 {
 		row.LastSeq = t.messages[n-1].Seq
 		row.LastAt = t.messages[n-1].At

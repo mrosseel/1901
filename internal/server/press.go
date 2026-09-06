@@ -128,7 +128,9 @@ type pressThread struct {
 	keys map[string]string
 	// read is how far each holder has read.
 	read     map[string]int
-	messages []pressMessage
+	messages []pressMessage // one recent message when backed by SQLite
+	gameID   string
+	unread   map[string]int
 }
 
 // memberSet is the room's members as a lookup.
@@ -325,12 +327,7 @@ func (f *flow) pressUnread(actor pressActor) int {
 		if !f.actorReads(actor, t) {
 			continue
 		}
-		seen := t.read[actor.holder]
-		for _, m := range t.messages {
-			if m.Seq > seen && m.Sender != actor.holder {
-				total++
-			}
-		}
+		total += t.unreadFor(actor.holder)
 	}
 	return total
 }

@@ -161,11 +161,11 @@ type flow struct {
 	bySeatToken map[string]godip.Nation
 	bySignPub   map[string]godip.Nation
 	byDevice    map[string]godip.Nation
-	// sessions are open seat sessions, cookie value to power (ADR-049).
+	// sessions are open seat sessions, cookie value to power and expiry (ADR-049).
 	// They live in memory on purpose: a restart signs every phone back in
 	// without asking, because the seed is on the device, and nothing that
 	// opens a seat is left in a file that could be copied.
-	sessions map[string]godip.Nation
+	sessions map[string]seatSession
 	gmPower  godip.Nation // empty until start, and always empty when !gmPlays
 
 	// powers are this variant's powers, in a stable order. The seat count
@@ -180,8 +180,11 @@ type flow struct {
 	// press are the rooms of this game in the order they were opened, and
 	// the index by id (ADR-053). The server holds ciphertext and a member
 	// list; it holds no key to any of it.
-	press     []*pressThread
-	pressByID map[string]*pressThread
+	pressBytes       int64
+	pressSenderBytes map[string]int64
+	pressRates       map[string]pressRate
+	press            []*pressThread
+	pressByID        map[string]*pressThread
 	// commitments is what each seat locked in, by phase, kept after that
 	// phase resolved (ADR-058). The orders are public by then; this is the
 	// envelope they came out of and the signature over it.
@@ -235,7 +238,7 @@ func newFlow(s settings, v common.Variant) (*flow, error) {
 		bySeatToken: map[string]godip.Nation{},
 		bySignPub:   map[string]godip.Nation{},
 		byDevice:    map[string]godip.Nation{},
-		sessions:    map[string]godip.Nation{},
+		sessions:    map[string]seatSession{},
 		pressByID:   map[string]*pressThread{},
 		commitments: map[int]map[string]commitment{},
 	}

@@ -92,6 +92,7 @@ func handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		Value:    f.gmDevice,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   secureCookies(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   60 * 60 * 24 * 30,
 	})

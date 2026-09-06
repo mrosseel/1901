@@ -12,7 +12,7 @@ against the public half it was given when the key was made. What travels is 64
 bytes that prove the words without carrying them.
 */
 
-import { recoverChallenge, recoverClaim } from "./api";
+import { ApiError, recoverChallenge, recoverClaim } from "./api";
 import { signMessage, writeStoredKey } from "./gmkey";
 
 /*
@@ -26,12 +26,17 @@ export async function recoverGameMaster(
   gameId: string,
   entropy: Uint8Array,
 ): Promise<string> {
-  const challenge = await recoverChallenge(gameId);
-  const { gmUrl } = await recoverClaim(
-    gameId,
-    challenge.nonce,
-    signMessage(entropy, challenge.message),
-  );
-  writeStoredKey(challenge.gameId, entropy);
-  return gmUrl;
+  for (let attempt = 0; ; attempt++) {
+    const challenge = await recoverChallenge(gameId);
+    try {
+      const { gmUrl } = await recoverClaim(
+        gameId, challenge.nonce,
+        signMessage(entropy, "1901 game master recovery|" + gameId + "|" + challenge.nonce),
+      );
+      writeStoredKey(gameId, entropy);
+      return gmUrl;
+    } catch (error) {
+      if (attempt !== 0 || !(error instanceof ApiError) || error.status !== 403) throw error;
+    }
+  }
 }

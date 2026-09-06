@@ -34,6 +34,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -158,11 +159,13 @@ The signature is the whole credential, so this address needs no token of its
 own — and for the same reason it must never act on a GET. A link preview, a
 scanner that fetches before it shows, a chat client unfurling the URL: any of
 those would hand the power to nobody and kill the phone that still holds it.
-The GET is a page with a button; this is what the button posts to.
+The public GET is a page with a button. An API GET verifies the link and
+issues an enrollment challenge without transferring anything; POST proves the
+new key and takes the seat.
 */
 func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		httpx.WriteErr(w, http.StatusMethodNotAllowed, "POST only")
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		httpx.WriteErr(w, http.StatusMethodNotAllowed, "GET a challenge or POST the claim")
 		return
 	}
 	if len(rest) != 3 {
@@ -193,8 +196,14 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 	var body struct {
 		SignPub     string `json:"signPub"`
 		KeyChainSig string `json:"keyChainSig"`
+		enrollmentProof
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if r.Method == http.MethodPost {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && err != io.EOF {
+			httpx.WriteErr(w, http.StatusBadRequest, "could not read the claim")
+			return
+		}
+	}
 	if body.SignPub != "" && !checkSignPub(body.SignPub) {
 		httpx.WriteErr(w, http.StatusBadRequest, "signPub must be 32 base64url bytes")
 		return
@@ -223,6 +232,28 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 		return
 	}
 
+	purpose := handoverPurpose(string(power), epoch)
+	if r.Method == http.MethodGet {
+		enrollmentChallenge(w, id, purpose)
+		return
+	}
+	credential, err := newToken()
+	if err != nil {
+		httpx.WriteErr(w, http.StatusInternalServerError, "could not take the seat")
+		return
+	}
+
+	if body.SignPub != "" {
+		if !body.enrollmentProof.accept(id, purpose, body.SignPub) {
+			httpx.WriteErr(w, http.StatusForbidden, "reload this page and prove the new seat key with a fresh challenge")
+			return
+		}
+		// Even the current key is refused: reusing it leaves the former holder in.
+		if _, exists := f.bySignPub[body.SignPub]; exists {
+			httpx.WriteErr(w, http.StatusConflict, "a handover needs a new, unclaimed signing key")
+			return
+		}
+	}
 	// Everything the old holder had stops working here: the token or the
 	// key leaves its index, every session on the power is closed, the
 	// device claim is dropped so the next phone may take the seat, and the
@@ -249,21 +280,21 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 			To:     body.SignPub,
 			Sig:    body.KeyChainSig,
 		}
-		f.bindSeatKey(s, body.SignPub)
+		if err := f.bindSeatKey(s, body.SignPub); err != nil {
+			httpx.WriteErr(w, http.StatusInternalServerError, "could not bind the seat key: %v", err)
+			return
+		}
 		// A step that does not check is dropped rather than stored. It would
 		// tell a reader nothing, and every reader checks it again anyway.
 		if link.From != "" && link.Sig != "" && checkKeyChain(id, link) {
 			f.keyChains = append(f.keyChains, link)
 			persistKeyChain(id, link)
 		}
-		session, err := f.openSession(power)
-		if err != nil {
-			httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
-			return
-		}
+		session := credential
+		f.rememberSession(power, session)
 		f.logEvent(id, "%v was handed to another device", power)
 		g.persist(id)
-		setSessionCookie(w, id, session)
+		setSessionCookie(w, r, id, session)
 		httpx.WriteJSON(w, http.StatusOK, claimResponse{
 			Power:      string(power),
 			SeatURL:    keyedSeatURL(r, id),
@@ -273,11 +304,7 @@ func handleHandoverClaim(g *game, id string, rest []string, w http.ResponseWrite
 		return
 	}
 
-	token, err := newToken()
-	if err != nil {
-		httpx.WriteErr(w, http.StatusInternalServerError, "tokens: %v", err)
-		return
-	}
+	token := credential
 	if s.signPub != "" {
 		delete(f.bySignPub, s.signPub)
 		s.signPub = ""

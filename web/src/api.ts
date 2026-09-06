@@ -721,15 +721,38 @@ The public half goes with the claim, so the seat is bound to a key the server
 never held. The answer says `keyed`, which is the page's cue to write the seed
 into this device's storage before it opens the board.
 */
-export function claimSeat(
+export async function claimSeat(
   gameId: string,
   inviteToken: string,
-  signPub: string,
+  seed: Uint8Array,
 ): Promise<SeatClaim> {
   const url = api(
     "/game/" + encodeURIComponent(gameId) + "/join/" + encodeURIComponent(inviteToken),
   );
-  return postJSON<SeatClaim>(url, { signPub: signPub });
+  return enrollSeat(url, seed);
+}
+
+// Never resend a signed proof. A stale/consumed challenge gets one fresh
+// challenge and signature; other failures retain the server's explanation.
+async function challengePost<T>(url: string, body: (nonce: string) => unknown): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const challenge = await getJSON<{ nonce: string }>(url);
+    try {
+      return await postJSON<T>(url, body(challenge.nonce));
+    } catch (error) {
+      if (attempt !== 0 || !(error instanceof ApiError) || error.status !== 403) throw error;
+    }
+  }
+}
+
+async function enrollSeat(url: string, seed: Uint8Array, keyChainSig = ""): Promise<SeatClaim> {
+  const parts = new URL(url, window.location.origin).pathname.split("/").map(decodeURIComponent);
+  const gameId = parts[4];
+  const purpose = parts[5] === "join" ? "join" : "handover:" + parts[6] + ":" + Number(parts[7]);
+  return challengePost<SeatClaim>(url, (nonce) => ({
+    signPub: seatPublicKey(seed), keyChainSig, nonce,
+    signature: signAsSeat(seed, "1901 seat enrollment|" + gameId + "|" + purpose + "|" + nonce),
+  }));
 }
 
 export interface SeatClaim {
@@ -754,12 +777,10 @@ export async function openSeatSession(gameId: string): Promise<string> {
   const seed = readSeatSeed(gameId);
   if (!seed) throw new ApiError("This device does not hold a seat in this game.", 404);
   const base = api("/game/" + encodeURIComponent(gameId) + "/session");
-  const challenge = await getJSON<{ nonce: string; message: string }>(base);
-  const { power } = await postJSON<{ power: string }>(base, {
-    signPub: seatPublicKey(seed),
-    nonce: challenge.nonce,
-    signature: signAsSeat(seed, challenge.message),
-  });
+  const { power } = await challengePost<{ power: string }>(base, (nonce) => ({
+    signPub: seatPublicKey(seed), nonce,
+    signature: signAsSeat(seed, "1901 seat session|" + gameId + "|" + nonce),
+  }));
   return power;
 }
 
@@ -776,7 +797,7 @@ export interface PressApi {
   press(): Promise<PressState>;
   pressKey(boxPub: string, sig: string): Promise<{ boxPub: string }>;
   pressOpen(room: PressOpen): Promise<PressThread>;
-  pressThread(thread: string, since?: number): Promise<PressThread>;
+  pressThread(thread: string, since?: number, before?: number): Promise<PressThread>;
   pressSend(message: PressSend): Promise<PressMessage>;
   pressRead(thread: string, seq: number): Promise<PressThread>;
 }
@@ -842,9 +863,11 @@ export class GmClient {
     return postJSON<PressThread>(this.base + "press/open", room);
   }
 
-  pressThread(thread: string, since = 0): Promise<PressThread> {
+  pressThread(thread: string, since?: number, before?: number): Promise<PressThread> {
     return getJSON<PressThread>(
-      this.base + "press/thread?thread=" + encodeURIComponent(thread) + "&since=" + since,
+      this.base + "press/thread?thread=" + encodeURIComponent(thread) +
+        (since === undefined ? "" : "&since=" + since) +
+        (before === undefined ? "" : "&before=" + before),
     );
   }
 
@@ -917,7 +940,7 @@ stored public half accepts is what buys a fresh game master address.
 export interface RecoverChallenge {
   gameId: string;
   nonce: string;
-  /** Exactly what to sign. Never built on this side. */
+  /** Informational: clients construct the expected recovery domain locally. */
   message: string;
 }
 
@@ -1060,10 +1083,12 @@ export class SeatClient {
     return this.withSession(() => postJSON<PressThread>(this.base + "press/open", room));
   }
 
-  pressThread(thread: string, since = 0): Promise<PressThread> {
+  pressThread(thread: string, since?: number, before?: number): Promise<PressThread> {
     return this.withSession(() =>
       getJSON<PressThread>(
-        this.base + "press/thread?thread=" + encodeURIComponent(thread) + "&since=" + since,
+        this.base + "press/thread?thread=" + encodeURIComponent(thread) +
+        (since === undefined ? "" : "&since=" + since) +
+        (before === undefined ? "" : "&before=" + before),
       ),
     );
   }
@@ -1156,10 +1181,10 @@ export function claimHandover(
   power: string,
   epoch: string,
   signature: string,
-  signPub: string,
+  seed: Uint8Array,
   keyChainSig: string,
 ): Promise<SeatClaim> {
-  return postJSON<SeatClaim>(
+  return enrollSeat(
     api(
       "/game/" +
         encodeURIComponent(gameId) +
@@ -1170,7 +1195,8 @@ export function claimHandover(
         "/" +
         encodeURIComponent(signature),
     ),
-    { signPub: signPub, keyChainSig: keyChainSig },
+    seed,
+    keyChainSig,
   );
 }
 

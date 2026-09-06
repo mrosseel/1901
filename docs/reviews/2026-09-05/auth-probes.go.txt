@@ -1,0 +1,39 @@
+package server
+
+import (
+ "bytes"
+ "crypto/ed25519"
+ "encoding/base64"
+ "encoding/json"
+ "net/http/httptest"
+ "testing"
+)
+
+// Review probes assert the observed vulnerability, not the desired behavior.
+func TestReviewDuplicateSeatKey(t *testing.T) {
+ id := makeGame(t); g, _ := games.lookup(id)
+ private, _, _ := joinWithKey(t, g, id)
+ pub := base64.RawURLEncoding.EncodeToString(private.Public().(ed25519.PublicKey))
+ original := g.flow.bySignPub[pub]
+ body, _ := json.Marshal(map[string]string{"signPub":pub})
+ rec := httptest.NewRecorder()
+ handleJoin(g,id,g.flow.inviteToken,rec,httptest.NewRequest("POST","/join",bytes.NewReader(body)))
+ if rec.Code != 200 { t.Fatalf("duplicate join: %d",rec.Code) }
+ if g.flow.bySignPub[pub] == original { t.Fatal("lookup was not overwritten") }
+ t.Logf("duplicate public key moved signing lookup from %s to %s without private-key proof",original,g.flow.bySignPub[pub])
+}
+
+func TestReviewRecoveryReplay(t *testing.T) {
+ id := makeGame(t); g,_ := games.lookup(id)
+ pub,priv,_ := ed25519.GenerateKey(nil)
+ g.flow.gmPublicKey=base64.RawURLEncoding.EncodeToString(pub)
+ nonce,_ := nonceFor(id,"recover")
+ body,_ := json.Marshal(map[string]string{"nonce":nonce,"signature":base64.RawURLEncoding.EncodeToString(ed25519.Sign(priv,[]byte(recoverMessage(id,nonce))))})
+ for i:=0;i<2;i++ {
+  before:=g.flow.gmToken
+  rec:=httptest.NewRecorder()
+  handleRecoverClaim(g,id,rec,httptest.NewRequest("POST","/recover",bytes.NewReader(body)))
+  if rec.Code!=200 || before==g.flow.gmToken { t.Fatalf("claim %d did not rotate token: %d",i,rec.Code) }
+ }
+ t.Log("identical signed recovery request accepted twice and rotated the GM token twice")
+}

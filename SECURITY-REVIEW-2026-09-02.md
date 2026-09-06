@@ -1,5 +1,14 @@
 # Security review — WebSockets, full press, and order commit/reveal
 
+> Status update, 2026-09-05: this is the historical implementation handoff.
+> Signed room manifests/wraps, pinned key-change handling, padding and separate
+> WebSocket audiences are now implemented. Further authentication replay,
+> enrollment, resource and transport fixes are documented in
+> [ADR-062](docs/adr/062-authentication-proofs-are-single-use-and-private-state-is-bounded.md).
+> Historical findings below should not be read as a statement that those
+> repaired behaviors remain in the current code.
+
+
 **Date:** 2026-09-02  
 **Scope:** WebSocket invalidations, full-press key management and encryption,
 order commit/reveal, handovers, and the surrounding authorization boundaries.
