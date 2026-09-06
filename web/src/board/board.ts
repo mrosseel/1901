@@ -1447,11 +1447,15 @@ export function mount(
       // circle a token and makes a cannon a blob (markers.ts).
       shape.setAttribute("stroke-width", String(markerStroke(markerStyle, rp, ordered)));
       shape.setAttribute("class", ordered ? "unit ordered" : "unit");
-      layer.appendChild(shape);
       const detail = unitDetail(point, rp, isFleet);
-      if (detail) layer.appendChild(detail);
       const mark = unitLetter(point, rp, isFleet);
-      if (mark) layer.appendChild(mark);
+      // Tagged with the province, so an editor can pick up every node of one
+      // marker at once; the board itself never reads the tag.
+      for (const node of [shape, detail, mark]) {
+        if (!node) continue;
+        node.setAttribute("data-province", province);
+        layer.appendChild(node);
+      }
     });
 
     // The dislodged markers go on top, each with a red ring, so a province
@@ -1472,18 +1476,20 @@ export function mount(
       ring.setAttribute("stroke", "#ff5c5c");
       ring.setAttribute("stroke-width", String(Math.max(1.5, rp * 0.22)));
       ring.setAttribute("class", "dislodged-ring");
-      layer.appendChild(ring);
 
       const shape = unitShape(point, rp * 0.82, isFleet);
       shape.setAttribute("fill", powerColor(unit.nation));
       shape.setAttribute("stroke", "#14161a");
       shape.setAttribute("stroke-width", String(markerStroke(markerStyle, rp * 0.88, false)));
       shape.setAttribute("class", "unit dislodged");
-      layer.appendChild(shape);
       const detail = unitDetail(point, rp * 0.82, isFleet);
-      if (detail) layer.appendChild(detail);
       const mark = unitLetter(point, rp * 0.82, isFleet);
-      if (mark) layer.appendChild(mark);
+      for (const node of [ring, shape, detail, mark]) {
+        if (!node) continue;
+        node.setAttribute("data-province", province);
+        node.setAttribute("data-dislodged", "1");
+        layer.appendChild(node);
+      }
     });
   }
 
