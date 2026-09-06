@@ -159,6 +159,8 @@ export interface BoardState {
   /* The rules this game runs under, of which the board needs one: whether an
      order the variant refuses may be written anyway (ADR-029, illegal.ts). */
   settings?: { illegalMoves?: boolean };
+  /** The board's variant, of which the standings need one line (Standings.tsx). */
+  variant?: { standingsNote?: string };
   units?: Record<string, Unit>;
   /** The variant's approved marker positions, when the server has a table. */
   placements?: Record<string, Placement> | null;
